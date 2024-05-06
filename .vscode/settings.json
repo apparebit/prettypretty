@@ -1,0 +1,18 @@
+{
+    "cSpell.words": [
+        "APCA",
+        "Hifi",
+        "OKLAB",
+        "oklch",
+        "srgb"
+    ],
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./test",
+        "-p",
+        "test_*.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true
+}
