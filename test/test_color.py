@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import math
 import unittest
 
-from prettypretty.color.color import parse_hex, parse_x_rgb, parse_x_rgbi
+from prettypretty.color.color import Color, parse_hex, parse_x_rgb, parse_x_rgbi
 from prettypretty.color.conversion import (
     rgb256_to_srgb,
     srgb_to_rgb256,
@@ -34,6 +34,7 @@ class ColorValues:
     XYZ: tuple[float, float, float]
     OkLab: tuple[float, float, float]
     OkLCh: tuple[float, float, float]
+    ANSI: tuple[int]
 
 
 class TestColor(unittest.TestCase):
@@ -48,6 +49,7 @@ class TestColor(unittest.TestCase):
         XYZ = (0.0, 0.0, 0.0),
         OkLab = (0.0, 0.0, 0.0),
         OkLCh = (0.0, 0.0, math.nan),
+        ANSI= (0,),
     )
 
     YELLOW = ColorValues(
@@ -60,6 +62,7 @@ class TestColor(unittest.TestCase):
         XYZ = (0.6235868473237722, 0.635031101987136, 0.08972950140152941),
         OkLab = (0.8613332073307732, 0.0017175723640959761, 0.1760013937170005),
         OkLCh = (0.8613332073307732, 0.17600977428868128, 89.440876452466),
+        ANSI = (11,),
     )
 
     BLUE = ColorValues(
@@ -72,6 +75,7 @@ class TestColor(unittest.TestCase):
         XYZ = (0.22832473003420622, 0.20025321836938537, 0.80506528557483),
         OkLab = (0.5909012953108558, -0.03348086515869708, -0.1836287492414714),
         OkLCh = (0.5909012953108558, 0.18665606306724153, 259.66681920272583),
+        ANSI = (6,),
     )
 
     WHITE = ColorValues(
@@ -84,6 +88,7 @@ class TestColor(unittest.TestCase):
         XYZ = (0.9504559270516717, 1.0, 1.0890577507598784),
         OkLab = (1.0000000000000002, -4.996003610813204e-16, 1.734723475976807e-17),
         OkLCh = (1.0000000000000002, 4.999014376318559e-16, math.nan),
+        ANSI = (15,),
     )
 
     def assertCloseEnough(
@@ -95,61 +100,61 @@ class TestColor(unittest.TestCase):
         for c1, c2 in zip(color1, color2):
             self.assertAlmostEqual(c1, c2, places=places)
 
-    def test_conversions(self) -> None:
+    def test_one_step_conversions(self) -> None:
         for color_name in ('BLACK', 'YELLOW', 'BLUE', 'WHITE'):
             values = getattr(self, color_name)
-            spec = getattr(values, 'spec')
+            spec = values.spec
 
             color_name = color_name.lower()
             with self.subTest('hex-string to RGB256', color=color_name):
                 _, rgb256 = parse_hex(spec)
-                self.assertEqual(rgb256, getattr(values, 'parsed'))
+                self.assertEqual(rgb256, values.parsed)
 
             with self.subTest('RGB256 to sRGB', color=color_name):
                 srgb = rgb256_to_srgb(*rgb256)
-                self.assertEqual(srgb, getattr(values, 'sRGB'))
+                self.assertEqual(srgb, values.sRGB)
 
             with self.subTest('sRGB back to RGB256', color=color_name):
                 self.assertEqual(srgb_to_rgb256(*srgb), rgb256)
 
             with self.subTest('sRGB to linear sRGB', color=color_name):
                 linear_srgb = srgb_to_linear_srgb(*srgb)
-                self.assertEqual(linear_srgb, getattr(values, 'linear_sRGB'))
+                self.assertEqual(linear_srgb, values.linear_sRGB)
 
             with self.subTest('linear sRGB back to sRGB', color=color_name):
                 self.assertCloseEnough(linear_srgb_to_srgb(*linear_srgb), srgb)
 
             with self.subTest('linear sRGB to XYZ', color=color_name):
                 xyz = linear_srgb_to_xyz(*linear_srgb)
-                self.assertEqual(xyz, getattr(values, 'XYZ'))
+                self.assertEqual(xyz, values.XYZ)
 
             with self.subTest('XYZ back to linear sRGB', color=color_name):
                 self.assertCloseEnough(xyz_to_linear_srgb(*xyz), linear_srgb)
 
             with self.subTest('XYZ to linear P3', color=color_name):
                 linear_p3 = xyz_to_linear_p3(*xyz)
-                self.assertEqual(linear_p3, getattr(values, 'linear_P3'))
+                self.assertEqual(linear_p3, values.linear_P3)
 
             with self.subTest('linear P3 back to XYZ', color=color_name):
                 self.assertCloseEnough(linear_p3_to_xyz(*linear_p3), xyz)
 
             with self.subTest('linear P3 to P3', color=color_name):
                 p3 = linear_p3_to_p3(*linear_p3)
-                self.assertEqual(p3, getattr(values, 'P3'))
+                self.assertEqual(p3, values.P3)
 
             with self.subTest('P3 back to linear P3', color=color_name):
                 self.assertCloseEnough(p3_to_linear_p3(*p3), linear_p3)
 
             with self.subTest('XYZ to OkLab', color=color_name):
                 oklab = xyz_to_oklab(*xyz)
-                self.assertEqual(oklab, getattr(values, 'OkLab'))
+                self.assertEqual(oklab, values.OkLab)
 
             with self.subTest('OkLab back to XYZ', color=color_name):
                 self.assertCloseEnough(oklab_to_xyz(*oklab), xyz)
 
             with self.subTest('OkLab to OkLCh', color=color_name):
                 oklch = oklab_to_oklch(*oklab)
-                expected = getattr(values, 'OkLCh')
+                expected = values.OkLCh
                 self.assertEqual(oklch[0], expected[0])
                 self.assertEqual(oklch[1], expected[1])
                 self.assertTrue(
@@ -162,11 +167,33 @@ class TestColor(unittest.TestCase):
 
             with self.subTest('linear sRGB to OkLab via Ottosson', color=color_name):
                 ottosson1 = linear_srgb_to_oklab(*linear_srgb)
-                self.assertCloseEnough(ottosson1, getattr(values, 'OkLab'), places=7)
+                self.assertCloseEnough(ottosson1, values.OkLab, places=7)
 
             # with self.subTest('OkLab to linear sRGB via Ottosson', color=color_name):
             #     ottosson2 = oklab_to_linear_srgb(*oklab)
             #     self.assertCloseEnough(ottosson2, getattr(values, 'linear_sRGB'), places=7)
+
+    def test_multistep_conversions(self) -> None:
+        for color_name in ('BLACK', 'YELLOW', 'BLUE', 'WHITE'):
+            values = getattr(self, color_name)
+            spec = getattr(values, 'spec')
+
+            color_name = color_name.lower()
+            with self.subTest('parse color', color=color_name):
+                color = Color.of(spec)
+                self.assertEqual(color.tag, 'rgb256')
+                self.assertEqual(color.coordinates, values.parsed)
+
+            with self.subTest('convert to OkLab', color=color_name):
+                oklab = color.to('oklab')
+                self.assertEqual(oklab.tag, 'oklab')
+                self.assertEqual(oklab.coordinates, values.OkLab)
+
+            with self.subTest('convert to ANSI', color=color_name):
+                ansi = color.to('ansi')
+                self.assertEqual(ansi.tag, 'ansi')
+                self.assertEqual(ansi.coordinates, values.ANSI)
+                print('****', color_name, ansi.coordinates[0])
 
     def test_x_parse_color(self) -> None:
         for text, expected in {
