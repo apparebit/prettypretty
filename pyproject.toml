@@ -1,5 +1,5 @@
 [project]
-name = "pitty"
+name = "prettypretty"
 description = "Library support for awesome command line interfaces"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -10,15 +10,20 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = ["pyright", "flit"]
+doc = [
+    "sphinx",
+    "sphinx_design",
+    "sphinx-rtd-theme",
+]
 
 [project.urls]
-repository = "https://github.com/apparebit/pitty"
+repository = "https://github.com/apparebit/prettypretty"
 
 [build-system]
 requires = ["flit_core >=3.4"]
 build-backend = "flit_core.buildapi"
 
 [tool.pyright]
-include = ["pitty/**/*.py", "test/*.py", "runtest.py"]
+include = ["prettypretty/**/*.py", "test/*.py", "runtest.py"]
 typeCheckingMode = "strict"
 pythonVersion = "3.12"
