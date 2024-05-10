@@ -1,1 +1,1 @@
-from .test_clr import TestColor # type: ignore
+from .test_color import TestColor # type: ignore
