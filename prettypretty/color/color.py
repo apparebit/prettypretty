@@ -1,5 +1,6 @@
-from typing import Literal, NoReturn, overload, Self
+from typing import cast, Literal, NoReturn, overload, Self
 
+from .apca import contrast, use_black_text, use_black_background
 from .conversion import convert
 from .space import resolve, Space
 from .theme import ColorSpec
@@ -73,6 +74,9 @@ def parse_x_rgbi(color: str) -> tuple[str, tuple[float, ...]]:
         _check(False, entity, color)
 
 
+type CoordinateValues = tuple[float, float, float]
+
+
 class Color(ColorSpec):
     """
     A color.
@@ -104,6 +108,8 @@ class Color(ColorSpec):
 
     def to(self, target: str) -> Self:
         """Convert this color to the color format or space with the given tag."""
+        if self.tag == target:
+            return self
         return type(self)(target, convert(self.coordinates, self.tag, target))
 
     def is_in_gamut(self) -> bool:
@@ -113,3 +119,39 @@ class Color(ColorSpec):
     def clip(self) -> Self:
         """Clip this color to the gamut of its color space."""
         return type(self)(self.tag, self.space.clip(*self.coordinates))
+
+    def contrast_against(self, background: Self) -> float:
+        """
+        Determine the contrast for text with this color against a the given
+        background color.
+        """
+        return contrast(
+            cast(CoordinateValues, self.to('srgb').coordinates),
+            cast(CoordinateValues, background.to('srgb').coordinates),
+        )
+
+    def has_black_text_more_contrast(self) -> bool:
+        """
+        Determine whether black text has more contrast againt a background with
+        this color than white text.
+        """
+        return use_black_text(*self.to('srgb').coordinates)
+
+    def has_black_background_more_contrast(self) -> bool:
+        """
+        Determine whether a black background has more contrast behind text with
+        this color than a white background.
+        """
+        return use_black_background(*self.to('srgb').coordinates)
+
+    def __getattr__(self, name: str) -> float | Self:
+        if len(name) > 1:
+            return self.to(name)
+
+        for coordinate, value in zip(self.space.coordinates, self.coordinates):
+            if coordinate.name == name:
+                return value
+        raise AttributeError(f'color {self} has no attribute named "{name}"')
+
+    # FIXME: add support for the CSS method of gamut mapping
+    # FIXME: add support for color ranges
