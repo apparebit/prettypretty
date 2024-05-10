@@ -6,14 +6,27 @@ Prettypretty helps build terminal user interfaces in Python. Notably, it
 provides expressive color management, including operating in perceptually
 uniform color spaces.
 
+.. toctree::
+   :hidden:
+
+   self
 
 .. toctree::
-   :caption: Contents:
+   :caption: Background
 
    formats-and-spaces
    conversions
 
+.. toctree::
+   :caption: API
+
    apidocs/index
+
+.. toctree::
+   :caption: Links
+   :hidden:
+
+   Repository <https://github.com/apparebit/prettypretty>
 
 
 Acknowledgements

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import math
 import unittest
 
-from prettypretty.color.color import Color, parse_hex, parse_x_rgb, parse_x_rgbi
+from prettypretty.color.object import Color, parse_hex, parse_x_rgb, parse_x_rgbi
 from prettypretty.color.conversion import (
     rgb256_to_srgb,
     srgb_to_rgb256,
@@ -193,7 +193,6 @@ class TestColor(unittest.TestCase):
                 ansi = color.to('ansi')
                 self.assertEqual(ansi.tag, 'ansi')
                 self.assertEqual(ansi.coordinates, values.ANSI)
-                print('****', color_name, ansi.coordinates[0])
 
     def test_x_parse_color(self) -> None:
         for text, expected in {

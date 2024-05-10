@@ -9,20 +9,6 @@ prettypretty.color.ansi
     :members:
 
 
-prettypretty.color.apca
------------------------
-
-.. automodule:: prettypretty.color.apca
-    :members: contrast, use_black_text, use_black_background
-
-
-prettypretty.color.color
-------------------------
-
-.. automodule:: prettypretty.color.color
-    :members: Color
-
-
 prettypretty.color.conversion
 -----------------------------
 
@@ -37,6 +23,13 @@ prettypretty.color.difference
     :members:
 
 
+prettypretty.color.apca
+-----------------------
+
+.. automodule:: prettypretty.color.apca
+    :members: contrast, use_black_text, use_black_background
+
+
 prettypretty.color.space
 ------------------------
 
@@ -49,3 +42,10 @@ prettypretty.color.theme
 
 .. automodule:: prettypretty.color.theme
     :members:
+
+
+prettypretty.color.object
+-------------------------
+
+.. automodule:: prettypretty.color.object
+    :members: Color

@@ -16,7 +16,7 @@ class ColorSpec:
     OkLab to ANSI colors.
 
     If you prefer a higher-level, fully object-oriented API, check out
-    :class:`prettypretty.color.color.Color`, which extends this class with a
+    :class:`prettypretty.color.object.Color`, which extends this class with a
     number of helpful methods. Because of that inheritance relationship,
     ``Color`` instances can be used as theme values, too.
     """

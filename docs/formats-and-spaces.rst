@@ -53,4 +53,4 @@ functions, serve as arguments to the
 :func:`prettypretty.color.conversion.convert`, and
 :func:`prettypretty.color.space.resolve` functions, and as the first field of
 the :class:`prettypretty.color.theme.ColorSpec` and
-:class:`prettypretty.color.color.Color` classes.
+:class:`prettypretty.color.object.Color` classes.

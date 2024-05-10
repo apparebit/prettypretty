@@ -122,7 +122,7 @@ class Color(ColorSpec):
 
     def contrast_against(self, background: Self) -> float:
         """
-        Determine the contrast for text with this color against a the given
+        Determine the contrast for text with this color against the given
         background color.
         """
         return contrast(
@@ -130,17 +130,17 @@ class Color(ColorSpec):
             cast(CoordinateValues, background.to('srgb').coordinates),
         )
 
-    def has_black_text_more_contrast(self) -> bool:
+    def has_better_contrast_with_black_text(self) -> bool:
         """
-        Determine whether black text has more contrast againt a background with
-        this color than white text.
+        Determine whether a background with this color has better contrast with
+        black or white text.
         """
         return use_black_text(*self.to('srgb').coordinates)
 
-    def has_black_background_more_contrast(self) -> bool:
+    def has_better_contrast_with_black_background(self) -> bool:
         """
-        Determine whether a black background has more contrast behind text with
-        this color than a white background.
+        Determine whether text with this color has better contrast against a
+        black or white background.
         """
         return use_black_background(*self.to('srgb').coordinates)
 
