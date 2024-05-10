@@ -69,7 +69,7 @@ def _hex(s: str) -> ColorSpec:
 
 
 # The default theme is the basic theme for macOS terminal
-DEFAULT_THEME = Theme(
+DEFAULT_THEME = MACOS_TERMINAL_BASIC = Theme(
     text=_hex("000000"),
     background=_hex("ffffff"),
     black=_hex("000000"),
@@ -90,6 +90,47 @@ DEFAULT_THEME = Theme(
     bright_white=_hex("e5e5e5"),
 )
 
+THE_DARK_THEME = Theme(
+    text=_hex("cecece"),
+    background=_hex("0e1415"),
+    black=_hex("0e1415"),
+    red=_hex("db4236"),
+    green=_hex("159b1d"),
+    yellow=_hex("a27a02"),
+    blue=_hex("2e86d6"),
+    magenta=_hex("b15ead"),
+    cyan=_hex("0192a4"),
+    white=_hex("aeaeae"),
+    bright_black=_hex("484848"),
+    bright_red=_hex("fea295"),
+    bright_green=_hex("6eed6b"),
+    bright_yellow=_hex("ffc200"),
+    bright_blue=_hex("a8d1fc"),
+    bright_magenta=_hex("ffabf9"),
+    bright_cyan=_hex("2ce5fe"),
+    bright_white=_hex("f2f2f2"),
+)
+
+THE_LIGHT_THEME = Theme(
+    text=_hex("0e1415"),
+    background=_hex("f2f2f2"),
+    black=_hex("0e1415"),
+    red=_hex("db4236"),
+    green=_hex("159b1d"),
+    yellow=_hex("a27a02"),
+    blue=_hex("2e86d6"),
+    magenta=_hex("b15ead"),
+    cyan=_hex("0192a4"),
+    white=_hex("aeaeae"),
+    bright_black=_hex("484848"),
+    bright_red=_hex("fea295"),
+    bright_green=_hex("6eed6b"),
+    bright_yellow=_hex("ffc200"),
+    bright_blue=_hex("a8d1fc"),
+    bright_magenta=_hex("ffabf9"),
+    bright_cyan=_hex("2ce5fe"),
+    bright_white=_hex("f2f2f2"),
+)
 
 _current_theme = DEFAULT_THEME
 
