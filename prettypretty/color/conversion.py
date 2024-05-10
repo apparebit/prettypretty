@@ -128,7 +128,7 @@ def rgb6_to_eight_bit_cube(r: int, g: int, b: int) -> tuple[int]:
     Convert the given color from the 6x6x6 RGB cube of 8-bit terminal colors to
     an actual 8-bit terminal color.
     """
-    return 16 + 36 * r + 16 * g + b,
+    return 16 + 36 * r + 6 * g + b,
 
 
 def rgb6_to_rgb256(r: int, g: int, b: int) -> tuple[int, int, int]:
@@ -257,7 +257,6 @@ def oklab_to_ansi(L: float, a: float, b: float) -> tuple[int]:
     :bdg-warning:`Lossy conversion` Convert the given color from Oklab to the
     extended ANSI colors.
     """
-
     theme = current_theme()
     if theme not in _THEME_CACHE:
         _THEME_CACHE[theme] = tuple(
@@ -267,7 +266,7 @@ def oklab_to_ansi(L: float, a: float, b: float) -> tuple[int]:
 
     ansi = cast(tuple[tuple[float, float, float], ...], _THEME_CACHE[theme])
     index, _ = closest_oklab((L, a, b), *ansi)
-    return (index,)
+    return (index - 1,)
 
 
 # --------------------------------------------------------------------------------------
