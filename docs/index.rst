@@ -1,14 +1,19 @@
-prettypretty: Making Terminals Great Again
-==========================================
+Prettypretty Terminals
+======================
+
+
+Prettypretty helps build terminal user interfaces in Python. Notably, it
+provides expressive color management, including operating in perceptually
+uniform color spaces.
 
 
 .. toctree::
    :caption: Contents:
 
    formats-and-spaces
+   conversions
 
    apidocs/index
-
 
 
 Acknowledgements
