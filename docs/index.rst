@@ -20,7 +20,9 @@ uniform color spaces.
 .. toctree::
    :caption: API
 
-   apidocs/index
+   apidocs/color
+   apidocs/grid
+   apidocs/style
 
 .. toctree::
    :caption: Links
