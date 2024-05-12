@@ -7,20 +7,23 @@ from typing import ContextManager, overload
 @dataclasses.dataclass(frozen=True, slots=True)
 class ColorSpec:
     """
-    A color specification. It combines a ``tag`` identifying the color format or
-    space with the color's ``coordinates``.
+    An immutable color specification.
 
-    This class is purposefully minimal. It avoids introducing dependencies on
-    other prettypretty modules, which might get in the way of this module being
-    a dependency of :mod:`prettypretty.color.conversion` when converting from
-    OkLab to ANSI colors.
+    Attributes:
+        tag: identifies the color format or space
+        coordinates: are the color's components
 
-    If you prefer a higher-level, fully object-oriented API, check out
-    :class:`prettypretty.color.object.Color`, which extends this class with a
-    number of helpful methods. Because of that inheritance relationship,
-    ``Color`` instances can be used as theme values, too.
+    This class is purposefully minimal, so that using this module does *not*
+    pull in modules other than a few standard library modules. That matters
+    because :mod:`prettypretty.color.conversion` requires access to the current
+    theme when converting from 8-bit terminal to 24-bit RGB and from Oklab to
+    ANSI colors.
+
+    If you are looking for a higher-level, fully object-oriented API, check out
+    :class:`prettypretty.color.object.Color`. It has methods for all color
+    functionality implemented by this package. It also extends this class, which
+    means you can use instances of ``Color`` in themes.
     """
-
     tag: str
     coordinates: tuple[float, ...]
 
@@ -30,10 +33,10 @@ class Theme:
     """
     A terminal color theme.
 
-    Almost all terminals have robust support for configuring colors by switching
-    between color themes. This class collects the colors belonging to such a
-    theme. They comprise the text (foreground) and background colors as well as
-    the 16 extended ANSI colors.
+    Manipulating ANSI colors like RGB colors is complicated by the facts that
+    there is no canonical mapping between them and that most terminal emulators
+    have robust support for color themes, which modify ANSI colors. This class
+    captures such a terminal theme, well, the bits relevant for this package.
     """
 
     text: ColorSpec
@@ -132,6 +135,10 @@ THE_LIGHT_THEME = Theme(
     bright_white=_hex("f2f2f2"),
 )
 
+
+# --------------------------------------------------------------------------------------
+
+
 _current_theme = DEFAULT_THEME
 
 @overload
@@ -144,10 +151,13 @@ def current_theme(theme: None | Theme = None) -> Theme | ContextManager[Theme]:
     """
     Manage the current theme.
 
-    When invoked without an argument, this function returns the current theme.
-    When invoked with a theme as argument, this function returns a context
-    manager that switches to the provided theme on entry and restores the
-    current theme again on exit.
+    This function does the work of two functions:
+
+     1. When invoked without arguments, this function simply returns the current
+        theme.
+     2. When invoked with a theme as argument, this function returns a context
+        manager that switches to the provided theme on entry and restores the
+        current theme again on exit.
     """
     if theme is None:
         return _current_theme

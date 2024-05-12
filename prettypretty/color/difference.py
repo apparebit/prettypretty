@@ -1,3 +1,4 @@
+"""Support for computing the difference between two or more colors"""
 import math
 from typing import Literal
 
@@ -34,13 +35,13 @@ def closest_oklab(
     return that color's one-based index as well as coordinates. If no candidates
     are given, this function returns zero and the origin's coordinates.
     """
-    Δmin = math.inf
+    min_ΔE = math.inf
     min_index = 0
     min_color = origin
     for index, color in enumerate(candidates):
-        Δ = deltaE_oklab(*origin, *color)
-        if Δ < Δmin:
-            Δmin = Δ
+        ΔE = deltaE_oklab(*origin, *color)
+        if ΔE < min_ΔE:
+            min_ΔE = ΔE
             min_index = index + 1
             min_color = color
     return min_index, min_color

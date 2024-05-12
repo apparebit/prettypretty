@@ -1,3 +1,8 @@
+"""
+Predicates for distinguishing the different representations contained in 8-bit
+terminal colors.
+"""
+
 def is_default(color: int) -> bool:
     """Determine whether the given color is the default color, i.e., -1."""
     return color == -1
