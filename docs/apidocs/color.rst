@@ -37,10 +37,24 @@ prettypretty.color.object
     :members:
 
 
+prettypretty.color.serde
+------------------------
+
+.. automodule:: prettypretty.color.serde
+    :members:
+
+
 prettypretty.color.space
 ------------------------
 
 .. automodule:: prettypretty.color.space
+    :members:
+
+
+prettypretty.color.spec
+-----------------------
+
+.. automodule:: prettypretty.color.spec
     :members:
 
 
