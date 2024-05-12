@@ -1,26 +1,40 @@
-from dataclasses import dataclass
+"""Metadata about color spaces"""
+import dataclasses
 import math
 from typing import Literal, Self
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class Coordinate:
     """
     Representation of a color space coordinate.
 
-    Every coordinate has a unique ``name``. If its domain is restricted, ``min``
-    and ``max`` define the range of valid values. If the coordinate meets the
-    requirements of one of the three types, it also declares that type:
+    Attributes:
+        name: the single-letter name of the coordinate or an empty string
+            for coordinates that have no name
+        min: the optional minimum value for the coordinate
+        max: the optional maximum value for the coordinate
+        type: the optional type to further clarify coordinate semantics
 
-      * An **angle** is a floating point number between 0 and 360, inclusive.
+    More specifically, the ``type`` can identify one of three common classes of
+    coordinates:
+
+      * An **angle** is a floating point number representing a rotation between
+        0 and 360 degrees, inclusive; used for the *hue* in polar color spaces.
       * A **normal** is a floating point number between 0 and 1, inclusive.
       * An **int** may have arbitrary range but all its values must be integral.
-    """
 
+    """
     name: str
     min: None | float = None
     max: None | float = None
     type: None | Literal['angle', 'int', 'normal'] = None
+
+    def __post_init__(self) -> None:
+        if len(self.name) > 1:
+            raise ValueError(
+                f'Color space coordinate name "{self.name}" is not single-letter'
+            )
 
     @classmethod
     def for_normal(cls, name: str) -> Self:
@@ -48,18 +62,22 @@ class Coordinate:
         return value
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class Space:
     """
     Representation of a color space.
 
-
+    Attributes:
+        tag: a valid Python name used to uniquely identify the color space
+        name: a human-readable, descriptive name
+        base: the optional base color space
+        coordinates: the coordinates of the color space
     """
-
     tag: str
     name: str
     base: None | Self
     coordinates: tuple[Coordinate, ...]
+    css_format: None | str
 
     def is_in_gamut(self, *values: float, epsilon: float = .000075) -> bool:
         assert len(self.coordinates) == len(values)
@@ -87,6 +105,7 @@ XYZ = XYZ_D65 = Space(
         Coordinate('Y'),
         Coordinate('Z'),
     ),
+    'color(xyz {})',
 )
 
 LINEAR_SRGB = Space(
@@ -94,6 +113,7 @@ LINEAR_SRGB = Space(
     'Linear sRGB',
     XYZ,
     _RGB_COORDINATES,
+    'color(srgb-linear {})',
 )
 
 SRGB = Space(
@@ -101,6 +121,7 @@ SRGB = Space(
     'sRGB',
     LINEAR_SRGB,
     _RGB_COORDINATES,
+    'color(srgb {})',
 )
 
 RGB256 = Space(
@@ -111,7 +132,8 @@ RGB256 = Space(
         Coordinate('r', 0, 255, 'int'),
         Coordinate('g', 0, 255, 'int'),
         Coordinate('b', 0, 255, 'int'),
-    )
+    ),
+    'rgb({})',
 )
 
 RGB6 = Space(
@@ -122,25 +144,28 @@ RGB6 = Space(
         Coordinate('r', 0, 6, 'int'),
         Coordinate('g', 0, 6, 'int'),
         Coordinate('b', 0, 6, 'int'),
-    )
+    ),
+    None,
 )
 
-EIGHT_BIT_CUBE = Space(
-    'eight_bit_cube',
-    '8-bit terminal 6x6x6 cube',
-    RGB6,
+EIGHT_BIT = Space(
+    'eight_bit',
+    '8-bit terminal color',
+    None,
     (
-        Coordinate('value', 16, 231, 'int'),
-    )
+        Coordinate('', 0, 255, 'int'),
+    ),
+    None,
 )
 
-EIGHT_BIT_GREY = Space(
-    'eight_bit_grey',
-    '8-bit terminal grey',
-    RGB256,
+ANSI = Space(
+    'ansi',
+    'ANSI terminal color',
+    EIGHT_BIT,
     (
-        Coordinate('value', 232, 255, 'int'),
-    )
+        Coordinate('', 0, 15, 'int'),
+    ),
+    None,
 )
 
 LINEAR_P3 = Space(
@@ -148,6 +173,7 @@ LINEAR_P3 = Space(
     'Linear P3',
     XYZ,
     _RGB_COORDINATES,
+    None,
 )
 
 P3 = Space(
@@ -155,6 +181,7 @@ P3 = Space(
     'P3',
     LINEAR_P3,
     _RGB_COORDINATES,
+    'color(display-p3 {})',
 )
 
 OKLAB = Space(
@@ -166,6 +193,7 @@ OKLAB = Space(
         Coordinate('a', -0.4, 0.4),
         Coordinate('b', -0.4, 0.4),
     ),
+    'oklab({})',
 )
 
 OKLCH = Space(
@@ -177,6 +205,7 @@ OKLCH = Space(
         Coordinate('C', 0, 0.4),
         Coordinate.for_angle('h'),
     ),
+    'oklch({})',
 )
 
 
@@ -186,3 +215,15 @@ def resolve(tag: str) -> Space:
     if isinstance(space, Space):
         return space
     raise AttributeError(f"module {__name__} has no color space with tag '{tag}'")
+
+
+def is_tag(tag: str) -> bool:
+    """
+    Determine whether the given string is a valid tag for color format or space.
+    """
+    try:
+        resolve(tag)
+    except:
+        return False
+    else:
+        return True
