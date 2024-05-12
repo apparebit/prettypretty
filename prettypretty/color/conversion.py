@@ -4,7 +4,7 @@ import math
 from typing import Callable, cast
 
 from .difference import closest_oklab
-from .theme import current_theme, Theme
+from .spec import CoordinateSpec, current_theme, Theme
 
 
 _RGB6_TO_RGB256 = (0, 0x5F, 0x87, 0xAF, 0xD7, 0xFF)
@@ -542,12 +542,12 @@ def route(source: str, target: str, *, extra: None | str = None) -> list[_Conver
 
 
 def convert(
-    color: tuple[float, ...],
+    color: CoordinateSpec,
     source: str,
     target: str,
     *,
     extra: None | str = None,
-) -> tuple[float, ...]:
+) -> CoordinateSpec:
     """
     Convert the given color from its source color space to the target color
     space.

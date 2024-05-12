@@ -1,78 +1,11 @@
-from typing import cast, Literal, NoReturn, overload, Self
+from typing import cast, Self
 
 from .apca import contrast, use_black_text, use_black_background
 from .conversion import convert
 from .difference import deltaE_oklab, closest_oklab
+from .serde import parse_hex, parse_x_rgb, parse_x_rgbi
 from .space import is_tag, resolve, Space
-from .theme import ColorSpec
-
-
-@overload
-def _check(
-    is_valid: Literal[False], entity: str, value: object, deficiency: str = ...
-) -> NoReturn:
-    ...
-@overload
-def _check(
-    is_valid: bool, entity: str, value: object, deficiency: str = ...
-) -> None | NoReturn:
-    ...
-def _check(
-    is_valid: bool, entity: str, value: object, deficiency: str = 'is malformed'
-) -> None | NoReturn:
-    if not is_valid:
-        raise SyntaxError(f'{entity} "{value}" {deficiency}')
-    return
-
-
-def parse_hex(color: str) -> tuple[str, tuple[int, ...]]:
-    entity = 'hex web color'
-
-    try:
-        _check(color.startswith('#'), entity, color, 'does not start with "#"')
-        color = color[1:]
-        digits = len(color)
-        _check(digits in (3, 6), entity, color, 'does not have 3 or 6 digits')
-        if digits == 3:
-            color = ''.join(f'{d}{d}' for d in color)
-        return 'rgb256', tuple(int(color[n:n+2], base=16) for n in range(0, 6, 2))
-    except SyntaxError:
-        raise
-    except:
-        _check(False, entity, color)
-
-
-def parse_x_rgb(color: str) -> tuple[str, tuple[float, ...]]:
-    entity = 'X rgb color'
-
-    try:
-        _check(color.startswith('rgb:'), entity, color, 'does not start with "rgb:"')
-        hexes = [(f'{h}{h}' if len(h) == 1 else h) for h in color[4:].split('/')]
-        _check(len(hexes) == 3, entity, color, 'does not have three components')
-        if max(len(h) for h in hexes) == 2:
-            return 'rgb256', tuple(int(h, base=16) for h in hexes)
-        else:
-            return 'srgb', tuple(int(h, base=16) / 16 ** len(h) for h in hexes)
-    except SyntaxError:
-        raise
-    except:
-        _check(False, entity, color)
-
-
-def parse_x_rgbi(color: str) -> tuple[str, tuple[float, ...]]:
-    entity = 'X rgbi color'
-
-    try:
-        _check(color.startswith('rgbi:'), entity, color, 'does not start with "rgbi:"')
-        cs = [float(c) for c in color[5:].split('/')]
-        _check(len(cs) == 3, entity, color, 'does not have three components')
-        for c in cs:
-            _check(0 <= c <= 1, entity, color, 'has non-normal component')
-        return 'srgb', tuple(cs)
-    except SyntaxError:
-        raise
-    except:
-        _check(False, entity, color)
+from .spec import ColorSpec
 
 
 type CoordinateValues = tuple[float, float, float]

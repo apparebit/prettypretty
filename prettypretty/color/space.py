@@ -1,7 +1,9 @@
 """Metadata about color spaces"""
 import dataclasses
 import math
-from typing import Literal, Self
+from typing import cast, Literal, Self
+
+from .spec import CoordinateSpec
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -77,7 +79,8 @@ class Space:
     name: str
     base: None | Self
     coordinates: tuple[Coordinate, ...]
-    css_format: None | str
+    css_format: None | str = None
+    terminal_specific: bool = False
 
     def is_in_gamut(self, *values: float, epsilon: float = .000075) -> bool:
         assert len(self.coordinates) == len(values)
@@ -86,8 +89,11 @@ class Space:
                 return False
         return True
 
-    def clip(self, *values: float) -> tuple[float, ...]:
-        return tuple(c.clip(v) for c, v in zip(self.coordinates, values))
+    def clip(self, *values: float) -> CoordinateSpec:
+        return cast(
+            CoordinateSpec,
+            tuple(c.clip(v) for c, v in zip(self.coordinates, values)),
+        )
 
 
 _RGB_COORDINATES = (
@@ -97,115 +103,118 @@ _RGB_COORDINATES = (
 )
 
 XYZ = XYZ_D65 = Space(
-    'xyz',
-    'XYZ D65',
-    None,
-    (
+    tag='xyz',
+    name='XYZ D65',
+    base=None,
+    coordinates=(
         Coordinate('X'),
         Coordinate('Y'),
         Coordinate('Z'),
     ),
-    'color(xyz {})',
+    css_format='color(xyz {})',
 )
 
 LINEAR_SRGB = Space(
-    'linear_srgb',
-    'Linear sRGB',
-    XYZ,
-    _RGB_COORDINATES,
-    'color(srgb-linear {})',
+    tag='linear_srgb',
+    name='Linear sRGB',
+    base=XYZ,
+    coordinates=_RGB_COORDINATES,
+    css_format='color(srgb-linear {})',
 )
 
 SRGB = Space(
-    'srgb',
-    'sRGB',
-    LINEAR_SRGB,
-    _RGB_COORDINATES,
-    'color(srgb {})',
+    tag='srgb',
+    name='sRGB',
+    base=LINEAR_SRGB,
+    coordinates=_RGB_COORDINATES,
+    css_format='color(srgb {})',
 )
 
 RGB256 = Space(
-    'rgb256',
-    '24-bit RGB',
-    SRGB,
-    (
+    tag='rgb256',
+    name='24-bit RGB',
+    base=SRGB,
+    coordinates=(
         Coordinate('r', 0, 255, 'int'),
         Coordinate('g', 0, 255, 'int'),
         Coordinate('b', 0, 255, 'int'),
     ),
-    'rgb({})',
-)
-
-RGB6 = Space(
-    'rgb6',
-    '8-bit terminal color RGB',
-    RGB256,
-    (
-        Coordinate('r', 0, 6, 'int'),
-        Coordinate('g', 0, 6, 'int'),
-        Coordinate('b', 0, 6, 'int'),
-    ),
-    None,
-)
-
-EIGHT_BIT = Space(
-    'eight_bit',
-    '8-bit terminal color',
-    None,
-    (
-        Coordinate('', 0, 255, 'int'),
-    ),
-    None,
-)
-
-ANSI = Space(
-    'ansi',
-    'ANSI terminal color',
-    EIGHT_BIT,
-    (
-        Coordinate('', 0, 15, 'int'),
-    ),
-    None,
+    css_format='rgb({})',
 )
 
 LINEAR_P3 = Space(
-    'linear_p3',
-    'Linear P3',
-    XYZ,
-    _RGB_COORDINATES,
-    None,
+    tag='linear_p3',
+    name='Linear P3',
+    base=XYZ,
+    coordinates=_RGB_COORDINATES,
+    css_format=None,
 )
 
 P3 = Space(
-    'p3',
-    'P3',
-    LINEAR_P3,
-    _RGB_COORDINATES,
-    'color(display-p3 {})',
+    tag='p3',
+    name='P3',
+    base=LINEAR_P3,
+    coordinates=_RGB_COORDINATES,
+    css_format='color(display-p3 {})',
 )
 
 OKLAB = Space(
-    'oklab',
-    'Oklab',
-    XYZ,
-    (
+    tag='oklab',
+    name='Oklab',
+    base=XYZ,
+    coordinates=(
         Coordinate.for_normal('L'),
         Coordinate('a', -0.4, 0.4),
         Coordinate('b', -0.4, 0.4),
     ),
-    'oklab({})',
+    css_format='oklab({})',
 )
 
 OKLCH = Space(
-    'oklch',
-    'Oklch',
-    OKLAB,
-    (
+    tag='oklch',
+    name='Oklch',
+    base=OKLAB,
+    coordinates=(
         Coordinate.for_normal('L'),
         Coordinate('C', 0, 0.4),
         Coordinate.for_angle('h'),
     ),
-    'oklch({})',
+    css_format='oklch({})',
+)
+
+RGB6 = Space(
+    tag='rgb6',
+    name='8-bit terminal color RGB',
+    base=RGB256,
+    coordinates=(
+        Coordinate('r', 0, 6, 'int'),
+        Coordinate('g', 0, 6, 'int'),
+        Coordinate('b', 0, 6, 'int'),
+    ),
+    css_format=None,
+    terminal_specific=True,
+)
+
+EIGHT_BIT = Space(
+    tag='eight_bit',
+    name='8-bit terminal color',
+    base=None,
+    coordinates=(
+        Coordinate('', 0, 255, 'int'),
+    ),
+    css_format=None,
+    terminal_specific=True,
+)
+
+ANSI = Space(
+    tag='ansi',
+    name='ANSI terminal color',
+    base=EIGHT_BIT,
+    coordinates=(
+        Coordinate('', 0, 15, 'int'),
+    ),
+    css_format=None,
+    terminal_specific=True,
 )
 
 
