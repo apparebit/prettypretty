@@ -1,8 +1,4 @@
-"""
-Conversion between common color formats and spaces. With exception of color
-formats that explicitly model integral components, all colors are represented by
-triples with floating point components.
-"""
+"""Conversion between color formats and spaces"""
 from collections import deque
 import math
 from typing import Callable, cast
@@ -93,6 +89,54 @@ _SRGB_LMS_TO_LINEAR_SRGB = (
     ( 0.0041960863, -0.7034186147,  1.7076147010 ),
 )
 
+
+# --------------------------------------------------------------------------------------
+
+
+class _ThemeCache:
+
+    def __init__(self) -> None:
+        self._theme = None
+        self._rgb256 = None
+        self._oklab = None
+
+    def _clear(self) -> None:
+        self._theme = None
+        self._rgb256 = None
+        self._oklab = None
+
+    def _use_theme(self, theme: Theme) -> None:
+        if self._theme is not theme:
+            self._clear()
+            self._theme = theme
+
+    def _convert(self, target: str) -> tuple[tuple[float, ...], ...]:
+        assert self._theme is not None
+        return tuple(
+            convert(c.coordinates, c.tag, target)
+            for n, c in self._theme.colors() if n not in ('text', 'background')
+        )
+
+    def rgb256(self, theme: Theme) -> tuple[tuple[int, int, int], ...]:
+        self._use_theme(theme)
+        if self._rgb256 is None:
+            self._rgb256 = self._convert('rgb256')
+        return cast(tuple[tuple[int, int, int], ...], self._rgb256)
+
+    def oklab(self, theme: Theme) -> tuple[tuple[float, float, float], ...]:
+        self._use_theme(theme)
+        if self._oklab is None:
+            self._oklab = self._convert('oklab')
+        return cast(tuple[tuple[float, float, float], ...], self._oklab)
+
+
+# The theme cache used by eight_bit_to_rgb256 and oklab_to_ansi
+_THEME_CACHE = _ThemeCache()
+
+
+# --------------------------------------------------------------------------------------
+
+
 _IntVector = tuple[int, int, int]
 _Vector = tuple[float, float, float]
 _Matrix = tuple[_Vector, _Vector, _Vector]
@@ -105,13 +149,13 @@ def _multiply(matrix: _Matrix, vector: _Vector) -> _Vector:
 
 
 # --------------------------------------------------------------------------------------
-# 8-bit terminal colors
+# 8-bit terminal colors and RGB6
 
 
-def eight_bit_cube_to_rgb6(color: int) -> tuple[int, int, int]:
+def eight_bit_to_rgb6(color: int) -> tuple[int, int, int]:
     """
-    Convert the given eight-bit color to the three components of the 6x6x6 RGB
-    cube. The color value must be between 16 and 231, inclusive.
+    Convert the given 8-bit color to the three components of the 6x6x6 RGB cube.
+    The color value must be between 16 and 231, inclusive.
     """
     assert 16 <= color <= 231
 
@@ -123,11 +167,12 @@ def eight_bit_cube_to_rgb6(color: int) -> tuple[int, int, int]:
     return r, g, b
 
 
-def rgb6_to_eight_bit_cube(r: int, g: int, b: int) -> tuple[int]:
+def rgb6_to_eight_bit(r: int, g: int, b: int) -> tuple[int]:
     """
     Convert the given color from the 6x6x6 RGB cube of 8-bit terminal colors to
     an actual 8-bit terminal color.
     """
+    assert 0 <= r <= 5 and 0 <= g <= 5 and 0 <= b <= 5
     return 16 + 36 * r + 6 * g + b,
 
 
@@ -136,19 +181,30 @@ def rgb6_to_rgb256(r: int, g: int, b: int) -> tuple[int, int, int]:
     Convert the given color from the 6x6x6 RGB cube of 8-bit terminal colors to
     24-bit RGB. Each component must be between 0 and 5, inclusive.
     """
+    assert 0 <= r <= 5 and 0 <= g <= 5 and 0 <= b <= 5
     return cast(_IntVector, tuple(map(lambda c: _RGB6_TO_RGB256[c], (r, g, b))))
 
 
-def eight_bit_grey_to_rgb256(color: int) -> tuple[int, int, int]:
+def eight_bit_to_rgb256(color: int) -> tuple[int, int, int]:
     """
-    Convert the given color from the 24-step grey gradient of 8-bit terminal
-    colors to 24-bit RGB. The color value must be between 232 and 255,
-    inclusive.
-    """
-    assert 232 <= color <= 255
+    Convert the given 8-bit terminal color to 24-bit RGB.
 
-    c = 10 * (color - 232) + 8
-    return c, c, c
+    .. warning::
+        The result of this function may depend on the current color theme.
+        It provides an implicit input in addition to the argument.
+
+        If the given 8-bit color is between 0 and 15, it is one of the extended
+        ANSI colors. Since ANSI colors have no canonical color values, this
+        function relies on the current theme to provide those color values.
+    """
+    if 0 <= color <= 15:
+        return _THEME_CACHE.rgb256(current_theme())[color]
+    if 16 <= color <= 231:
+        return rgb6_to_rgb256(*eight_bit_to_rgb6(color))
+    if 232 <= color <= 255:
+        c = 10 * (color - 232) + 8
+        return c, c, c
+    raise ValueError(f'{color} is out of range for an 8-bit color')
 
 
 # --------------------------------------------------------------------------------------
@@ -250,21 +306,25 @@ def oklab_to_xyz(L: float, a: float, b: float) -> tuple[float, float, float]:
     return _multiply(_LMS_TO_XYZ, LMS)
 
 
-_THEME_CACHE: dict[Theme, tuple[tuple[float, ...], ...]] = {}
-
 def oklab_to_ansi(L: float, a: float, b: float) -> tuple[int]:
     """
     :bdg-warning:`Lossy conversion` Convert the given color from Oklab to the
     extended ANSI colors.
-    """
-    theme = current_theme()
-    if theme not in _THEME_CACHE:
-        _THEME_CACHE[theme] = tuple(
-            convert(c.coordinates, c.tag, 'oklab')
-            for n, c in theme.colors() if n not in ('text', 'background')
-        )
 
-    ansi = cast(tuple[tuple[float, float, float], ...], _THEME_CACHE[theme])
+    .. warning::
+        The result of this function critically depends on the current color
+        theme. It provides an implicit input in addition to the arguments.
+
+        This function down-samples the given Oklab color by finding the ANSI
+        color with the smallest difference ΔE. Since ANSI colors have no
+        canonical color values, this function relies on the current theme to
+        provide those color values.
+
+        Theme colors are far more likely to be 24-bit RGB colors than Oklab.
+        To avoid having to convert theme colors to Oklab for every invocation,
+        this function caches the Oklab equivalent of the current theme.
+    """
+    ansi = _THEME_CACHE.oklab(current_theme())
     index, _ = closest_oklab((L, a, b), *ansi)
     return (index - 1,)
 
