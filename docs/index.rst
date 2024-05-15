@@ -20,6 +20,12 @@ uniform color spaces.
 
 .. toctree::
    :maxdepth: 1
+   :caption: Guides
+
+   tools
+
+.. toctree::
+   :maxdepth: 1
    :caption: API
 
    apidocs/color

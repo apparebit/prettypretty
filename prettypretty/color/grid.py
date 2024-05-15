@@ -1,10 +1,6 @@
 """
-Visualize the 6x6x6 RGB cube for 8-bit terminal color, while also exercising
-contrast computation and, optionally, down-sampling. You can run this module as
-a script::
-
-    $ python -m prettypretty.grid
-
+A script to visualize 8-bit terminal colors as well as prettypretty's support
+for down-sampling colors and maximizing contrast.
 """
 import argparse
 import os
@@ -202,8 +198,15 @@ def format_hires_slice(
     return str(frame)
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+def create_parser() -> argparse.ArgumentParser:
+    """Create a command line argument parser."""
+    parser = argparse.ArgumentParser(
+        description="""
+            Display color grids that visualize the range of terminal colors,
+            while also exercising prettypretty's support for maximizing
+            contrast and down-sampling colors.
+        """,
+    )
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -211,23 +214,28 @@ if __name__ == '__main__':
         action='store_const',
         const=MACOS_TERMINAL,
         dest='theme',
-        help='use macOS Terminal color theme')
+        help="use the same colors as the Basic theme for macOS Terminal"
+    )
     group.add_argument(
         '--xterm',
         action='store_const',
         const=XTERM,
         dest='theme',
-        help='use xterm color theme'
+        help='use the same colors as xterm'
     )
     group.add_argument(
         '--vga',
         action='store_const',
         const=VGA,
         dest='theme',
-        help='use VGA color theme'
+        help='use the same colors as VGA in text mode'
     )
 
-    options = parser.parse_args()
+    return parser
+
+
+if __name__ == '__main__':
+    options = create_parser().parse_args()
     width, _ = os.get_terminal_size()
 
     with current_theme(options.theme or VGA):
