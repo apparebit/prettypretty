@@ -1,56 +1,98 @@
 Color Formats and Spaces
 ========================
 
-Prettypretty can parse the following text-based color formats:
+To maximize accuracy, prettypretty's core  represents color coordinates as
+floating point numbers with double precision. It furthermore uses double
+precision matrices when converting coordinates between color spaces.
 
-  * The hashed hexadecimal notation familiar from the web, e.g., ``#123`` or
-    ``#abcdef``.
-  * The X Parse Color notation familiar from X Windows and xterm, e.g.,
-    ``rgb:1/22/4444`` or ``rgbi:0.3/0.6/9e-1``.
 
-It supports the following in-memory RGB color formats and spaces:
+Color Spaces
+------------
 
-  * **rgb6** represents a color from the 6x6x6 RGB cube of 8-bit terminal colors
-    by its component values. Each component ranges from 0 to 5, inclusive. The
-    implied color space is sRGB, as RGB6 colors convert to RGB256 colors.
-  * **eight_bit_cube** also represents a color from the 6x6x6 RGB cube of 8-bit
-    terminal colors, but represented as an integer between 16 and 231,
-    inclusive.
-  * **eight_bit_grey** represents one of the 24-step greyscale colors of 8-bit
-    terminal colors represented as an integer between 232 and 255. Like RGB6,
-    8-bit grey colors convert to RGB256 colors.
-  * **rgb256** represents a color as three 8-bit RGB components. The implied
-    color space is sRGB. Parsing the hashed hexadecimal notation or the ``rgb:``
-    notation with all components having at most two digits results in this color
-    representation.
-  * **srgb** represents an sRGB color as three floating point RGB components
-    between 0 and 1, inclusive. Parsing the ``rgb:`` notation with at least one
-    component having three or four digits or the ``rgbi:`` notation results in
-    this color representation.
-  * **linear_srgb** represents a *linear* sRGB color as three floating point RGB
-    components between 0 and 1, inclusive.
-  * **p3** represent a P3 color as three floating point RGB components between 0
-    and 1, inclusive.
-  * **linear_p3** represents a *linear* P3 color as three floating point RGB
-    components between 0 and 1, inclusive.
+RGB color spaces are based on an additive color model, with the overall color
+being the sum of the colors of the component lights. Every RGB color space has
+three coordinates ``r``, ``g``, and ``b``, which range from 0 to 1, inclusive,
+for in-gamut colors. The supported RGB color spaces are:
 
-Finally, it supports the following non-RGB color spaces:
+  * **srgb** is the default, gamma-corrected color space of the web, sRGB
+  * **linear_srgb** is the linear version of sRGB, without gamma correction
+  * **p3** is the larger P3 color space, with gamma correction
+  * **linear_p3** is the linear version of P3, without gammar correction
 
-  * **xyz** represents an XYZ color as three floating point components that have
-    no pre-defined limits.
-  * **oklab** represents an OkLab color as three floating point components. The
-    L (lightness) component ranges from 0 to 1, inclusive, whereas the a and b
-    components range from -0.4 to +0.4, inclusive.
-  * **oklch** represent an OkLCh color as three floating point components. It is
-    the polar equivalent of OkLab, with L the same as for OkLab, C (chroma)
-    ranging from 0 to 0.4, inclusive, and h (hue) ranging from 0 to 360,
-    inclusive (with 0 and 360 being the same hue).
+sRGB and P3 use the same gamma correction, hence :func:`.p3_to_linear_p3` is
+just an alias to :func:`.srgb_to_linear_srgb` and :func:`.linear_p3_to_p3` is
+just an alias to :func:`.linear_srgb_to_srgb`.
 
-The bold-face tags above are the canonical tags used to identify the
-corresponding color formats and spaces. They appear in the names of conversion
-functions, serve as arguments to the
-:func:`prettypretty.color.conversion.route`,
-:func:`prettypretty.color.conversion.convert`, and
-:func:`prettypretty.color.space.resolve` functions, and as the first field of
-the :class:`prettypretty.color.theme.ColorSpec` and
-:class:`prettypretty.color.object.Color` classes.
+Prettypretty supports the following non-RGB color spaces:
+
+  * **xyz** is the XYZ color space with the D65 standard illuminant
+  * **oklab** is a perceptually uniform color space, with ``L`` standing for
+    lightness and ``a``/``b`` serving as orthogonal color axes
+  * **oklch** is a cylindrical version of Oklab, with ``L`` standing for
+    lightness, ``C`` for chroma, and ``h`` for hue.
+
+In Oklab, the difference ΔE between two colors is just the Euclidian distance.
+Though Oklab's designer, Björn Ottosson, has suggested that a more accurate ΔE
+should scale Δa and Δb by a constant factor of around 2.1 before squaring.
+Prettypretty implements both versions, like Color.js using a factor of 2 for
+version 2 for now.
+
+
+Color Formats
+-------------
+
+In addition to the above color spaces, prettypretty also supports a number of
+color formats. There is only one standard format:
+
+  * **rgb256** is a 24-bit RGB color in the sRGB color space, with each
+    coordinate being an integer between 0 and 255, inclusive
+
+There is one terminal-specific RGB format:
+
+  * **rgb6** is an RGB color, with each coordinate being an integer between
+    0 and 5, inclusive
+
+Finally, there are two more terminal-specific color formats with a single
+integer coordinate:
+
+  * **ansi** is an integer between 0 and 15, inclusive, denoting one of the
+    sixteen extended ANSI colors
+  * **eight_bit** is an integer between 0 and 255, inclusive, denoting one
+    of the 8-bit colors:
+
+      * 0–15 are the sixteen extended ANSI colors
+      * 16–231 are the 216 RGB6 colors
+      * 232–255 is a 24-step grayscale gradient
+
+The RGB6 colors and the 24-step grayscale gradient have a well-defined mapping
+to RGB256 and hence sRGB. However, the sixteen extended ANSI colors have only
+standardized names but not color values. Furthermore, almost all terminals have
+robust support for customizing just those colors through themes. Consequently,
+any conversion from and to ANSI colors must take the color theme into account,
+too. Prettypretty does just that, even supporting arbitrary color spaces for
+theme colors.
+
+
+Color Serde
+-----------
+
+Prettypretty supports two formats for both serialization to and deserialization
+from strings:
+
+  * **h** for hexadecimal is the hash-prefixed color format familiar from the
+    web
+  * **x** for X Windows or xterm uses the `rgb:` and `rgbi:` prefixes followed
+    by three slash-separated coordinates in hexadecimal for `rgb:` and floating
+    point for `rgbi:`
+
+For serialization to strings, prettypretty supports two additional formats:
+
+  * **f** for function uses one of the above format or color space tags as
+    function name and the comma-separated coordinates as arguments
+  * **s** for CSS uses ``color()``, ``oklab()``, ``oklch()``, or ``rgb()``
+    notation with space-separated coordinates
+
+The four letters serve as format identifiers for colors in Python's f-strings.
+However, only RGB256 colors can be serialized in h-format or the ``rgb:``
+prefixed x-format; only sRGB colors can be serialized in the ``rgb:`` prefixed
+x-format; and the s-format cannot serialize ``linear_p3`` colors.

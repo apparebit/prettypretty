@@ -23,8 +23,6 @@ uniform color spaces.
    :caption: API
 
    apidocs/color
-   apidocs/grid
-   apidocs/style
 
 .. toctree::
    :maxdepth: 1
@@ -44,16 +42,7 @@ As usual, you need to install prettypretty first:
    $ pip install prettypretty
 
 
-Once prettypretty is installed, you can start using its API in your code.
-
-Prettypretty's color support is exposed through two APIs. The low-level API is
-almost entirely procedural and correspondingly lightweight and flexible. But it
-can also be a bit unwieldy. Meanwhile, the high-level API exposes the same
-functionality, albeit at some performance overhead, through a single class,
-:class:`prettypretty.color.object.Color`. However, since both APIs use the same
-tags to identify color formats and spaces and use the same tuple-based
-representation for color coordinates, it's easy to exchange colors between the
-two.
+Once prettypretty is installed, you can start using its API in your code...
 
 
 Acknowledgements

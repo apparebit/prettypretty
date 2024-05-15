@@ -1,12 +1,11 @@
-prettypretty.color
-==================
+prettypretty.color.core
+=======================
 
-
-prettypretty.color.ansi
------------------------
-
-.. automodule:: prettypretty.color.ansi
-    :members:
+The modules in ``prettypretty.color`` implement the low-level color API. Most
+modules have limited dependencies on the standard library but otherwise stand on
+their own. A few modules pull in :mod:`prettypretty.color.spec`, which provides
+common type definitions. But :mod:`prettypretty.color.grid` and
+:mod:`prettypretty.color.lores` pull in several other color modules.
 
 
 prettypretty.color.apca
@@ -30,10 +29,17 @@ prettypretty.color.difference
     :members:
 
 
-prettypretty.color.object
--------------------------
+prettypretty.color.grid
+-----------------------
 
-.. automodule:: prettypretty.color.object
+.. automodule:: prettypretty.color.grid
+    :members:
+
+
+prettypretty.color.lores
+------------------------
+
+.. automodule:: prettypretty.color.lores
     :members:
 
 
@@ -58,10 +64,15 @@ prettypretty.color.spec
     :members:
 
 
+prettypretty.color.style
+------------------------
+
+.. automodule:: prettypretty.color.style
+    :members:
+
+
 prettypretty.color.theme
 ------------------------
 
 .. automodule:: prettypretty.color.theme
     :members:
-
-

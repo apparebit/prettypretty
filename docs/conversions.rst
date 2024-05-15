@@ -1,45 +1,70 @@
 Color Conversions
 =================
 
+We first consider only color formats and spaces that are *not*
+terminal-specific. With exception of the XYZ color space, all other color
+formats and spaces have exactly one base color space, which may be XYZ. For
+every such color format or space, prettypretty includes handwritten functions
+that convert from and to the base color space. For example, sRGB has linear sRGB
+as its base color space and :func:`.srgb_to_linear_srgb` converts to the base
+and :func:`.linear_srgb_to_srgb` converts from the base. Since following from
+base to base invariably ends in the XYZ color space, all color formats and
+spaces that are not terminal-specific can be converted into each other by
+repeatedly applying one of the handwritten conversions.
 
-To convert pretty much any color format and space into any other color format
-and space, we only need a linear number of conversion functions and not ``n *
-n`` of such functions.
-
-First, for most color formats and spaces, we implement two pairs of conversions
-from and into other color spaces. The resulting graph of conversion functions is
-a sequence with directed edges in both directions. In other words, we can compose
-conversions to reach spaces that are not directly connected but still part of the
-sequence.
-
-Second, we ensure that all such sequences have one color space in common, so
-that all color formats and spaces become reachable by composing conversions
-functions. In particular, since the conversion graph has cycles, we use
 `Djikstra's shortest path algorithm
-<https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm>`_ to find the shortest
-suitable sequence of primitive conversion functions.
+<https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm>`_ could be used to
+automatically determine the shortest sequence of such conversion functions. But
+the base relationship does not form an arbitrary graph but rather a tree rooted
+in XYZ. Hence we can trivially precompute the distance of each format or space
+from XYZ and store base and distance in a look-up table (LUT). The optimized
+algorithm elaborates the paths from source and target formats or spaces to the
+root by using this LUT. First, it syncs up both paths by elaborating the path
+whose last node is further from the root. Second, once synced up, it keeps
+elaborating one node for each path until both paths share the last node, which
+is the shared node closest to both source and target.
 
-In fact, that's just what :func:`prettypretty.color.conversion.route` does—after
-taking care of some trivial cases.
+The :func:`.converter` function implements just that algorithm to determine the
+necessary sequence of to/from base conversions but returns a closure for easier
+application. Since the number of color formats and spaces is relatively small
+(currently 8 and unlikely to grow beyond 11), :func:`.converter` does one better
+and caches each closure upon creation. That way, every conversion needs to be
+synthesized only once.
 
-The table below shows the conversions that *are* implemented, using **1** for
-conversions that handle related color formats or spaces and **n** for pre-fused
-functions designed for optimization.
+The following table summarizes the handwritten conversion functions:
 
-==============  ====  =====  ====  ======  ====  ======  ===  ==  ======  =====  =====
-          To ►  ansi  eight  rgb6  rgb256  srgb  linear  xyz  p3  linear  oklab  oklch
-                      bit                        srgb             p3
-▼ From                cube
-==============  ====  =====  ====  ======  ====  ======  ===  ==  ======  =====  =====
-ansi               ━
-eight_bit_cube            ━     1
-rgb6                      1     ━       1
-rgb256                                  ━     1                               n
-srgb                                    1     ━       1                       n
-linear_srgb                                   1       ━    1
-xyz                                                   1    ━           1      1
-p3                                                             ━       1
-linear_p3                                                  1   1       ━
-oklab              1                                       1                  ━      1
-oklch                                                                         1      ━
-==============  ====  =====  ====  ======  ====  ======  ===  ==  ======  =====  =====
+===============  ======  ====  =========  ==  =======  =====  =====  ===
+▼ From/To ►      RGB256  sRGB  lin. sRGB  P3  lin. P3  Oklch  Oklab  XYZ
+===============  ======  ====  =========  ==  =======  =====  =====  ===
+**RGB256**            ━     1
+**sRGB**              1     ━          1
+**Linear sRGB**             1          ━                               1
+**P3**                                     ━       1
+**Linear P3**                              1       ━                   1
+**Oklch**                                                  ━      1
+**Oklab**                                                  1      ━    1
+**XYZ**                                1           1              1    ━
+===============  ======  ====  =========  ==  =======  =====  =====  ===
+
+
+Low-Resolution formats
+----------------------
+
+Prettypretty supports three more, terminal-specific color formats, which use the
+``ansi``, ``eight_bit``, and ``rgb6`` tags. Since the three terminal-specific
+color formats also are low-resolution formats, conversions to high-resolution
+colors are far simpler than conversions from high-resolution colors, which are
+inherently lossy and harder to get right. This is directly reflected in
+prettypretty's API: All three low-resolution formats convert to RGB256, but only
+Oklab converts to the three low-resolution formats.
+
+For ANSI colors, conversions in either direction depend on the current color
+theme. The default is VGA.
+
+Conversion to low-resolution colors works by finding the closes color in Oklab
+that corresponds to the 16 extended ANSI colors when converting to ANSI, the 240
+RGB6 and gray gradient colors when converting to 8-bit, and the 216 RGB6 colors
+when converting to RGB6. The implementation creates the necessary look-up tables
+lazily, on demand, and caches them thereafter. The conversion to 8-bit colors
+ignores the 16 ANSI colors because those 16 colors unpleasantly stick out when
+converting an entire gradient of colors.

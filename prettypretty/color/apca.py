@@ -27,7 +27,7 @@ _APCA_OFFSET = 0.027
 
 def srgb_to_luminance(r: float, g: float, b: float) -> float:
     """
-    :bdg-warning:`Low-level API` Determine the non-standard APCA luminance for
+    :bdg-warning:`Internal API` Determine the non-standard APCA luminance for
     the given sRGB color.
     """
     linear_srgb = (math.pow(c, _APCA_EXPONENT) for c in (r, g, b))
@@ -39,7 +39,7 @@ def luminance_to_contrast(
     background_luminance: float,
 ) -> float:
     """
-    :bdg-warning:`Low-level API` Determine the contrast between the text and
+    :bdg-warning:`Internal API` Determine the contrast between the text and
     background luminance values."""
     assert 0.0 <= text_luminance <= 1.1 and 0.0 <= background_luminance <= 1.1
 

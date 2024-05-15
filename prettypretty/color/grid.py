@@ -6,11 +6,19 @@ a script::
     $ python -m prettypretty.grid
 
 """
+import argparse
 import os
-from typing import cast
 
-from .color.conversion import convert
-from .color.apca import use_black_text, use_black_background
+from .conversion import rgb256_to_srgb, get_converter
+from .apca import use_black_text, use_black_background
+from .lores import (
+    rgb6_to_eight_bit,
+    rgb6_to_rgb256,
+    eight_bit_to_rgb256,
+    oklab_to_ansi,
+    oklab_to_eight_bit,
+)
+from .theme import MACOS_TERMINAL, VGA, XTERM, current_theme
 from .style import eight_bit_to_sgr_params, Layer, sgr
 
 class FramedBoxes:
@@ -63,17 +71,28 @@ class FramedBoxes:
         if self._line_content_width != 0:
             raise ValueError('Line started before line ended')
 
-    def box(self, text: str, foreground: int, background: int) -> None:
+    def box(
+        self,
+        text: str,
+        foreground: int | tuple[int, int, int],
+        background: int | tuple[int, int, int]
+    ) -> None:
         """Format one box of the content."""
         box = text.center(self._box_width)
         if len(box) != self._box_width:
             raise ValueError(f'"{text}" does not fit into {self._box_width}-wide box')
 
-        code = sgr(
-            *eight_bit_to_sgr_params(background, Layer.BACKGROUND),
-            *eight_bit_to_sgr_params(foreground, Layer.TEXT),
-        )
-        self._fragments.append(f'{code}{box}\x1b[m')
+        if isinstance(background, int):
+            bg_params = eight_bit_to_sgr_params(background, Layer.BACKGROUND)
+        else:
+            bg_params = 48, 2, *background
+
+        if isinstance(foreground, int):
+            fg_params = eight_bit_to_sgr_params(foreground, Layer.TEXT)
+        else:
+            fg_params = 38, 2, *foreground
+
+        self._fragments.append(f'{sgr(*bg_params, *fg_params)}{box}\x1b[m')
         self._line_content_width += self._box_width
 
     def right(self) -> None:
@@ -123,25 +142,28 @@ def format_color_cube(
         + '6•6•6 RGB Cube'
     )
 
+    rgb256_to_oklab = get_converter('rgb256', 'oklab')
+
     for r in range(6):
         for b in range(6):
             frame.left()
 
             for g in range(6):
-                # Produce 8-bit color from RGB components
-                srgb = convert((r, g, b), 'rgb6', 'srgb')
+                rgb256 = rgb6_to_rgb256(r, g, b)
 
                 if ansi_only:
-                    color = cast(int, convert((r, g, b), 'rgb6', 'ansi')[0])
+                    eight_bit = oklab_to_ansi(*rgb256_to_oklab(*rgb256))
+                    srgb = rgb256_to_srgb(*eight_bit_to_rgb256(eight_bit))
                 else:
-                    color = cast(int, convert((r, g, b), 'rgb6', 'eight_bit_cube')[0])
+                    eight_bit = rgb6_to_eight_bit(r, g, b)
+                    srgb = rgb256_to_srgb(*rgb256)
 
                 # Pick black or white for other color based on contrast
                 if layer is Layer.BACKGROUND:
                     foreground = 232 if use_black_text(*srgb) else 255
-                    background = color
+                    background = eight_bit
                 else:
-                    foreground = color
+                    foreground = eight_bit
                     background = 232 if use_black_background(*srgb) else 255
 
                 frame.box(f'{r}•{g}•{b}', foreground, background)
@@ -152,9 +174,67 @@ def format_color_cube(
     return str(frame)
 
 
+def format_hires_slice(
+    width: int,
+    *,
+    eight_bit_only: bool = False,
+) -> str:
+    frame = FramedBoxes(width, 32, min_width=1)
+    frame.top(
+        'High-Resolution Color Slice'
+    )
+
+    rgb256_to_oklab = get_converter('rgb256', 'oklab')
+
+    for r in range(0, 256, 8):
+        frame.left()
+        g = 0
+
+        for b in range(0, 256, 8):
+            color = r, g, b
+            if eight_bit_only:
+                color = oklab_to_eight_bit(*rgb256_to_oklab(*color))
+            frame.box(' ', 0, color)
+
+        frame.right()
+
+    frame.bottom()
+    return str(frame)
+
+
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        '--macos-terminal',
+        action='store_const',
+        const=MACOS_TERMINAL,
+        dest='theme',
+        help='use macOS Terminal color theme')
+    group.add_argument(
+        '--xterm',
+        action='store_const',
+        const=XTERM,
+        dest='theme',
+        help='use xterm color theme'
+    )
+    group.add_argument(
+        '--vga',
+        action='store_const',
+        const=VGA,
+        dest='theme',
+        help='use VGA color theme'
+    )
+
+    options = parser.parse_args()
     width, _ = os.get_terminal_size()
 
-    print(f'\n{format_color_cube(width)}')
-    print(f'\n{format_color_cube(width, ansi_only=True)}')
-    print(f'\n{format_color_cube(width, layer=Layer.TEXT)}\n')
+    with current_theme(options.theme or VGA):
+        print(f'\n{format_color_cube(width)}')
+        print(f'\n{format_color_cube(width, ansi_only=True)}')
+        print(f'\n{format_color_cube(width, layer=Layer.TEXT)}')
+
+        if os.getenv('COLORTERM') == 'truecolor':
+            print(f'\n{format_hires_slice(width)}')
+            print(f'\n{format_hires_slice(width, eight_bit_only=True)}')

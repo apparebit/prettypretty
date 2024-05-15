@@ -30,11 +30,11 @@ python_use_unqualified_type_names = True
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
+    'sphinx.ext.napoleon',
     "sphinx.ext.autodoc",
     #"sphinx.ext.intersphinx",
     #"sphinx.ext.extlinks",
     "sphinx.ext.viewcode",
-    'sphinx.ext.napoleon',
     'sphinx_design',
     'sphinx_rtd_theme',
 ]
