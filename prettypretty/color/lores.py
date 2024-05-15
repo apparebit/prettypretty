@@ -78,6 +78,19 @@ def ansi_to_eight_bit(color: int) -> tuple[int]:
     return color,
 
 
+def ansi_to_rgb256(color: int) -> tuple[int, int, int]:
+    """
+    Convert the given ANSI color to RGB256 format.
+
+    .. warning::
+        The result of this function critically depends on the current color
+        theme. After all, the current theme determines the RGB256 values for all
+        extended ANSI colors.
+    """
+    assert 0 <= color <= 15
+    return current_theme().ansi(color)
+
+
 def _eight_bit_gray_to_rgb256(color: int) -> tuple[int, int, int]:
     """Convert the given 8-bit gray to RGB256 format."""
     assert 232 <= color <= 255
