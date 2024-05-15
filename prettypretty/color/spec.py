@@ -1,20 +1,16 @@
-import dataclasses
-from typing import TypeAlias
+from typing import Callable, TypeAlias
 
-
+LoresCoordinateSpec: TypeAlias = tuple[int]
 IntCoordinateSpec: TypeAlias = tuple[int, int, int]
 FloatCoordinateSpec: TypeAlias = tuple[float, float, float]
-CoordinateSpec: TypeAlias = tuple[int] | FloatCoordinateSpec
+CoordinateSpec: TypeAlias = (
+    LoresCoordinateSpec | IntCoordinateSpec | FloatCoordinateSpec
+)
 
+CoordinateVectorSpec: TypeAlias = tuple[FloatCoordinateSpec, ...]
 
-@dataclasses.dataclass(frozen=True, slots=True)
-class ColorSpec:
-    """
-    An immutable color specification.
-
-    Attributes:
-        tag: identifies the color format or space
-        coordinates: are the color's components
-    """
-    tag: str
-    coordinates: CoordinateSpec
+ConverterSpec: TypeAlias = (
+    Callable[[int], CoordinateSpec]
+    | Callable[[int, int, int], CoordinateSpec]
+    | Callable[[float, float, float], CoordinateSpec]
+)

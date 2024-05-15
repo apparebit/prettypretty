@@ -1,8 +1,12 @@
 """Conversion between color formats and spaces"""
 import itertools
 import math
-from typing import Callable, cast, TypeAlias
+from typing import cast, TypeAlias
 
+from .spec import ConverterSpec, CoordinateSpec
+
+
+_RGB6_TO_RGB256 = (0, 0x5F, 0x87, 0xAF, 0xD7, 0xFF)
 
 # See https://github.com/color-js/color.js/blob/a77e080a070039c534dda3965a769675aac5f75e/src/spaces/srgb-linear.js
 
@@ -197,20 +201,21 @@ def xyz_to_oklab(X: float, Y: float, Z: float) -> tuple[float, float, float]:
 # --------------------------------------------------------------------------------------
 # Arbitrary Conversions
 
-Converter: TypeAlias = Callable[[float, float, float], tuple[float, float, float]]
-_ConversionGraph: TypeAlias = dict[str, dict[str, Converter]]
 
-def _collect_conversions(conversions: _ConversionGraph) -> None:
-    """Collect this module's conversions into a dictionary of dictionaries."""
-    for name, value in globals().items():
-        if name[0] != '_' and '_to_' in name and callable(value):
+def _collect_conversions(
+    mod: dict[str, object],
+    conversions: dict[str, dict[str, ConverterSpec]]
+) -> None:
+    for name, value in mod.items():
+        if not name.startswith('_') and '_to_' in name and callable(value):
             source, _, target = name.partition('_to_')
             targets = conversions.setdefault(source, {})
+            if target in targets:
+                raise ValueError(f'duplicate conversion from {source} to {target}')
             targets[target] = value
 
 
-# The base color format or space for each tag as well as distance from XYZ
-_BASE = {
+_BASE_TREE = {
     'rgb256': ('srgb', 3),
     'srgb': ('linear_srgb', 2),
     'linear_srgb': ('xyz', 1),
@@ -223,9 +228,9 @@ _BASE = {
 
 def _elaborate_route(source: str, target: str) -> tuple[str, ...]:
     """Elaborate the route from the source to the target color format or space."""
-    if source not in _BASE:
+    if source not in _BASE_TREE:
         raise ValueError(f'{source} is not a valid color format or space')
-    if target not in _BASE:
+    if target not in _BASE_TREE:
         raise ValueError(f'{target} is not a valid color format or space')
 
     # Trace paths from source and target towards root of base tree
@@ -233,14 +238,14 @@ def _elaborate_route(source: str, target: str) -> tuple[str, ...]:
     target_path: list[str] = [target]
 
     def step(path: list[str]) -> bool:
-        tag, _ = _BASE[path[-1]]
+        tag, _ = _BASE_TREE[path[-1]]
         if tag is not None:
             path.append(tag)
         return tag is None
 
     # Sync up traces, so that both have same distance from root
-    _, source_dist = _BASE[source]
-    _, target_dist = _BASE[target]
+    _, source_dist = _BASE_TREE[source]
+    _, target_dist = _BASE_TREE[target]
 
     path = source_path if source_dist >= target_dist else target_path
     for _ in range(abs(source_dist - target_dist)):
@@ -259,9 +264,25 @@ def _elaborate_route(source: str, target: str) -> tuple[str, ...]:
     return tuple(itertools.chain(source_path, target_path))
 
 
-_converter_cache: _ConversionGraph = {}
+def _create_converter(conversions: tuple[ConverterSpec, ...]) -> ConverterSpec:
+    """
+    Instantiate a closure that applies the given conversions. Doing so in a
+    dedicated top-level function keeps the closure environment minimal.
+    """
+    def converter(*coordinates: float) -> CoordinateSpec:
+        value = cast(CoordinateSpec, coordinates)
+        for fn in conversions:
+            coordinates = fn(*value)  # type: ignore
+        return value
+    return converter
 
-def get_converter(source: str, target: str) -> Converter:
+
+_LORES_FORMAT = {'ansi', 'eight_bit', 'rgb6'}
+
+_converter_cache: dict[str, dict[str, ConverterSpec]] = {}
+_collected_mod_lores: bool = False
+
+def get_converter(source: str, target: str) -> ConverterSpec:
     """
     Instantiate a function that converts coordinates from the source color
     format or space to the target color format or space.
@@ -271,8 +292,13 @@ def get_converter(source: str, target: str) -> Converter:
     ``f"{source}_to_{target}"``.
     """
     # Initialize converter cache with basic conversions
+    global _collected_mod_lores
+
     if not _converter_cache:
-        _collect_conversions(_converter_cache)
+        _collect_conversions(globals(), _converter_cache)
+
+        for tag in _LORES_FORMAT:
+            _converter_cache.setdefault(tag, {})
 
     # Handle trivial case
     if source == target:
@@ -283,20 +309,33 @@ def get_converter(source: str, target: str) -> Converter:
     if maybe_converter is not None:
         return maybe_converter
 
-    # Determine route and instantiate as simple conversions
-    route = _elaborate_route(source, target)
+    # If either format is lo-res, make sure lo-res conversions have been loaded
+    is_source_lores = source in _LORES_FORMAT
+    is_target_lores = target in _LORES_FORMAT
+    if (is_source_lores or is_target_lores) and not _collected_mod_lores:
+        pkg, _, _ = __name__.rpartition('.')
+        from importlib import import_module
+        mod = import_module('.lores', pkg)
+        _collect_conversions(vars(mod), _converter_cache)
+        _collected_mod_lores = True
+
+    # Determine route. Only the first and/or last node can be lo-res.
+    route: list[str] = [source] if is_source_lores else []
+
+    route.extend(_elaborate_route(
+        'rgb256' if is_source_lores else source,
+        'oklab' if is_target_lores else target,
+    ))
+
+    if is_target_lores:
+        route.append(target)
+
+    # Turn route into functions turn into converter. Fix converter name etc.
     conversions = tuple(
         _converter_cache[t1][t2] for t1, t2 in itertools.pairwise(route)
     )
 
-    # Define converter
-    def converter(c1: float, c2: float, c3: float) -> tuple[float, float, float]:
-        value = c1, c2, c3
-        for fn in conversions:
-            value = fn(*value)
-        return value
-
-    # Update name and decorate with route & conversions to aid debugability
+    converter = _create_converter(conversions)
     converter.__qualname__ = converter.__name__ = f'{source}_to_{target}'
     setattr(converter, 'route', route)
     setattr(converter, 'conversions', conversions)

@@ -2,25 +2,24 @@
 Support for low-resolution terminal colors
 """
 from itertools import chain
-from typing import TypeAlias
+from typing import Callable
 
 from .conversion import get_converter
 from .difference import closest_oklab
+from .spec import CoordinateVectorSpec
 from .theme import current_theme, Theme
 
-
-_CoordinateVector: TypeAlias = tuple[tuple[float, float, float], ...]
 
 _RGB6_TO_RGB256 = (0, 0x5F, 0x87, 0xAF, 0xD7, 0xFF)
 
 
-def rgb6_to_eight_bit(r: int, g: int, b: int) -> int:
+def rgb6_to_eight_bit(r: int, g: int, b: int) -> tuple[int]:
     """
     Convert the given color from the 6x6x6 RGB cube of 8-bit terminal colors to
     an actual 8-bit terminal color.
     """
     assert 0 <= r <= 5 and 0 <= g <= 5 and 0 <= b <= 5
-    return 16 + 36 * r + 6 * g + b
+    return 16 + 36 * r + 6 * g + b,
 
 
 def eight_bit_to_rgb6(color: int) -> tuple[int, int, int]:
@@ -44,7 +43,7 @@ def rgb6_to_rgb256(r: int, g: int, b: int) -> tuple[int, int, int]:
     return _RGB6_TO_RGB256[r], _RGB6_TO_RGB256[g], _RGB6_TO_RGB256[b]
 
 
-def rgb256_to_rgb6(r: int, g: int, b: int) -> tuple[int, int, int]:
+def approximate_rgb256_with_rgb256(r: int, g: int, b: int) -> tuple[int, int, int]:
     """
     :bdg-warning:`Lossy conversion` Convert the given color from RGB256 to RGB6.
 
@@ -74,6 +73,11 @@ def rgb256_to_rgb6(r: int, g: int, b: int) -> tuple[int, int, int]:
     return convert(r), convert(g), convert(b)
 
 
+def ansi_to_eight_bit(color: int) -> tuple[int]:
+    """Convert the given ANSI color to 8-bit format."""
+    return color,
+
+
 def _eight_bit_gray_to_rgb256(color: int) -> tuple[int, int, int]:
     """Convert the given 8-bit gray to RGB256 format."""
     assert 232 <= color <= 255
@@ -100,17 +104,28 @@ def eight_bit_to_rgb256(color: int) -> tuple[int, int, int]:
     raise ValueError(f'{color} is not a valid 8-bit terminal color')
 
 
+# --------------------------------------------------------------------------------------
+
+
+_RGB256_TO_OKLAB = Callable[[int, int, int], tuple[float, float, float]]
+
 class _LUT:
 
     def __init__(self) -> None:
-        self._ansi: dict[Theme, _CoordinateVector] = {}
-        self._rgb: None | _CoordinateVector = None
-        self._gray: None | _CoordinateVector = None
-
-        self.convert = get_converter('rgb256', 'oklab')
+        self._ansi: dict[Theme, CoordinateVectorSpec] = {}
+        self._rgb: None | CoordinateVectorSpec = None
+        self._gray: None | CoordinateVectorSpec = None
+        self._convert: None | _RGB256_TO_OKLAB = None
 
     @property
-    def ansi(self) -> _CoordinateVector:
+    def convert(self) -> _RGB256_TO_OKLAB:
+        if self._convert is None:
+            setattr(self, '_convert', get_converter('rgb256', 'oklab'))
+        assert self._convert is not None
+        return self._convert
+
+    @property
+    def ansi(self) -> CoordinateVectorSpec:
         theme = current_theme()
         if theme not in self._ansi:
             self._ansi[theme] = tuple(
@@ -120,7 +135,7 @@ class _LUT:
         return self._ansi[theme]
 
     @property
-    def rgb(self) -> _CoordinateVector:
+    def rgb(self) -> CoordinateVectorSpec:
         if self._rgb is None:
             self._rgb = tuple(
                 self.convert(*rgb6_to_rgb256(r, g, b))
@@ -129,7 +144,7 @@ class _LUT:
         return self._rgb
 
     @property
-    def gray(self) -> _CoordinateVector:
+    def gray(self) -> CoordinateVectorSpec:
         if self._gray is None:
             self._gray = tuple(
                 self.convert(*_eight_bit_gray_to_rgb256(c))
@@ -140,13 +155,13 @@ class _LUT:
 _look_up_table = _LUT()
 
 
-def oklab_to_eight_bit(L: float, a: float, b: float) -> int:
+def oklab_to_eight_bit(L: float, a: float, b: float) -> tuple[int]:
     """
     :bdg-warning:`Lossy conversion` Convert the given color from Oklab to an
     8-bit terminal color.
     """
     index, _ = closest_oklab((L, a, b), chain(_look_up_table.rgb, _look_up_table.gray))
-    return 16 + index
+    return 16 + index,
 
 
 def oklab_to_rgb6(L: float, a: float, b: float) -> tuple[int, int, int]:
@@ -157,7 +172,7 @@ def oklab_to_rgb6(L: float, a: float, b: float) -> tuple[int, int, int]:
     return eight_bit_to_rgb6(16 + index)
 
 
-def oklab_to_ansi(L: float, a: float, b: float) -> int:
+def oklab_to_ansi(L: float, a: float, b: float) -> tuple[int]:
     """
     :bdg-warning:`Lossy conversion` Convert the given color from Oklab to the
     extended sixteen ANSI colors.
@@ -167,12 +182,4 @@ def oklab_to_ansi(L: float, a: float, b: float) -> int:
         theme. It provides an implicit input in addition to the arguments.
     """
     index, _ = closest_oklab((L, a, b), _look_up_table.ansi)
-    return index
-
-
-def lores_to_rgb256(source: str, *coordinates: int) -> tuple[int, int, int]:
-    fn = rgb6_to_rgb256 if source == 'rgb6' else eight_bit_to_rgb256
-    return fn(*coordinates)
-
-def oklab_to_lores(target: str, *coordinates: float) -> int | tuple[int, int, int]:
-    return globals()[f'oklab_to_{target}'](*coordinates)
+    return index,

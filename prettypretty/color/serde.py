@@ -153,7 +153,7 @@ _CSS_FORMATS = {
     'oklch': 'oklch({})',
 }
 
-def format(
+def stringify(
     tag: str,
     coordinates: tuple[int] | tuple[float, float, float],
     format: Format = Format.FUNCTION,
