@@ -1,18 +1,18 @@
 from collections.abc import Iterable
 from typing import cast, Literal, overload, Self
 
-from ..color.apca import contrast, use_black_text, use_black_background
-from ..color.conversion import get_converter
-from ..color.difference import deltaE_oklab, closest_oklab
-from ..color.serde import (
+from .color.apca import contrast, use_black_text, use_black_background
+from .color.conversion import get_converter
+from .color.difference import deltaE_oklab, closest_oklab
+from .color.serde import (
     parse_format_spec,
     parse_hex,
     parse_x_rgb,
     parse_x_rgbi,
     stringify,
 )
-from ..color.space import EPSILON, is_tag, resolve, Space
-from ..color.spec import ColorSpec, CoordinateSpec, FloatCoordinateSpec
+from .color.space import EPSILON, is_tag, resolve, Space
+from .color.spec import ColorSpec, CoordinateSpec, FloatCoordinateSpec
 
 
 class Color(ColorSpec):

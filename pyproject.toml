@@ -19,6 +19,7 @@ doc = [
 
 [project.urls]
 repository = "https://github.com/apparebit/prettypretty"
+package = "https://pypi.org/project/prettypretty/"
 
 [build-system]
 requires = ["flit_core >=3.4"]

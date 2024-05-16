@@ -1,12 +1,18 @@
-prettypretty.api
-================
+prettypretty
+============
 
 Prettypretty's high-level API.
 
 
-prettypretty.api.Color
-----------------------
+prettypretty.color_object.Color
+-------------------------------
 
-.. autoclass:: prettypretty.api.Color
+.. autoclass:: prettypretty.color_object.Color
     :members:
 
+
+prettypretty.termio.TermIO
+--------------------------
+
+.. autoclass:: prettypretty.termio.TermIO
+    :members:

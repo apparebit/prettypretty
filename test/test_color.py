@@ -28,7 +28,7 @@ from prettypretty.color.serde import (
 )
 
 from prettypretty.color.theme import VGA
-from prettypretty.api import Color
+from prettypretty.color_object import Color
 
 
 @dataclass(frozen=True)
