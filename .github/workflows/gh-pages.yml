@@ -42,10 +42,10 @@ jobs:
 
     - name: Build documentation
       run: |
-        print '─── Current Working Directory ──────────────────────────────────────────'
+        echo '─── Current Working Directory ──────────────────────────────────────────'
         pwd
         ls -ld docs
-        print '────────────────────────────────────────────────────────────────────────'
+        echo '────────────────────────────────────────────────────────────────────────'
         cd docs
         make html
 
