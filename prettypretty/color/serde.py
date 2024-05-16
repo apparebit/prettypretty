@@ -164,10 +164,10 @@ def stringify(
     precision.
     """
     if format is Format.HEX:
-        return '#' + ''.join(f'{c:0x}' for c in coordinates)
+        return '#' + ''.join(f'{c:02x}' for c in coordinates)
     elif format is Format.X:
         if all(isinstance(c, int) for c in coordinates):
-            return 'rgb:' + '/'.join(f'{c:0x}' for c in coordinates)
+            return 'rgb:' + '/'.join(f'{c:02x}' for c in coordinates)
         else:
             return 'rgbi:' + '/'.join(f'{float(c):.{precision}}' for c in coordinates)
 

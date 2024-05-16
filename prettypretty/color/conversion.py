@@ -264,6 +264,11 @@ def _elaborate_route(source: str, target: str) -> tuple[str, ...]:
     return tuple(itertools.chain(source_path, target_path))
 
 
+def _pass_through(*coordinates: float) -> CoordinateSpec:
+    """Pass through the coordinates."""
+    return cast(CoordinateSpec, tuple(coordinates))
+
+
 def _create_converter(conversions: tuple[ConverterSpec, ...]) -> ConverterSpec:
     """
     Instantiate a closure that applies the given conversions. Doing so in a
@@ -274,7 +279,7 @@ def _create_converter(conversions: tuple[ConverterSpec, ...]) -> ConverterSpec:
         for fn in conversions:
             value = fn(*value)  # type: ignore
         return value
-    return converter
+    return cast(ConverterSpec, converter)
 
 
 _LORES_FORMAT = {'ansi', 'eight_bit', 'rgb6'}
@@ -302,7 +307,7 @@ def get_converter(source: str, target: str) -> ConverterSpec:
 
     # Handle trivial case
     if source == target:
-        return lambda c1, c2, c3: (c1, c2, c3)
+        return cast(ConverterSpec, _pass_through)
 
     # Check whether converter already exists
     maybe_converter = _converter_cache[source].get(target)
@@ -330,13 +335,16 @@ def get_converter(source: str, target: str) -> ConverterSpec:
     if is_target_lores:
         route.append(target)
 
-    # Turn route into functions turn into converter. Fix converter name etc.
+    # Turn list of nodes into list of functions into converter function
     conversions = tuple(
         _converter_cache[t1][t2] for t1, t2 in itertools.pairwise(route)
     )
 
+    # Annotate converter for easy debugability
     converter = _create_converter(conversions)
-    converter.__qualname__ = converter.__name__ = f'{source}_to_{target}'
+    name = f'{source}_to_{target}'
+    setattr(converter, '__name__', name)
+    setattr(converter, '__qualname__', name)
     setattr(converter, 'route', route)
     setattr(converter, 'conversions', conversions)
 

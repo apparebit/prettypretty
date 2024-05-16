@@ -8,7 +8,7 @@ from contextlib import contextmanager
 import dataclasses
 from typing import cast, ContextManager, overload
 
-from .spec import IntCoordinateSpec
+from .spec import ColorSpec, IntCoordinateSpec
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
@@ -16,7 +16,7 @@ class Theme:
     """
     A terminal color theme.
 
-    This class specifies RGB256 colors for the default text (foreground) and
+    This class collects color values for the default text (foreground) and
     background colors as well as the 16 extended ANSI colors. While many
     terminal themes affect additional user interface elements, such as cursor
     color, ANSI escape codes cannot modify the appearance of these additional UI
@@ -24,43 +24,46 @@ class Theme:
 
     Instances of this class are immutable.
     """
-    text: IntCoordinateSpec
-    background: IntCoordinateSpec
-    black: IntCoordinateSpec
-    red: IntCoordinateSpec
-    green: IntCoordinateSpec
-    yellow: IntCoordinateSpec
-    blue: IntCoordinateSpec
-    magenta: IntCoordinateSpec
-    cyan: IntCoordinateSpec
-    white: IntCoordinateSpec
-    bright_black: IntCoordinateSpec
-    bright_red: IntCoordinateSpec
-    bright_green: IntCoordinateSpec
-    bright_yellow: IntCoordinateSpec
-    bright_blue: IntCoordinateSpec
-    bright_magenta: IntCoordinateSpec
-    bright_cyan: IntCoordinateSpec
-    bright_white: IntCoordinateSpec
+    text: ColorSpec
+    background: ColorSpec
+    black: ColorSpec
+    red: ColorSpec
+    green: ColorSpec
+    yellow: ColorSpec
+    blue: ColorSpec
+    magenta: ColorSpec
+    cyan: ColorSpec
+    white: ColorSpec
+    bright_black: ColorSpec
+    bright_red: ColorSpec
+    bright_green: ColorSpec
+    bright_yellow: ColorSpec
+    bright_blue: ColorSpec
+    bright_magenta: ColorSpec
+    bright_cyan: ColorSpec
+    bright_white: ColorSpec
 
-    def colors(self) -> Iterator[tuple[str, IntCoordinateSpec]]:
+    def colors(self) -> Iterator[tuple[str, ColorSpec]]:
         """Get an iterator over the name, color pairs of this theme."""
         for field in dataclasses.fields(self):
             yield field.name, getattr(self, field.name)
 
-    def ansi(self, color: int) -> IntCoordinateSpec:
+    def ansi(self, color: int) -> ColorSpec:
         """Look up the RGB256 coordinates for the extended ANSI color."""
         assert 0 <= color <= 15
         return getattr(self, dataclasses.fields(self)[2 + color].name)
 
 
-def hex(color: str) -> IntCoordinateSpec:
+def hex(color: str) -> ColorSpec:
     """
-    Convert the string with exactly six hexadecimal digits to RGB256 coordinates.
+    Convert a string with exactly six hexadecimal digits into an RGB256 color.
     """
-    return cast(
-        IntCoordinateSpec,
-        tuple(int(color[n : n+2], base=16) for n in range(0, 6, 2))
+    return ColorSpec(
+        'rgb256',
+        cast(
+            IntCoordinateSpec,
+            tuple(int(color[n : n+2], base=16) for n in range(0, 6, 2)),
+        ),
     )
 
 MACOS_TERMINAL = Theme(
@@ -83,6 +86,7 @@ MACOS_TERMINAL = Theme(
     bright_cyan=hex("00e5e5"),
     bright_white=hex("e5e5e5"),
 )
+
 
 VGA = Theme(
     text=hex("000000"),

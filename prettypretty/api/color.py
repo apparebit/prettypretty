@@ -1,5 +1,4 @@
 from collections.abc import Iterable
-from dataclasses import dataclass
 from typing import cast, Literal, Self
 
 from ..color.apca import contrast, use_black_text, use_black_background
@@ -13,11 +12,10 @@ from ..color.serde import (
     stringify,
 )
 from ..color.space import EPSILON, is_tag, resolve, Space
-from ..color.spec import CoordinateSpec, FloatCoordinateSpec
+from ..color.spec import ColorSpec, CoordinateSpec, FloatCoordinateSpec
 
 
-@dataclass(frozen=True, slots=True)
-class Color:
+class Color(ColorSpec):
     """
     A color object.
 
@@ -30,8 +28,7 @@ class Color:
     or by passing both the color format or space tag and the coordinates. The
     resulting color object is immutable.
     """
-    tag: str
-    coordinates: CoordinateSpec
+    __slots__ = ()
 
     @property
     def space(self) -> Space:
@@ -52,12 +49,25 @@ class Color:
 
         raise AttributeError(f'color {self} has no attribute named "{name}"')
 
+    def __new__(
+        cls,
+        tag: str | ColorSpec | Self,
+        coordinates: None | CoordinateSpec = None,
+    ) -> Self:
+        if isinstance(tag, cls):
+            return tag
+        return super().__new__(cls)
+
     def __init__(
         self,
-        tag: str,
-        coordinates: None | CoordinateSpec = None
+        tag: str | ColorSpec | Self,
+        coordinates: None | CoordinateSpec = None,
     ) -> None:
-        if coordinates is None:
+        if isinstance(tag, type(self)):
+            return
+        elif isinstance(tag, ColorSpec):
+            tag, coordinates = tag.tag, tag.coordinates
+        elif coordinates is None:
             if tag.startswith('#'):
                 tag, coordinates = parse_hex(tag)
             elif tag.startswith('rgb:'):
@@ -69,10 +79,7 @@ class Color:
 
         object.__setattr__(self, 'tag', tag)
         object.__setattr__(self, 'coordinates', coordinates)
-
-    def __post_init__(self) -> None:
-        if not is_tag(self.tag):
-            raise ValueError(f'{self.tag} does not identify a color format or space')
+        self.__post_init__()
 
     # ----------------------------------------------------------------------------------
 

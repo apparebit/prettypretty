@@ -70,21 +70,21 @@ class FramedBoxes:
     def box(
         self,
         text: str,
-        foreground: int | tuple[int, int, int],
-        background: int | tuple[int, int, int]
+        foreground: tuple[int] | tuple[int, int, int],
+        background: tuple[int] | tuple[int, int, int]
     ) -> None:
         """Format one box of the content."""
         box = text.center(self._box_width)
         if len(box) != self._box_width:
             raise ValueError(f'"{text}" does not fit into {self._box_width}-wide box')
 
-        if isinstance(background, int):
-            bg_params = eight_bit_to_sgr_params(background, Layer.BACKGROUND)
+        if len(background) == 1:
+            bg_params = eight_bit_to_sgr_params(*background, Layer.BACKGROUND)
         else:
             bg_params = 48, 2, *background
 
-        if isinstance(foreground, int):
-            fg_params = eight_bit_to_sgr_params(foreground, Layer.TEXT)
+        if len(foreground) == 1:
+            fg_params = eight_bit_to_sgr_params(*foreground, Layer.TEXT)
         else:
             fg_params = 38, 2, *foreground
 
@@ -149,18 +149,18 @@ def format_color_cube(
 
                 if ansi_only:
                     eight_bit = oklab_to_ansi(*rgb256_to_oklab(*rgb256))
-                    srgb = rgb256_to_srgb(*eight_bit_to_rgb256(eight_bit))
+                    srgb = rgb256_to_srgb(*eight_bit_to_rgb256(*eight_bit))
                 else:
                     eight_bit = rgb6_to_eight_bit(r, g, b)
                     srgb = rgb256_to_srgb(*rgb256)
 
                 # Pick black or white for other color based on contrast
                 if layer is Layer.BACKGROUND:
-                    foreground = 232 if use_black_text(*srgb) else 255
+                    foreground = (232 if use_black_text(*srgb) else 255),
                     background = eight_bit
                 else:
                     foreground = eight_bit
-                    background = 232 if use_black_background(*srgb) else 255
+                    background = (232 if use_black_background(*srgb) else 255),
 
                 frame.box(f'{r}•{g}•{b}', foreground, background)
 
@@ -190,7 +190,7 @@ def format_hires_slice(
             color = r, g, b
             if eight_bit_only:
                 color = oklab_to_eight_bit(*rgb256_to_oklab(*color))
-            frame.box(' ', 0, color)
+            frame.box(' ', (0,), color)
 
         frame.right()
 
