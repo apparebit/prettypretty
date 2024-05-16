@@ -34,17 +34,58 @@ uniform color spaces.
    Repository <https://github.com/apparebit/prettypretty>
 
 
-Getting Started
----------------
+Prettypretty Illustrated
+------------------------
 
-As usual, you need to install prettypretty first:
+The first screenshot illustrates prettypretty's support for maximizing text
+contrast by comparing against backgrounds in all 216 colors from the 6x6x6 RGB
+cube of 8-bit terminal colors.
 
-.. code-block:: sh
+.. image:: figures/rgb6-background.png
+   :alt: The 6x6x6 RGB cube used for background colors
 
-   $ pip install prettypretty
+
+The second screenshot illustrates the reverse challenge, with prettypretty
+picking the background color to maximize contrast for text in all 216 colors
+from the 6x6x6 RGB cube. If you compare with the previous screenshot, you may
+notice that prettypretty's contrast metric, `APCA
+<https://github.com/Myndex/apca-w3>`_, is *not* symmetric. That's just why it is
+more accurate than, say, the WCAG 2.0 formula.
+
+.. image:: figures/rgb6-text.png
+   :alt: The 6x6x6 RGB cube used for text colors
 
 
-Once prettypretty is installed, you can start using its API in your code...
+The third screenshot illustrates prettypretty's support for finding the
+perceptually closest color out of several colors. That's just how prettypretty
+performs high-quality downsampling, in this case turning the 216 colors from the
+6x6x6 RGB cube into 16 extended ANSI colors.
+
+.. image:: figures/rgb6-ansi-macos.png
+   :alt: The 6x6x6 RGB cube used for text colors
+
+
+Since almost all terminals have robust support for theming just those 16
+extended ANSI colors, prettypretty doesn't just use some hardcoded set of
+colors. The fourth screenshot illustrates prettypretty's support color themes as
+well as automatically extracting color themes from  terminals. Despite running
+in iTerm2 instead of macOS, prettypretty has adjusted to iTerm2's lighter
+default color theme.
+
+.. image:: figures/rgb6-ansi-iterm2.png
+   :alt: The 6x6x6 RGB cube used for text colors
+
+
+To recap, prettypretty has robust support for:
+
+  * Maximizing the label contrast for a given background color;
+  * Maximizing the background contrast for a given text color;
+  * Finding the closest color out of several;
+  * Using that search to perform high-quality downsampling;
+  * Theming the sixteen extended ANSI colors;
+  * Automatically determining the current terminal theme.
+
+More is yet to come...
 
 
 Acknowledgements

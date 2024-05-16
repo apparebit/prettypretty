@@ -1,11 +1,12 @@
-prettypretty.color.core
-=======================
+prettypretty.color
+==================
 
-The modules in ``prettypretty.color`` implement the low-level color API. Most
-modules have limited dependencies on the standard library but otherwise stand on
-their own. A few modules pull in :mod:`prettypretty.color.spec`, which provides
-common type definitions. But :mod:`prettypretty.color.grid` and
-:mod:`prettypretty.color.lores` pull in several other color modules.
+Prettypretty's low-level color API. Much of the functionality is implemented
+through a simple procedural API and different modules are largely independent
+from each other. The one exception is :mod:`prettypretty.color.lores`, which
+implements support for low-resolution terminal colors with help of the
+:mod:`prettypretty.color.conversion`, :mod:`prettypretty.color.difference`, and
+:mod:`prettypretty.color.theme` modules.
 
 
 prettypretty.color.apca
@@ -26,13 +27,6 @@ prettypretty.color.difference
 -----------------------------
 
 .. automodule:: prettypretty.color.difference
-    :members:
-
-
-prettypretty.color.grid
------------------------
-
-.. automodule:: prettypretty.color.grid
     :members:
 
 
