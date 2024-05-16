@@ -12,6 +12,7 @@ dynamic = ["version"]
 dev = ["pyright", "flit"]
 doc = [
     "sphinx",
+    "sphinxcontrib-autoprogram",
     "sphinx_design",
     "sphinx-rtd-theme",
 ]
