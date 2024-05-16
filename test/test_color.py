@@ -209,22 +209,24 @@ class TestColor(unittest.TestCase):
         for color_name in ('BLACK', 'YELLOW', 'BLUE', 'WHITE'):
             values = getattr(self, color_name)
 
-            color = Color(values.spec)
-            self.assertEqual(color.tag, 'rgb256')
-            self.assertTupleEqual(color.coordinates, values.parsed)
+            color_name = color_name.lower()
+            with self.subTest('lores conversion', color=color_name):
+                color = Color(values.spec)
+                self.assertEqual(color.tag, 'rgb256')
+                self.assertTupleEqual(color.coordinates, values.parsed)
 
-            ansi = color.to('ansi')
-            self.assertEqual(ansi.tag, 'ansi')
-            self.assertEqual(ansi.coordinates, values.ansi)
+                ansi = color.to('ansi')
+                self.assertEqual(ansi.tag, 'ansi')
+                self.assertEqual(ansi.coordinates, values.ansi)
 
-            rgb256 = ansi.to('rgb256')
-            self.assertTupleEqual(
-                rgb256.coordinates,
-                VGA.ansi(cast(int, ansi.coordinates[0])).coordinates
-            )
+                rgb256 = ansi.to('rgb256')
+                self.assertTupleEqual(
+                    rgb256.coordinates,
+                    VGA.ansi(cast(int, ansi.coordinates[0])).coordinates
+                )
 
         self.assertTrue('prettypretty.color.lores' in sys.modules)
-        self.assertEqual(len(cache['ansi']), 2)
+        self.assertEqual(len(cache['ansi']), 3)
 
 
     def test_color_object(self) -> None:
