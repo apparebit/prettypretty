@@ -6,8 +6,6 @@ from typing import cast, TypeAlias
 from .spec import ConverterSpec, CoordinateSpec
 
 
-_RGB6_TO_RGB256 = (0, 0x5F, 0x87, 0xAF, 0xD7, 0xFF)
-
 # See https://github.com/color-js/color.js/blob/a77e080a070039c534dda3965a769675aac5f75e/src/spaces/srgb-linear.js
 
 _XYZ_TO_LINEAR_SRGB = (
@@ -328,7 +326,7 @@ def get_converter(source: str, target: str) -> ConverterSpec:
     route: list[str] = [source] if is_source_lores else []
 
     route.extend(_elaborate_route(
-        'rgb256' if is_source_lores else source,
+        'srgb' if is_source_lores else source,
         'oklab' if is_target_lores else target,
     ))
 

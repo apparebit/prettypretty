@@ -5,17 +5,19 @@ for down-sampling colors and maximizing contrast.
 import argparse
 import os
 
-from .conversion import rgb256_to_srgb, get_converter
-from .apca import use_black_text, use_black_background
-from .lores import (
+from .color.conversion import get_converter
+from .color.apca import use_black_text, use_black_background
+from .color.lores import (
     rgb6_to_eight_bit,
-    rgb6_to_rgb256,
-    eight_bit_to_rgb256,
+    rgb6_to_srgb,
+    eight_bit_to_srgb,
     oklab_to_ansi,
     oklab_to_eight_bit,
 )
-from .theme import MACOS_TERMINAL, VGA, XTERM, current_theme
-from .style import eight_bit_to_sgr_params, Layer, sgr
+from .color.theme import MACOS_TERMINAL, VGA, XTERM, current_theme
+from .color.style import eight_bit_to_sgr_params, Layer, sgr
+from .termio import TermIO
+
 
 class FramedBoxes:
     """
@@ -138,21 +140,20 @@ def format_color_cube(
         + '6•6•6 RGB Cube'
     )
 
-    rgb256_to_oklab = get_converter('rgb256', 'oklab')
+    srgb_to_oklab = get_converter('srgb', 'oklab')
 
     for r in range(6):
         for b in range(6):
             frame.left()
 
             for g in range(6):
-                rgb256 = rgb6_to_rgb256(r, g, b)
+                srgb = rgb6_to_srgb(r, g, b)
 
                 if ansi_only:
-                    eight_bit = oklab_to_ansi(*rgb256_to_oklab(*rgb256))
-                    srgb = rgb256_to_srgb(*eight_bit_to_rgb256(*eight_bit))
+                    eight_bit = oklab_to_ansi(*srgb_to_oklab(*srgb))
+                    srgb = eight_bit_to_srgb(*eight_bit)
                 else:
                     eight_bit = rgb6_to_eight_bit(r, g, b)
-                    srgb = rgb256_to_srgb(*rgb256)
 
                 # Pick black or white for other color based on contrast
                 if layer is Layer.BACKGROUND:
@@ -238,7 +239,15 @@ if __name__ == '__main__':
     options = create_parser().parse_args()
     width, _ = os.get_terminal_size()
 
-    with current_theme(options.theme or VGA):
+    theme = options.theme
+    if theme is None:
+        termio = TermIO()
+        with termio.cbread_mode():
+            theme = TermIO().extract_theme()
+    if theme is None:
+        theme = VGA
+
+    with current_theme(theme):
         print(f'\n{format_color_cube(width)}')
         print(f'\n{format_color_cube(width, ansi_only=True)}')
         print(f'\n{format_color_cube(width, layer=Layer.TEXT)}')
