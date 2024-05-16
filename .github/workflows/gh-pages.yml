@@ -54,7 +54,6 @@ jobs:
       with:
         name: github-pages
         path: docs/_build/html/
-        if-no-files-found: error
 
   deploy:
     environment:
