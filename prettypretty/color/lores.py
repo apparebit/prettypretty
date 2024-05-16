@@ -4,14 +4,22 @@ Support for low-resolution terminal colors
 from itertools import chain
 from typing import Callable, cast
 
-# Rename basic conversion to prevent it from tripping up module scan
-from .conversion import get_converter, rgb256_to_srgb as rgb256_into_srgb
+# Make imported conversion private so that it won't be collected a second time
+from .conversion import get_converter, rgb256_to_srgb as _rgb256_to_srgb
 from .difference import closest_oklab
 from .spec import CoordinateVectorSpec
 from .theme import current_theme, Theme
 
 
 _RGB6_TO_RGB256 = (0, 0x5F, 0x87, 0xAF, 0xD7, 0xFF)
+
+
+def ansi_to_eight_bit(color: int) -> tuple[int]:
+    """
+    Convert the given ANSI color to 8-bit format. This function implements the
+    identity transform for the color value.
+    """
+    return color,
 
 
 def rgb6_to_eight_bit(r: int, g: int, b: int) -> tuple[int]:
@@ -74,11 +82,6 @@ def approximate_rgb256_with_rgb6(r: int, g: int, b: int) -> tuple[int, int, int]
     return convert(r), convert(g), convert(b)
 
 
-def ansi_to_eight_bit(color: int) -> tuple[int]:
-    """Convert the given ANSI color to 8-bit format."""
-    return color,
-
-
 def ansi_to_rgb256(color: int) -> tuple[int, int, int]:
     """
     :bdg-warning:`Lossy conversion` Convert the given ANSI color to RGB256
@@ -94,32 +97,6 @@ def ansi_to_rgb256(color: int) -> tuple[int, int, int]:
 
     assert c.tag == 'rgb256'
     return c.coordinates  # type: ignore
-
-
-def ansi_to_srgb(color: int) -> tuple[float, float, float]:
-    """
-    Convert the ANSI color to sRGB. Directly converting to sRGB and avoiding
-    RGB256 is the more conservative conversion because most terminals, when
-    queried with OSC-4, report color values with four hexadecimal digits per
-    coordinate. RGB256 obviously cannot preserve that resolution, though sRGB
-    can.
-
-    .. warning::
-        The result of this function critically depends on the current color
-        theme. After all, the current theme determines the RGB256 values for all
-        extended ANSI colors.
-    """
-    assert 0 <= color <= 15
-    c = current_theme().ansi(color)
-
-    if c.tag == 'rg256':
-        coordinates = rgb256_into_srgb(*cast(tuple[int, int, int], c.coordinates))
-    elif c.tag == 'srgb':
-        coordinates = c.coordinates
-    else:
-        coordinates = get_converter(c.tag, 'srgb')(*c.coordinates)
-
-    return cast(tuple[float, float, float], coordinates)
 
 
 def _eight_bit_gray_to_rgb256(color: int) -> tuple[int, int, int]:
@@ -149,6 +126,38 @@ def eight_bit_to_rgb256(color: int) -> tuple[int, int, int]:
     raise ValueError(f'{color} is not a valid 8-bit terminal color')
 
 
+def ansi_to_srgb(color: int) -> tuple[float, float, float]:
+    """
+    Convert the ANSI color to sRGB. Directly converting to sRGB and avoiding
+    RGB256 is the more conservative conversion because most terminals, when
+    queried with OSC-4, report color values with four hexadecimal digits per
+    coordinate. RGB256 obviously cannot preserve that resolution, though sRGB
+    can.
+
+    .. warning::
+        The result of this function critically depends on the current color
+        theme. After all, the current theme determines the RGB256 values for all
+        extended ANSI colors.
+    """
+    assert 0 <= color <= 15
+    c = current_theme().ansi(color)
+
+    if c.tag == 'rg256':
+        coordinates = _rgb256_to_srgb(*cast(tuple[int, int, int], c.coordinates))
+    elif c.tag == 'srgb':
+        coordinates = c.coordinates
+    else:
+        coordinates = get_converter(c.tag, 'srgb')(*c.coordinates)
+
+    return cast(tuple[float, float, float], coordinates)
+
+
+def rgb6_to_srgb(r: int, g: int, b: int) -> tuple[float, float, float]:
+    """Convert the given color in RGB6 format to sRGB format."""
+    assert 0 <= r <= 5 and 0 <= g <= 5 and 0 <= b <= 5
+    return _rgb256_to_srgb(*rgb6_to_rgb256(r, g, b))
+
+
 def eight_bit_to_srgb(color: int) -> tuple[float, float, float]:
     """
     Convert the given 8-bit terminal color to sRGB.
@@ -161,9 +170,9 @@ def eight_bit_to_srgb(color: int) -> tuple[float, float, float]:
     if 0 <= color <= 15:
         return ansi_to_srgb(color)
     if 16 <= color <= 231:
-        return rgb256_into_srgb(*rgb6_to_rgb256(*eight_bit_to_rgb6(color)))
+        return _rgb256_to_srgb(*rgb6_to_rgb256(*eight_bit_to_rgb6(color)))
     if 232 <= color <= 255:
-        return rgb256_into_srgb(*_eight_bit_gray_to_rgb256(color))
+        return _rgb256_to_srgb(*_eight_bit_gray_to_rgb256(color))
 
     raise ValueError(f'{color} is not a valid 8-bit terminal color')
 
@@ -184,7 +193,7 @@ class _LUT:
     @property
     def convert(self) -> _RGB256_TO_OKLAB:
         if self._convert is None:
-            setattr(self, '_convert', get_converter('rgb256', 'oklab'))
+            setattr(self, '_convert', get_converter('srgb', 'oklab'))
         assert self._convert is not None
         return self._convert
 
@@ -193,7 +202,7 @@ class _LUT:
         theme = current_theme()
         if theme not in self._ansi:
             self._ansi[theme] = tuple(
-                (self.convert if c.tag == 'srgb256' else get_converter(c.tag, 'oklab'))
+                (self.convert if c.tag == 'srgb' else get_converter(c.tag, 'oklab'))
                 (*c.coordinates)  # type: ignore
                 for n, c in theme.colors() if n not in ('text', 'background')
             )
