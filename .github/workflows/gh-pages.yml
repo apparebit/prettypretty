@@ -1,0 +1,68 @@
+name: Publish to GitHub Pages
+
+on:
+  # Run when pushing main branch
+  push:
+    branches: [ "main" ]
+  # Run when pushing button in Actions tab
+  workflow_dispatch:
+
+# Empower GITHUB_TOKEN to do the work
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow just one concurrent deployment, but make sure it can run to completion
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # Build the documentation and upload it as an artifact
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: "pip"
+
+    - name: Install Sphinx & Autoprogram, Design, RTD Theme
+      run: |
+        python -m pip install --upgrade pip
+        pip install sphinx sphinxcontrib-autoprogram sphinx_design sphinx-rtd-theme
+
+    - name: Set up Pages
+      id: pages
+      uses: actions/configure-pages@v5
+
+    - name: Build documentation
+      run: |
+        print '─── Current Working Directory ──────────────────────────────────────────'
+        pwd
+        ls -ld docs
+        print '────────────────────────────────────────────────────────────────────────'
+        cd docs
+        make html
+
+    - name: Upload Artifact
+      uses: actions/upload-pages-artifact@v4
+      with:
+        name: github-pages
+        path: docs/_build/html/
+        if-no-files-found: error
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy Artifact to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
