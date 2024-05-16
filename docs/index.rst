@@ -13,21 +13,17 @@ uniform color spaces.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Background
+   :caption: Guides
 
    formats-and-spaces
    conversions
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Guides
-
    tools
 
 .. toctree::
    :maxdepth: 1
    :caption: API
 
+   apidocs/prettypretty
    apidocs/color
 
 .. toctree::
