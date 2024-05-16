@@ -1,8 +1,8 @@
 # prettypretty
 
-Prettypretty is a Python package that helps build terminal user interfaces. Its
-features include expressive color management (mostly implemented), convenient
-terminal introspection (not yet implemented), ...
+Prettypretty is a Python package to help build better terminal user interfaces.
+For starters, prettypretty provides robust color manipulation and conversion,
+including from and to terminal colors.
 
 ---
 
