@@ -66,11 +66,13 @@ performs high-quality downsampling, in this case turning the 216 colors from the
 
 
 Since almost all terminals have robust support for theming just those 16
-extended ANSI colors, prettypretty doesn't just use some hardcoded set of
-colors. The fourth screenshot illustrates prettypretty's support color themes as
-well as automatically extracting color themes from  terminals. Despite running
-in iTerm2 instead of macOS, prettypretty has adjusted to iTerm2's lighter
-default color theme.
+extended ANSI colors, prettypretty doesn't just use some hardcoded set of colors
+but has built-in support for color themes. You can of course configure and
+reconfigure the current colors as you please. But prettypretty can do one
+better: It can automatically query a terminal for the current theme colors.
+The fourth screenshot illustrates the impact. When running in iTerm2 instead of
+macOS Terminal, prettypretty makes good use of the brighter colors in one of
+iTerm's builtin themes and generates a substantially different grid!
 
 .. image:: figures/rgb6-ansi-iterm2.png
    :alt: The 6x6x6 RGB cube used for text colors
