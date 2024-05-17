@@ -32,6 +32,8 @@ uniform color spaces.
    :hidden:
 
    Repository <https://github.com/apparebit/prettypretty>
+   Package <https://pypi.org/project/prettypretty/>
+   Documentation <https://apparebit.github.io/prettypretty/>
 
 
 Prettypretty Illustrated
