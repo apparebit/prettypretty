@@ -117,6 +117,7 @@ def format_color_cube(
     *,
     layer: Layer = Layer.BACKGROUND,
     ansi_only: bool = False,
+    label: bool = True,
 ) -> str:
     """
     Format a framed grid with 216 cells, where each cell displays a distinct
@@ -163,7 +164,7 @@ def format_color_cube(
                     foreground = eight_bit
                     background = (232 if use_black_background(*srgb) else 255),
 
-                frame.box(f'{r}•{g}•{b}', foreground, background)
+                frame.box(f'{r}•{g}•{b}' if label else ' ', foreground, background)
 
             frame.right()
 
@@ -232,6 +233,15 @@ def create_parser() -> argparse.ArgumentParser:
         help='use the same colors as VGA in text mode'
     )
 
+    parser.add_argument(
+        '--no-label',
+        action='store_const',
+        const=False,
+        default=True,
+        dest='label',
+        help='do not display of color labels',
+    )
+
     return parser
 
 
@@ -248,8 +258,8 @@ if __name__ == '__main__':
         theme = VGA
 
     with current_theme(theme):
-        print(f'\n{format_color_cube(width)}')
-        print(f'\n{format_color_cube(width, ansi_only=True)}')
+        print(f'\n{format_color_cube(width, label=options.label)}')
+        print(f'\n{format_color_cube(width, ansi_only=True, label=options.label)}')
         print(f'\n{format_color_cube(width, layer=Layer.TEXT)}')
 
         if os.getenv('COLORTERM') == 'truecolor':
