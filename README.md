@@ -1,5 +1,7 @@
 # Prettypretty
 
+[![Publish to GitHub Pages](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml)
+
 Prettypretty is a Python package for building awesome terminal user interfaces.
 
 
