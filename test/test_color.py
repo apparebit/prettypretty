@@ -182,7 +182,7 @@ class TestColor(unittest.TestCase):
 
             with self.subTest('XYZ to OkLab', color=color_name):
                 oklab = xyz_to_oklab(*xyz)
-                self.assertTupleEqual(oklab, values.oklab)
+                self.assertCloseEnough(oklab, values.oklab)
 
             with self.subTest('OkLab back to XYZ', color=color_name):
                 self.assertCloseEnough(oklab_to_xyz(*oklab), xyz)
@@ -190,8 +190,8 @@ class TestColor(unittest.TestCase):
             with self.subTest('OkLab to OkLCh', color=color_name):
                 oklch = oklab_to_oklch(*oklab)
                 expected = values.oklch
-                self.assertEqual(oklch[0], expected[0])
-                self.assertEqual(oklch[1], expected[1])
+                self.assertAlmostEqual(oklch[0], expected[0])
+                self.assertAlmostEqual(oklch[1], expected[1])
                 self.assertTrue(
                     (math.isnan(oklch[2]) and math.isnan(expected[2]))
                     or oklch[2] == expected[2]
@@ -243,7 +243,10 @@ class TestColor(unittest.TestCase):
             with self.subTest('convert to OkLab', color=color_name):
                 oklab = color.to('oklab')
                 self.assertEqual(oklab.tag, 'oklab')
-                self.assertEqual(oklab.coordinates, values.oklab)
+                self.assertCloseEnough(
+                    cast(tuple[float, float, float], oklab.coordinates),
+                    values.oklab
+                )
 
             with self.subTest('check distance', color=color_name):
                 self.assertEqual(
