@@ -192,10 +192,10 @@ class TestColor(unittest.TestCase):
                 expected = values.oklch
                 self.assertAlmostEqual(oklch[0], expected[0])
                 self.assertAlmostEqual(oklch[1], expected[1])
-                self.assertTrue(
-                    (math.isnan(oklch[2]) and math.isnan(expected[2]))
-                    or oklch[2] == expected[2]
-                )
+                if math.isnan(expected[2]):
+                    self.assertTrue(math.isnan(oklch[2]))
+                else:
+                    self.assertAlmostEqual(oklch[2], expected[2])
 
             with self.subTest('OkLCh to OkLab', color=color_name):
                 self.assertCloseEnough(oklch_to_oklab(*oklch), oklab)
