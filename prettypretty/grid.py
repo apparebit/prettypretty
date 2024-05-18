@@ -179,7 +179,8 @@ def format_hires_slice(
 ) -> str:
     frame = FramedBoxes(width, 32, min_width=1)
     frame.top(
-        'High-Resolution Color Slice'
+        ('Downsampled ' if eight_bit_only else '')
+        + 'Hi-Res Color Slice'
     )
 
     rgb256_to_oklab = get_converter('rgb256', 'oklab')
@@ -206,7 +207,8 @@ def create_parser() -> argparse.ArgumentParser:
         description="""
             Display color grids that visualize the range of terminal colors,
             while also exercising prettypretty's support for maximizing
-            contrast and down-sampling colors.
+            contrast and down-sampling colors. If not color theme is requested
+            with a command line argument, try to use terminal's current theme.
         """,
     )
 
@@ -234,12 +236,18 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        '--truecolor',
+        action='store_true',
+        help='display 24-bit color slices even if terminal advertises lesser support',
+    )
+
+    parser.add_argument(
         '--no-label',
         action='store_const',
         const=False,
         default=True,
         dest='label',
-        help='do not display of color labels',
+        help='do not display color labels',
     )
 
     return parser
@@ -252,7 +260,7 @@ if __name__ == '__main__':
     theme = options.theme
     if theme is None:
         termio = TermIO()
-        with termio.cbread_mode():
+        with termio.cbreak_mode():
             theme = TermIO().extract_theme()
     if theme is None:
         theme = VGA
@@ -262,6 +270,6 @@ if __name__ == '__main__':
         print(f'\n{format_color_cube(width, ansi_only=True, label=options.label)}')
         print(f'\n{format_color_cube(width, layer=Layer.TEXT)}')
 
-        if os.getenv('COLORTERM') == 'truecolor':
+        if options.truecolor or os.getenv('COLORTERM') == 'truecolor':
             print(f'\n{format_hires_slice(width)}')
             print(f'\n{format_hires_slice(width, eight_bit_only=True)}')
