@@ -30,6 +30,13 @@ prettypretty.color.difference
     :members:
 
 
+prettypretty.color.equality
+---------------------------
+
+.. automodule:: prettypretty.color.equality
+    :members:
+
+
 prettypretty.color.lores
 ------------------------
 
