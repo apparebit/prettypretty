@@ -87,7 +87,7 @@ class TermIO:
 
 
     @contextmanager
-    def cbread_mode(self) -> Iterator[Self]:
+    def cbreak_mode(self) -> Iterator[Self]:
         """
         Put the terminal into cbreak mode for the lifetime of the context.
 
@@ -426,7 +426,7 @@ if __name__ == '__main__':
     options = create_parser().parse_args()
 
     termio = TermIO()
-    with termio.cbread_mode():
+    with termio.cbreak_mode():
         if options.format in (None, 'theme'):
             theme = termio.extract_theme()
             if theme is not None:
