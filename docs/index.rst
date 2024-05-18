@@ -17,7 +17,8 @@ uniform color spaces.
 
    formats-and-spaces
    conversions
-   tools
+   tooling
+   hires-slices
 
 .. toctree::
    :maxdepth: 1
