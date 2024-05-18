@@ -158,6 +158,11 @@ def rgb6_to_srgb(r: int, g: int, b: int) -> tuple[float, float, float]:
     return _rgb256_to_srgb(*rgb6_to_rgb256(r, g, b))
 
 
+def _eight_bit_gray_to_srgb(color: int) -> tuple[float, float, float]:
+    """Convert the given 8-bit gray to sRGB."""
+    return _rgb256_to_srgb(*_eight_bit_gray_to_rgb256(color))
+
+
 def eight_bit_to_srgb(color: int) -> tuple[float, float, float]:
     """
     Convert the given 8-bit terminal color to sRGB.
@@ -172,7 +177,7 @@ def eight_bit_to_srgb(color: int) -> tuple[float, float, float]:
     if 16 <= color <= 231:
         return _rgb256_to_srgb(*rgb6_to_rgb256(*eight_bit_to_rgb6(color)))
     if 232 <= color <= 255:
-        return _rgb256_to_srgb(*_eight_bit_gray_to_rgb256(color))
+        return _eight_bit_gray_to_srgb(color)
 
     raise ValueError(f'{color} is not a valid 8-bit terminal color')
 
@@ -180,7 +185,7 @@ def eight_bit_to_srgb(color: int) -> tuple[float, float, float]:
 # --------------------------------------------------------------------------------------
 
 
-_RGB256_TO_OKLAB = Callable[[int, int, int], tuple[float, float, float]]
+_RGB256_TO_OKLAB = Callable[[float, float, float], tuple[float, float, float]]
 
 class _LUT:
 
@@ -212,7 +217,7 @@ class _LUT:
     def rgb(self) -> CoordinateVectorSpec:
         if self._rgb is None:
             self._rgb = tuple(
-                self.convert(*rgb6_to_rgb256(r, g, b))
+                self.convert(*rgb6_to_srgb(r, g, b))
                 for r in range(6) for g in range(6) for b in range(6)
             )
         return self._rgb
@@ -221,7 +226,7 @@ class _LUT:
     def gray(self) -> CoordinateVectorSpec:
         if self._gray is None:
             self._gray = tuple(
-                self.convert(*_eight_bit_gray_to_rgb256(c))
+                self.convert(*_eight_bit_gray_to_srgb(c))
                 for c in range(232, 256)
             )
         return self._gray
