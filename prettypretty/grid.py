@@ -38,6 +38,7 @@ class FramedBoxes:
                 f'unable to fit {box_count} boxes into {term.width} columns'
             )
         self._width = self._box_count * self._box_width + 2
+        self._indent = (term.width - self.outer_width) // 2
         self._line_content_width = 0
 
     @property
@@ -60,13 +61,13 @@ class FramedBoxes:
             raise ValueError(f'"{title}" is too long for {self.outer_width}-wide frame')
         if title:
             title = f'\x1b[1m{title}\x1b[m'
-        self._term.writeln(f'┏━{title}{"━" * filling}━┓')
+        self._term.writeln(f'{" " * self._indent}┏━{title}{"━" * filling}━┓')
 
     def left(self) -> None:
         """Start formatting a line of content."""
         if self._line_content_width != 0:
             raise ValueError('Line started before line ended')
-        self._term.write('┃')
+        self._term.write(f'{" " * self._indent}┃')
 
     def box(
         self,
@@ -109,7 +110,7 @@ class FramedBoxes:
 
     def bottom(self) -> None:
         """Format the bottom of the frame."""
-        self._term.writeln(f'┗{"━" * self.inner_width}┛')
+        self._term.writeln(f'{" " * self._indent}┗{"━" * self.inner_width}┛')
 
 
 def write_color_cube(
