@@ -49,6 +49,10 @@ class Coordinate:
             if self.min != 0 or self.max != 1:
                 raise ValueError('normal coordinate must have range from 0 to 1')
 
+    def is_integral(self) -> bool:
+        """Determine whether the coordinates are integers only."""
+        return self.type == 'int'
+
     def is_in_range(self, value: float, *, epsilon: float = EPSILON) -> bool:
         """
         Determine whether the value is within the range set by this coordinate's
@@ -96,6 +100,21 @@ class Space:
     coordinates: tuple[Coordinate, ...]
     css_format: None | str = None
     lores: bool = False
+
+    def __post_init__(self) -> None:
+        # Count the number of axes with integral coordinates
+        count = sum(c.is_integral() for c in self.coordinates)
+        if count != 0 and count != len(self.coordinates):
+            raise ValueError(
+                'either none or all coordinates of a color space must be integral'
+            )
+
+    def is_integral(self) -> bool:
+        """
+        Determine whether a color format allows only integers.
+        """
+        # Testing only the first coordinate works because of __post_init__ above.
+        return self.coordinates[0].is_integral()
 
     def is_in_gamut(self, *coordinates: float, epsilon: float = EPSILON) -> bool:
         """

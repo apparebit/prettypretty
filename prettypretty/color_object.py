@@ -4,6 +4,7 @@ from typing import cast, Literal, overload, Self
 from .color.apca import contrast, use_black_text, use_black_background
 from .color.conversion import get_converter
 from .color.difference import deltaE_oklab, closest_oklab
+from .color.equality import EQUALITY_PRECISION, same_coordinates
 from .color.serde import (
     parse_format_spec,
     parse_hex,
@@ -39,7 +40,15 @@ class Color(ColorSpec):
     Hence, it effectively upgrades color specifications to full featured color
     objects.
 
-    Like its parent class :class:`.ColorSpec`, this class is immutable.
+    As for the parent class :class:`.ColorSpec`, instances of this class are
+    immutable.
+
+    This class implements ``__hash__()`` and ``__eq__()`` so that colors *in the
+    same color format or space* with sufficiently close coordinates are treated
+    as equal. For color formats with integral coordinates, "sufficiently close"
+    means equal coordinates. For color spaces, it means equality after rounding
+    to 14 significant digits. Since equal colors must have equal hashes, the
+    magnitude of the difference cannot be used for equality.
     """
     __slots__ = ()
 
@@ -64,7 +73,6 @@ class Color(ColorSpec):
         raise AttributeError(f'color {self} has no attribute named "{name}"')
 
     # ----------------------------------------------------------------------------------
-
 
     @overload
     def __init__(self, tag: str | ColorSpec | Self) -> None:
@@ -125,6 +133,26 @@ class Color(ColorSpec):
 
         b1, b2, b3 = self.coordinates
         return type(self)(self.tag, (c1 or b1, c2 or b2, c3 or b3))
+
+    # ----------------------------------------------------------------------------------
+    # Hash and Equality
+
+    def __hash__(self) -> int:
+        cs = tuple(
+            (round(c, EQUALITY_PRECISION) if isinstance(c, float) else c)
+            for c in self.coordinates
+        )
+        return hash((self.tag, cs))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ColorSpec) or self.tag != other.tag:
+            return NotImplemented
+        if self.space.is_integral():
+            return self.coordinates == other.coordinates
+        return same_coordinates(
+            cast(tuple[float, float, float], self.coordinates),
+            cast(tuple[float, float, float], other.coordinates),
+        )
 
     # ----------------------------------------------------------------------------------
     # Gamut and Clipping

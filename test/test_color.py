@@ -21,12 +21,9 @@ from prettypretty.color.conversion import (
     oklch_to_oklab,
 )
 
-from prettypretty.color.serde import (
-    parse_hex,
-    parse_x_rgb,
-    parse_x_rgbi,
-)
-
+from prettypretty.color.equality import EQUALITY_PRECISION, same_coordinates
+from prettypretty.color.serde import parse_hex, parse_x_rgb, parse_x_rgbi
+from prettypretty.color.spec import ColorSpec
 from prettypretty.color.theme import VGA
 from prettypretty.color_object import Color
 
@@ -125,14 +122,55 @@ class TestColor(unittest.TestCase):
     )
 
 
-    def assertCloseEnough(
+    def assertSameCoordinates(
         self,
-        color1: tuple[float, float, float],
-        color2: tuple[float, float, float],
-        places: int = 14,
+        coordinates1: tuple[float, float, float],
+        coordinates2: tuple[float, float, float],
+        *,
+        hue: int = -1,
     ) -> None:
-        for c1, c2 in zip(color1, color2):
-            self.assertAlmostEqual(c1, c2, places=places)
+        # A double cannot encode more than 17 decimal digits...
+        c1 = ', '.join(f'{c:.17f}' for c in coordinates1)
+        c2 = ', '.join(f'{c:.17f}' for c in coordinates2)
+
+        # Show coordinates above each other to aid comparison of close values
+        msg = (
+            f'coordinates differ within {EQUALITY_PRECISION} '
+            f'digits:\n    {c1}\n    {c2}'
+        )
+
+        self.assertTrue(same_coordinates(coordinates1, coordinates2, hue=hue), msg)
+
+
+    def test_same_coordinates(self) -> None:
+        # One less than the precision is rounded up or down, with 0.5
+        # represented by a floating point number slightly smaller and hence
+        # still rounding down.
+        f00 = 0.0
+        f01 = float(f'1e-{EQUALITY_PRECISION + 1}')
+        f02 = float(f'2e-{EQUALITY_PRECISION + 1}')
+        f05 = float(f'5e-{EQUALITY_PRECISION + 1}')
+        f07 = float(f'7e-{EQUALITY_PRECISION + 1}')
+        f08 = float(f'8e-{EQUALITY_PRECISION + 1}')
+        f09 = float(f'9e-{EQUALITY_PRECISION + 1}')
+        f10 = float(f'1e-{EQUALITY_PRECISION}')
+        f20 = float(f'2e-{EQUALITY_PRECISION}')
+
+        self.assertSameCoordinates(
+            (f01, f02, f05),
+            (f00, f00, f00),
+        )
+
+        self.assertSameCoordinates(
+            (f07, f08, f09),
+            (f10, f10, f10),
+        )
+
+        with self.assertRaises(AssertionError):
+            self.assertSameCoordinates(
+                (f10, f10, f10),
+                (f20, f20, f20),
+            )
 
 
     def test_conversions(self) -> None:
@@ -147,58 +185,52 @@ class TestColor(unittest.TestCase):
 
             with self.subTest('RGB256 to sRGB', color=color_name):
                 srgb = rgb256_to_srgb(*rgb256)
-                self.assertTupleEqual(srgb, values.srgb)
+                self.assertSameCoordinates(srgb, values.srgb)
 
             with self.subTest('sRGB back to RGB256', color=color_name):
                 self.assertTupleEqual(srgb_to_rgb256(*srgb), rgb256)
 
             with self.subTest('sRGB to linear sRGB', color=color_name):
                 linear_srgb = srgb_to_linear_srgb(*srgb)
-                self.assertTupleEqual(linear_srgb, values.linear_srgb)
+                self.assertSameCoordinates(linear_srgb, values.linear_srgb)
 
             with self.subTest('linear sRGB back to sRGB', color=color_name):
-                self.assertCloseEnough(linear_srgb_to_srgb(*linear_srgb), srgb)
+                self.assertSameCoordinates(linear_srgb_to_srgb(*linear_srgb), srgb)
 
             with self.subTest('linear sRGB to XYZ', color=color_name):
                 xyz = linear_srgb_to_xyz(*linear_srgb)
-                self.assertTupleEqual(xyz, values.xyz)
+                self.assertSameCoordinates(xyz, values.xyz)
 
             with self.subTest('XYZ back to linear sRGB', color=color_name):
-                self.assertCloseEnough(xyz_to_linear_srgb(*xyz), linear_srgb)
+                self.assertSameCoordinates(xyz_to_linear_srgb(*xyz), linear_srgb)
 
             with self.subTest('XYZ to linear P3', color=color_name):
                 linear_p3 = xyz_to_linear_p3(*xyz)
-                self.assertTupleEqual(linear_p3, values.linear_p3)
+                self.assertSameCoordinates(linear_p3, values.linear_p3)
 
             with self.subTest('linear P3 back to XYZ', color=color_name):
-                self.assertCloseEnough(linear_p3_to_xyz(*linear_p3), xyz)
+                self.assertSameCoordinates(linear_p3_to_xyz(*linear_p3), xyz)
 
             with self.subTest('linear P3 to P3', color=color_name):
                 p3 = linear_p3_to_p3(*linear_p3)
-                self.assertTupleEqual(p3, values.p3)
+                self.assertSameCoordinates(p3, values.p3)
 
             with self.subTest('P3 back to linear P3', color=color_name):
-                self.assertCloseEnough(p3_to_linear_p3(*p3), linear_p3)
+                self.assertSameCoordinates(p3_to_linear_p3(*p3), linear_p3)
 
-            with self.subTest('XYZ to OkLab', color=color_name):
+            with self.subTest('XYZ to Oklab', color=color_name):
                 oklab = xyz_to_oklab(*xyz)
-                self.assertCloseEnough(oklab, values.oklab)
+                self.assertSameCoordinates(oklab, values.oklab)
 
-            with self.subTest('OkLab back to XYZ', color=color_name):
-                self.assertCloseEnough(oklab_to_xyz(*oklab), xyz)
+            with self.subTest('Oklab back to XYZ', color=color_name):
+                self.assertSameCoordinates(oklab_to_xyz(*oklab), xyz)
 
-            with self.subTest('OkLab to OkLCh', color=color_name):
+            with self.subTest('Oklab to Oklch', color=color_name):
                 oklch = oklab_to_oklch(*oklab)
-                expected = values.oklch
-                self.assertAlmostEqual(oklch[0], expected[0])
-                self.assertAlmostEqual(oklch[1], expected[1])
-                if math.isnan(expected[2]):
-                    self.assertTrue(math.isnan(oklch[2]))
-                else:
-                    self.assertAlmostEqual(oklch[2], expected[2])
+                self.assertSameCoordinates(oklch, values.oklch, hue=2)
 
-            with self.subTest('OkLCh to OkLab', color=color_name):
-                self.assertCloseEnough(oklch_to_oklab(*oklch), oklab)
+            with self.subTest('Oklch back to Oklab', color=color_name):
+                self.assertSameCoordinates(oklch_to_oklab(*oklch), oklab)
 
 
     def test_lores(self) -> None:
@@ -217,7 +249,7 @@ class TestColor(unittest.TestCase):
 
                 ansi = color.to('ansi')
                 self.assertEqual(ansi.tag, 'ansi')
-                self.assertEqual(ansi.coordinates, values.ansi)
+                self.assertTupleEqual(ansi.coordinates, values.ansi)
 
                 rgb256 = ansi.to('rgb256')
                 self.assertTupleEqual(
@@ -238,15 +270,20 @@ class TestColor(unittest.TestCase):
             with self.subTest('parse color', color=color_name):
                 color = Color(spec)
                 self.assertEqual(color.tag, 'rgb256')
-                self.assertEqual(color.coordinates, values.parsed)
+                self.assertTupleEqual(color.coordinates, values.parsed)
+                self.assertEqual(color, color)
+                self.assertEqual(color, ColorSpec('rgb256', values.parsed))
 
             with self.subTest('convert to OkLab', color=color_name):
                 oklab = color.to('oklab')
                 self.assertEqual(oklab.tag, 'oklab')
-                self.assertCloseEnough(
+                self.assertSameCoordinates(
                     cast(tuple[float, float, float], oklab.coordinates),
                     values.oklab
                 )
+                self.assertEqual(oklab, oklab)
+                self.assertNotEqual(oklab, color)
+                self.assertEqual(oklab, ColorSpec('oklab', values.oklab))
 
             with self.subTest('check distance', color=color_name):
                 self.assertEqual(
