@@ -16,25 +16,24 @@ def same_coordinates(
     Args:
         coordinates1: are the first color's coordinates
         coordinates2: are the second color's coordinates
-        epsilon: is the tolerance for the comparison
+        precision: is the number of significant digits to round
+            to before comparing coordinates
         hue: is the index of the hue or -1 if there is no hue
     Returns:
-        ``True`` if the coordinates are identical after rounding to the given
+        ``True`` if the coordinates are the same after rounding to the given
         precision or, for the hue, if both coordinates are not-a-number.
 
     The two coordinates must be in the same color space. Furthermore, since this
     function uses a single precision for all three coordinate axes, the ranges
-    of the three axes should be reasonably similar.
+    of the three axes should be reasonably similar. For hue coordinates, this
+    function already adjusts the precision down by two digits and correctly
+    handles not-a-number values.
 
-    The comparison allows for the hue to be not-a-number, but this function does
-    not enforce related constraints, such as the chroma being very close to zero
-    or one.
-
-    Python objects must have the same hash if they compare as equal. It is
-    impossible to implement that behavior in a color class if equality is based
-    on the magnitude of the (relative) difference between coordinates. But it
-    *is* possible to implement that behavior when each color's coordinates can
-    be independently prepared for the comparison, notably by rounding.
+    Python objects must have the same hash if they compare as equal. That is
+    impossible to implement if equality is based on the magnitude of the
+    (relative) difference between coordinates. It *is* possible to implement
+    that behavior when each color's coordinates can be independently prepared
+    for the comparison, notably when rounding.
     """
     assert -1 <= hue <= 2
 
