@@ -16,6 +16,6 @@ def eight_bit_to_sgr_params(color: int, layer: Layer) -> tuple[int, ...]:
     return 38 + layer.value, 5, color
 
 
-def sgr(*parameters: int) -> str:
+def sgr(*parameters: None | int | str) -> str:
     """Create an SGR escape sequence for the given parameters."""
-    return f'\x1b[{";".join(str(p) for p in parameters)}m'
+    return f'\x1b[{";".join('' if p is None else str(p) for p in parameters)}m'
