@@ -1,7 +1,9 @@
 prettypretty
 ============
 
-Prettypretty's high-level API.
+Prettypretty's high-level API comprises the :class:`.Color` and :class:`.TermIO`
+classes. The latter benefits from a few auxiliary classes also defined in the
+:mod:`prettypretty.termio` module.
 
 
 prettypretty.color_object.Color
@@ -11,8 +13,8 @@ prettypretty.color_object.Color
     :members:
 
 
-prettypretty.termio.TermIO
---------------------------
+prettypretty.termio
+-------------------
 
-.. autoclass:: prettypretty.termio.TermIO
+.. automodule:: prettypretty.termio
     :members:
