@@ -1,13 +1,15 @@
 import argparse
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 import dataclasses
+import enum
 import json
 import os
 import select
 import sys
 import termios
 import tty
+from types import TracebackType
 from typing import Any, cast, ClassVar, Never, Self, TextIO, TypeAlias
 
 
@@ -33,9 +35,191 @@ class e:
     ST = '\x1b\\'
 
 
+def _fuse(*fragments: None | int | str) -> str:
+    return ''.join('' if s is None else str(s) for s in fragments)
+
+
+class BatchMode(enum.Enum):
+    """
+    A terminal's `batch mode
+    <https://gist.github.com/christianparpart/d8a62cc1ab659194337d73e399004036>`_.
+
+    Attributes:
+        NOT_SUPPORTED: indicates that the terminal does not support batching
+        ENABLED: indicates that the terminal is currently batching
+        DISABLED: indicates that the terminal is not currently batching
+        UNDEFINED: really is permanently enabled, which makes no sense
+        PERMANENTLY_DISABLED: effectively is the same as the terminal not
+            supporting batch mode
+
+    Since three out of five status codes for batching more (``NOT_SUPPORTED``,
+    ``PERMANENTLY_DISABLED``) or less (``UNDEFINED``) imply that the terminal
+    doesn't support batching, this enumeration also defines the more precise
+    computed properties ``is_supported``, ``is_enabled``, and ``is_disabled``.
+    """
+    NOT_SUPPORTED = 0
+    ENABLED = 1
+    DISABLED = 2
+    UNDEFINED = 3
+    PERMANENTLY_DISABLED = 4
+
+    @property
+    def is_supported(self) -> bool:
+        """Determine whether the terminal supports batching."""
+        return self is BatchMode.ENABLED or self is BatchMode.DISABLED
+
+    @property
+    def is_enabled(self) -> bool:
+        """Determine whether the terminal is currently batching."""
+        return self is BatchMode.ENABLED
+
+    @property
+    def is_disabled(self) -> bool:
+        """Determine whether the terminal is currently not batching."""
+        return self is not BatchMode.ENABLED
+
+
+class TerminalContextManager(AbstractContextManager['TermIO']):
+    """
+    A context manager for terminal state.
+
+    This class manages terminal updates. It ensures that updates are written in
+    the right order, that the output is flushed only when necessary, and that
+    the terminal is restored to its original state after use.
+
+    To make this work, all updates must be registered with this class before
+    entering a ``with`` block. Updates further consist of a pair of ANSI escape
+    sequences, one to set up the new terminal state and one to restore the old
+    terminal state.
+
+    On entry, this class writes out the first ANSI escape sequence of every
+    registered pair in registration order and then flushes the output. On exit,
+    this class writes out the second sequence in reverse registration order and
+    then flushes the output.
+
+    Instances of this class are both reentrant and reusable. This class writes
+    *nothing* to the terminal upon reentrant use, i.e., when ``__enter__()`` is
+    invoked again before ``__exit__()``. But it writes the first sequences again
+    upon reuse, when ``__enter__()`` is invoked again after ``__exit__()``.
+
+    :class:`TermIO` has several methods with the same names and signatures as
+    this class. They are the preferred way of creating terminal context manager
+    instances because they are far more convenient. Assuming that ``term`` is an
+    instance of ``TermIO``, this rather clumsy ``with`` statement
+
+    .. code-block:: python
+
+        with TerminalContextManager(term).alternate_screen().hidden_cursor():
+            ...
+
+    is equivalent to the far nicer
+
+    .. code-block:: python
+
+        with term.alternate_screen().hidden_cursor():
+            ...
+
+    """
+    def __init__(self, terminal: 'TermIO') -> None:
+        self._terminal = terminal
+        self._updates: list[tuple[str, str]] = []
+        self._block_depth = 0
+
+
+    def register(self, do: str, undo: str) -> Self:
+        """
+        Register an update with this terminal context manager. Both ``do`` and
+        ``undo`` should be ANSI escape sequences, with ``undo`` restoring the
+        terminal to the state from before ``do``.
+        """
+        if self._block_depth > 0:
+            raise ValueError(
+                'unable to register updates after __enter__ has been called'
+            )
+        self._updates.append((do, undo))
+        return self
+
+
+    def window_title(self, title: str) -> Self:
+        """Update the window title."""
+        # Save window title on stack, then update window title
+        return self.register(
+            _fuse(e.CSI, "22;2t", e.OSC, "0;", title, e.ST),
+            _fuse(e.CSI, "23;2t")
+        )
+
+
+    def alternate_screen(self) -> Self:
+        """Switch to the terminal's alternate (unbuffered) screen."""
+        return self.register(
+            _fuse(e.CSI, "?1049h"),
+            _fuse(e.CSI, "?1049l"),
+        )
+
+
+    def hidden_cursor(self) -> Self:
+        """Make cursor invisible."""
+        return self.register(
+            _fuse(e.CSI, "?25l"),
+            _fuse(e.CSI, "?25h"),
+        )
+
+
+    def bracketed_paste(self) -> Self:
+        """
+        Enable `bracketed pasting
+        <https://gitlab.com/gnachman/iterm2/-/wikis/Paste-Bracketing>`_.
+        """
+        return self.register(
+            _fuse(e.CSI, "?2004h"),
+            _fuse(e.CSI, "?2004l"),
+        )
+
+
+    def __enter__(self) -> 'TermIO':
+        if self._block_depth == 0:
+            for do, _ in self._updates:
+                self._terminal.write_control(do)
+            self._terminal.flush()
+        self._block_depth += 1
+        return self._terminal
+
+
+    def __exit__(
+        self,
+        exc_type: None | type[BaseException],
+        exc_value: None | BaseException,
+        traceback: None | TracebackType,
+    ) -> None:
+        if self._block_depth == 1:
+            for _, undo in reversed(self._updates):
+                self._terminal.write_control(undo)
+            self._terminal.flush()
+        self._block_depth -= 1
+
+
 class TermIO:
     """
     Terminal input/output.
+
+    This class uses a number of naming conventions:
+
+      * Basic methods for emitting text or control sequences start with
+        ``write``. Always use ``write()`` and ``writeln`` for content, but
+        ``write_control()`` for control sequences.
+      * Basic methods for ingesting text or control sequences start with
+        ``read``. Reading control sequences is far more complicated than writing
+        them because reading them requires correctly parsing them.
+      * Basic methods for emitting a control sequence as request and then
+        consuming a control sequence as response are named
+        ``make_some_request()``, with some replaced by ``raw``, ``textual``, or
+        ``numeric``. You can safely ignore them, unless you want to implement a
+        query not currently supported by this class.
+      * Methods that query the terminal about a specific property start with
+        ``request``. That includes :meth:`request_size`, even though that method
+        does not use control sequences.
+      * Methods validate some condition and throw an exception if the condition
+        does not hold start with ``check``.
     """
     def __init__(
         self,
@@ -45,6 +229,53 @@ class TermIO:
         self._input = input or sys.__stdin__
         self._input_fileno: int = self._input.fileno()
         self._output = output or sys.__stdout__
+
+        self._width, self._height = self.request_size() or (80, 24)
+
+    # ----------------------------------------------------------------------------------
+
+    @property
+    def width(self) -> int:
+        return self._width
+
+    @property
+    def height(self) -> int:
+        return self._height
+
+
+    def request_size(self) -> None | tuple[int, int]:
+        """
+        Determine the terminal's size in fixed-width columns and rows. If the
+        underlying platform hook fails for both input and output, typically
+        because both input and output have been redirected, this method returns
+        ``None``.
+        """
+        try:
+            return os.get_terminal_size(self._input_fileno)
+        except OSError:
+            pass
+        try:
+            return os.get_terminal_size(self._output.fileno())
+        except OSError:
+            return None
+
+
+    def update_size(self) -> Self:
+        """Update the width and height cached by this class."""
+        self._width, self._height = self.request_size() or (80, 24)
+        return self
+
+
+    def check_size_unmodified(self) -> Self:
+        """
+        Check that the terminal size has *not* changed since the last update.
+        """
+        w, h = self.request_size() or (80, 24)
+        if self._width != w or self._height != h:
+            raise AssertionError(
+                f'terminal size changed from {self._width}×{self._height} to {w}×{h}'
+            )
+        return self
 
     # ----------------------------------------------------------------------------------
 
@@ -95,7 +326,8 @@ class TermIO:
         cbreak mode upon entry and restores the previous mode upon exit. If the
         terminal is in cbreak mode already, the context manager does not modify
         the terminal mode, but it still restores the previous mode upon exit.
-        The mode change is immediate, irrespective of queued input or output.
+        Mode changes only take effect after all queued output has been written
+        but queued input is discarded.
         """
         saved_mode = termios.tcgetattr(self._input_fileno)
         if not self.is_cbreak_mode(saved_mode):
@@ -103,34 +335,44 @@ class TermIO:
         try:
             yield self
         finally:
-            termios.tcsetattr(self._input_fileno, termios.TCSANOW, saved_mode)
+            termios.tcsetattr(self._input_fileno, termios.TCSAFLUSH, saved_mode)
 
     # ----------------------------------------------------------------------------------
 
     def write(self, s: str) -> Self:
-        """Write the string to the output."""
+        """
+        Write the string to this terminal's output. This method does not flush
+        the output.
+        """
         self._output.write(s)
         return self
 
 
-    def writeln(self, s: str) -> Self:
-        """Write the string followed by a line terminator to the output."""
-        self.write(s)
+    def writeln(self, text: None | str = None) -> Self:
+        """
+        Write optional text and a line terminator to this terminal's output.
+        This method does not flush the output.
+        """
+        if text is not None:
+            self.write(text)
         self.write('\n')
         return self
 
 
-    def write_ansi(self, *query: int | str) -> Self:
+    def write_control(self, *fragments: None | int | str) -> Self:
         """
-        Write the query comprising an ANSI escape sequence to the output. Like
-        the other methods whose names start with ``write``, this method does
-        *not* flush the output.
+        Write a control sequence to this terminal.
+
+        This method combines the fragments of the control sequence, that is,
+        ANSI escape sequence, into a string and writes the string to this
+        terminal's output. This method does not flush the output.
         """
-        self.write(''.join(str(q) for q in query))
+        self.write(''.join('' if q is None else str(q) for q in fragments))
         return self
 
 
     def flush(self) -> Self:
+        """Flush this terminal's output."""
         self._output.flush()
         return self
 
@@ -223,7 +465,7 @@ class TermIO:
 
     # ----------------------------------------------------------------------------------
 
-    def make_raw_request(self, *query: int | str) -> None | bytes:
+    def make_raw_request(self, *query: None | int | str) -> None | bytes:
         """
         Make a request to this terminal.
 
@@ -235,7 +477,7 @@ class TermIO:
             return (
                 self
                 .check_cbreak_mode()
-                .write_ansi(*query)
+                .write_control(*query)
                 .flush()
                 .read_escape()
             )
@@ -245,7 +487,7 @@ class TermIO:
 
     def make_textual_request(
         self,
-        *query: int | str,
+        *query: None | int | str,
         prefix: str,
         suffix: str,
     ) -> None | str:
@@ -281,7 +523,7 @@ class TermIO:
 
     def make_numeric_request(
         self,
-        *query: int | str,
+        *query: None | int | str,
         prefix: bytes,
         suffix: bytes,
     ) -> list[int]:
@@ -317,12 +559,23 @@ class TermIO:
         )
         return terminal
 
+
     def request_cursor_position(self) -> None | tuple[int, int]:
         """Request the cursor position in (x, y) order from this terminal."""
         numbers = self.make_numeric_request(
             e.CSI, '6n', prefix=b'\x1b[', suffix=b'R'
         )
         return None if len(numbers) != 2 else (numbers[0], numbers[1])
+
+
+    def request_batch_mode(self) -> BatchMode:
+        """Determine the terminal's current batch mode."""
+        response = self.make_numeric_request(
+            e.CSI, "?2026$p", prefix=b"\x1b[?2026;", suffix=b"$y"
+        )
+        return (
+            BatchMode(response[0]) if len(response) == 1 else BatchMode.NOT_SUPPORTED
+        )
 
     # ----------------------------------------------------------------------------------
 
@@ -397,9 +650,62 @@ class TermIO:
         })
 
     # ----------------------------------------------------------------------------------
+    # Terminal Context
 
-    # TODO: Bracketing mode, alternative screen, erase screen, erase line,
-    # show/hide cursor, goto
+    def window_title(self, title: str) -> TerminalContextManager:
+        """Use a different window title."""
+        return TerminalContextManager(self).window_title(title)
+
+
+    def alternate_screen(self) -> TerminalContextManager:
+        """Switch to the terminal's alternate (unbuffered) screen."""
+        return TerminalContextManager(self).alternate_screen()
+
+
+    def hidden_cursor(self) -> TerminalContextManager:
+        """Make cursor invisible."""
+        return TerminalContextManager(self).hidden_cursor()
+
+
+    def bracketed_paste(self) -> TerminalContextManager:
+        """
+        Enable `bracketed pasting
+        <https://gitlab.com/gnachman/iterm2/-/wikis/Paste-Bracketing>`_.
+        """
+        return TerminalContextManager(self).bracketed_paste()
+
+    # ----------------------------------------------------------------------------------
+
+    def home(self) -> Self:
+        """Move the cursor to the top left corner."""
+        return self.write_control(e.CSI, ';H')
+
+    def at(self, row: None | int = None, column: None | int = None) -> Self:
+        """Move the cursor to the given row and column."""
+        return self.write_control(e.CSI, row, e.SEMI, column, "H")
+
+    def erase_screen(self) -> Self:
+        """Erase the entire screen."""
+        return self.write_control(e.CSI, '2J')
+
+    def erase_line(self) -> Self:
+        """Erase the entire current line."""
+        return self.write_control(e.CSI, '2K')
+
+    def reset_style(self) -> Self:
+        """Reset all styles."""
+        return self.write_control(e.CSI, 'm')
+
+    def link(self, text: str, href: str, id: None | str = None) -> Self:
+        """Mark a hyperlink."""
+        # https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+        code = f"8;id={id};" if id else "8;;"
+        return (
+            self
+            .write_control(e.OSC, code, href, e.ST)
+            .write(text)
+            .write_control(e.OSC, "8;;", e.ST)
+        )
 
 
 def create_parser() -> argparse.ArgumentParser:
