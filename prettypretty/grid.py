@@ -3,7 +3,9 @@ A script to visualize 8-bit terminal colors as well as prettypretty's support
 for down-sampling colors and maximizing contrast.
 """
 import argparse
+from itertools import chain
 import os
+from typing import Literal
 
 from .color.conversion import get_converter
 from .color.apca import use_black_text, use_black_background
@@ -15,30 +17,27 @@ from .color.lores import (
     oklab_to_eight_bit,
 )
 from .color.theme import MACOS_TERMINAL, VGA, XTERM, current_theme
-from .color.style import eight_bit_to_sgr_params, Layer, sgr
+from .color.style import eight_bit_to_sgr_params, Layer
 from .termio import TermIO
 
 
 class FramedBoxes:
     """
-    Boxes in a frame.
+    Emit boxes in a frame.
 
-    This class helps with incrementally formatting a grid of boxes with a
+    This class helps with incrementally emitting a grid of boxes with a
     surrounding frame (or border). Each box has the same width and a height of
     one line. Boxes are formatted left-to-right.
     """
-    width: int
-    box_count: int
-    box_width: int
-    fragments: list[str]
-
-    def __init__(self, width: int, box_count: int = 1, min_width: int = 5) -> None:
+    def __init__(self, term: TermIO, box_count: int = 1, min_width: int = 5) -> None:
+        self._term = term
         self._box_count = box_count
-        self._box_width = (width - 2) // box_count
+        self._box_width = (term.width - 2) // box_count
         if self._box_width < min_width:
-            raise ValueError(f'unable to fit {box_count} boxes into {width} columns')
+            raise ValueError(
+                f'unable to fit {box_count} boxes into {term.width} columns'
+            )
         self._width = self._box_count * self._box_width + 2
-        self._fragments: list[str] = []
         self._line_content_width = 0
 
     @property
@@ -61,13 +60,13 @@ class FramedBoxes:
             raise ValueError(f'"{title}" is too long for {self.outer_width}-wide frame')
         if title:
             title = f'\x1b[1m{title}\x1b[m'
-        self._fragments.append(f'┏━{title}{"━" * filling}━┓\n')
+        self._term.writeln(f'┏━{title}{"━" * filling}━┓')
 
     def left(self) -> None:
         """Start formatting a line of content."""
-        self._fragments.append('┃')
         if self._line_content_width != 0:
             raise ValueError('Line started before line ended')
+        self._term.write('┃')
 
     def box(
         self,
@@ -89,8 +88,12 @@ class FramedBoxes:
             fg_params = eight_bit_to_sgr_params(*foreground, Layer.TEXT)
         else:
             fg_params = 38, 2, *foreground
+        params = ';'.join(str(p) for p in chain(bg_params, fg_params))
 
-        self._fragments.append(f'{sgr(*bg_params, *fg_params)}{box}\x1b[m')
+        self._term.write_control('\x1b[', params, 'm')
+        self._term.write(box)
+        self._term.write_control('\x1b[m')
+
         self._line_content_width += self._box_width
 
     def right(self) -> None:
@@ -101,39 +104,33 @@ class FramedBoxes:
                 f'not {self.inner_width} columns'
             )
 
-        self._fragments.append('┃\n')
+        self._term.writeln('┃')
         self._line_content_width = 0
 
     def bottom(self) -> None:
         """Format the bottom of the frame."""
-        self._fragments.append(f'┗{"━" * self.inner_width}┛')
-
-    def __str__(self) -> str:
-        return ''.join(self._fragments)
+        self._term.writeln(f'┗{"━" * self.inner_width}┛')
 
 
-def format_color_cube(
-    width: int,
+def write_color_cube(
+    term: TermIO,
     *,
     layer: Layer = Layer.BACKGROUND,
     ansi_only: bool = False,
     label: bool = True,
-) -> str:
+) -> None:
     """
     Format a framed grid with 216 cells, where each cell displays a distinct
     color from the 6x6x6 cube of 8-bit terminal colors.
 
     Args:
-        width: is the number of columns available to the framed grid
+        term: is the terminal for write the framed grid to
         layer: determines whether to color text or background, with background
             the default
         ansi_only: determines whether to down-sample the 8-bit color to an
             extended ANSI color
-
-    Returns:
-        The fully formated and framed grid
     """
-    frame = FramedBoxes(width, 6)
+    frame = FramedBoxes(term, 6)
     frame.top(
         layer.name.capitalize()
         + ': '
@@ -169,36 +166,61 @@ def format_color_cube(
             frame.right()
 
     frame.bottom()
-    return str(frame)
+    term.writeln()
 
 
-def format_hires_slice(
-    width: int,
+def write_hires_slice(
+    term: TermIO,
     *,
+    hold: Literal['r', 'g', 'b'] = 'g',
+    level: int = 0,
     eight_bit_only: bool = False,
-) -> str:
-    frame = FramedBoxes(width, 32, min_width=1)
+) -> None:
+    frame = FramedBoxes(term, 32, min_width=1)
+    label = '/'.join(
+        f'{l.upper()}={level}' if l == hold else l.upper() for l in ('r', 'g', 'b')
+    )
     frame.top(
         ('Downsampled ' if eight_bit_only else '')
-        + 'Hi-Res Color Slice'
+        + 'Hi-Res Color Slice for '
+        + label
     )
 
-    rgb256_to_oklab = get_converter('rgb256', 'oklab')
+    rgb256_to_oklab = None
+    if eight_bit_only:
+        rgb256_to_oklab = get_converter('rgb256', 'oklab')
 
-    for r in range(0, 256, 8):
+    def emit_box(r: int, g: int, b: int) -> None:
+        color = r, g, b
+        if eight_bit_only:
+            assert rgb256_to_oklab is not None
+            color = oklab_to_eight_bit(*rgb256_to_oklab(*color))
+        frame.box(' ', (0,), color)
+
+    for x in range(0, 256, 8):
         frame.left()
-        g = 0
+        for y in range(0, 256, 8):
+            if hold == 'r':
+                r = level
+                g = x
+                b = y
+            elif hold == 'g':
+                r = x
+                g = level
+                b = y
+            elif hold == 'b':
+                r = x
+                g = y
+                b = level
+            else:
+                raise AssertionError(f'invalid hold "{hold}"')
 
-        for b in range(0, 256, 8):
-            color = r, g, b
-            if eight_bit_only:
-                color = oklab_to_eight_bit(*rgb256_to_oklab(*color))
-            frame.box(' ', (0,), color)
+            emit_box(r, g, b)
 
         frame.right()
 
     frame.bottom()
-    return str(frame)
+    term.writeln()
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -255,21 +277,36 @@ def create_parser() -> argparse.ArgumentParser:
 
 if __name__ == '__main__':
     options = create_parser().parse_args()
-    width, _ = os.get_terminal_size()
 
+    term = TermIO()
     theme = options.theme
+
     if theme is None:
-        termio = TermIO()
-        with termio.cbreak_mode():
-            theme = TermIO().extract_theme()
-    if theme is None:
-        theme = VGA
+        with term.cbreak_mode():
+            theme = term.extract_theme() or VGA
+
+    if theme is VGA:
+        theme_name = "VGA"
+    elif theme is MACOS_TERMINAL:
+        theme_name = "macOS Terminal's basic"
+    elif theme is XTERM:
+        theme_name = "xterm's default"
+    else:
+        theme_name = "this terminal's current"
+    term.writeln(f'Using {theme_name} theme...\n')
 
     with current_theme(theme):
-        print(f'\n{format_color_cube(width, label=options.label)}')
-        print(f'\n{format_color_cube(width, ansi_only=True, label=options.label)}')
-        print(f'\n{format_color_cube(width, layer=Layer.TEXT)}')
+        write_color_cube(term, label=options.label)
+        write_color_cube(term, ansi_only=True, label=options.label)
+        write_color_cube(term, layer=Layer.TEXT)
 
         if options.truecolor or os.getenv('COLORTERM') == 'truecolor':
-            print(f'\n{format_hires_slice(width)}')
-            print(f'\n{format_hires_slice(width, eight_bit_only=True)}')
+            for hold in ('r', 'g', 'b'):
+                for level in (0, 128, 255):
+                    for downsample in (False, True):
+                        write_hires_slice(
+                            term,
+                            hold=hold,
+                            level=level,
+                            eight_bit_only=downsample,
+                        )
