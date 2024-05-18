@@ -49,9 +49,12 @@ def same_coordinates(
             if math.isnan(c1):
                 # Both coordinates are not-a-number
                 continue
-            # We still need to compare two hue numbers
+            # Since hue is degrees, adjust precision
+            p = precision - 2
+        else:
+            p = precision
 
-        if c1 != c2 and round(c1, precision) != round(c2, precision):
+        if c1 != c2 and round(c1, p) != round(c2, p):
             return False
 
     return True
