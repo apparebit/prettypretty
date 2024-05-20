@@ -78,15 +78,15 @@ class Color(ColorSpec):
     # ----------------------------------------------------------------------------------
 
     @overload
-    def __init__(self, tag: str | ColorSpec | Self) -> None:
+    def __init__(self, color: str | ColorSpec | Self, /) -> None:
         ...
 
     @overload
-    def __init__(self, tag: str, coordinates: CoordinateSpec) -> None:
+    def __init__(self, tag: str, coordinates: CoordinateSpec, /) -> None:
         ...
 
     @overload
-    def __init__(self, tag: str, coordinates: float, c2: float, c3: float) -> None:
+    def __init__(self, tag: str, c1: float, c2: float, c3: float, /) -> None:
         ...
 
     def __init__(
