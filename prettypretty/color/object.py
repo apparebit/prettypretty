@@ -1,19 +1,22 @@
+"""Prettypretty's high-level color API."""
+
 from collections.abc import Iterable
 from typing import cast, Literal, overload, Self
 
-from .color.apca import contrast, use_black_text, use_black_background
-from .color.conversion import get_converter
-from .color.difference import deltaE_oklab, closest_oklab
-from .color.equality import EQUALITY_PRECISION, same_coordinates
-from .color.serde import (
+from .apca import contrast, use_black_text, use_black_background
+from .conversion import get_converter
+from .difference import deltaE_oklab, closest_oklab
+from .equality import EQUALITY_PRECISION, same_coordinates
+from .serde import (
+    parse_fn,
     parse_format_spec,
     parse_hex,
     parse_x_rgb,
     parse_x_rgbi,
     stringify,
 )
-from .color.space import EPSILON, is_tag, resolve, Space
-from .color.spec import ColorSpec, CoordinateSpec, FloatCoordinateSpec
+from .space import EPSILON, is_tag, resolve, Space
+from .spec import ColorSpec, CoordinateSpec, FloatCoordinateSpec
 
 
 class Color(ColorSpec):
@@ -30,8 +33,8 @@ class Color(ColorSpec):
     and its coordinates:
 
         * From an existing :class:`.ColorSpec` or ``Color`` object
-        * From the textual representation of a color, using the ``#``,
-          ``rgb:``, or ``rgbi:`` prefix
+        * From the textual representation of a color, using ``#``, ``rgb:``,
+          ``rgbi:``, or one of the tags as prefix
         * From a tag and tuple with coordinates
         * From a tag and one or three coordinates
 
@@ -102,11 +105,21 @@ class Color(ColorSpec):
                 tag, coordinates = parse_x_rgb(tag)
             elif tag.startswith('rgbi:'):
                 tag, coordinates = parse_x_rgbi(tag)
+            elif '(' in tag and tag.endswith(')'):
+                tag, coordinates = parse_fn(tag)
             else:
                 raise ValueError(f'"{tag}" is not a valid color')
         elif c2 is not None:
-            assert isinstance(coordinates, float) and c3 is not None
+            assert isinstance(coordinates, (int, float)) and c3 is not None
             coordinates = coordinates, c2, c3
+
+        # For color spaces, coerce coordinates to floating point. It allows
+        # developers to write, say, ``Color("p3", 0, 1, 0)``
+        if not resolve(tag).is_integral():
+            coordinates = cast(
+                CoordinateSpec,
+                tuple(float(c) for c in cast(CoordinateSpec, coordinates))
+            )
 
         object.__setattr__(self, 'tag', tag)
         object.__setattr__(self, 'coordinates', coordinates)
