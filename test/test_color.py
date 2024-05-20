@@ -43,7 +43,7 @@ class ColorValues:
     black_text: bool
     black_background: bool
     closest_index: int
-    x: str
+    xterm: str
     css: str
 
 
@@ -63,7 +63,7 @@ class TestColor(unittest.TestCase):
         black_text = False,
         black_background = False,
         closest_index = 0,
-        x = 'rgb:00/00/00',
+        xterm = 'rgb:00/00/00',
         css = 'rgb(0 0 0)',
     )
 
@@ -81,7 +81,7 @@ class TestColor(unittest.TestCase):
         black_text = True,
         black_background = True,
         closest_index = 1,
-        x = 'rgb:ff/ca/00',
+        xterm = 'rgb:ff/ca/00',
         css = 'rgb(255 202 0)',
     )
 
@@ -99,7 +99,7 @@ class TestColor(unittest.TestCase):
         black_text = False,
         black_background = False,
         closest_index = 2,
-        x = 'rgb:31/78/ea',
+        xterm = 'rgb:31/78/ea',
         css = 'rgb(49 120 234)',
     )
 
@@ -117,7 +117,7 @@ class TestColor(unittest.TestCase):
         black_text = True,
         black_background = True,
         closest_index = 3,
-        x = 'rgb:ff/ff/ff',
+        xterm = 'rgb:ff/ff/ff',
         css = 'rgb(255 255 255)',
     )
 
@@ -301,8 +301,8 @@ class TestColor(unittest.TestCase):
                 self.assertEqual(oklab.use_black_background(), values.black_background)
 
             with self.subTest('check string', color=color_name):
-                self.assertEqual(f'{color:x}', values.x)
-                self.assertEqual(f'{color:s}', values.css)
+                self.assertEqual(f'{color:x}', values.xterm)
+                self.assertEqual(f'{color:c}', values.css)
 
 
     def test_x_parse_color(self) -> None:

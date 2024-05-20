@@ -116,7 +116,7 @@ class Format(enum.Enum):
     """
     FUNCTION = 'f'
     HEX = 'h'
-    CSS = 's'
+    CSS = 'c'
     X = 'x'
 
 
@@ -136,11 +136,11 @@ def parse_format_spec(spec: str) -> tuple[Format, int]:
         period followed by one or two decimal digits, e.g., ``.3``.
      2. The second part, if present, specifies the format:
 
+          * ``c`` for CSS notation, which uses CSS function and color space
+            names and space-separated coordinates
           * ``f`` for function notation, which uses the tag as function name
             and the comma-separated coordinates as arguments
           * ``h`` for hexadecimal notation prefixed with a hash ``#``
-          * ``s`` for CSS notation, which uses CSS function and color space
-            names and space-separated coordinates
           * ``x`` for X notation, which uses ``rgb:`` or ``rgbi:`` as a prefix
 
     Note that the terminal-specific ``ansi``, ``eight_bit``, and ``rgb6`` color
@@ -154,7 +154,7 @@ def parse_format_spec(spec: str) -> tuple[Format, int]:
     s = spec
     if s:
         f = s[-1]
-        if f in ('f', 'h', 's', 'x'):
+        if f in ('c', 'f', 'h', 'x'):
             format = Format(f)
             s = s[:-1]
     if s.startswith('.'):
