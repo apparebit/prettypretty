@@ -22,10 +22,10 @@ from prettypretty.color.conversion import (
 )
 
 from prettypretty.color.equality import EQUALITY_PRECISION, same_coordinates
+from prettypretty.color.object import Color
 from prettypretty.color.serde import parse_hex, parse_x_rgb, parse_x_rgbi
 from prettypretty.color.spec import ColorSpec
 from prettypretty.color.theme import VGA
-from prettypretty.color_object import Color
 
 
 @dataclass(frozen=True)
