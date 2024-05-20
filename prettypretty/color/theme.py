@@ -4,7 +4,7 @@ to meaningful color values.
 """
 
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager
 import dataclasses
 from typing import cast, ContextManager, overload
 
@@ -66,6 +66,7 @@ def hex(color: str) -> ColorSpec:
         ),
     )
 
+
 MACOS_TERMINAL = Theme(
     text=hex("000000"),
     background=hex("ffffff"),
@@ -109,6 +110,7 @@ VGA = Theme(
     bright_white=hex("ffffff"),
 )
 
+
 XTERM = Theme(
     text=hex("000000"),
     background=hex("ffffff"),
@@ -131,7 +133,39 @@ XTERM = Theme(
 )
 
 
-_current_theme = VGA
+def builtin_theme_name(theme: Theme) -> None | str:
+    """
+    Determine the name of the given theme. If the theme is one of the built-in
+    themes, this function returns a descriptive name. Otherwise, it returns
+    ``None``.
+    """
+    if theme is MACOS_TERMINAL:
+        return 'macOS Terminal.app default theme'
+    elif theme is VGA:
+        return 'VGA text theme'
+    elif theme is XTERM:
+        return 'xterm default theme'
+    else:
+        return None
+
+
+_current_theme: list[Theme] = [VGA]
+
+class _ThemeManager(AbstractContextManager[Theme]):
+    """
+    A context manager for updating the current theme that is both reentrant and
+    reusable.
+    """
+    def __init__(self, theme: Theme) -> None:
+        self._theme = theme
+
+    def __enter__(self) -> Theme:
+        _current_theme.append(self._theme)
+        return self._theme
+
+    def __exit__(self, *args: object) -> None:
+        _current_theme.pop()
+
 
 @overload
 def current_theme() -> Theme:
@@ -153,17 +187,4 @@ def current_theme(theme: None | Theme = None) -> Theme | ContextManager[Theme]:
 
     The default theme uses the same colors as good ol' VGA text mode.
     """
-    if theme is None:
-        return _current_theme
-
-    @contextmanager
-    def another_theme() -> Iterator[Theme]:
-        global _current_theme
-        saved_theme = _current_theme
-        _current_theme = theme
-        try:
-            yield theme
-        finally:
-            _current_theme = saved_theme
-
-    return another_theme()
+    return _current_theme[-1] if theme is None else _ThemeManager(theme)
