@@ -76,19 +76,19 @@ theme colors.
 Color Serde
 -----------
 
-Prettypretty supports two formats for both serialization to and deserialization
-from strings:
+Prettypretty supports three formats for both serialization to and
+deserialization from strings:
 
+  * **f** for function uses one of the above format or color space tags as
+    function name and the comma-separated coordinates as arguments
   * **h** for hexadecimal is the hash-prefixed color format familiar from the
     web
   * **x** for X Windows or xterm uses the `rgb:` and `rgbi:` prefixes followed
     by three slash-separated coordinates in hexadecimal for `rgb:` and floating
     point for `rgbi:`
 
-For serialization to strings, prettypretty supports two additional formats:
+For serialization to strings, prettypretty supports one additional format:
 
-  * **f** for function uses one of the above format or color space tags as
-    function name and the comma-separated coordinates as arguments
   * **s** for CSS uses ``color()``, ``oklab()``, ``oklch()``, or ``rgb()``
     notation with space-separated coordinates
 

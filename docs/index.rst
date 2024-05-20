@@ -81,6 +81,15 @@ iTerm's builtin themes and generates a substantially different grid!
    :alt: The 6x6x6 RGB cube used for text colors
 
 
+Here is the same grid, this time running in Gnome Terminal in a Linux virtual
+machine with one of the default light themes. As you can clearly see, colors are
+very much different again.
+
+.. image:: figures/rgb6-ansi-ubuntu.png
+   :alt: The 6x6x6 RGB cube downsampled to ANSI
+
+
+
 To recap, prettypretty has robust support for:
 
   * Maximizing the label contrast for a given background color;

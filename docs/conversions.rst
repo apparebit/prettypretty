@@ -1,6 +1,20 @@
 Color Conversions
 =================
 
+.. warning::
+
+   Converting colors between color spaces is not guaranteed to result in colors
+   that are within the target color space's gamut. For example, ``p3(0, 1, 0)``
+   (to use prettypretty's function syntax for colors) is well outside of sRGB's
+   gamut. Like Color.js, prettypretty does *not* automatically clip or gamut-map
+   colors and instead preserves their out-of-gamut coordinates. Hence a primary
+   green in P3 converts to ``srgb(-0.5116, 1.0183, -0.31067)``, with G slightly
+   out of gamut and R and B very much out of gamut.
+
+   In other words, if you need in-gamut colors, you *must* explicitly clip or
+   gamut-map colors.
+
+
 For starters, we consider only color formats and spaces that are *not*
 terminal-specific.
 
@@ -69,26 +83,50 @@ functions first and/or last in the sequence of conversions and otherwise routing
 as described above, we can convert between all color formats and spaces,
 terminal-specific formats included.
 
-In practice, however, there are a few complications:
+In practice, however, there are several complications:
 
- 1. The extended ANSI colors have no widely accepted mapping to high-resolution
-    colors and usually are configured through themes. Hence prettypretty also
-    supports color themes. The colors of VGA text mode provide the default.
- 2. With theme support in place, converting low-resolution colors to
-    higher-resolution RGB256 is straightforward. In particular, xterm's formulae
-    for converting the 6x6x6 RGB cube and 24-step gray gradient embedded in
-    8-bit color are widely used.
- 3. However, there are no good formulae for converting RGB256 back to
-    low-resolution. To yield good results, prettypretty performs the
-    downconversion in Oklab, finding the closest color amongst the 16 extended
-    ANSI colors when converting to ANSI, the 240 RGB6 and gray gradient colors
-    when converting to 8-bit, and the 216 RGB6 colors when converting to RGB6.
-    The conversion to 8-bit colors ignores the 16 ANSI colors because they stick
-    out when converting gradients of color.
- 4. While not excessively large, the look-up tables for downconversion are
-    created only on demand and thereafter cached.
- 5. Similarly, the modules for low-resolution color conversions and color themes
-    aren't particularly large. Still, the module implementing generic
-    conversions only loads the module implementing low-resolution color
-    operations when strictly needed. That nicely avoids an error due to circular
-    module dependencies as well.
+ 1. The 16 extended ANSI colors have no widely accepted mapping to
+    high-resolution colors and usually are configured through themes. Colors are
+    usually specified in ``#<hexdigits>`` notation, i.e., RGB256.
+ 2. Xterm's formulae for converting the 6x6x6 RGB cube and 24-step gray gradient
+    *to* RGB256 are widely accepted. But there are no established techniques for
+    converting back.
+ 3. Prettypretty's color themes are a form of state duplication, with all
+    attendant problems. Notably, if a manually configured theme does not match
+    the terminal's current theme, the results of color manipulation may just
+    look awful.
+ 4. ANSI escape sequences support querying the terminal for currently configured
+    colors. But the results are in xterm's ``rgb:`` notation with *four*
+    hexadecimal digits per coordinate, which is well beyond RGB256's resolution.
+
+Prettypretty indeed addresses the fundamental conversion challenge for the 16
+extended ANSI colors by supporting color themes, with each color having an
+arbitrary color format or space. Since manual color theme configuration is
+problematic, it also supports dynamically querying terminals for configured
+colors and preserves the resolution of the responses as sRGB colors.
+
+To convert low-resolution to high-resolution colors, prettypretty currently
+targets sRGB as the "base" color space for all low-resolution colors. For the
+6x6x6 RGB cube and 24-step gray gradient, it simply uses the established
+formulae to convert to RGB256 and then performs the trivial conversion to sRGB.
+For the 16 extended ANSI colors, it looks up the target color in the current
+color theme and, if it is not RGB256 or sRGB, does a high-resolution conversion
+to sRGB. Since high-resolution conversion does not clip or gamut-map colors,
+this conversion does preserve the represented color. The result should probably
+be cached, but it currently is not.
+
+For converting high-resolution to low-resolution colors, there is not
+established algorithm. Since the low-resolution colors, by definition, do not
+comprise that many colors, exhaustive search becomes a realistic possibility and
+is just the technique used by prettypretty. In particular, prettypretty compares
+the high-resolution source color with high-resolution versions of all
+low-resolution colors (thus assuming that the conversion from low-resolution to
+high-resolution is functional) and returns the color with the smallest distance.
+All comparisons are performed in Oklab, which is perceptually uniform.
+
+To speed up conversion to low-resolution color, prettypretty uses look-up tables
+for the Oklab-equivalent colors. Those tables are initialized lazily, on demand.
+When targeting 8-bit color, prettypretty does not include the 16 extended ANSI
+colors as candidates because experiments with color gradients resulted in
+low-resolution gradients disrupted by one of those 16 colors, which just
+happened to be closer.

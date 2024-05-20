@@ -36,7 +36,17 @@ class e:
 
 
 def _fuse(*fragments: None | int | str) -> str:
-    return ''.join('' if s is None else str(s) for s in fragments)
+    processed: list[str] = []
+    previous_parameter = False
+
+    for fragment in fragments:
+        current_parameter = fragment is None or isinstance(fragment, int)
+        if previous_parameter and current_parameter:
+            processed.append(';')
+        processed.append('' if fragment is None else str(fragment))
+        previous_parameter = current_parameter
+
+    return ''.join(processed)
 
 
 class BatchMode(enum.Enum):
@@ -202,24 +212,64 @@ class TermIO:
     """
     Terminal input/output.
 
-    This class uses a number of naming conventions:
+    This class manages terminal input and output. By focusing on high-level
+    terminal properties instead of ANSI escape codes and using human-readable,
+    universally meaningful method names instead of obscure mnemonics. (ED for
+    "erase in display" is one of the more reasonable ones, except that there is
+    a DEC-specific variation, DECSED, as well.)
 
-      * Basic methods for emitting text or control sequences start with
-        ``write``. Always use ``write()`` and ``writeln`` for content, but
-        ``write_control()`` for control sequences.
-      * Basic methods for ingesting text or control sequences start with
-        ``read``. Reading control sequences is far more complicated than writing
-        them because reading them requires correctly parsing them.
-      * Basic methods for emitting a control sequence as request and then
-        consuming a control sequence as response are named
-        ``make_some_request()``, with some replaced by ``raw``, ``textual``, or
-        ``numeric``. You can safely ignore them, unless you want to implement a
-        query not currently supported by this class.
-      * Methods that query the terminal about a specific property start with
-        ``request``. That includes :meth:`request_size`, even though that method
-        does not use control sequences.
-      * Methods validate some condition and throw an exception if the condition
-        does not hold start with ``check``.
+    This class supports the following features:
+
+    **Terminal window size**
+        ``TermIO`` caches the width and height of the terminal. It only updates
+        the cached values if an application explicitly polls for changes. That
+        way, the application is hopefully prepared to accommodate a terminal
+        size change as well.
+
+        See :attr:`width`, :attr:`height`, :meth:`update_size`, also
+        :meth:`check_same_size`.
+
+    **Cbreak mode**
+        In this mode, the terminal does not support line editing; instead, it
+        immediately forwards bytes. As such cbreak mode facilitates
+        request/response interactions between application and terminal. Getting
+        authoritative information from the terminal sure beats other, more
+        indirect ways, such as environment variables, that help surmise
+        specific conditions.
+
+        See :meth:`is_cbreak_mode` and :meth:`cbreak_mode`.
+
+    **Parsing ANSI escapes**
+        The parsing of ANSI escape sequences serving as responses happens at
+        several levels, starting as an ANSI escape sequence itself, then as a
+        message conveying some (integral or textual) parameters, and finally as
+        a high-level terminal property, e.g., the name and version of a terminal
+        or the color assignment for an extended ANSI color.
+
+        See :meth:`read_control`; also :meth:`make_raw_request`,
+        :meth:`make_textual_request`, and :meth:`make_numeric_request`; also
+        `:meth:`request_terminal_version`.
+
+    **Writing ANSI escapes**
+        Writing ANSI escape sequences to output isn't particularly hard but
+        isn't hard but getting the interface right is surprisingly tricky.
+        This class parses several
+
+    **Management of terminal state**
+        To more easily update, restore, and flush terminal states, ``TermIO``
+        delegates to a terminal context manager. That helper class is
+        responsible for collecting registrations of pairs of ANSI escape
+        sequences that describe how to enter and exit a context.
+
+        See :meth:`window_title`, :meth:`alternate_screen`,
+        :meth:`hidden_cursor`, and :meth:`bracketed_paste`.
+
+    **Styled terminal output**
+        While a rather obvious topic, styling output while keeping the interface
+        flexbile *and* user-friendly is not so clear-cut.
+
+       See :meth:`home`, :meth:`at`, :meth:`erase_screen`, :meth:`erase_line`,
+       :meth:`reset_style`, and :meth:`link`.
     """
     def __init__(
         self,
@@ -233,13 +283,16 @@ class TermIO:
         self._width, self._height = self.request_size() or (80, 24)
 
     # ----------------------------------------------------------------------------------
+    # Terminal Size
 
     @property
     def width(self) -> int:
+        """The terminal width, or a cached version thereof."""
         return self._width
 
     @property
     def height(self) -> int:
+        """The terminal height, or a cached version thereof."""
         return self._height
 
 
@@ -266,7 +319,7 @@ class TermIO:
         return self
 
 
-    def check_size_unmodified(self) -> Self:
+    def check_same_size(self) -> Self:
         """
         Check that the terminal size has *not* changed since the last update.
         """
@@ -364,10 +417,15 @@ class TermIO:
         Write a control sequence to this terminal.
 
         This method combines the fragments of the control sequence, that is,
-        ANSI escape sequence, into a string and writes the string to this
+        ANSI escape sequence, into a string and writes that string to this
         terminal's output. This method does not flush the output.
+
+        Fragment fusion accepts ``None``, integers, and strings. It treats
+        ``None`` as a parameter and serializes it as the empty string. It treats
+        integers as parameters as well. Fragment fusion puts a semicolor between
+        every pair of parameters.
         """
-        self.write(''.join('' if q is None else str(q) for q in fragments))
+        self.write(_fuse(*fragments))
         return self
 
 
@@ -399,7 +457,7 @@ class TermIO:
 
     ESCAPE_TIMEOUT: ClassVar[float] = 0.5
 
-    def read_escape(self) -> bytes:
+    def read_control(self) -> bytes:
         """
         Read a complete ANSI escape sequence from this terminal.
 
@@ -479,7 +537,7 @@ class TermIO:
                 .check_cbreak_mode()
                 .write_control(*query)
                 .flush()
-                .read_escape()
+                .read_control()
             )
         except TimeoutError:
             return None
