@@ -1,9 +1,8 @@
 """
 Metadata about color spaces.
 
-Note that the ``conversion`` and ``serde`` modules have local copies of some of
-the same data. If you update this module, be sure to update the other two
-modules, too.
+Note that the ``conversion`` module has local copies of some of the same data.
+If you update this module, be sure to update that module, too.
 """
 import dataclasses
 import math

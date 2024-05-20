@@ -2,6 +2,9 @@
 import enum
 from typing import cast, Literal, NoReturn, overload
 
+from .space import is_tag, resolve
+from .spec import CoordinateSpec
+
 
 @overload
 def _check(
@@ -19,6 +22,26 @@ def _check(
     if not is_valid:
         raise SyntaxError(f'{entity} "{value}" {deficiency}')
     return
+
+
+def parse_fn(color: str) -> tuple[str, CoordinateSpec]:
+    entity = 'color in function notation'
+
+    try:
+        tag, _, args = color.partition('(')
+        _check(len(args) > 0, entity, color, 'has no arguments')
+        _check(args.endswith(')'), entity, color, 'misses closing parenthesis')
+        _check(is_tag(tag), entity, color, 'has unknown tag')
+        space = resolve(tag)
+        number = int if space.is_integral() else float
+        coordinates = tuple(number(c.strip()) for c in args[:-1].split(','))
+        correct_length = len(space.coordinates) == len(coordinates)
+        _check(correct_length, entity, color, 'has wrong number of arguments')
+        return tag, cast(CoordinateSpec, coordinates)
+    except SyntaxError:
+        raise
+    except:
+        _check(False, entity, color)
 
 
 def parse_hex(color: str) -> tuple[str, tuple[int, int, int]]:
@@ -143,16 +166,6 @@ def parse_format_spec(spec: str) -> tuple[Format, int]:
     return format, precision
 
 
-_CSS_FORMATS = {
-    'rgb256': 'rgb({})',
-    'srgb': 'color(srgb {})',
-    'linear_srgb': 'color(srgb-linear {})',
-    'p3': 'color(display-p3 {})',
-    'xyz': 'color(xyz {})',
-    'oklab': 'oklab({})',
-    'oklch': 'oklch({})',
-}
-
 def stringify(
     tag: str,
     coordinates: tuple[int] | tuple[float, float, float],
@@ -180,7 +193,7 @@ def stringify(
     if format is Format.FUNCTION:
         return f'{tag}({coordinate_text})'
 
-    css_format = _CSS_FORMATS.get(tag)
+    css_format = resolve(tag).css_format
     if css_format is None:
         raise ValueError(f'{tag} has no CSS serialization')
     return css_format.format(coordinate_text)
