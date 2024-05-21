@@ -1,3 +1,12 @@
+"""
+Support for gamut mapping.
+
+Gamut mapping makes extensive use of other color algorithms, constantly
+converting betwee color spaces, computing the distance between colors, checking
+whether colors are in gamut, and clipping colors. As a result, this module has
+more dependencies than most of the color modules, importing symbols from
+:mod:`.conversion`, :mod:`.difference`, :mod:`.space`, and :mod:`.spec`.
+"""
 from typing import cast
 
 from .conversion import get_converter, oklch_to_oklab
