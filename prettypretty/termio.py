@@ -16,16 +16,16 @@ from typing import (
     ClassVar,
     ContextManager,
     Never,
-    overload,
     Self,
     TextIO,
     TypeAlias,
 )
 
 
-from .ansi import Ansi, Layer
+from .ansi import Ansi
 from .color.spec import ColorSpec
 from .color.theme import current_theme, Theme
+from .style import Style
 
 
 TerminalMode: TypeAlias = list[Any]
@@ -356,13 +356,10 @@ class TermIO:
         :meth:`set_position`, :meth:`set_column`, :meth:`erase_screen`, and
         :meth:`erase_line`.
 
-    **Styled terminal output**
-        What's the point of integrating terminal colors with robust color
-        management? Styling terminal output, of course!
-
-       See :meth:`reset_style`, :meth:`regular`, :meth:`bold`, :meth:`light`,
-       :meth:`italic`, :meth:`link`, :meth:`foreground`, :meth:`background`,
-       and :meth:`reverse`.
+    There is one feature that is largely missing on purpose. This class does not
+    have granular methods for setting terminal styles with SGR escape sequences.
+    To encourage coherent style definitions and their reuse, :class:`.Style`,
+    provides those features. See :meth:`reset_style` and :meth:`set_style`.
     """
     def __init__(
         self,
@@ -907,60 +904,9 @@ class TermIO:
         return self.write_control(Ansi.CSI, 'm')
 
 
-    def regular(self) -> Self:
-        """Use regular font weight."""
-        return self.write_control(Ansi.CSI, 22, 'm')
-
-
-    def bold(self) -> Self:
-        """Use bold font weight."""
-        return self.write_control(Ansi.CSI, 1, 'm')
-
-
-    def light(self) -> Self:
-        """Use light font weight."""
-        return self.write_control(Ansi.CSI, 2, 'm')
-
-
-    def italic(self) -> Self:
-        """
-        Use italic font style. Note that italic style does *not* compose with
-        the bold or light font weights but rather overrides them.
-        """
-        return self.write_control(Ansi.CSI, 3, 'm')
-
-
-    @overload
-    def foreground(self, color: int, /) -> Self:
-        ...
-    @overload
-    def foreground(self, r: int, g: int, b: int, /) -> Self:
-        ...
-    def foreground(self, r: int, g: None | int = None, b: None | int = None) -> Self:
-        """Set the foreground color."""
-        return self.write_control(
-            Ansi.CSI, *Ansi.color_parameters(Layer.TEXT, r, g, b), 'm'  # type: ignore
-        )
-
-
-    @overload
-    def background(self, color: int, /) -> Self:
-        ...
-    @overload
-    def background(self, r: int, g: int, b: int, /) -> Self:
-        ...
-    def background(self, r: int, g: None | int = None, b: None | int = None) -> Self:
-        """Set the background color."""
-        return self.write_control(
-            Ansi.CSI,
-            *Ansi.color_parameters(Layer.BACKGROUND, r, g, b),  # type: ignore
-            'm',
-        )
-
-
-    def reverse(self) -> Self:
-        """Reverse foreground and background."""
-        return self.write_control(Ansi.CSI, 7, 'm')
+    def set_style(self, style: Style) -> Self:
+        """Apply the given style."""
+        return self.write_control(Ansi.CSI, *style.sgr_parameters(), 'm')
 
 
     def link(self, text: str, href: str, id: None | str = None) -> Self:
@@ -1025,8 +971,7 @@ if __name__ == '__main__':
                 if response is None:
                     (
                         terminal
-                        .foreground(255)
-                        .background(88)
+                        .set_style(Style().fg(255).bg(88))
                         .write(f'Unable to query {field.name} color!')
                         .reset_style()
                         .writeln()

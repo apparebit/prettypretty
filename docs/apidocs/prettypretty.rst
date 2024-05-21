@@ -13,6 +13,13 @@ prettypretty.ansi
     :members:
 
 
+prettypretty.style
+------------------
+
+.. automodule:: prettypretty.style
+    :members:
+
+
 prettypretty.termio
 -------------------
 
