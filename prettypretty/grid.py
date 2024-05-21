@@ -250,8 +250,9 @@ def create_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         '--truecolor',
-        action='store_true',
-        help='display 24-bit color slices even if terminal advertises lesser support',
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help='ignore advertised capabilities and force/suppress 24-bit color slices',
     )
 
     parser.add_argument(
@@ -277,7 +278,8 @@ if __name__ == '__main__':
         write_color_cube(term, ansi_only=True, label=options.label)
         write_color_cube(term, layer=Layer.TEXT)
 
-        if options.truecolor or os.getenv('COLORTERM') == 'truecolor':
+        # The truecolor option only fires if it was actually used.
+        if options.truecolor in (None, True) and os.getenv('COLORTERM') == 'truecolor':
             for hold in ('r', 'g', 'b'):
                 for level in (0, 128, 255):
                     for downsample in (False, True):
