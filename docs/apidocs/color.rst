@@ -82,13 +82,6 @@ prettypretty.color.spec
     :members:
 
 
-prettypretty.color.style
-------------------------
-
-.. automodule:: prettypretty.color.style
-    :members:
-
-
 prettypretty.color.theme
 ------------------------
 
