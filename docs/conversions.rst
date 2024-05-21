@@ -130,3 +130,10 @@ When targeting 8-bit color, prettypretty does not include the 16 extended ANSI
 colors as candidates because experiments with color gradients resulted in
 low-resolution gradients disrupted by one of those 16 colors, which just
 happened to be closer.
+
+The exhaustive search for closest matching low-resolution color may still
+produce suboptimal results because it optimizes for Euclidian distance in Oklab.
+In other words, it treats a difference in lightness just as it treats the same
+difference in one of the two color axes. That may indeed be the right approach
+for small color differences but it's not clear that is the right approach at the
+granularity of 8-bit colors.
