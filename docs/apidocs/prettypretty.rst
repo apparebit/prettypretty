@@ -1,15 +1,15 @@
 prettypretty
 ============
 
-Prettypretty's high-level API comprises the :class:`.Color` and :class:`.TermIO`
-classes. The latter benefits from a few auxiliary classes also defined in the
-:mod:`prettypretty.termio` module.
+Prettypretty's color support is hefty enough to warrant its own subpackage with
+its own :doc:`colorful documentation page <color>`. While much less hefty, there
+also is a separate page for :doc:`command line tools <../tooling>`
 
 
-prettypretty.color_object.Color
--------------------------------
+prettypretty.ansi
+-----------------
 
-.. autoclass:: prettypretty.color_object.Color
+.. automodule:: prettypretty.ansi
     :members:
 
 
