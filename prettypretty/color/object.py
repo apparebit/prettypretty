@@ -7,6 +7,7 @@ from .apca import contrast, use_black_text, use_black_background
 from .conversion import get_converter
 from .difference import deltaE_oklab, closest_oklab
 from .equality import EQUALITY_PRECISION, same_coordinates
+from .gamut import map_into_gamut
 from .serde import (
     parse_fn,
     parse_format_spec,
@@ -113,9 +114,14 @@ class Color(ColorSpec):
             assert isinstance(coordinates, (int, float)) and c3 is not None
             coordinates = coordinates, c2, c3
 
-        # For color spaces, coerce coordinates to floating point. It allows
-        # developers to write, say, ``Color("p3", 0, 1, 0)``
-        if not resolve(tag).is_integral():
+        # Coerce coordinates to int for integral color formats and to float for
+        # color spaces.
+        if resolve(tag).is_integral():
+            coordinates = cast(
+                CoordinateSpec,
+                tuple(int(c) for c in cast(CoordinateSpec, coordinates))
+            )
+        else:
             coordinates = cast(
                 CoordinateSpec,
                 tuple(float(c) for c in cast(CoordinateSpec, coordinates))
@@ -170,16 +176,34 @@ class Color(ColorSpec):
     # ----------------------------------------------------------------------------------
     # Gamut and Clipping
 
-    def is_in_gamut(self, epsilon: float = EPSILON) -> bool:
+    def in_gamut(self, epsilon: float = EPSILON) -> bool:
         """Determine whether this color is within gamut for its color space."""
-        return self.space.is_in_gamut(*self.coordinates, epsilon)
+        return self.space.in_gamut(*self.coordinates, epsilon)
 
 
     def clip(self, epsilon: float = 0) -> Self:
         """Clip this color to its color space's gamut."""
-        if self.is_in_gamut(epsilon):
+        if self.in_gamut(epsilon):
             return self
         return type(self)(self.tag, self.space.clip(*self.coordinates))
+
+    def map_into_gamut(self) -> Self:
+        """
+        Map this color into the gamut of its color space using the `CSS Color 4
+        algorithm <https://drafts.csswg.org/css-color/#css-gamut-mapping>`_.
+
+        That algorithm performs a binary search across the chroma range between
+        zero and the chroma of the original, out-of-gamut color in Oklch. It
+        stops the search once the chroma-adjusted color is within the just
+        noticeable difference (JND) of its clipped version as measured by
+        deltaEOK and uses that clipped version as result. As such, the algorithm
+        simultaneously manipulates colors across three color spaces: It relies
+        on the coordinates' color space for gamut testing and clipping, Oklch
+        for producing candidate colors, and Oklab for measuring distance.
+
+        Note that Oklab, Oklch, and XYZ are effectively unbound.
+        """
+        return type(self)(self.tag, map_into_gamut(self.tag, self.coordinates))
 
     # ----------------------------------------------------------------------------------
     # Conversion to Other Formats and Color Spaces

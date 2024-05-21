@@ -19,9 +19,11 @@ from prettypretty.color.conversion import (
     oklab_to_xyz,
     oklab_to_oklch,
     oklch_to_oklab,
+    get_converter,
 )
 
 from prettypretty.color.equality import EQUALITY_PRECISION, same_coordinates
+from prettypretty.color.gamut import map_into_gamut
 from prettypretty.color.object import Color
 from prettypretty.color.serde import parse_hex, parse_x_rgb, parse_x_rgbi
 from prettypretty.color.spec import ColorSpec
@@ -259,6 +261,32 @@ class TestColor(unittest.TestCase):
 
         self.assertTrue('prettypretty.color.lores' in sys.modules)
         self.assertEqual(len(cache['ansi']), 3)
+
+
+    def test_gamut_mapping(self) -> None:
+        # A very green green
+        p3 = 0, 1, 0
+        srgb = get_converter('p3', 'srgb')(*p3)
+        self.assertSameCoordinates(
+            srgb, (-0.5116049825853448, 1.0182656579378029, -0.3106746212905826)
+        )
+
+        srgb_mapped = map_into_gamut('srgb', srgb)
+        self.assertSameCoordinates(
+            srgb_mapped, (0, 0.9857637107710327, 0.15974244397343721)
+        )
+
+        # A strong yellow
+        p3 = 1, 1, 0
+        linear_srgb = get_converter('p3', 'linear_srgb')(*p3)
+        self.assertSameCoordinates(
+            linear_srgb, (1, 1.0000000000000002, -0.09827360014096621)
+        )
+
+        linear_srgb_mapped = map_into_gamut('linear_srgb', linear_srgb)
+        self.assertSameCoordinates(
+            linear_srgb_mapped, (0.9914525477996113, 0.9977581974546286, 0)
+        )
 
 
     def test_color_object(self) -> None:
