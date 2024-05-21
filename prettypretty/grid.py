@@ -17,6 +17,7 @@ from .color.lores import (
     oklab_to_eight_bit,
 )
 from .color.theme import MACOS_TERMINAL, VGA, XTERM, builtin_theme_name, current_theme
+from .style import Style
 from .termio import TermIO
 
 
@@ -79,10 +80,7 @@ class FramedBoxes:
         if len(box) != self._box_width:
             raise ValueError(f'"{text}" does not fit into {self._box_width}-wide box')
 
-        self._term.background(*background)
-        self._term.foreground(*foreground)
-        self._term.write(box)
-
+        self._term.set_style(Style().fg(*foreground).bg(*background)).write(box)
         self._line_content_width += self._box_width
 
     def right(self) -> None:
@@ -291,6 +289,6 @@ if __name__ == '__main__':
                         )
 
         theme_name = builtin_theme_name(current_theme())
-        term.italic().writeln(
+        term.set_style(Style().italic).writeln(
             f'Used ', theme_name or 'current terminal theme', '!\n'
         ).flush()
