@@ -1,6 +1,6 @@
 import argparse
 from collections.abc import Iterator
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import AbstractContextManager, contextmanager, ExitStack
 import dataclasses
 import enum
 import json
@@ -9,44 +9,31 @@ import select
 import sys
 import termios
 import tty
-from types import TracebackType
-from typing import Any, cast, ClassVar, Never, Self, TextIO, TypeAlias
+from typing import (
+    Any,
+    Callable,
+    cast,
+    ClassVar,
+    ContextManager,
+    Never,
+    overload,
+    Self,
+    TextIO,
+    TypeAlias,
+)
 
 
+from .ansi import Ansi, Layer
 from .color.spec import ColorSpec
-from .color.theme import Theme
+from .color.theme import current_theme, Theme
 
 
 TerminalMode: TypeAlias = list[Any]
 
 
-class t:
+class TerminalModeComponent:
     CC = 6
     LFLAG = 3
-
-
-class e:
-    BEL = '\a'
-    CSI = '\x1b['
-    DCS = '\x1bP'
-    OSC = '\x1b]'
-    Q = '?'
-    SEMI = ';'
-    ST = '\x1b\\'
-
-
-def _fuse(*fragments: None | int | str) -> str:
-    processed: list[str] = []
-    previous_parameter = False
-
-    for fragment in fragments:
-        current_parameter = fragment is None or isinstance(fragment, int)
-        if previous_parameter and current_parameter:
-            processed.append(';')
-        processed.append('' if fragment is None else str(fragment))
-        previous_parameter = current_parameter
-
-    return ''.join(processed)
 
 
 class BatchMode(enum.Enum):
@@ -93,36 +80,33 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
     """
     A context manager for terminal state.
 
-    This class manages terminal updates. It ensures that updates are written in
-    the right order, that the output is flushed only when necessary, and that
-    the terminal is restored to its original state after use.
+    This class manages operations that update and restore terminal state. It
+    ensures that all updates are applied on entry and restored on exit, that
+    updates are applied in registration order and restored in the opposite
+    order, and that terminal output is flushed after applying and also after
+    reverting all updates.
 
-    To make this work, all updates must be registered with this class before
-    entering a ``with`` block. Updates further consist of a pair of ANSI escape
-    sequences, one to set up the new terminal state and one to restore the old
-    terminal state.
+    An update may be a pair of escape sequences or a function that instantiates
+    a context manager. In case of the former, the first sequence is written to
+    the output upon entry and the second sequence upon exit. In case of the
+    latter, the function and its result's ``__enter__()`` method are invoked on
+    entry and the result's ``__exit__()`` method is invoked on exit. Currently,
+    there is no public interface for registering the latter.
 
-    On entry, this class writes out the first ANSI escape sequence of every
-    registered pair in registration order and then flushes the output. On exit,
-    this class writes out the second sequence in reverse registration order and
-    then flushes the output.
-
-    Instances of this class are both reentrant and reusable. This class writes
-    *nothing* to the terminal upon reentrant use, i.e., when ``__enter__()`` is
-    invoked again before ``__exit__()``. But it writes the first sequences again
-    upon reuse, when ``__enter__()`` is invoked again after ``__exit__()``.
+    This class is reentrant and reusable, though an instance does nothing on
+    nested invocations.
 
     :class:`TermIO` has several methods with the same names and signatures as
     this class. They are the preferred way of creating terminal context manager
     instances because they are far more convenient. Assuming that ``term`` is an
-    instance of ``TermIO``, this rather clumsy ``with`` statement
+    instance of ``TermIO``, the following, rather clumsy ``with`` statement
 
     .. code-block:: python
 
         with TerminalContextManager(term).alternate_screen().hidden_cursor():
             ...
 
-    is equivalent to the far nicer
+    is equivalent to the following, far nicer one
 
     .. code-block:: python
 
@@ -132,8 +116,16 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
     """
     def __init__(self, terminal: 'TermIO') -> None:
         self._terminal = terminal
-        self._updates: list[tuple[str, str]] = []
+        self._updates: list[Callable[[], ContextManager[object]] | tuple[str, str]] = []
         self._block_depth = 0
+        self._exit_stack: None | ExitStack = None
+
+
+    def _check_not_active(self) -> None:
+        if self._block_depth > 0:
+            raise ValueError(
+                'unable to update context manager after __enter__() has been called'
+            )
 
 
     def register(self, do: str, undo: str) -> Self:
@@ -142,11 +134,52 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
         ``undo`` should be ANSI escape sequences, with ``undo`` restoring the
         terminal to the state from before ``do``.
         """
-        if self._block_depth > 0:
-            raise ValueError(
-                'unable to register updates after __enter__ has been called'
-            )
+        self._check_not_active()
         self._updates.append((do, undo))
+        return self
+
+
+    @contextmanager
+    def _cbreak_mode(self) -> 'Iterator[TermIO]':
+        fileno = self._terminal.input.fileno()
+        saved_mode = termios.tcgetattr(fileno)
+        if not self._terminal.is_cbreak_mode(saved_mode):
+            tty.setcbreak(fileno)
+        try:
+            yield self._terminal
+        finally:
+            termios.tcsetattr(fileno, termios.TCSAFLUSH, saved_mode)
+
+
+    def cbreak_mode(self) -> Self:
+        """
+        Put the terminal into cbreak mode.
+
+        If the terminal is not yet in cbreak mode, the context manager sets
+        cbreak mode upon entry and restores the previous mode upon exit. If the
+        terminal is in cbreak mode already, the context manager does not modify
+        the terminal mode, but it still restores the previous mode upon exit.
+        Mode changes only take effect after all queued output has been written
+        but queued input is discarded.
+        """
+        self._check_not_active()
+        self._updates.append(lambda: self._cbreak_mode())
+        return self
+
+
+    def terminal_theme(self, theme: None | Theme = None) -> Self:
+        """
+        Use the terminal's color theme. Unless the theme argument is provided,
+        the implementation queries the terminal for its current theme upon
+        entry. In other words, an instance queries the terminal every time it is
+        reused.
+        """
+        self._check_not_active()
+        if theme is None:
+            factory = lambda: current_theme(self._terminal.request_theme())
+        else:
+            factory = lambda: current_theme(theme)
+        self._updates.append(factory)
         return self
 
 
@@ -154,24 +187,38 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
         """Update the window title."""
         # Save window title on stack, then update window title
         return self.register(
-            _fuse(e.CSI, "22;2t", e.OSC, "0;", title, e.ST),
-            _fuse(e.CSI, "23;2t")
+            Ansi.fuse(Ansi.CSI, "22;2t", Ansi.OSC, "0;", title, Ansi.ST),
+            Ansi.fuse(Ansi.CSI, "23;2t"),
         )
 
 
     def alternate_screen(self) -> Self:
         """Switch to the terminal's alternate (unbuffered) screen."""
         return self.register(
-            _fuse(e.CSI, "?1049h"),
-            _fuse(e.CSI, "?1049l"),
+            Ansi.fuse(Ansi.CSI, "?1049h"),
+            Ansi.fuse(Ansi.CSI, "?1049l"),
         )
 
 
     def hidden_cursor(self) -> Self:
         """Make cursor invisible."""
         return self.register(
-            _fuse(e.CSI, "?25l"),
-            _fuse(e.CSI, "?25h"),
+            Ansi.fuse(Ansi.CSI, "?25l"),
+            Ansi.fuse(Ansi.CSI, "?25h"),
+        )
+
+
+    def batched_output(self) -> Self:
+        """
+        Batch terminal output.
+
+        While batching, a terminal temporarily delays updating the screen by
+        buffering output. It avoids visual artifacts when rapidly updating the
+        screen.
+        """
+        return self.register(
+            Ansi.fuse(Ansi.CSI, "?2026h"),
+            Ansi.fuse(Ansi.CSI, "?2026l"),
         )
 
 
@@ -181,31 +228,56 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
         <https://gitlab.com/gnachman/iterm2/-/wikis/Paste-Bracketing>`_.
         """
         return self.register(
-            _fuse(e.CSI, "?2004h"),
-            _fuse(e.CSI, "?2004l"),
+            Ansi.fuse(Ansi.CSI, "?2004h"),
+            Ansi.fuse(Ansi.CSI, "?2004l"),
         )
+
+
+    def scoped_style(self) -> Self:
+        """Scope style changes by resetting the style on exit."""
+        return self.register('', Ansi.fuse(Ansi.CSI, 'm'))
+
+
+    def _create_control_writer(self, control: str) -> Callable[[], None]:
+        def control_writer() -> None:
+            self._terminal.write_control(control)
+        return control_writer
 
 
     def __enter__(self) -> 'TermIO':
         if self._block_depth == 0:
-            for do, _ in self._updates:
-                self._terminal.write_control(do)
-            self._terminal.flush()
+            with ExitStack() as stack:
+                # Protect against partial terminal updates with an exit stack.
+                for update in self._updates:
+                    if isinstance(update, tuple):
+                        self._terminal.write_control(update[0])
+                        stack.callback(self._create_control_writer(update[1]))
+                    else:
+                        stack.enter_context(update())
+
+                # All updates have been processed. Flush terminal output.
+                self._terminal.flush()
+
+                # All went well. Delay clean up until __exit__().
+                self._exit_stack = stack.pop_all()
+
         self._block_depth += 1
         return self._terminal
 
 
-    def __exit__(
-        self,
-        exc_type: None | type[BaseException],
-        exc_value: None | BaseException,
-        traceback: None | TracebackType,
-    ) -> None:
+    def __exit__(self, *args: Any) -> bool:
+        # Exception suppression isn't needed right now but easy enough to support
+        received_exception = args[0] is not None
+        suppressed_exception = False
+
         if self._block_depth == 1:
-            for _, undo in reversed(self._updates):
-                self._terminal.write_control(undo)
+            assert self._exit_stack is not None
+            suppressed_exception = bool(self._exit_stack.__exit__(*args))
             self._terminal.flush()
+            self._exit_stack = None
+
         self._block_depth -= 1
+        return received_exception and suppressed_exception
 
 
 class TermIO:
@@ -226,8 +298,8 @@ class TermIO:
         way, the application is hopefully prepared to accommodate a terminal
         size change as well.
 
-        See :attr:`width`, :attr:`height`, :meth:`update_size`, also
-        :meth:`check_same_size`.
+        See :attr:`width`, :attr:`height`, :meth:`request_size`,
+        :meth:`update_size`, and :meth:`check_same_size`.
 
     **Cbreak mode**
         In this mode, the terminal does not support line editing; instead, it
@@ -237,39 +309,60 @@ class TermIO:
         indirect ways, such as environment variables, that help surmise
         specific conditions.
 
-        See :meth:`is_cbreak_mode` and :meth:`cbreak_mode`.
+        See :meth:`is_cbreak_mode`, :meth:`check_cbreak_mode`, and
+        :meth:`cbreak_mode`.
 
-    **Parsing ANSI escapes**
-        The parsing of ANSI escape sequences serving as responses happens at
-        several levels, starting as an ANSI escape sequence itself, then as a
-        message conveying some (integral or textual) parameters, and finally as
-        a high-level terminal property, e.g., the name and version of a terminal
-        or the color assignment for an extended ANSI color.
+    **Writing to terminal output**
+        This class exposes different methods for writing text and for writing
+        control sequences. It helps add support for fragment fusion for the
+        latter. More importantly, it supports applications that need to
+        intercept the latter.
 
-        See :meth:`read_control`; also :meth:`make_raw_request`,
-        :meth:`make_textual_request`, and :meth:`make_numeric_request`; also
-        `:meth:`request_terminal_version`.
+        See :meth:`write`, :meth:`writeln`:, :meth:`write_control`, and
+        :meth:`flush`.
 
-    **Writing ANSI escapes**
-        Writing ANSI escape sequences to output isn't particularly hard but
-        isn't hard but getting the interface right is surprisingly tricky.
-        This class parses several
+    **Reading terminal input and ingesting ANSI escapes**
+        Python's standard library has extensive support for reading from
+        streams. But when it comes to interactive use, only line-oriented input
+        is reasonably well supported by standard library APIs. This class makes
+        up for that by focusing on character-oriented input and in particular
+        ANSI escape sequences. The latter require three levels of parsing:
 
-    **Management of terminal state**
+         1. Character level to read an entire control sequence, no less, no more
+         2. Message level to separate integral and textual parameters
+         3. Semantic level to identify terminal properties
+
+        See :meth:`read` and :meth:`read_control`; also
+        :meth:`make_raw_request`, :meth:`make_textual_request`, and
+        :meth:`make_numeric_request`; also :meth:`request_terminal_version`,
+        :meth:`request_cursor_position`, :meth:`request_batch_mode`,
+        :meth:`request_ansi_color`, :meth:`request_dynamic_color`, and
+        :meth:`request_theme`.
+
+    **Scoped changes of terminal state**
         To more easily update, restore, and flush terminal states, ``TermIO``
-        delegates to a terminal context manager. That helper class is
-        responsible for collecting registrations of pairs of ANSI escape
-        sequences that describe how to enter and exit a context.
+        delegates to a terminal context manager. It makes it possible to
+        fluently queue up all restorable updates in a single ``with`` statement
+        without worrying about many of the implementation details.
 
-        See :meth:`window_title`, :meth:`alternate_screen`,
-        :meth:`hidden_cursor`, and :meth:`bracketed_paste`.
+        See :meth:`cbreak_mode`, :meth:`terminal_theme`, :meth:`window_title`,
+        :meth:`alternate_screen`, :meth:`hidden_cursor`, :meth:`batched_output`,
+        :meth:`bracketed_paste`, and :meth:`scoped_style`.
+
+    **Setting terminal state**
+        Some terminal updates aren't easily undone but still useful.
+
+        See :meth:`up`, :meth:`down`, :meth:`left`, :meth:`right`,
+        :meth:`set_position`, :meth:`set_column`, :meth:`erase_screen`, and
+        :meth:`erase_line`.
 
     **Styled terminal output**
-        While a rather obvious topic, styling output while keeping the interface
-        flexbile *and* user-friendly is not so clear-cut.
+        What's the point of integrating terminal colors with robust color
+        management? Styling terminal output, of course!
 
-       See :meth:`home`, :meth:`at`, :meth:`erase_screen`, :meth:`erase_line`,
-       :meth:`reset_style`, and :meth:`link`.
+       See :meth:`reset_style`, :meth:`regular`, :meth:`bold`, :meth:`light`,
+       :meth:`italic`, :meth:`link`, :meth:`foreground`, :meth:`background`,
+       and :meth:`reverse`.
     """
     def __init__(
         self,
@@ -279,20 +372,35 @@ class TermIO:
         self._input = input or sys.__stdin__
         self._input_fileno: int = self._input.fileno()
         self._output = output or sys.__stdout__
-
+        self._should_write_control = True
+        self._pending_styles: list[None | int | str] = []
         self._width, self._height = self.request_size() or (80, 24)
+
+    # ----------------------------------------------------------------------------------
+    # The Underlying I/O
+
+    @property
+    def input(self) -> TextIO:
+        """The terminal's input."""
+        return self._input
+
+
+    @property
+    def output(self) -> TextIO:
+        """The terminal's output."""
+        return self._output
 
     # ----------------------------------------------------------------------------------
     # Terminal Size
 
     @property
     def width(self) -> int:
-        """The terminal width, or a cached version thereof."""
+        """The cached terminal width."""
         return self._width
 
     @property
     def height(self) -> int:
-        """The terminal height, or a cached version thereof."""
+        """The cached terminal height."""
         return self._height
 
 
@@ -353,10 +461,10 @@ class TermIO:
         # suffices to check for cbreak's minimal settings, since we want the
         # terminal to respond right away and not stuck in line-buffer mode.
         return (
-            not (mode[t.LFLAG] & termios.ECHO)
-            and not (mode[t.LFLAG] & termios.ICANON)
-            and mode[t.CC][termios.VMIN] == 1
-            and mode[t.CC][termios.VTIME] == 0
+            not (mode[TerminalModeComponent.LFLAG] & termios.ECHO)
+            and not (mode[TerminalModeComponent.LFLAG] & termios.ICANON)
+            and mode[TerminalModeComponent.CC][termios.VMIN] == 1
+            and mode[TerminalModeComponent.CC][termios.VTIME] == 0
         )
 
 
@@ -370,10 +478,9 @@ class TermIO:
         return self
 
 
-    @contextmanager
-    def cbreak_mode(self) -> Iterator[Self]:
+    def cbreak_mode(self) -> TerminalContextManager:
         """
-        Put the terminal into cbreak mode for the lifetime of the context.
+        Put the terminal into cbreak mode.
 
         If the terminal is not yet in cbreak mode, the context manager sets
         cbreak mode upon entry and restores the previous mode upon exit. If the
@@ -382,33 +489,25 @@ class TermIO:
         Mode changes only take effect after all queued output has been written
         but queued input is discarded.
         """
-        saved_mode = termios.tcgetattr(self._input_fileno)
-        if not self.is_cbreak_mode(saved_mode):
-            tty.setcbreak(self._input_fileno)
-        try:
-            yield self
-        finally:
-            termios.tcsetattr(self._input_fileno, termios.TCSAFLUSH, saved_mode)
+        return TerminalContextManager(self).cbreak_mode()
 
     # ----------------------------------------------------------------------------------
 
-    def write(self, s: str) -> Self:
+    def write(self, *fragments: str) -> Self:
         """
-        Write the string to this terminal's output. This method does not flush
-        the output.
+        Write the string fragments to this terminal's output. This method does
+        not flush the output.
         """
-        self._output.write(s)
+        self._output.write(''.join(fragments))
         return self
 
 
-    def writeln(self, text: None | str = None) -> Self:
+    def writeln(self, *fragments: str) -> Self:
         """
-        Write optional text and a line terminator to this terminal's output.
-        This method does not flush the output.
+        Write the string fragments followed by a line terminator to this
+        terminal's output. This method does not flush the output.
         """
-        if text is not None:
-            self.write(text)
-        self.write('\n')
+        self.write(*fragments, '\n')
         return self
 
 
@@ -416,16 +515,20 @@ class TermIO:
         """
         Write a control sequence to this terminal.
 
-        This method combines the fragments of the control sequence, that is,
-        ANSI escape sequence, into a string and writes that string to this
-        terminal's output. This method does not flush the output.
+        This method :meth:`fuses <.Ansi.fuse>` the fragments of the inline
+        control sequence (i.e., ANSI escape sequence) into a string and writes
+        that string to this terminal's output. This method does not flush the
+        terminal's output.
 
-        Fragment fusion accepts ``None``, integers, and strings. It treats
-        ``None`` as a parameter and serializes it as the empty string. It treats
-        integers as parameters as well. Fragment fusion puts a semicolor between
-        every pair of parameters.
+        This method's implementation does *not* delegate to the :meth:`write`
+        method but directly writes to the terminal's output. While a separate
+        method for writing control sequences helps prepare those sequences
+        (here, by fusing the arguments), the primary motivation for exposing a
+        separate method is to facilitate applications that need to separate
+        content from styling etc.
         """
-        self.write(_fuse(*fragments))
+        if self._should_write_control:
+            self._output.write(Ansi.fuse(*fragments))
         return self
 
 
@@ -572,9 +675,9 @@ class TermIO:
             return None
         if not response.endswith(suffix):
             # BEL is just as valid as ST
-            if suffix != e.ST or not response.endswith(e.BEL):
+            if suffix != Ansi.ST or not response.endswith(Ansi.BEL):
                 return None
-            suffix = e.BEL
+            suffix = Ansi.BEL
 
         return response[len(prefix): -len(suffix)]
 
@@ -613,7 +716,7 @@ class TermIO:
     def request_terminal_version(self) -> None | str:
         """Request the terminal name and version."""
         terminal = self.make_textual_request(
-            e.CSI, '>q', prefix=f'{e.DCS}>|', suffix=e.ST
+            Ansi.CSI, '>q', prefix=f'{Ansi.DCS}>|', suffix=Ansi.ST
         )
         return terminal
 
@@ -621,7 +724,7 @@ class TermIO:
     def request_cursor_position(self) -> None | tuple[int, int]:
         """Request the cursor position in (x, y) order from this terminal."""
         numbers = self.make_numeric_request(
-            e.CSI, '6n', prefix=b'\x1b[', suffix=b'R'
+            Ansi.CSI, '6n', prefix=b'\x1b[', suffix=b'R'
         )
         return None if len(numbers) != 2 else (numbers[0], numbers[1])
 
@@ -629,7 +732,7 @@ class TermIO:
     def request_batch_mode(self) -> BatchMode:
         """Determine the terminal's current batch mode."""
         response = self.make_numeric_request(
-            e.CSI, "?2026$p", prefix=b"\x1b[?2026;", suffix=b"$y"
+            Ansi.CSI, "?2026$p", prefix=b"\x1b[?2026;", suffix=b"$y"
         )
         return (
             BatchMode(response[0]) if len(response) == 1 else BatchMode.NOT_SUPPORTED
@@ -658,9 +761,9 @@ class TermIO:
         assert 0 <= color <= 15
 
         return self._process_color(self.make_textual_request(
-            e.OSC, 4, e.SEMI, color, e.SEMI, e.Q, e.ST,
-            prefix=f'{e.OSC}4;{color};',
-            suffix=e.ST,
+            Ansi.OSC, 4, color, ';?', Ansi.ST,
+            prefix=f'{Ansi.OSC}4;{color};',
+            suffix=Ansi.ST,
         ))
 
 
@@ -681,25 +784,27 @@ class TermIO:
         assert 10 <= code <= 11
 
         return self._process_color(self.make_textual_request(
-            e.OSC, code, e.SEMI, e.Q, e.ST,
-            prefix=f'{e.OSC}{code};',
-            suffix=e.ST,
+            Ansi.OSC, code, ';?', Ansi.ST,
+            prefix=f'{Ansi.OSC}{code};',
+            suffix=Ansi.ST,
         ))
 
-    def extract_theme(self) -> None | Theme:
-        """Extract the current color theme from the terminal."""
+    def request_theme(self) -> Theme:
+        """Extract the entirety of the current color theme from the terminal."""
         colors: list[tuple[int, int, int]] = []
 
         for code in range(10, 12):
             color = self.request_dynamic_color(code)
             if color is None:
-                return None
+                raise ValueError(
+                    f'Unable to determine value for default color {code - 9}'
+                )
             colors.append(color)
 
         for code in range(16):
             color = self.request_ansi_color(code)
             if color is None:
-                return None
+                raise ValueError(f'Unable to determine value for ANSI color {code}')
             colors.append(color)
 
         return Theme(**{
@@ -709,6 +814,14 @@ class TermIO:
 
     # ----------------------------------------------------------------------------------
     # Terminal Context
+
+    def terminal_theme(self, theme: None | Theme = None) -> TerminalContextManager:
+        """
+        Use a different color theme. Unless a theme argument is provided, the
+        implementation queries the terminal for its current theme.
+        """
+        return TerminalContextManager(self).terminal_theme(theme)
+
 
     def window_title(self, title: str) -> TerminalContextManager:
         """Use a different window title."""
@@ -725,6 +838,11 @@ class TermIO:
         return TerminalContextManager(self).hidden_cursor()
 
 
+    def batched_output(self) -> TerminalContextManager:
+        """Batch terminal output."""
+        return TerminalContextManager(self).batched_output()
+
+
     def bracketed_paste(self) -> TerminalContextManager:
         """
         Enable `bracketed pasting
@@ -732,37 +850,136 @@ class TermIO:
         """
         return TerminalContextManager(self).bracketed_paste()
 
+
+    def scoped_style(self) -> TerminalContextManager:
+        """
+        Scope style changes by resetting the style on exit. The ``style()``
+        context helps protect against unwanted style leakage upon unexpected
+        exceptions or signals.
+        """
+        return TerminalContextManager(self).scoped_style()
+
     # ----------------------------------------------------------------------------------
 
-    def home(self) -> Self:
-        """Move the cursor to the top left corner."""
-        return self.write_control(e.CSI, ';H')
+    def up(self, rows: None | int = None) -> Self:
+        """Move cursor up."""
+        return self.write_control(Ansi.CSI, rows, 'A')
 
-    def at(self, row: None | int = None, column: None | int = None) -> Self:
+
+    def down(self, rows: None | int = None) -> Self:
+        """Move cursor down."""
+        return self.write_control(Ansi.CSI, rows, 'B')
+
+
+    def left(self, columns: None | int = None) -> Self:
+        """Move cursor left."""
+        return self.write_control(Ansi.CSI, columns, 'C')
+
+
+    def right(self, columns: None | int = None) -> Self:
+        """Move cursor right."""
+        return self.write_control(Ansi.CSI, columns, 'D')
+
+
+    def set_position(self, row: None | int = None, column: None | int = None) -> Self:
         """Move the cursor to the given row and column."""
-        return self.write_control(e.CSI, row, e.SEMI, column, "H")
+        return self.write_control(Ansi.CSI, row, column, 'H')
+
+
+    def set_column(self, column: None | int = None) -> Self:
+        """Move the cursor to the given column"""
+        return self.write_control(Ansi.CSI, column, 'G')
+
 
     def erase_screen(self) -> Self:
         """Erase the entire screen."""
-        return self.write_control(e.CSI, '2J')
+        return self.write_control(Ansi.CSI, '2J')
+
 
     def erase_line(self) -> Self:
         """Erase the entire current line."""
-        return self.write_control(e.CSI, '2K')
+        return self.write_control(Ansi.CSI, '2K')
+
+    # ----------------------------------------------------------------------------------
 
     def reset_style(self) -> Self:
         """Reset all styles."""
-        return self.write_control(e.CSI, 'm')
+        return self.write_control(Ansi.CSI, 'm')
+
+
+    def regular(self) -> Self:
+        """Use regular font weight."""
+        return self.write_control(Ansi.CSI, 22, 'm')
+
+
+    def bold(self) -> Self:
+        """Use bold font weight."""
+        return self.write_control(Ansi.CSI, 1, 'm')
+
+
+    def light(self) -> Self:
+        """Use light font weight."""
+        return self.write_control(Ansi.CSI, 2, 'm')
+
+
+    def italic(self) -> Self:
+        """
+        Use italic font style. Note that italic style does *not* compose with
+        the bold or light font weights but rather overrides them.
+        """
+        return self.write_control(Ansi.CSI, 3, 'm')
+
+
+    @overload
+    def foreground(self, color: int, /) -> Self:
+        ...
+    @overload
+    def foreground(self, r: int, g: int, b: int, /) -> Self:
+        ...
+    def foreground(self, r: int, g: None | int = None, b: None | int = None) -> Self:
+        """Set the foreground color."""
+        return self.write_control(
+            Ansi.CSI, *Ansi.color_parameters(Layer.TEXT, r, g, b), 'm'  # type: ignore
+        )
+
+
+    @overload
+    def background(self, color: int, /) -> Self:
+        ...
+    @overload
+    def background(self, r: int, g: int, b: int, /) -> Self:
+        ...
+    def background(self, r: int, g: None | int = None, b: None | int = None) -> Self:
+        """Set the background color."""
+        return self.write_control(
+            Ansi.CSI,
+            *Ansi.color_parameters(Layer.BACKGROUND, r, g, b),  # type: ignore
+            'm',
+        )
+
+
+    def reverse(self) -> Self:
+        """Reverse foreground and background."""
+        return self.write_control(Ansi.CSI, 7, 'm')
+
 
     def link(self, text: str, href: str, id: None | str = None) -> Self:
-        """Mark a hyperlink."""
-        # https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+        """
+        `Mark a hyperlink
+        <https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda>`_.
+
+        Underlined text should only be used for hyperlinks, in terminal
+        emulators just as much as in documents and on web pages. That's just why
+        this class does *not* have a separate method for styling text as
+        underlined. If that's too stringent for your use case, please do `open
+        an issue <https://github.com/apparebit/prettypretty/issues/new>`_.
+        """
         code = f"8;id={id};" if id else "8;;"
         return (
             self
-            .write_control(e.OSC, code, href, e.ST)
+            .write_control(Ansi.OSC, code, href, Ansi.ST)
             .write(text)
-            .write_control(e.OSC, "8;;", e.ST)
+            .write_control(Ansi.OSC, "8;;", Ansi.ST)
         )
 
 
@@ -789,25 +1006,32 @@ def create_parser() -> argparse.ArgumentParser:
 if __name__ == '__main__':
     options = create_parser().parse_args()
 
-    termio = TermIO()
-    with termio.cbreak_mode():
+    with TermIO().cbreak_mode() as terminal:
         if options.format in (None, 'theme'):
-            theme = termio.extract_theme()
-            if theme is not None:
-                for name, color in theme.colors():
-                    cs = cast(tuple[float, float, float], color.coordinates)
-                    print(f'{name:<15} {cs[0]:.5f}, {cs[1]:.5f}, {cs[2]:.5f}')
+            theme = terminal.request_theme()
+            for name, color in theme.colors():
+                cs = cast(tuple[float, float, float], color.coordinates)
+                terminal.writeln(f'{name:<15} {cs[0]:.5f}, {cs[1]:.5f}, {cs[2]:.5f}')
         else:
             for index, field in enumerate(dataclasses.fields(Theme)):
                 if 0 <= index <= 1:
-                    response = termio.make_raw_request(
-                        e.OSC, 10 + index, e.SEMI, e.Q, e.ST
+                    response = terminal.make_raw_request(
+                        Ansi.OSC, 10 + index, ';?', Ansi.ST
                     )
                 else:
-                    response = termio.make_raw_request(
-                        e.OSC, 4, e.SEMI, index - 2, e.SEMI, e.Q, e.ST,
+                    response = terminal.make_raw_request(
+                        Ansi.OSC, 4, index - 2, ';?', Ansi.ST,
                     )
                 if response is None:
-                    print(f'{field.name:<15} error means halt!')
+                    (
+                        terminal
+                        .foreground(255)
+                        .background(88)
+                        .write(f'Unable to query {field.name} color!')
+                        .reset_style()
+                        .writeln()
+                    )
                     break
-                print(f'{field.name:<15} {json.dumps(response.decode("utf8"))}')
+
+                response_text = json.dumps(response.decode('utf8'))
+                terminal.writeln(f'{field.name:<15} {response_text}')
