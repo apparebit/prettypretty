@@ -44,28 +44,49 @@ class Coordinate:
         elif self.type == 'angle':
             if self.min != 0 or self.max != 360:
                 raise ValueError('angle coordinate must have range from 0 to 360')
+        elif self.type == 'int':
+            if self.min is not None and not isinstance(self.min, int):
+                raise ValueError(
+                    f'minimum integral coordinate {self.min} is not an integer'
+                )
+            if self.max is not None and not isinstance(self.max, int):
+                raise ValueError(
+                    f'maximum integral coordinate {self.max} is not an integer'
+                )
         elif self.type == 'normal':
             if self.min != 0 or self.max != 1:
                 raise ValueError('normal coordinate must have range from 0 to 1')
 
+
     def is_integral(self) -> bool:
-        """Determine whether the coordinates are integers only."""
+        """Determine whether this coordinate axis has integral values only."""
         return self.type == 'int'
 
-    def is_in_range(self, value: float, *, epsilon: float = EPSILON) -> bool:
+
+    def in_range(self, value: int | float, *, epsilon: float = EPSILON) -> bool:
         """
-        Determine whether the value is within the range set by this coordinate's
-        ``min`` and ``max`` attributes with an ``epsilon`` tolerance. If either
-        limit is ``None``, that limit is not tested.
+        Determine whether the value is within the range of this coordinate's
+        ``min`` and ``max`` attributes. If a limit is ``None``, that limit is
+        ignored. For integral coordinates, the value must be an integer and
+        epsilon is ignored. For non-integral coordinates, the epsilon serves as
+        tolerance on the limits: It is subtracted from the minimum and added to
+        the maximum.
         """
         if math.isnan(value):
             return self.type == 'angle'
-        if self.type == 'int' and not isinstance(value, int):
-            return False
+
+        if self.is_integral():
+            return (
+                isinstance(value, int)
+                and (self.min is None or self.min <= value)
+                and (self.max is None or value <= self.max)
+            )
+
         return (
             (self.min is None or self.min - epsilon <= value)
             and (self.max is None or value <= self.max + epsilon)
         )
+
 
     def clip(self, value: float, *, epsilon: float = 0) -> float:
         """
@@ -73,10 +94,20 @@ class Coordinate:
         attributes with an ``epsilon`` tolerance. If either limits is ``None``,
         that limit has no impact on the value.
         """
-        if self.min is not None and value < self.min - epsilon:
-            return self.min
-        if self.max is not None and value > self.max + epsilon:
-            return self.max
+        if math.isnan(value) and self.type == 'angle':
+            return value
+
+        if self.is_integral():
+            if self.min is not None and not self.min <= value:
+                value = self.min
+            if self.max is not None and not value <= self.max:
+                value = self.max
+            return value
+
+        if self.min is not None and not self.min - epsilon <= value:
+            value = self.min
+        if self.max is not None and not value <= self.max + epsilon:
+            value = self.max
         return value
 
 
@@ -110,19 +141,19 @@ class Space:
 
     def is_integral(self) -> bool:
         """
-        Determine whether a color format allows only integers.
+        Determine whether a color format allows only integers. If one coordinate
+        is integral, all coordinates must be.
         """
-        # Testing only the first coordinate works because of __post_init__ above.
         return self.coordinates[0].is_integral()
 
-    def is_in_gamut(self, *coordinates: float, epsilon: float = EPSILON) -> bool:
+    def in_gamut(self, *coordinates: float, epsilon: float = EPSILON) -> bool:
         """
         Determine whether the coordinates are in gamut for this color space with
         an ``epsilon`` tolerance.
         """
         assert len(self.coordinates) == len(coordinates)
         for coordinate, value in zip(self.coordinates, coordinates):
-            if not coordinate.is_in_range(value, epsilon=epsilon):
+            if not coordinate.in_range(value, epsilon=epsilon):
                 return False
         return True
 
