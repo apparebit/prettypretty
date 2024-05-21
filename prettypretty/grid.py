@@ -3,10 +3,10 @@ A script to visualize 8-bit terminal colors as well as prettypretty's support
 for down-sampling colors and maximizing contrast.
 """
 import argparse
-from itertools import chain
 import os
 from typing import Literal
 
+from .ansi import Layer
 from .color.conversion import get_converter
 from .color.apca import use_black_text, use_black_background
 from .color.lores import (
@@ -16,8 +16,7 @@ from .color.lores import (
     oklab_to_ansi,
     oklab_to_eight_bit,
 )
-from .color.theme import MACOS_TERMINAL, VGA, XTERM, current_theme
-from .color.style import eight_bit_to_sgr_params, Layer
+from .color.theme import MACOS_TERMINAL, VGA, XTERM, builtin_theme_name, current_theme
 from .termio import TermIO
 
 
@@ -80,32 +79,23 @@ class FramedBoxes:
         if len(box) != self._box_width:
             raise ValueError(f'"{text}" does not fit into {self._box_width}-wide box')
 
-        if len(background) == 1:
-            bg_params = eight_bit_to_sgr_params(*background, Layer.BACKGROUND)
-        else:
-            bg_params = 48, 2, *background
-
-        if len(foreground) == 1:
-            fg_params = eight_bit_to_sgr_params(*foreground, Layer.TEXT)
-        else:
-            fg_params = 38, 2, *foreground
-        params = ';'.join(str(p) for p in chain(bg_params, fg_params))
-
-        self._term.write_control('\x1b[', params, 'm')
+        self._term.background(*background)
+        self._term.foreground(*foreground)
         self._term.write(box)
-        self._term.write_control('\x1b[m')
 
         self._line_content_width += self._box_width
 
     def right(self) -> None:
         """Complete formatting a line of content."""
+        self._term.reset_style()
+        self._term.writeln('┃')
+
         if self._line_content_width != self.inner_width:
             raise ValueError(
                 f'content spans {self._line_content_width}, '
                 f'not {self.inner_width} columns'
             )
 
-        self._term.writeln('┃')
         self._line_content_width = 0
 
     def bottom(self) -> None:
@@ -280,23 +270,9 @@ if __name__ == '__main__':
     options = create_parser().parse_args()
 
     term = TermIO()
-    theme = options.theme
+    with term.cbreak_mode().terminal_theme(options.theme).scoped_style():
+        term.writeln()
 
-    if theme is None:
-        with term.cbreak_mode():
-            theme = term.extract_theme() or VGA
-
-    if theme is VGA:
-        theme_name = "VGA"
-    elif theme is MACOS_TERMINAL:
-        theme_name = "macOS Terminal's basic"
-    elif theme is XTERM:
-        theme_name = "xterm's default"
-    else:
-        theme_name = "this terminal's current"
-    term.writeln(f'Using {theme_name} theme...\n')
-
-    with current_theme(theme):
         write_color_cube(term, label=options.label)
         write_color_cube(term, ansi_only=True, label=options.label)
         write_color_cube(term, layer=Layer.TEXT)
@@ -311,3 +287,8 @@ if __name__ == '__main__':
                             level=level,
                             eight_bit_only=downsample,
                         )
+
+        theme_name = builtin_theme_name(current_theme())
+        term.italic().writeln(
+            f'Used ', theme_name or 'current terminal theme', '!\n'
+        ).flush()
