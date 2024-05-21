@@ -47,6 +47,13 @@ prettypretty.color.equality
     :members:
 
 
+prettypretty.color.gamut
+------------------------
+
+.. automodule:: prettypretty.color.gamut
+    :members:
+
+
 prettypretty.color.lores
 ------------------------
 
