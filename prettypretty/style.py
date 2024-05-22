@@ -1,8 +1,26 @@
+"""
+High-level support for terminal styles.
+
+A terminal style covers the full repertoire of text attributes controllable via
+ANSI escape codes. In addition to a fluent interface for assembling styles in
+the first place, terminal styles support an algebra of inversion and difference
+to easily compute the minimal changes necessary for restoring the default
+appearance or transitioning to another appearance.
+
+Reifying terminal styles this way not only simplifies updating the terminal, but
+it also encourages the definition of terminal styles in a dedicated module. Such
+an application-wide style registry greatly simplifies the reuse of styles. They
+all are defined in the same module after all. Centralization also helps with
+tuning styles so that they harmonize with each other and the design guidelines.
+In case where no such guidelines exist, a central module may just help define
+them.
+"""
 import dataclasses
 import enum
 from typing import cast, overload, Self, TypeAlias
 
 from .ansi import Ansi, Layer
+from .color.lores import rgb6_to_eight_bit
 from .color.spec import ColorSpec
 
 
@@ -11,17 +29,18 @@ TerminalColor: TypeAlias = tuple[int] | tuple[int, int, int]
 
 class TextAttribute(enum.Enum):
     """
-    The superclass of all enumerations representing style choices. Each
-    enumeration represents a choice of values, which is binary in the common
-    case and ternary for :class:`Weight`. It also encodes the default state by
-    aliasing the ``DEFAULT`` attribute. And it encodes SGR parameters, which are
-    the values of the enumeration constants.
+    The superclass of all enumerations representing what should be orthogonal
+    stylistic choices. Each enumeration represents a choice of values, which is
+    binary in the common case and ternary for :class:`Weight`. It also encodes
+    the default state by aliasing the ``DEFAULT`` attribute. Finally, it encodes
+    SGR parameters, which are the values of the enumeration constants.
 
     :meth:`__invert__` uses the above information to automatically determine
     which text attributes must be set to restore the default appearance of
     terminal output again.
     """
 
+    @property
     def is_default(self) -> bool:
         """Determine whether the text attribute is the default value."""
         return self.value == type(self)['DEFAULT'].value
@@ -32,7 +51,7 @@ class TextAttribute(enum.Enum):
         restores the default appearance again. If this text attribute already
         sets the default state, this method returns ``None``.
         """
-        if self.is_default():
+        if self.is_default:
             return None
         return type(self)['DEFAULT']
 
@@ -42,7 +61,8 @@ class Weight(TextAttribute):
     The font weight.
 
     Attributes:
-        REGULAR, DEFAULT: mark the default weight
+        REGULAR: is the regular, medium weight
+        DEFAULT: marks the regular weight as the default
         BOLD: is a heavier weight
         LIGHT: is a lighter weight
     """
@@ -57,7 +77,8 @@ class Slant(TextAttribute):
     The slant.
 
     Attributes:
-        UPRIGHT, DEFAULT: mark the default, a lack of slant
+        UPRIGHT: is text without slant
+        DEFAULT: marks upright text as the default
         ITALIC: is text that is very much slanted
     """
     UPRIGHT = 23
@@ -70,8 +91,9 @@ class Underline(TextAttribute):
     Underlined or not.
 
     Attributes:
-        NOT_UNDERLINED, DEFAULT: mark the default, which has no inferior lines
-        UNDERLINED: marks text that should be underlined after all
+        NOT_UNDERLINED: has no inferior lines
+        DEFAULT: marks the lack of lines as the default
+        UNDERLINED: has inferior lines
     """
     NOT_UNDERLINED = 24
     DEFAULT = 24
@@ -83,7 +105,8 @@ class Coloring(TextAttribute):
     Reversed or not.
 
     Attributes:
-        NOT_REVERSED, DEFAULT: mark the default, which is inconspicuous
+        NOT_REVERSED: is the inconspicuous, regular order
+        DEFAULT: marks the regular order as the default
         REVERSED: reverses foreground and background colors
     """
     NOT_REVERSED = 27
@@ -96,7 +119,8 @@ class Visibility(TextAttribute):
     The visibility of text.
 
     Attributes:
-        NOT_HIDDEN, DEFAULT: mark the default, which is inconspicuous
+        NOT_HIDDEN: makes text visible
+        DEFAULT: marks visible text as the default
         HIDDEN: makes text invisible
     """
     NOT_HIDDEN = 28
@@ -105,20 +129,40 @@ class Visibility(TextAttribute):
 
 
 DEFAULT_COLOR: tuple[int] = -1,
-"""The default color."""
+"""
+The default color.
+
+ANSI escape codes treat the foreground and background default colors as distinct
+from the 16 extended ANSI colors. Since the latter (as well as 8-bit terminal
+colors) are represented by a tuple with the non-negative color code as its only
+value, the default color also is a tuple with -1 as its only value.
+"""
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
-class Style:
+class StyleSpec:
     """
-    A terminal style.
+    Specification of a terminal style.
 
-    This class combines one attribute for each enumeration of text attributes
-    with two more attributes for foreground and background color. It only
-    supports color formats that are supported by several terminals, i.e., 8-bit
-    terminal colors and RGB256. At the same time, it supports one more color for
-    foreground and background *each*, the **default color** represented by a
-    unary tuple with -1 as value.
+    This class captures the state of all text attributes controllable through
+    ANSI escape sequences. It distinguishes between:
+
+      * setting an attribute, e.g., when :attr:`underline` is
+        :data:`Underline.UNDERLINED`,
+      * unsetting an attribute, e.g., when :attr:`underline` is
+        :data:`Underline.NOT_UNDERLINED`,
+      * ignoring an attribute, e.g., when :attr:`underline` is ``None``.
+
+    For colors, it only supports color formats that can possibly be used in
+    ANSI escape sequences, namely
+
+      * the :data:`DEFAULT_COLOR`,
+      * the 16 extended ANSI colors,
+      * the 8-bit terminal colors,
+      * RGB256.
+
+    However, not all terminals support all of these color formats. Notably,
+    support for RGB256 is far from universal.
 
     Attributes:
         weight:
@@ -128,13 +172,6 @@ class Style:
         visibility:
         foreground:
         background:
-
-    This class supports the definition of terminal styles by themselves, maybe
-    in a single module for the entire application. Such an application-wide
-    style registry greatly simplifies the reuse of styles. They all are defined
-    in the same module after all. Centralization also helps with tuning styles
-    so that they harmonize with each other and the design guidelines. In case
-    where no such guidelines exist, a central module may just help define them.
 
     Instances of this class are immutable.
     """
@@ -232,13 +269,15 @@ class Style:
         return dataclasses.replace(self, visibility=Visibility.HIDDEN)
 
 
-    def _handle_color(
+    def _prepare_color(
         self, r: int | ColorSpec, g: None | int = None, b: None | int = None
     ) -> TerminalColor:
         if g is None:
             assert b is None
             if isinstance(r, int):
                 return r,
+            if r.tag == 'rgb6':
+                return rgb6_to_eight_bit(*cast(TerminalColor, r.coordinates))
             if r.tag in ('ansi', 'eight_bit', 'rgb256'):
                 return cast(TerminalColor, r.coordinates)
             raise ValueError(f'{r.tag} is not a suitable color format or space')
@@ -261,10 +300,18 @@ class Style:
         self, r: int | ColorSpec, g: None | int = None, b: None | int = None
     ) -> Self:
         """
-        Set the foreground color to the 8-bit terminal or RGB256 color. Terminal
-        support for RGB256 or truecolor is spotty.
+        Set the foreground color.
+
+        When invoked on a color specification, it must be in the ``ansi``,
+        ``eight_bit``, ``rgb6``, or ``rgb256`` format.
+
+        When invoked with an integer color, the value must be -1 for the default
+        color or 0–255 for 8-bit terminal color.
+
+        When invoked with three integer coordinates, they must be the
+        coordinates of an RGB256 color.
         """
-        return dataclasses.replace(self, foreground=self._handle_color(r, g, b))
+        return dataclasses.replace(self, foreground=self._prepare_color(r, g, b))
 
 
     @overload
@@ -280,10 +327,18 @@ class Style:
         self, r: int | ColorSpec, g: None | int = None, b: None | int = None
     ) -> Self:
         """
-        Set the background color to the 8-bit terminal or RGB256 color. Terminal
-        support for RGB256 or truecolor is spotty.
+        Set the background color.
+
+        When invoked on a color specification, it must be in the ``ansi``,
+        ``eight_bit``, ``rgb6``, or ``rgb256`` format.
+
+        When invoked with an integer color, the value must be -1 for the default
+        color or 0–255 for 8-bit terminal color.
+
+        When invoked with three integer coordinates, they must be the
+        coordinates of an RGB256 color.
         """
-        return dataclasses.replace(self, background=self._handle_color(r, g, b))
+        return dataclasses.replace(self, background=self._prepare_color(r, g, b))
 
 
     def sgr_parameters(self) -> list[int]:
@@ -306,3 +361,15 @@ class Style:
             parameters.extend(Ansi.color_parameters(Layer.BACKGROUND, *self.background))
 
         return parameters
+
+
+Style = StyleSpec()
+"""
+An empty style for starting fluent style configurations. It is used in the
+example below to define the style for error messages as bold white text on a
+deep red background.
+
+.. code-block:: python
+
+    ERROR_STYLE = Style.bold.fg(255).bg(88)
+"""
