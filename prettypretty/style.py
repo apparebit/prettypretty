@@ -1,18 +1,25 @@
 import dataclasses
 import enum
-from typing import overload, Self, TypeAlias
+from typing import cast, overload, Self, TypeAlias
 
 from .ansi import Ansi, Layer
+from .color.spec import ColorSpec
 
 
 TerminalColor: TypeAlias = tuple[int] | tuple[int, int, int]
 
 
-
 class TextAttribute(enum.Enum):
     """
-    The superclass of all enumerations representing text attributes. It
-    leverages convention to implement methods once instead of five times.
+    The superclass of all enumerations representing style choices. Each
+    enumeration represents a choice of values, which is binary in the common
+    case and ternary for :class:`Weight`. It also encodes the default state by
+    aliasing the ``DEFAULT`` attribute. And it encodes SGR parameters, which are
+    the values of the enumeration constants.
+
+    :meth:`__invert__` uses the above information to automatically determine
+    which text attributes must be set to restore the default appearance of
+    terminal output again.
     """
 
     def is_default(self) -> bool:
@@ -31,6 +38,14 @@ class TextAttribute(enum.Enum):
 
 
 class Weight(TextAttribute):
+    """
+    The font weight.
+
+    Attributes:
+        REGULAR, DEFAULT: mark the default weight
+        BOLD: is a heavier weight
+        LIGHT: is a lighter weight
+    """
     REGULAR = 22
     DEFAULT = 22
     BOLD = 1
@@ -38,30 +53,59 @@ class Weight(TextAttribute):
 
 
 class Slant(TextAttribute):
+    """
+    The slant.
+
+    Attributes:
+        UPRIGHT, DEFAULT: mark the default, a lack of slant
+        ITALIC: is text that is very much slanted
+    """
     UPRIGHT = 23
     DEFAULT = 23
     ITALIC = 3
 
 
 class Underline(TextAttribute):
+    """
+    Underlined or not.
+
+    Attributes:
+        NOT_UNDERLINED, DEFAULT: mark the default, which has no inferior lines
+        UNDERLINED: marks text that should be underlined after all
+    """
     NOT_UNDERLINED = 24
     DEFAULT = 24
     UNDERLINED = 4
 
 
 class Coloring(TextAttribute):
+    """
+    Reversed or not.
+
+    Attributes:
+        NOT_REVERSED, DEFAULT: mark the default, which is inconspicuous
+        REVERSED: reverses foreground and background colors
+    """
     NOT_REVERSED = 27
     DEFAULT = 27
     REVERSED = 7
 
 
 class Visibility(TextAttribute):
+    """
+    The visibility of text.
+
+    Attributes:
+        NOT_HIDDEN, DEFAULT: mark the default, which is inconspicuous
+        HIDDEN: makes text invisible
+    """
     NOT_HIDDEN = 28
     DEFAULT = 28
     HIDDEN = 8
 
 
 DEFAULT_COLOR: tuple[int] = -1,
+"""The default color."""
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -69,35 +113,28 @@ class Style:
     """
     A terminal style.
 
-    Attributes:
-        weight: is the font weight comprising *regular* (the default), *light*,
-            and *bold*
-        slant: is the font slant comprising *upright* (the default) and *italic*
-        underlined: flags the inferior adornment and is either *not underlined*
-            (the default) or *underlined*
-        coloring: flags color order, which is either *not reversed* (the default)
-            or *reversed*
-        visibility: flags whether text is rendered after all and comprises *visible*
-            (the default) and *invisible*
-        foreground: is the foreground color
-        background: is the background color
+    This class combines one attribute for each enumeration of text attributes
+    with two more attributes for foreground and background color. It only
+    supports color formats that are supported by several terminals, i.e., 8-bit
+    terminal colors and RGB256. At the same time, it supports one more color for
+    foreground and background *each*, the **default color** represented by a
+    unary tuple with -1 as value.
 
-    The foreground and background colors each represent one more color in
-    addition to the 8-bit terminal and RGB256 colors. If the color is a
-    one-tuple with -1 as value, it denotes the default foreground or background
-    color, which is distinct from 16 extended ANSI colors.
+    Attributes:
+        weight:
+        slant:
+        underline:
+        coloring:
+        visibility:
+        foreground:
+        background:
 
     This class supports the definition of terminal styles by themselves, maybe
     in a single module for the entire application. Such an application-wide
-    style registry module greatly simplifies the reuse of styles. They all are
-    defined in the same module after all. Centralization also helps with tuning
-    styles so they harmonize with each other and are consistent with the design
-    principles for the application's user interface. In cases where no such
-    design system exists, a central module may help define one.
-
-    Regarding color attributes and the methods for building styles, the
-    attributes have the longer names because most code shouldn't need to access
-    them. But many styles update at least one color.
+    style registry greatly simplifies the reuse of styles. They all are defined
+    in the same module after all. Centralization also helps with tuning styles
+    so that they harmonize with each other and the design guidelines. In case
+    where no such guidelines exist, a central module may just help define them.
 
     Instances of this class are immutable.
     """
@@ -194,42 +231,59 @@ class Style:
         """Do not render text."""
         return dataclasses.replace(self, visibility=Visibility.HIDDEN)
 
+
+    def _handle_color(
+        self, r: int | ColorSpec, g: None | int = None, b: None | int = None
+    ) -> TerminalColor:
+        if g is None:
+            assert b is None
+            if isinstance(r, int):
+                return r,
+            if r.tag in ('ansi', 'eight_bit', 'rgb256'):
+                return cast(TerminalColor, r.coordinates)
+            raise ValueError(f'{r.tag} is not a suitable color format or space')
+
+        assert isinstance(r, int)
+        assert b is not None
+        return r, g, b
+
+
+    @overload
+    def fg(self, color: ColorSpec, /) -> Self:
+        ...
     @overload
     def fg(self, color: int, /) -> Self:
         ...
     @overload
     def fg(self, r: int, g: int, b: int, /) -> Self:
         ...
-    def fg(self, r: int, g: None | int = None, b: None | int = None) -> Self:
+    def fg(
+        self, r: int | ColorSpec, g: None | int = None, b: None | int = None
+    ) -> Self:
         """
         Set the foreground color to the 8-bit terminal or RGB256 color. Terminal
         support for RGB256 or truecolor is spotty.
         """
-        if g is None:
-            assert b is None
-            return dataclasses.replace(self, foreground=(r,))
-
-        assert b is not None
-        return dataclasses.replace(self, foreground=(r, g, b))
+        return dataclasses.replace(self, foreground=self._handle_color(r, g, b))
 
 
+    @overload
+    def bg(self, color: ColorSpec, /) -> Self:
+        ...
     @overload
     def bg(self, color: int, /) -> Self:
         ...
     @overload
     def bg(self, r: int, g: int, b: int, /) -> Self:
         ...
-    def bg(self, r: int, g: None | int = None, b: None | int = None) -> Self:
+    def bg(
+        self, r: int | ColorSpec, g: None | int = None, b: None | int = None
+    ) -> Self:
         """
         Set the background color to the 8-bit terminal or RGB256 color. Terminal
         support for RGB256 or truecolor is spotty.
         """
-        if g is None:
-            assert b is None
-            return dataclasses.replace(self, background=(r,))
-
-        assert b is not None
-        return dataclasses.replace(self, background=(r, g, b))
+        return dataclasses.replace(self, background=self._handle_color(r, g, b))
 
 
     def sgr_parameters(self) -> list[int]:
@@ -247,16 +301,8 @@ class Style:
         if self.visibility is not None:
             parameters.append(self.visibility.value)
         if self.foreground is not None:
-            if self.foreground == DEFAULT_COLOR:
-                parameters.append(38)
-            else:
-                parameters.extend(Ansi.color_parameters(Layer.TEXT, *self.foreground))
+            parameters.extend(Ansi.color_parameters(Layer.TEXT, *self.foreground))
         if self.background is not None:
-            if self.background == DEFAULT_COLOR:
-                parameters.append(48)
-            else:
-                parameters.extend(
-                    Ansi.color_parameters(Layer.BACKGROUND, *self.background)
-                )
+            parameters.extend(Ansi.color_parameters(Layer.BACKGROUND, *self.background))
 
         return parameters

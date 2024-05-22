@@ -4,6 +4,7 @@ import sys
 from typing import cast
 import unittest
 
+from prettypretty.ansi import Ansi, Layer
 from prettypretty.color.conversion import (
     rgb256_to_srgb,
     srgb_to_rgb256,
@@ -343,3 +344,14 @@ class TestColor(unittest.TestCase):
             fn = parse_x_rgb if text.startswith('rgb:') else parse_x_rgbi
             _, actual = fn(text)
             self.assertEqual(actual, expected)
+
+
+    def test_parameters(self) -> None:
+        for color, *expected_params in (
+            (-1, 38),
+            (1, 31),
+            (9, 91),
+            (240, 38, 5, 240),
+        ):
+            actual_params = Ansi.color_parameters(Layer.TEXT, color)
+            self.assertSequenceEqual(actual_params, expected_params)
