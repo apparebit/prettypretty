@@ -88,18 +88,22 @@ class Ansi(enum.StrEnum):
         layer: Layer, r: int, g: None | int = None, b: None | int = None,
     ) -> tuple[int, ...]:
         """
-        Convert the 8-bit color or RGB256 coordinates to parameters for an SGR
-        ANSI escape sequence. The layer argument determines whether the
-        resulting parameters update the foreground or background color. To
-        maximize compatibility, this method uses 30–37, 40–47, 90–97, and
-        100–107 as parameters for setting the 16 extended ANSI color and the
-        triple 38, 5, ``color`` only for the remaining 240 8-bit colors.
+        Convert the 8-bit color, RGB256 coordinates, or default color to
+        parameters for an SGR ANSI escape sequence. The default color takes on
+        the code point before the start of the 8-bit color code points, i.e.,
+        -1. The layer argument determines whether the resulting parameters
+        update the foreground or background color. To maximize compatibility,
+        this method uses 30–37, 40–47, 90–97, and 100–107 as parameters for
+        setting the 16 extended ANSI color and the triple 38, 5, ``color`` only
+        for the remaining 240 8-bit colors.
         """
         if g is not None:
             assert b is not None
             return 38 + layer.value, 2, r, g, b
 
         assert b is None
+        if r == -1:
+            return 30 + layer.value + 8,
         if 0 <= r <= 7:
             return 30 + r + layer.value,
         elif 8 <= r <= 15:
