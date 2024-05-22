@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath('..'))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'prettypretty'
-copyright = '© 2024 Robert Grimm'
+copyright = '2024 Robert Grimm'
 author = 'Robert Grimm'
 
 # Source order is nicer than alphabetizing fields and methods.
