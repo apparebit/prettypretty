@@ -1,5 +1,7 @@
 #!.venv/bin/python
 
+# The shebang may point towards a venv, but GitHub CI executes python -m runtest
+
 import os
 import subprocess
 import sys
@@ -10,7 +12,6 @@ from test.runtime import ResultAdapter, StyledStream
 
 
 if __name__ == "__main__":
-    successful = False
     stream = sys.stdout
     styled = StyledStream(stream)
 
@@ -20,22 +21,29 @@ if __name__ == "__main__":
         stream.write("\n")
         stream.flush()
 
+    println(styled.h1("§1 Setup"))
+    println(styled.h2("Python"))
+    println(f"{sys.executable}")
+    println(styled.h2("Python Prefix"))
+    println(f"{sys.prefix}")
+    println(f"{sys.base_prefix}")
+    println(styled.h2("Python Path"))
+    for path in sys.path:
+        println(f"{path}")
+    println(styled.h2("Current Directory"))
+    println(f"{os.getcwd()}")
+    println(styled.h2("Current Module"))
+    println(f"{__file__}")
+
+    println(styled.h1("§2  Type Checking"))
     try:
-        println(styled.h1("§1 Setup"))
-        println(styled.h2("Python"))
-        println(f"{sys.executable}")
-        println(styled.h2("Python Path"))
-        for path in sys.path:
-            println(f"{path}")
-        println(styled.h2("Current Directory"))
-        println(f"{os.getcwd()}")
-        println(styled.h2("Current Module"))
-        println(f"{__file__}")
-
-        println(styled.h1("§2  Type Checking"))
         subprocess.run(["./node_modules/.bin/pyright"], check=True)
+    except subprocess.CalledProcessError:
+        println(styled.failure("prettypretty failed to type check!"))
+        exit(1)
 
-        println(styled.h1("§3  Unit Testing"))
+    println(styled.h1("§3  Unit Testing"))
+    try:
         runner = unittest.main(
             module="test",
             exit=False,
@@ -43,14 +51,9 @@ if __name__ == "__main__":
                 stream=stream, resultclass=ResultAdapter
             ),
         )
-        successful = runner.result.wasSuccessful()
-
-    except subprocess.CalledProcessError:
-        println(styled.failure("demicode failed to type check!"))
-        exit(1)
+        sys.exit(runner.result.wasSuccessful())
     except Exception as x:
         trace = traceback.format_exception(x)
         println("".join(trace[:-1]))
         println(styled.err(trace[-1]))
-
-    sys.exit(not successful)
+        sys.exit(1)
