@@ -3,7 +3,12 @@
 [![Run Tests](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml)
 [![Publish to GitHub Pages](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml)
 
-Prettypretty is a Python package for building awesome terminal user interfaces.
+Prettypretty is a Python package for building awesome terminal user interfaces
+that incorporates a powerful, and *general*, color library. The near seemless
+integration of 1970s archaic but beloved ANSI escape codes for terminal styling
+with 2020s color science, notably via the [Oklab perceptual color
+space](https://bottosson.github.io/posts/oklab/), is unique to prettypretty
+and makes the package truly awesome!
 
 
 ## Prettypretty Illustrated
