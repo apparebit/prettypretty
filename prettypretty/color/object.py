@@ -116,16 +116,11 @@ class Color(ColorSpec):
 
         # Coerce coordinates to int for integral color formats and to float for
         # color spaces.
-        if resolve(tag).is_integral():
-            coordinates = cast(
-                CoordinateSpec,
-                tuple(int(c) for c in cast(CoordinateSpec, coordinates))
-            )
-        else:
-            coordinates = cast(
-                CoordinateSpec,
-                tuple(float(c) for c in cast(CoordinateSpec, coordinates))
-            )
+        coerce = int if resolve(tag).is_integral() else float
+        coordinates = cast(
+            CoordinateSpec,
+            tuple(coerce(c) for c in cast(CoordinateSpec, coordinates))
+        )
 
         object.__setattr__(self, 'tag', tag)
         object.__setattr__(self, 'coordinates', coordinates)
@@ -187,7 +182,7 @@ class Color(ColorSpec):
             return self
         return type(self)(self.tag, self.space.clip(*self.coordinates))
 
-    def map_into_gamut(self) -> Self:
+    def to_gamut(self) -> Self:
         """
         Map this color into the gamut of its color space using the `CSS Color 4
         algorithm <https://drafts.csswg.org/css-color/#css-gamut-mapping>`_.
@@ -201,7 +196,8 @@ class Color(ColorSpec):
         on the coordinates' color space for gamut testing and clipping, Oklch
         for producing candidate colors, and Oklab for measuring distance.
 
-        Note that Oklab, Oklch, and XYZ are effectively unbound.
+        Note that only XYZ is unbounded, even if the CSS Color 4 specification
+        claims that Oklab and Oklch also are unbounded.        otherwise.
         """
         return type(self)(self.tag, map_into_gamut(self.tag, self.coordinates))
 
