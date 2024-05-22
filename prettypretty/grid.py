@@ -17,7 +17,6 @@ from .color.lores import (
     oklab_to_eight_bit,
 )
 from .color.theme import MACOS_TERMINAL, VGA, XTERM, builtin_theme_name, current_theme
-from .style import Style
 from .termio import TermIO
 
 
@@ -80,7 +79,7 @@ class FramedBoxes:
         if len(box) != self._box_width:
             raise ValueError(f'"{text}" does not fit into {self._box_width}-wide box')
 
-        self._term.set_style(Style().fg(*foreground).bg(*background)).write(box)
+        self._term.fg(*foreground).bg(*background).write(box)
         self._line_content_width += self._box_width
 
     def right(self) -> None:
@@ -276,7 +275,7 @@ if __name__ == '__main__':
         write_color_cube(term, ansi_only=True, label=options.label)
         write_color_cube(term, layer=Layer.TEXT)
 
-        # The truecolor option only fires if it was actually used.
+        # First clause tests for absence of --truecolor/--no-truecolor or --truecolor
         if options.truecolor in (None, True) and os.getenv('COLORTERM') == 'truecolor':
             for hold in ('r', 'g', 'b'):
                 for level in (0, 128, 255):
@@ -289,6 +288,6 @@ if __name__ == '__main__':
                         )
 
         theme_name = builtin_theme_name(current_theme())
-        term.set_style(Style().italic).writeln(
+        term.italic().writeln(
             f'Used ', theme_name or 'current terminal theme', '!\n'
         ).flush()

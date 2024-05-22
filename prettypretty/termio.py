@@ -16,16 +16,18 @@ from typing import (
     ClassVar,
     ContextManager,
     Never,
+    overload,
     Self,
     TextIO,
     TypeAlias,
 )
 
 
-from .ansi import Ansi
+from .ansi import Ansi, Layer
+from .color.lores import rgb6_to_eight_bit
 from .color.spec import ColorSpec
 from .color.theme import current_theme, Theme
-from .style import Style
+from .style import StyleSpec
 
 
 TerminalMode: TypeAlias = list[Any]
@@ -284,11 +286,11 @@ class TermIO:
     """
     Terminal input/output.
 
-    This class manages terminal input and output. By focusing on high-level
-    terminal properties instead of ANSI escape codes and using human-readable,
-    universally meaningful method names instead of obscure mnemonics. (ED for
-    "erase in display" is one of the more reasonable ones, except that there is
-    a DEC-specific variation, DECSED, as well.)
+    This class manages terminal input and output. It encapsulates the nitty
+    gritty of managing the terminal with ANSI escape codes behind methods with
+    meaningful, human-readable names instead of cryptic mnemonics (what does ED
+    do again and how does it differ from DECSED?). Furthermore, many operations
+    that would leave the terminal in an unusable state upon
 
     This class supports the following features:
 
@@ -350,16 +352,24 @@ class TermIO:
         :meth:`bracketed_paste`, and :meth:`scoped_style`.
 
     **Setting terminal state**
-        Some terminal updates aren't easily undone but still useful.
+        Some terminal updates, notably for positioning the cursor and for
+        erasing (parts of) the screen need not or can not be easily undone
+        but still are eminently useful.
 
         See :meth:`up`, :meth:`down`, :meth:`left`, :meth:`right`,
-        :meth:`set_position`, :meth:`set_column`, :meth:`erase_screen`, and
-        :meth:`erase_line`.
+        :meth:`set_position`, :meth:`set_column`, :meth:`erase_screen`,
+        :meth:`erase_line`, and :meth:`link`.
 
-    There is one feature that is largely missing on purpose. This class does not
-    have granular methods for setting terminal styles with SGR escape sequences.
-    To encourage coherent style definitions and their reuse, :class:`.Style`,
-    provides those features. See :meth:`reset_style` and :meth:`set_style`.
+    **Setting terminal styles**
+        What's the point of integrating terminal colors with robust color
+        management? Styling terminal output, of course! Alas, this class only
+        has perfunctory support for styling the terminal on the quick. You
+        probably want to use :data:`.Style` for defining styles instead and then
+        apply them to this terminal.
+
+        See :meth:`reset_style`, :meth:`apply`, :meth:`bold`, :meth:`italic`,
+        :meth:`fg`, and :meth:`bg`.
+
     """
     def __init__(
         self,
@@ -897,17 +907,6 @@ class TermIO:
         """Erase the entire current line."""
         return self.write_control(Ansi.CSI, '2K')
 
-    # ----------------------------------------------------------------------------------
-
-    def reset_style(self) -> Self:
-        """Reset all styles."""
-        return self.write_control(Ansi.CSI, 'm')
-
-
-    def set_style(self, style: Style) -> Self:
-        """Apply the given style."""
-        return self.write_control(Ansi.CSI, *style.sgr_parameters(), 'm')
-
 
     def link(self, text: str, href: str, id: None | str = None) -> Self:
         """
@@ -926,6 +925,113 @@ class TermIO:
             .write_control(Ansi.OSC, code, href, Ansi.ST)
             .write(text)
             .write_control(Ansi.OSC, "8;;", Ansi.ST)
+        )
+
+    # ----------------------------------------------------------------------------------
+
+    def reset_style(self) -> Self:
+        """Reset all styles."""
+        return self.write_control(Ansi.CSI, 'm')
+
+
+    def apply(self, style: StyleSpec) -> Self:
+        """Apply the given style."""
+        return self.write_control(Ansi.CSI, *style.sgr_parameters(), 'm')
+
+
+    def bold(self) -> Self:
+        """Set bold style."""
+        return self.write_control(Ansi.CSI, '1m')
+
+
+    def italic(self) -> Self:
+        """Set italic style."""
+        return self.write_control(Ansi.CSI, '2m')
+
+
+    def _color_parameters(
+        self,
+        layer: Layer,
+        r: int | ColorSpec,
+        g: None | int = None,
+        b: None | int = None,
+    ) -> tuple[int, ...]:
+        if g is None:
+            assert b is None
+            if isinstance(r, int):
+                cs: tuple[int] | tuple[int, int, int] = r,
+            elif r.tag == 'rgb6':
+                cs = rgb6_to_eight_bit(*cast(tuple[int, int, int], r.coordinates))
+            elif r.tag in ('ansi', 'eight_bit', 'rgb256'):
+                cs = cast(tuple[int] | tuple[int, int, int], r.coordinates)
+            else:
+                raise ValueError(f'cannot use "{r.tag}" as terminal color')
+        else:
+            assert g is not None and b is not None
+            cs = cast(int, r), g, b
+
+        return Ansi.color_parameters(layer, *cs)
+
+
+    @overload
+    def fg(self, color: ColorSpec, /) -> Self:
+        ...
+    @overload
+    def fg(self, color: int, /) -> Self:
+        ...
+    @overload
+    def fg(self, r: int, g: int, b: int, /) -> Self:
+        ...
+    def fg(
+        self, r: int | ColorSpec, g: None | int = None, b: None | int = None
+    ) -> Self:
+        """
+        Set the foreground color.
+
+        When invoked on a color specification, it must be in the ``ansi``,
+        ``eight_bit``, ``rgb6``, or ``rgb256`` format.
+
+        When invoked with an integer color, the value must be -1 for the default
+        color or 0–255 for 8-bit terminal color.
+
+        When invoked with three integer coordinates, they must be the
+        coordinates of an RGB256 color.
+        """
+        return self.write_control(
+            Ansi.CSI,
+            *self._color_parameters(Layer.TEXT, r, g, b),
+            'm'
+        )
+
+
+    @overload
+    def bg(self, color: ColorSpec, /) -> Self:
+        ...
+    @overload
+    def bg(self, color: int, /) -> Self:
+        ...
+    @overload
+    def bg(self, r: int, g: int, b: int, /) -> Self:
+        ...
+    def bg(
+        self, r: int | ColorSpec, g: None | int = None, b: None | int = None
+    ) -> Self:
+        """
+        Set the background color.
+
+        When invoked on a color specification, it must be in the ``ansi``,
+        ``eight_bit``, ``rgb6``, or ``rgb256`` format.
+
+        When invoked with an integer color, the value must be -1 for the default
+        color or 0–255 for 8-bit terminal color.
+
+        When invoked with three integer coordinates, they must be the
+        coordinates of an RGB256 color.
+        """
+        return self.write_control(
+            Ansi.CSI,
+            *self._color_parameters(Layer.BACKGROUND, r, g, b),
+            'm'
         )
 
 
@@ -971,7 +1077,7 @@ if __name__ == '__main__':
                 if response is None:
                     (
                         terminal
-                        .set_style(Style().fg(255).bg(88))
+                        .bold().fg(255).bg(88)
                         .write(f'Unable to query {field.name} color!')
                         .reset_style()
                         .writeln()
