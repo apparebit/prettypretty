@@ -161,8 +161,9 @@ class StyleSpec:
       * the 8-bit terminal colors,
       * RGB256.
 
-    However, not all terminals support all of these color formats. Notably,
-    support for RGB256 is far from universal.
+    :meth:`fg` and :meth:`bg` also accepts color specifications in the ``rgb6``
+    format, which are converted to 8-bit colors. Alas, not all terminals support
+    all these formats. In particular, support for RGB256 is far from universal.
 
     Attributes:
         weight:
