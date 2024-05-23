@@ -45,6 +45,14 @@ def normalize(
     """
     Normalize the coordinates.
 
+    Args:
+        coordinates: are the color's components.
+        angle_index: is the index of the angular coordinate, if there is one.
+        integral: indicates that the color has integral components.
+        precision: is the number of decimals to round to.
+    Returns:
+        The normalized coordinates.
+
     This function normalizes the coordinates as follows:
 
       * It replaces not-a-numbers with ``None``, which equals itself;
@@ -66,14 +74,6 @@ def normalize(
     speed gains in applications because equality testing for colors really only
     matters when testing color manipulation. In general, color distance is the
     far more relevant comparison.
-
-    Args:
-        coordinates: are the color's components.
-        angle_index: is the index of the angular coordinate, if there is one.
-        integral: indicates that the color has integral components.
-        precision: is the number of decimals to round to.
-    Returns:
-        The normalized coordinates.
     """
     result: list[None | float] = []
 
