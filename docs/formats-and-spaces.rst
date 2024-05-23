@@ -79,20 +79,20 @@ Color Serde
 Prettypretty supports three formats for both serialization to and
 deserialization from strings:
 
-  * **f** for function uses one of the above format or color space tags as
-    function name and the comma-separated coordinates as arguments
+  * **f** for function uses the color's format or space tag as function name and
+    the comma-separated coordinates as arguments: e.g., ``rgb256(128, 64, 0)``.
   * **h** for hexadecimal is the hash-prefixed color format familiar from the
-    web
+    web: e.g., ``#804000``.
   * **x** for X Windows or xterm uses the `rgb:` and `rgbi:` prefixes followed
     by three slash-separated coordinates in hexadecimal for `rgb:` and floating
-    point for `rgbi:`
+    point for `rgbi:`, e.g., ``rgb:80/40/00`` or ``rgbi:0.5/0.25/0``
 
 For serialization to strings, prettypretty supports one additional format:
 
   * **s** for CSS uses ``color()``, ``oklab()``, ``oklch()``, or ``rgb()``
     notation with space-separated coordinates
 
-The four letters serve as format identifiers for colors in Python's f-strings.
-However, only RGB256 colors can be serialized in h-format or the ``rgb:``
-prefixed x-format; only sRGB colors can be serialized in the ``rgb:`` prefixed
-x-format; and the s-format cannot serialize ``linear_p3`` colors.
+The boldfaced letters serve as format identifiers for colors in Python's
+f-strings. However, only RGB256 colors can be serialized in h-format or the
+``rgb:`` prefixed x-format; only sRGB colors can be serialized in the ``rgb:``
+prefixed x-format; and the c-format cannot serialize ``linear_p3`` colors.
