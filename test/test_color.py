@@ -22,8 +22,7 @@ from prettypretty.color.conversion import (
     oklch_to_oklab,
     get_converter,
 )
-
-from prettypretty.color.equality import EQUALITY_PRECISION, same_coordinates
+from prettypretty.color.equality import normalize, PRECISION
 from prettypretty.color.gamut import map_into_gamut
 from prettypretty.color.object import Color
 from prettypretty.color.serde import parse_hex, parse_x_rgb, parse_x_rgbi
@@ -124,40 +123,40 @@ class TestColor(unittest.TestCase):
         css = 'rgb(255 255 255)',
     )
 
-
     def assertSameCoordinates(
         self,
         coordinates1: tuple[float, float, float],
         coordinates2: tuple[float, float, float],
         *,
-        hue: int = -1,
+        angular_index: int = -1,
     ) -> None:
         # A double cannot encode more than 17 decimal digits...
-        c1 = ', '.join(f'{c:.17f}' for c in coordinates1)
-        c2 = ', '.join(f'{c:.17f}' for c in coordinates2)
+        s1 = ', '.join(f'{c:.17f}' for c in coordinates1)
+        s2 = ', '.join(f'{c:.17f}' for c in coordinates2)
 
-        # Show coordinates above each other to aid comparison of close values
+        # Show coordinates above each other to help compare close values
         msg = (
-            f'coordinates differ within {EQUALITY_PRECISION} '
-            f'digits:\n    {c1}\n    {c2}'
+            f'coordinates differ within {PRECISION} '
+            f'digits:\n    {s1}\n    {s2}'
         )
 
-        self.assertTrue(same_coordinates(coordinates1, coordinates2, hue=hue), msg)
-
+        n1 = normalize(coordinates1, angular_index=angular_index)
+        n2 = normalize(coordinates2, angular_index=angular_index)
+        self.assertTrue(n1 == n2, msg)
 
     def test_same_coordinates(self) -> None:
         # One less than the precision is rounded up or down, with 0.5
         # represented by a floating point number slightly smaller and hence
         # still rounding down.
         f00 = 0.0
-        f01 = float(f'1e-{EQUALITY_PRECISION + 1}')
-        f02 = float(f'2e-{EQUALITY_PRECISION + 1}')
-        f05 = float(f'5e-{EQUALITY_PRECISION + 1}')
-        f07 = float(f'7e-{EQUALITY_PRECISION + 1}')
-        f08 = float(f'8e-{EQUALITY_PRECISION + 1}')
-        f09 = float(f'9e-{EQUALITY_PRECISION + 1}')
-        f10 = float(f'1e-{EQUALITY_PRECISION}')
-        f20 = float(f'2e-{EQUALITY_PRECISION}')
+        f01 = float(f'1e-{PRECISION + 1}')
+        f02 = float(f'2e-{PRECISION + 1}')
+        f05 = float(f'5e-{PRECISION + 1}')
+        f07 = float(f'7e-{PRECISION + 1}')
+        f08 = float(f'8e-{PRECISION + 1}')
+        f09 = float(f'9e-{PRECISION + 1}')
+        f10 = float(f'1e-{PRECISION}')
+        f20 = float(f'2e-{PRECISION}')
 
         self.assertSameCoordinates(
             (f01, f02, f05),
@@ -230,7 +229,7 @@ class TestColor(unittest.TestCase):
 
             with self.subTest('Oklab to Oklch', color=color_name):
                 oklch = oklab_to_oklch(*oklab)
-                self.assertSameCoordinates(oklch, values.oklch, hue=2)
+                self.assertSameCoordinates(oklch, values.oklch, angular_index=2)
 
             with self.subTest('Oklch back to Oklab', color=color_name):
                 self.assertSameCoordinates(oklch_to_oklab(*oklch), oklab)

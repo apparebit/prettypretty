@@ -11,7 +11,7 @@ from typing import cast
 
 from .conversion import get_converter, oklch_to_oklab
 from .difference import deltaE_oklab
-from .space import resolve
+from .space import Space
 from .spec import CoordinateSpec, FloatCoordinateSpec
 
 
@@ -35,8 +35,8 @@ def map_into_gamut(
     testing and clipping, Oklch for producing candidate colors, and Oklab for
     measuring distance.
     """
-    target_space = resolve(target)
-    if target_space.is_integral():
+    target_space = Space.resolve(target)
+    if target_space.integral:
         raise ValueError(f'color format {target} cannot be gamut mapped')
 
     # Oklab, Oklch, and XYZ are effectively unbounded color spaces

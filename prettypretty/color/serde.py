@@ -2,7 +2,7 @@
 import enum
 from typing import cast, Literal, NoReturn, overload
 
-from .space import is_tag, resolve
+from .space import Space
 from .spec import CoordinateSpec
 
 
@@ -31,9 +31,9 @@ def parse_fn(color: str) -> tuple[str, CoordinateSpec]:
         tag, _, args = color.partition('(')
         _check(len(args) > 0, entity, color, 'has no arguments')
         _check(args.endswith(')'), entity, color, 'misses closing parenthesis')
-        _check(is_tag(tag), entity, color, 'has unknown tag')
-        space = resolve(tag)
-        number = int if space.is_integral() else float
+        _check(Space.is_tag(tag), entity, color, 'has unknown tag')
+        space = Space.resolve(tag)
+        number = int if space.integral else float
         coordinates = tuple(number(c.strip()) for c in args[:-1].split(','))
         correct_length = len(space.coordinates) == len(coordinates)
         _check(correct_length, entity, color, 'has wrong number of arguments')
@@ -105,7 +105,7 @@ def parse_x_rgbi(color: str) -> tuple[str, tuple[float, float, float]]:
 
 class Format(enum.Enum):
     """
-    The color format
+    A selector for a color output format.
 
     Attributes:
         FUNCTION: for ``<tag>(<coordinates>)`` notation
@@ -122,48 +122,48 @@ class Format(enum.Enum):
 
 def parse_format_spec(spec: str) -> tuple[Format, int]:
     """
-    Parse the color format specifier into the format and precision.
+    Parse a color format specifier.
 
-    Args:
-        spec: selects the desired output format and precision
-    Returns:
-        the format and maximum precision for floating point numbers, which
-        default to `Format.FUNCTION` and 5, respectively
+    Format specifiers for colors consist of two optional components matching the
+    regular expression ``(\\.\\d\\d?)?[cfhx]?``. Consistent with the conventions
+    of the Python format mini-language, the precision for color coordinates
+    comes before the format selector. Valid selectors are
 
-    A valid format specifier comprises two parts, both of which are optional:
+      * *c* for CSS notation,
+      * *f* for ``<tag>(<coordinates>)`` function notation,
+      * *h* for ``#<hex>`` hexadecimal notation,
+      * *x* for ``rgb:<hex>/<hex>/<hex>`` or ``rgbi:<float>/<float>/<float>``
+        notation.
 
-     1. The first part, if present specifies the precision and is written as a
-        period followed by one or two decimal digits, e.g., ``.3``.
-     2. The second part, if present, specifies the format:
-
-          * ``c`` for CSS notation, which uses CSS function and color space
-            names and space-separated coordinates
-          * ``f`` for function notation, which uses the tag as function name
-            and the comma-separated coordinates as arguments
-          * ``h`` for hexadecimal notation prefixed with a hash ``#``
-          * ``x`` for X notation, which uses ``rgb:`` or ``rgbi:`` as a prefix
-
-    Note that the terminal-specific ``ansi``, ``eight_bit``, and ``rgb6`` color
-    formats as well as the ``linear_p3`` color space have no CSS serialization.
-    Also note that ``h`` only works for RGB256 colors and ``x`` only for RGB256
-    and sRGB colors.
+    All but *h* for hexadecimal notation may be prefixed with a precision. The
+    default format is *f* for function notation and the default precision is 5.
     """
     format = Format.FUNCTION
-    precision = 5
-
+    precision = None
     s = spec
+
+    # Parse format selector
     if s:
         f = s[-1]
         if f in ('c', 'f', 'h', 'x'):
             format = Format(f)
             s = s[:-1]
+
+    # Parse precision
     if s.startswith('.'):
-        precision = int(s[1:])
+        try:
+            precision = int(s[1:])
+        except:
+            raise ValueError(f'malformed precision in "{spec}"')
         s = ''
+
+    # Check for errors
     if s:
         raise ValueError(f'malformed color format "{spec}"')
+    if format is Format.HEX and precision is not None:
+        raise ValueError(f'"{spec}" provides precision for hex format')
 
-    return format, precision
+    return format, precision or 5
 
 
 def stringify(
@@ -177,8 +177,12 @@ def stringify(
     precision.
     """
     if format is Format.HEX:
+        if tag != 'rgb256':
+            ValueError(f"{tag} has no serialization in the web's hexadecimal format")
         return '#' + ''.join(f'{c:02x}' for c in coordinates)
     elif format is Format.X:
+        if tag not in ('rgb256', 'srgb'):
+            ValueError(f"{tag} has no serialization in X's rgb:/rgbi: formats")
         if all(isinstance(c, int) for c in coordinates):
             return 'rgb:' + '/'.join(f'{c:02x}' for c in coordinates)
         else:
@@ -193,7 +197,7 @@ def stringify(
     if format is Format.FUNCTION:
         return f'{tag}({coordinate_text})'
 
-    css_format = resolve(tag).css_format
+    css_format = Space.resolve(tag).css_format
     if css_format is None:
         raise ValueError(f'{tag} has no CSS serialization')
     return css_format.format(coordinate_text)

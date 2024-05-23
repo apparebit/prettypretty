@@ -6,7 +6,6 @@ from typing import cast, Literal, overload, Self
 from .apca import contrast, use_black_text, use_black_background
 from .conversion import get_converter
 from .difference import deltaE_oklab, closest_oklab
-from .equality import EQUALITY_PRECISION, same_coordinates
 from .gamut import map_into_gamut
 from .serde import (
     parse_fn,
@@ -16,7 +15,7 @@ from .serde import (
     parse_x_rgbi,
     stringify,
 )
-from .space import EPSILON, is_tag, resolve, Space
+from .space import EPSILON, Space
 from .spec import ColorSpec, CoordinateSpec, FloatCoordinateSpec
 
 
@@ -59,8 +58,7 @@ class Color(ColorSpec):
     @property
     def space(self) -> Space:
         """Get the color space for this color."""
-        return resolve(self.tag)
-
+        return Space.resolve(self.tag)
 
     def __getattr__(self, name: str) -> float | Self:
         """
@@ -71,7 +69,7 @@ class Color(ColorSpec):
             for coordinate, value in zip(self.space.coordinates, self.coordinates):
                 if coordinate.name == name:
                     return value
-        elif is_tag(name):
+        elif Space.is_tag(name):
             return self.to(name)
 
         raise AttributeError(f'color {self} has no attribute named "{name}"')
@@ -116,7 +114,7 @@ class Color(ColorSpec):
 
         # Coerce coordinates to int for integral color formats and to float for
         # color spaces.
-        coerce = int if resolve(tag).is_integral() else float
+        coerce = int if Space.resolve(tag).integral else float
         coordinates = cast(
             CoordinateSpec,
             tuple(coerce(c) for c in cast(CoordinateSpec, coordinates))
@@ -125,7 +123,6 @@ class Color(ColorSpec):
         object.__setattr__(self, 'tag', tag)
         object.__setattr__(self, 'coordinates', coordinates)
         self.__post_init__()
-
 
     def update(
         self,
@@ -152,21 +149,13 @@ class Color(ColorSpec):
     # Hash and Equality
 
     def __hash__(self) -> int:
-        cs = tuple(
-            (round(c, EQUALITY_PRECISION) if isinstance(c, float) else c)
-            for c in self.coordinates
-        )
-        return hash((self.tag, cs))
+        return hash((self.tag, self.space.normalize(*self.coordinates)))
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ColorSpec) or self.tag != other.tag:
             return NotImplemented
-        if self.space.is_integral():
-            return self.coordinates == other.coordinates
-        return same_coordinates(
-            cast(tuple[float, float, float], self.coordinates),
-            cast(tuple[float, float, float], other.coordinates),
-        )
+        space = self.space
+        return space.normalize(*self.coordinates) == space.normalize(*other.coordinates)
 
     # ----------------------------------------------------------------------------------
     # Gamut and Clipping
@@ -174,7 +163,6 @@ class Color(ColorSpec):
     def in_gamut(self, epsilon: float = EPSILON) -> bool:
         """Determine whether this color is within gamut for its color space."""
         return self.space.in_gamut(*self.coordinates, epsilon)
-
 
     def clip(self, epsilon: float = 0) -> Self:
         """Clip this color to its color space's gamut."""
@@ -255,7 +243,6 @@ class Color(ColorSpec):
         """
         return use_black_text(*self.to('srgb').coordinates)
 
-
     def use_black_background(self) -> bool:
         """
         Determine whether to use a black or white background for text of this
@@ -269,7 +256,6 @@ class Color(ColorSpec):
     def __format__(self, format_spec: str) -> str:
         fmt, precision = parse_format_spec(format_spec)
         return stringify(self.tag, self.coordinates, fmt, precision)
-
 
     def __str__(self) -> str:
         return stringify(self.tag, self.coordinates)

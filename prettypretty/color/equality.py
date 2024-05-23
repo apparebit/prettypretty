@@ -1,59 +1,94 @@
+"""
+Equality of colors.
+
+Equality comparison for colors is complicated by four orthogonal problems:
+
+ 1. Coordinate values may be not-a-numbers, which do not equal themselves.
+ 2. Angular coordinates may have values outside the range of 0 to 360 but
+    still denote the same angle, albeit with additional rotations.
+ 3. Conversion between color spaces may accrue some amount of floating point
+    error. That amount may further differ between processors and operating
+    systems.
+ 4. Python requires that, if a class redefines ``__eq__()`` it must also
+    redefine ``__hash__()``, so that two equal instances also have the same
+    hash codes.
+
+Addressing the first two problems fundamentally requires customizing equality
+comparison to correctly handle not-a-numbers and angles. The third problem could
+be addressed by testing whether the difference between two coordinates is
+smaller than some epsilon. But that defines color equality in terms of the
+difference between two instances and hence makes computing the hash even harder,
+if not impossible. A more productive strategy is to normalize a color's
+coordinates to some canonical representation that is then used for both hash
+computation and equality comparison.
+
+This module implements just that normalization. Correct normalization requires
+knowing which coordinates are angles. But I am not aware of any color space that
+has more than one angle—for the hue.
+"""
 import math
 
 
-EQUALITY_PRECISION = 14
+PRECISION = 14
+"""
+The default precision for rounding coordinates during normalization.
+"""
 
-def same_coordinates(
-    coordinates1: tuple[float, float, float],
-    coordinates2: tuple[float, float, float],
+
+def normalize(
+    coordinates: tuple[float, ...],
     *,
-    precision: int = EQUALITY_PRECISION,
-    hue: int = -1,
-) -> bool:
+    angular_index: int = -1,
+    integral: bool = False,
+    precision: int = PRECISION,
+) -> tuple[None | float, ...]:
     """
-    Determine whether the coordinates are the same.
+    Normalize the coordinates.
+
+    This function normalizes the coordinates as follows:
+
+      * It replaces not-a-numbers with ``None``, which equals itself;
+      * It coerces integral coordinates to integers;
+      * It maps angles to 0–360, coerces them to floating point numbers,
+        and rounds them to two decimal digits less than precision;
+      * It coerces all other coordinates to floating point numbers and
+        rounds them to as many decimal digits as precision.
+
+    The default precision of 14 digits for arbitrary coordinates and 12 digits
+    for angles was experimentally determined by running tests on macOS and
+    Linux.
+
+    The resulting tuple accounts for all of the problems identified above and
+    hence is trivially suitable for hashing and equality testing.
+
+    It is possible to speed up equality testing when coordinates are already
+    equal. But it's unclear whether the speed gains justify the additional
+    complexity, especially when also considering that equality testing only
+    really matters during testing. Otherwise, color distance is the far more
+    interesting comparison.
 
     Args:
-        coordinates1: are the first color's coordinates
-        coordinates2: are the second color's coordinates
-        precision: is the number of significant digits to round
-            to before comparing coordinates
-        hue: is the index of the hue or -1 if there is no hue
+        coordinates: are the color's components
+        angle_index: is the index of the angular coordinate, if there is one
+        integral: indicates that the color has integral components
+        precision: is the number of decimals to round to
     Returns:
-        ``True`` if the coordinates are the same after rounding to the given
-        precision or, for the hue, if both coordinates are not-a-number.
-
-    The two coordinates must be in the same color space. Furthermore, since this
-    function uses a single precision for all three coordinate axes, the ranges
-    of the three axes should be reasonably similar. For hue coordinates, this
-    function already adjusts the precision down by two digits and correctly
-    handles not-a-number values.
-
-    Python objects must have the same hash if they compare as equal. That is
-    impossible to implement if equality is based on the magnitude of the
-    (relative) difference between coordinates. It *is* possible to implement
-    that behavior when each color's coordinates can be independently prepared
-    for the comparison, notably when rounding.
+        The normalized coordinates
     """
-    assert -1 <= hue <= 2
+    result: list[None | float] = []
 
-    for index in range(3):
-        c1 = coordinates1[index]
-        c2 = coordinates2[index]
+    for index, value in enumerate(coordinates):
+        if math.isnan(value):
+            result.append(None)
+            continue
 
-        if index == hue:
-            # Account for hue being not-a-number
-            if math.isnan(c1) != math.isnan(c2):
-                return False
-            if math.isnan(c1):
-                # Both coordinates are not-a-number
-                continue
-            # Since hue is degrees, adjust precision
-            p = precision - 2
-        else:
-            p = precision
+        if integral:
+            result.append(int(value))
+            continue
 
-        if c1 != c2 and round(c1, p) != round(c2, p):
-            return False
+        if index == angular_index:
+            value = value % 360
 
-    return True
+        result.append(round(value, precision))
+
+    return tuple(result)
