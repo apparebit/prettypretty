@@ -51,7 +51,7 @@ if __name__ == "__main__":
                 stream=stream, resultclass=ResultAdapter
             ),
         )
-        sys.exit(runner.result.wasSuccessful())
+        sys.exit(not runner.result.wasSuccessful())
     except Exception as x:
         trace = traceback.format_exception(x)
         println("".join(trace[:-1]))
