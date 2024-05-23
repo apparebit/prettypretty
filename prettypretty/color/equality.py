@@ -61,19 +61,19 @@ def normalize(
     The resulting tuple accounts for all of the problems identified above and
     hence is trivially suitable for hashing and equality testing.
 
-    It is possible to speed up equality testing when coordinates are already
-    equal. But it's unclear whether the speed gains justify the additional
-    complexity, especially when also considering that equality testing only
-    really matters during testing. Otherwise, color distance is the far more
-    interesting comparison.
+    It may be possible to speed up equality testing in case of coordinates
+    already being equal. But it is doubtful that this will lead to noticeable
+    speed gains in applications because equality testing for colors really only
+    matters when testing color manipulation. In general, color distance is the
+    far more relevant comparison.
 
     Args:
-        coordinates: are the color's components
-        angle_index: is the index of the angular coordinate, if there is one
-        integral: indicates that the color has integral components
-        precision: is the number of decimals to round to
+        coordinates: are the color's components.
+        angle_index: is the index of the angular coordinate, if there is one.
+        integral: indicates that the color has integral components.
+        precision: is the number of decimals to round to.
     Returns:
-        The normalized coordinates
+        The normalized coordinates.
     """
     result: list[None | float] = []
 
@@ -88,7 +88,10 @@ def normalize(
 
         if index == angular_index:
             value = value % 360
+            effective_precision = precision - 2
+        else:
+            effective_precision = precision
 
-        result.append(round(value, precision))
+        result.append(round(value, effective_precision))
 
     return tuple(result)
