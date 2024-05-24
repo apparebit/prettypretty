@@ -4,7 +4,6 @@ import sys
 from typing import cast
 import unittest
 
-from prettypretty.ansi import Ansi, Layer
 from prettypretty.color.conversion import (
     rgb256_to_srgb,
     srgb_to_rgb256,
@@ -346,11 +345,15 @@ class TestColor(unittest.TestCase):
 
 
     def test_parameters(self) -> None:
-        for color, *expected_params in (
-            (-1, 38),
-            (1, 31),
-            (9, 91),
-            (240, 38, 5, 240),
+        from prettypretty.style import Style
+
+        for style, expected_params, inverse_params in (
+            (Style.fg(-1), (39,), ()),
+            (Style.fg(1), (31,), (39,)),
+            (Style.bg(9), (101,), (49,)),
+            (Style.bg(240), (48, 5, 240), (49,)),
         ):
-            actual_params = Ansi.color_parameters(Layer.TEXT, color)
+            actual_params = style.sgr_parameters()
             self.assertSequenceEqual(actual_params, expected_params)
+            actual_inverse = (~style).sgr_parameters()
+            self.assertSequenceEqual(actual_inverse, inverse_params)
