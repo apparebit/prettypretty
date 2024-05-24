@@ -17,14 +17,12 @@ them.
 """
 import dataclasses
 import enum
-from typing import cast, overload, Self, TypeAlias
+from typing import cast, overload, Self
 
-from .ansi import Ansi, Layer
+from .ansi import Ansi, DEFAULT_COLOR, is_default, Layer
 from .color.lores import rgb6_to_eight_bit
-from .color.spec import ColorSpec
-
-
-TerminalColor: TypeAlias = tuple[int] | tuple[int, int, int]
+from .color.spec import ColorSpec, CoordinateSpec
+from .fidelity import Fidelity
 
 
 class TextAttribute(enum.Enum):
@@ -128,51 +126,79 @@ class Visibility(TextAttribute):
     HIDDEN = 8
 
 
-DEFAULT_COLOR: tuple[int] = -1,
-"""
-The default color.
-
-ANSI escape codes treat the foreground and background default colors as distinct
-from the 16 extended ANSI colors. Since the latter (as well as 8-bit terminal
-colors) are represented by a tuple with the non-negative color code as its only
-value, the default color also is a tuple with -1 as its only value.
-"""
-
-
 @dataclasses.dataclass(frozen=True, slots=True)
 class StyleSpec:
     """
     Specification of a terminal style.
 
+    Attributes:
+        weight: for font weight
+        slant: for font slant
+        underline: for inferior lines
+        coloring: for color order
+        visibility: for visibility
+        foreground: for foreground color
+        background: for background color
+        fidelity: is the minimum color fidelity and computed automatically,
+            with ``None`` indicating unbounded fidelity
+
     This class captures the state of all text attributes controllable through
     ANSI escape sequences. It distinguishes between:
 
       * setting an attribute, e.g., when :attr:`underline` is
-        :data:`Underline.UNDERLINED`,
+        :data:`Underline.UNDERLINED`;
       * unsetting an attribute, e.g., when :attr:`underline` is
-        :data:`Underline.NOT_UNDERLINED`,
+        :data:`Underline.NOT_UNDERLINED`;
       * ignoring an attribute, e.g., when :attr:`underline` is ``None``.
 
-    For colors, it only supports color formats that can possibly be used in
-    ANSI escape sequences, namely
+    Since colors may just have to be downsampled or discarded for rendering even
+    if styles only allow color formats directly supported by ANSI escape
+    sequences, this class accepts all color formats and spaces while having
+    robust facilities for adjusting formats as needed.
 
-      * the :data:`DEFAULT_COLOR`,
-      * the 16 extended ANSI colors,
-      * the 8-bit terminal colors,
-      * RGB256.
+    The :attr:`fidelity` attribute is automatically computed during
+    initialization and identifies the minimum fidelity level needed for
+    rendering this style. A null fidelity indicates that this style contains
+    arbitrary colors and hence has unbounded fidelity. Meanwhile
+    :attr:`.Fidelity.NOCOLOR` indicates that the style specification does not
+    contain any colors.
 
-    :meth:`fg` and :meth:`bg` also accepts color specifications in the ``rgb6``
-    format, which are converted to 8-bit colors. Alas, not all terminals support
-    all these formats. In particular, support for RGB256 is far from universal.
+    A non-null fidelity further indicates that no color conversion needs to be
+    performed for that level of fidelity or higher. For the invariant to
+    actually hold, this class eagerly and automatically converts RGB6 to 8-bit
+    colors and re-tags extended ANSI colors tagged as 8-bit.
 
-    Attributes:
-        weight:
-        slant:
-        underline:
-        coloring:
-        visibility:
-        foreground:
-        background:
+    .. note::
+
+        Creating style specifications by invoking the constructor is *not*
+        idiomatic. It simply is too verbose to be ergonomic. Instead,
+        application code should use the fluent properties and methods defined by
+        this class to instantiate the desired style specification off the
+        module-level :data:`Style` object:
+
+        .. code-block:: python
+
+            WARNING = Style.bold.fg(0).bg(220)
+
+        The example defines the warning style as bold black text on a
+        yellow-orange background.
+
+    .. note::
+
+        Style specifications overload Python's inversion operator. The result of
+        that operation is another style specification that restores the default
+        terminal state after the original style specification.
+
+        The string representation of a style specification is the corresponding
+        SGR ANSI escape sequence.
+
+        Putting that altogether, we can apply the above warning style, render "
+        Warning! ", and restore the default style again as follows:
+
+        .. code-block:: python
+
+            print(WARNING, 'Warning!', ~WARNING)
+
 
     Instances of this class are immutable.
     """
@@ -181,38 +207,51 @@ class StyleSpec:
     underline: None | Underline = None
     coloring: None | Coloring = None
     visibility: None | Visibility = None
-    foreground: None | TerminalColor = None
-    background: None | TerminalColor = None
+    foreground: None | ColorSpec = None
+    background: None | ColorSpec = None
+    fidelity: None | Fidelity = dataclasses.field(init=False)
 
+    def __post_init__(self) -> None:
+        fg = self.foreground
+        bg = self.background
+
+        # Fill in the fidelity
+        fg_fid = Fidelity.of(fg)
+        bg_fid = Fidelity.of(bg)
+
+        fidelity = None if fg_fid is None or bg_fid is None else max(fg_fid, bg_fid)
+        object.__setattr__(self, 'fidelity', fidelity)
+        if fidelity is None:
+            return
+
+        # Fix color corner cases
+        for attr, color in (('foreground', fg), ('background', bg)):
+            if color is None:
+                continue
+
+            if color.tag == 'rgb6':
+                color = ColorSpec(
+                    'eight_bit',
+                    rgb6_to_eight_bit(*cast(tuple[int, ...], color.coordinates))
+                )
+            elif color.tag == 'eight_bit' and -1 <= color.coordinates[0] <= 15:
+                color = ColorSpec('ansi', color.coordinates)
+
+            object.__setattr__(self, attr, color)
 
     def __invert__(self) -> Self:
-        weight = None if self.weight is None else ~self.weight
-        slant = None if self.slant is None else ~self.slant
-        underline = None if self.underline is None else ~self.underline
-        coloring = None if self.coloring is None else ~self.coloring
-        visibility = None if self.visibility is None else ~self.visibility
-
-        foreground = (
-            None
-            if self.foreground is None or self.foreground == DEFAULT_COLOR
-            else DEFAULT_COLOR
-        )
-        background = (
-            None
-            if self.background is None or self.background == DEFAULT_COLOR
-            else DEFAULT_COLOR
-        )
+        def invert_color(color: None | ColorSpec) -> None | ColorSpec:
+            return None if color is None or is_default(color) else DEFAULT_COLOR
 
         return type(self)(
-            weight,
-            slant,
-            underline,
-            coloring,
-            visibility,
-            foreground,
-            background,
+            weight = None if self.weight is None else ~self.weight,
+            slant = None if self.slant is None else ~self.slant,
+            underline = None if self.underline is None else ~self.underline,
+            coloring = None if self.coloring is None else ~self.coloring,
+            visibility = None if self.visibility is None else ~self.visibility,
+            foreground = invert_color(self.foreground),
+            background = invert_color(self.background),
         )
-
 
     @property
     def regular(self) -> Self:
@@ -269,82 +308,102 @@ class StyleSpec:
         """Do not render text."""
         return dataclasses.replace(self, visibility=Visibility.HIDDEN)
 
-
     def _prepare_color(
-        self, r: int | ColorSpec, g: None | int = None, b: None | int = None
-    ) -> TerminalColor:
-        if g is None:
-            assert b is None
-            if isinstance(r, int):
-                return r,
-            if r.tag == 'rgb6':
-                return rgb6_to_eight_bit(*cast(TerminalColor, r.coordinates))
-            if r.tag in ('ansi', 'eight_bit', 'rgb256'):
-                return cast(TerminalColor, r.coordinates)
-            raise ValueError(f'{r.tag} is not a suitable color format or space')
+        self,
+        color: int | ColorSpec | str,
+        coordinates: None | CoordinateSpec,
+    ) -> ColorSpec:
+        if isinstance(color, int):
+            tag = 'eight_bit'
+            coordinates = color,
+        elif isinstance(color, str):
+            tag = color
+        else:
+            tag = color.tag
+            coordinates = color.coordinates
 
-        assert isinstance(r, int)
-        assert b is not None
-        return r, g, b
+        return ColorSpec(tag, cast(CoordinateSpec, coordinates))
 
-
-    @overload
-    def fg(self, color: ColorSpec, /) -> Self:
-        ...
     @overload
     def fg(self, color: int, /) -> Self:
         ...
     @overload
-    def fg(self, r: int, g: int, b: int, /) -> Self:
+    def fg(self, color: ColorSpec, /) -> Self:
+        ...
+    @overload
+    def fg(self, tag: str, coordinates: CoordinateSpec, /) -> Self:
         ...
     def fg(
-        self, r: int | ColorSpec, g: None | int = None, b: None | int = None
+        self,
+        color: int | ColorSpec | str,
+        coordinates: None | CoordinateSpec = None
     ) -> Self:
         """
         Set the foreground color.
 
-        When invoked on a color specification, it must be in the ``ansi``,
-        ``eight_bit``, ``rgb6``, or ``rgb256`` format.
-
-        When invoked with an integer color, the value must be -1 for the default
-        color or 0–255 for 8-bit terminal color.
-
-        When invoked with three integer coordinates, they must be the
-        coordinates of an RGB256 color.
+        This method should be invoked with a color specification (or full color
+        object) as its only argument. However, to avoid notational clutter when
+        manually defining style specifications, this method also accepts the
+        singular integer value of ANSI or 8-bit colors as well as the tag and
+        coordinates of color specifications. Otherwise, there are no
+        restrictions on valid colors.
         """
-        return dataclasses.replace(self, foreground=self._prepare_color(r, g, b))
+        return dataclasses.replace(
+            self, foreground=self._prepare_color(color, coordinates)
+        )
 
-
-    @overload
-    def bg(self, color: ColorSpec, /) -> Self:
-        ...
     @overload
     def bg(self, color: int, /) -> Self:
         ...
     @overload
-    def bg(self, r: int, g: int, b: int, /) -> Self:
+    def bg(self, color: ColorSpec, /) -> Self:
+        ...
+    @overload
+    def bg(self, tag: str, coordinates: CoordinateSpec, /) -> Self:
         ...
     def bg(
-        self, r: int | ColorSpec, g: None | int = None, b: None | int = None
+        self,
+        color: int | ColorSpec | str,
+        coordinates: None | CoordinateSpec = None
     ) -> Self:
         """
         Set the background color.
 
-        When invoked on a color specification, it must be in the ``ansi``,
-        ``eight_bit``, ``rgb6``, or ``rgb256`` format.
-
-        When invoked with an integer color, the value must be -1 for the default
-        color or 0–255 for 8-bit terminal color.
-
-        When invoked with three integer coordinates, they must be the
-        coordinates of an RGB256 color.
+        This method should be invoked with a color specification (or full color
+        object) as its only argument. However, to avoid notational clutter when
+        manually defining style specifications, this method also accepts the
+        singular integer value of ANSI or 8-bit colors as well as the tag and
+        coordinates of color specifications. Otherwise, there are no
+        restrictions on valid colors.
         """
-        return dataclasses.replace(self, background=self._prepare_color(r, g, b))
+        return dataclasses.replace(
+            self, background=self._prepare_color(color, coordinates)
+        )
 
+    def adjust(self, fidelity: Fidelity) -> Self:
+        """Adjust this style specification to the given fidelity."""
+        if self.fidelity is not None and self.fidelity <= fidelity:
+            return self
+
+        fg = fidelity.prepare_to_render(self.foreground)
+        bg = fidelity.prepare_to_render(self.background)
+
+        if fg is self.foreground and bg is self.background:
+            return self
+
+        return dataclasses.replace(self, foreground=fg, background=bg)
 
     def sgr_parameters(self) -> list[int]:
         """Convert this style to the equivalent SGR parameters."""
+        if self.fidelity is None:
+            raise ValueError('style has unbounded color fidelity')
+
         parameters: list[int] = []
+
+        def handle_color(layer: Layer, color: ColorSpec) -> None:
+            parameters.extend(
+                Ansi.color_parameters(layer, *cast(tuple[int, ...], color.coordinates))
+            )
 
         if self.weight is not None:
             parameters.append(self.weight.value)
@@ -357,11 +416,18 @@ class StyleSpec:
         if self.visibility is not None:
             parameters.append(self.visibility.value)
         if self.foreground is not None:
-            parameters.extend(Ansi.color_parameters(Layer.TEXT, *self.foreground))
+            handle_color(Layer.TEXT, self.foreground)
         if self.background is not None:
-            parameters.extend(Ansi.color_parameters(Layer.BACKGROUND, *self.background))
+            handle_color(Layer.BACKGROUND, self.background)
 
         return parameters
+
+    def sgr(self) -> str:
+        """Convert this style specification into an SGR ANSI escape sequence."""
+        return f'{Ansi.CSI}{";".join(str(p) for p in self.sgr_parameters())}m'
+
+    def __str__(self) -> str:
+        return self.sgr()
 
 
 Style = StyleSpec()
@@ -372,5 +438,6 @@ deep red background.
 
 .. code-block:: python
 
-    ERROR_STYLE = Style.bold.fg(255).bg(88)
+    ERROR_STYLE = Style.bold.fg(15).bg(88)
+
 """
