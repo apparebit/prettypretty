@@ -345,6 +345,17 @@ ANSI = Space(
     lores=True,
 )
 
+NOCOLOR = Space(
+    tag='nocolor',
+    label='1-bit monochrome',
+    base=None,
+    coordinates=(
+        Coordinate('', 0, 1, 'int'),
+    ),
+    css_format=None,
+    lores=True,
+)
+
 UNIVERSE = (
     # Color spaces
     XYZ,
@@ -362,6 +373,7 @@ UNIVERSE = (
     RGB6,
     EIGHT_BIT,
     ANSI,
+    NOCOLOR,
 )
 
 _TAG_TO_SPACE = { space.tag: space for space in UNIVERSE }
