@@ -15,6 +15,7 @@ from .color.lores import (
     eight_bit_to_srgb,
     oklab_to_ansi,
     oklab_to_eight_bit,
+    naive_eight_bit_to_ansi,
 )
 from .color.theme import MACOS_TERMINAL, VGA, XTERM, builtin_theme_name, current_theme
 from .termio import TermIO
@@ -104,7 +105,7 @@ def write_color_cube(
     term: TermIO,
     *,
     layer: Layer = Layer.BACKGROUND,
-    ansi_only: bool = False,
+    strategy: Literal['8bit', 'pretty', 'naive'] = '8bit',
     label: bool = True,
 ) -> None:
     """
@@ -115,14 +116,23 @@ def write_color_cube(
         term: is the terminal for write the framed grid to
         layer: determines whether to color text or background, with background
             the default
-        ansi_only: determines whether to down-sample the 8-bit color to an
-            extended ANSI color
+        strategy: determines whether to display the original 8-bit colors, to
+            downsample using prettypretty, or to use the naive RGB conversion
+        label: determines whether boxes are labelled with their color
+            components
     """
     frame = FramedBoxes(term, 6)
+
+    prefix = (
+        'Original ' if strategy == '8bit'
+        else 'Pretty Compression of ' if strategy == 'pretty'
+        else 'Naive Compression of '
+    )
+
     frame.top(
         layer.name.capitalize()
         + ': '
-        + ('Downsampled ' if ansi_only else '')
+        + prefix
         + '6•6•6 RGB Cube'
     )
 
@@ -135,11 +145,16 @@ def write_color_cube(
             for g in range(6):
                 srgb = rgb6_to_srgb(r, g, b)
 
-                if ansi_only:
+                if strategy == '8bit':
+                    eight_bit = rgb6_to_eight_bit(r, g, b)
+                elif strategy == 'pretty':
                     eight_bit = oklab_to_ansi(*srgb_to_oklab(*srgb))
                     srgb = eight_bit_to_srgb(*eight_bit)
+                elif strategy == 'naive':
+                    eight_bit = naive_eight_bit_to_ansi(*rgb6_to_eight_bit(r, g, b))
+                    srgb = eight_bit_to_srgb(*eight_bit)
                 else:
-                    eight_bit = rgb6_to_eight_bit(r, g, b)
+                    raise ValueError(f'invalid strategy "{strategy}"')
 
                 # Pick black or white for other color based on contrast
                 if layer is Layer.BACKGROUND:
@@ -272,7 +287,8 @@ if __name__ == '__main__':
         term.writeln()
 
         write_color_cube(term, label=options.label)
-        write_color_cube(term, ansi_only=True, label=options.label)
+        write_color_cube(term, strategy='pretty', label=options.label)
+        write_color_cube(term, strategy='naive', label=options.label)
         write_color_cube(term, layer=Layer.TEXT)
 
         # First clause tests for absence of --truecolor/--no-truecolor or --truecolor
