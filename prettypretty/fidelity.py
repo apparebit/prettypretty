@@ -1,6 +1,3 @@
-"""
-Color fidelity.
-"""
 import enum
 from typing import cast
 
@@ -13,19 +10,41 @@ class Fidelity(enum.Enum):
     """
     A terminal's color fidelity.
 
-    ANSI escape sequences support three different color formats: ANSI, 8-bit,
-    and RGB256, with 8-bit color incorporating ANSI color and RGB256
-    incorporating 8-bit color. After adding a "bottom" format *no-color*, we
-    have the four color fidelity levels. The primary reason for encapsulating
-    them in an enumeration is to simplify comparisons. Otherwise, the
-    enumeration constants act much like the corresponding tags for color formats
-    or spaces.
-
     Attributes:
-        NOCOLOR: implies *no* color whatsoever;
-        ANSI: are the 16+1 extended ANSI colors with text and background defaults;
-        EIGHT_BIT: are the 8-bit terminal colors;
-        RGB256: is called "truecolor" by many terminals and full 24-bit color.
+        NOCOLOR:
+        ANSI:
+        EIGHT_BIT:
+        RGB256:
+
+    When it comes to terminal color support, there are four levels, starting
+    with no-color, then the 16 extended ANSI colors, then 8-bit colors, which
+    directly incorporate ANSI colors, and finally "truecolor," i.e., RGB256.
+
+    While there is not established mapping between ANSI and RGB256 colors, the
+    latter nonetheless subsumes ANSI, notably when it comes to display hardware.
+    Historically, no-color was the norm. In fact, even though DEC's VT100 series
+    of terminals popularized ANSI escape codes, none of the models in that
+    series had color monitors. Nowadays, no-color is important for modelling
+    restricted runtime environments, e.g., some continuous integration services,
+    as well as user preferences.
+
+    The obvious and motivating use case for fidelity levels is to serve as bound
+    that restricts renderable colors. Unless the bound is no-color, color
+    formats and spaces outside the bound need to first be converted to *one of
+    the formats* within the bound. In almost all cases, that means converting a
+    color to the bound's format, i.e., the bound in lower case. Though, with
+    RGB256 as bound, RGB6 should be converted to 8-bit, and with ANSI as bound,
+    8-bit colors with coordinates -1 through 15 should be converted by changing
+    the tag.
+
+    A second use case helps avoid repeated inspections and attempted conversions
+    when colors may be shared and reused through style objects. It is based on
+    the observation that a fidelity level can also serve as a concise summary of
+    past color conversions. Here, :attr:`NOCOLOR` implies a lack of colors and
+    no fidelity implies a lack of inspection.
+
+    Fidelity levels form a total order and hence support Python's comparison
+    operators.
     """
     NOCOLOR = 0
     ANSI = 1
@@ -77,48 +96,44 @@ class Fidelity(enum.Enum):
             return NotImplemented
         return self.value >= other.value
 
-    def is_renderable(self, color: None | ColorSpec) -> bool:
+    def is_renderable(self, tag: str) -> bool:
         """
-        Determine whether the color specification is renderable at this terminal
-        fidelity.
+        Determine whether the given color format or space is renderable at this
+        terminal fidelity without further preparation including conversion.
 
-        For no-color fidelity, *no* color is renderable and *no* conversion can fix
-        that. Otherwise, if the color specification is not renderable, then it
-        should be converted to the fidelity first, except that RGB6 should be
-        converted to 8-bit color for RGB256 fidelity.
+        If the color format or space is *not* renderable at this fidelity,
+        colors should be converted to the fidelity level, except that RGB6
+        should be converted to 8-bit color for RGB256 fidelity.
         """
-        if color is None:
-            return True
         if self is Fidelity.NOCOLOR:
             return False
-        if color.tag == 'ansi':
+        if tag == 'ansi':
             return True
-        if color.tag == 'eight_bit':
+        if tag == 'eight_bit':
             return self is not Fidelity.ANSI
-        if color.tag == 'rgb256':
+        if tag == 'rgb256':
             return self is Fidelity.RGB256
-
         return False
 
     def prepare_to_render(self, color: None | ColorSpec) -> None | ColorSpec:
         """
-        Prepare to render the given color at this terminal fidelity.
+        Prepare the color for rendering at this fidelity level. This method
+        accepts null colors and, if this fidelity level is :attr:`NOCOLOR`,
+        returns null colors.
 
-        For no-color fidelity, this function just returns ``None``, hence erasing
-        all color. If the color specification is ``None`` or renderable at the given
-        fidelity, this function just returns the color argument. Otherwise, it
-        converts the color specification to the fidelity, except that it converts
-        RGB6 to 8-bit colors for RGB256 fidelity.
+        This method correctly handles the two corner cases for color
+        preparation, converting RGB6 to 8-bit if this fidelity level is RGB256
+        and just re-tagging 8-bit colors between -1 and 15 if this fidelity
+        level is ANSI.
         """
-        if self is Fidelity.NOCOLOR:
+        if color is None or self is Fidelity.NOCOLOR:
             return None
 
-        if self.is_renderable(color):
+        if self.is_renderable(color.tag):
             return color
 
-        assert color is not None
         if color.tag == 'rgb6':
-            # RGB6 is renderable as 8-bit color.
+            # Ideally, RGB6 is rendered as 8-bit color
             color = ColorSpec(
                 'eight_bit',
                 rgb6_to_eight_bit(*cast(tuple[int, ...], color.coordinates))
@@ -126,8 +141,12 @@ class Fidelity(enum.Enum):
             if self is not Fidelity.ANSI:
                 return color
 
-        elif color.tag == 'eight_bit' and -1 <= color.coordinates[0] <= 15:
-            # They might use different SGR parameters...
+        if (
+            color.tag == 'eight_bit'
+            and -1 <= color.coordinates[0] <= 15
+            and self is Fidelity.ANSI
+        ):
+            # Do not relabel for other fidelity levels, SGR parameters differ.
             return ColorSpec('ansi', color.coordinates)
 
         return ColorSpec(
