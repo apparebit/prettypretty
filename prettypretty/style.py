@@ -15,12 +15,12 @@ tuning styles so that they harmonize with each other and the design guidelines.
 In case where no such guidelines exist, a central module may just help define
 them.
 """
+from collections.abc import Sequence
 import dataclasses
 import enum
-from typing import cast, overload, Self
+from typing import cast, overload, Self, TypeAlias
 
 from .ansi import Ansi, DEFAULT_COLOR, is_default, Layer
-from .color.lores import rgb6_to_eight_bit
 from .color.spec import ColorSpec, CoordinateSpec
 from .fidelity import Fidelity
 
@@ -37,7 +37,6 @@ class TextAttribute(enum.Enum):
     which text attributes must be set to restore the default appearance of
     terminal output again.
     """
-
     @property
     def is_default(self) -> bool:
         """Determine whether the text attribute is the default value."""
@@ -163,11 +162,6 @@ class StyleSpec:
     :attr:`.Fidelity.NOCOLOR` indicates that the style specification does not
     contain any colors.
 
-    A non-null fidelity further indicates that no color conversion needs to be
-    performed for that level of fidelity or higher. For the invariant to
-    actually hold, this class eagerly and automatically converts RGB6 to 8-bit
-    colors and re-tags extended ANSI colors tagged as 8-bit.
-
     .. note::
 
         Creating style specifications by invoking the constructor is *not*
@@ -189,11 +183,13 @@ class StyleSpec:
         that operation is another style specification that restores the default
         terminal state after the original style specification.
 
-        The string representation of a style specification is the corresponding
-        SGR ANSI escape sequence.
+        Also, the string representation of a style specification is the
+        corresponding SGR ANSI escape sequence.
 
-        Putting that altogether, we can apply the above warning style, render "
-        Warning! ", and restore the default style again as follows:
+        The combination of the two features makes setting and unsetting styles
+        rather convenient. For example, to set the above warning style, print
+        " Warning! " (with a leading and trailing space) in that style, and then
+        restore the default style, we just write:
 
         .. code-block:: python
 
@@ -221,23 +217,6 @@ class StyleSpec:
 
         fidelity = None if fg_fid is None or bg_fid is None else max(fg_fid, bg_fid)
         object.__setattr__(self, 'fidelity', fidelity)
-        if fidelity is None:
-            return
-
-        # Fix color corner cases
-        for attr, color in (('foreground', fg), ('background', bg)):
-            if color is None:
-                continue
-
-            if color.tag == 'rgb6':
-                color = ColorSpec(
-                    'eight_bit',
-                    rgb6_to_eight_bit(*cast(tuple[int, ...], color.coordinates))
-                )
-            elif color.tag == 'eight_bit' and -1 <= color.coordinates[0] <= 15:
-                color = ColorSpec('ansi', color.coordinates)
-
-            object.__setattr__(self, attr, color)
 
     def __invert__(self) -> Self:
         def invert_color(color: None | ColorSpec) -> None | ColorSpec:
@@ -308,21 +287,18 @@ class StyleSpec:
         """Do not render text."""
         return dataclasses.replace(self, visibility=Visibility.HIDDEN)
 
-    def _prepare_color(
+    def _use_color(
         self,
         color: int | ColorSpec | str,
         coordinates: None | CoordinateSpec,
     ) -> ColorSpec:
         if isinstance(color, int):
-            tag = 'eight_bit'
-            coordinates = color,
+            return ColorSpec('eight_bit', (color,))
         elif isinstance(color, str):
-            tag = color
+            assert coordinates is not None
+            return ColorSpec(color, coordinates)
         else:
-            tag = color.tag
-            coordinates = color.coordinates
-
-        return ColorSpec(tag, cast(CoordinateSpec, coordinates))
+            return color
 
     @overload
     def fg(self, color: int, /) -> Self:
@@ -348,9 +324,7 @@ class StyleSpec:
         coordinates of color specifications. Otherwise, there are no
         restrictions on valid colors.
         """
-        return dataclasses.replace(
-            self, foreground=self._prepare_color(color, coordinates)
-        )
+        return dataclasses.replace(self, foreground=self._use_color(color, coordinates))
 
     @overload
     def bg(self, color: int, /) -> Self:
@@ -376,21 +350,17 @@ class StyleSpec:
         coordinates of color specifications. Otherwise, there are no
         restrictions on valid colors.
         """
-        return dataclasses.replace(
-            self, background=self._prepare_color(color, coordinates)
-        )
+        return dataclasses.replace(self, background=self._use_color(color, coordinates))
 
-    def adjust(self, fidelity: Fidelity) -> Self:
-        """Adjust this style specification to the given fidelity."""
+    def prepare(self, fidelity: Fidelity) -> Self:
+        """
+        Adjust this style specification for rendering with the given fidelity.
+        """
         if self.fidelity is not None and self.fidelity <= fidelity:
             return self
 
         fg = fidelity.prepare_to_render(self.foreground)
         bg = fidelity.prepare_to_render(self.background)
-
-        if fg is self.foreground and bg is self.background:
-            return self
-
         return dataclasses.replace(self, foreground=fg, background=bg)
 
     def sgr_parameters(self) -> list[int]:
@@ -402,7 +372,11 @@ class StyleSpec:
 
         def handle_color(layer: Layer, color: ColorSpec) -> None:
             parameters.extend(
-                Ansi.color_parameters(layer, *cast(tuple[int, ...], color.coordinates))
+                Ansi.color_parameters(
+                    layer,
+                    *cast(tuple[int, ...], color.coordinates),
+                    use_ansi=color.tag=='ansi',
+                )
             )
 
         if self.weight is not None:
@@ -441,3 +415,53 @@ deep red background.
     ERROR_STYLE = Style.bold.fg(15).bg(88)
 
 """
+
+
+RichTextElement: TypeAlias = str | StyleSpec
+"""The type of all rich text elements."""
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class RichText(Sequence[RichTextElement]):
+    """
+    The terminal version of rich text mixes text, which is to be rendered
+    literally, and style specifications, which are to be rendered as SGR ANSI
+    escape codes. The terminal version of rich text also tracks the current
+    fidelity level and can be easily prepared for a different fidelity.
+    """
+    fragments: tuple[RichTextElement, ...]
+    fidelity: None | Fidelity = dataclasses.field(init=False)
+
+    def __post_init__(self) -> None:
+        fidelity = Fidelity.NOCOLOR
+        for fragment in self.fragments:
+            if not isinstance(fragment, StyleSpec):
+                continue
+
+            f = fragment.fidelity
+            if f is None:
+                fidelity = None
+                break
+            fidelity = max(fidelity, f)
+
+        object.__setattr__(self, 'fidelity', fidelity)
+
+    @classmethod
+    def of(cls, *fragments: RichTextElement) -> Self:
+        """Create a rich text object from the the given fragments."""
+        return cls(fragments)
+
+    def __getitem__(self, index: int) -> RichTextElement:  # type: ignore
+        return self.fragments[index]
+
+    def __len__(self) -> int:
+        return len(self.fragments)
+
+    def prepare(self, fidelity: Fidelity) -> Self:
+        """Prepare this rich text for rendering at the given fidelity."""
+        if self.fidelity is not None and self.fidelity <= fidelity:
+            return self
+        return type(self)(tuple(
+            f.prepare(fidelity) if isinstance(f, StyleSpec) else f
+            for f in self.fragments
+        ))
