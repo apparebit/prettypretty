@@ -27,8 +27,8 @@ prettypretty.style
     :members:
 
 
-prettypretty.termio
--------------------
+prettypretty.terminal
+---------------------
 
-.. automodule:: prettypretty.termio
+.. automodule:: prettypretty.terminal
     :members:
