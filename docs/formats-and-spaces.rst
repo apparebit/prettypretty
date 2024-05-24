@@ -64,6 +64,9 @@ integer coordinate:
       * 16–231 are the 216 RGB6 colors
       * 232–255 is a 24-step grayscale gradient
 
+  * **nocolor** technically corresponds to 1-bit monochrome displays, though
+    it primarily serves as an abstract label indicating a lack of color.
+
 The RGB6 colors and the 24-step grayscale gradient have a well-defined mapping
 to RGB256 and hence sRGB. However, the sixteen extended ANSI colors have only
 standardized names but not color values. Furthermore, almost all terminals have
