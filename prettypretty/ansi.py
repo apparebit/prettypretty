@@ -104,15 +104,28 @@ class Ansi(enum.StrEnum):
 
     @overload
     @staticmethod
-    def color_parameters(layer: Layer, color: int, /) -> tuple[int, ...]:
+    def color_parameters(
+        layer: Layer,
+        color: int,
+        /,
+        use_ansi: bool = ...,
+    ) -> tuple[int, ...]:
         ...
     @overload
     @staticmethod
-    def color_parameters(layer: Layer, r: int, g: int, b: int, /) -> tuple[int, ...]:
+    def color_parameters(
+        layer: Layer,
+        r: int,
+        g: int,
+        b: int,
+        /,
+    ) -> tuple[int, ...]:
         ...
     @staticmethod
     def color_parameters(
-        layer: Layer, r: int, g: None | int = None, b: None | int = None,
+        layer: Layer,
+        *coordinates: int,
+        **kwargs: bool,
     ) -> tuple[int, ...]:
         """
         Convert the 8-bit color, RGB256 coordinates, or default color to
@@ -124,22 +137,21 @@ class Ansi(enum.StrEnum):
         setting the 16 extended ANSI color and the triple 38, 5, ``color`` only
         for the remaining 240 8-bit colors.
         """
-        if g is not None:
-            assert b is not None
-            return 38 + layer.value, 2, r, g, b
+        if len(coordinates) == 3:
+            return 38 + layer.value, 2, *coordinates
 
-        assert b is None
-        if r == -1:
-            return 30 + layer.value + 9,
-        if 0 <= r <= 7:
-            return 30 + r + layer.value,
-        elif 8 <= r <= 15:
-            return 90 + r + layer.value - 8,
-        elif 16 <= r <= 255:
-            return 38 + layer.value, 5, r
-        else:
-            raise ValueError(f'"{r}" is not a valid 8-bit color')
+        color = coordinates[0]
+        use_ansi = kwargs.get('use_ansi', True)
 
+        if color == -1:
+            return 30 + 9 + layer.value,
+        if use_ansi:
+            if 0 <= color <= 7:
+                return 30 + color + layer.value,
+            if 8 <= color <= 15:
+                return 90 - 8 + color + layer.value,
+
+        return 38 + layer.value, 5, color
 
     @staticmethod
     def fuse(*fragments: None | int | str) -> str:
