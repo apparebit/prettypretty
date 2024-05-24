@@ -22,7 +22,6 @@ from typing import (
     TypeAlias,
 )
 
-
 from .ansi import Ansi, Layer
 from .color.lores import rgb6_to_eight_bit
 from .color.spec import ColorSpec
@@ -122,13 +121,11 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
         self._block_depth = 0
         self._exit_stack: None | ExitStack = None
 
-
     def _check_not_active(self) -> None:
         if self._block_depth > 0:
             raise ValueError(
                 'unable to update context manager after __enter__() has been called'
             )
-
 
     def register(self, do: str, undo: str) -> Self:
         """
@@ -140,7 +137,6 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
         self._updates.append((do, undo))
         return self
 
-
     @contextmanager
     def _cbreak_mode(self) -> 'Iterator[TermIO]':
         fileno = self._terminal.input.fileno()
@@ -151,7 +147,6 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
             yield self._terminal
         finally:
             termios.tcsetattr(fileno, termios.TCSAFLUSH, saved_mode)
-
 
     def cbreak_mode(self) -> Self:
         """
@@ -168,7 +163,6 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
         self._updates.append(lambda: self._cbreak_mode())
         return self
 
-
     def terminal_theme(self, theme: None | Theme = None) -> Self:
         """
         Use the terminal's color theme. Unless the theme argument is provided,
@@ -184,7 +178,6 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
         self._updates.append(factory)
         return self
 
-
     def window_title(self, title: str) -> Self:
         """Update the window title."""
         # Save window title on stack, then update window title
@@ -193,7 +186,6 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
             Ansi.fuse(Ansi.CSI, "23;2t"),
         )
 
-
     def alternate_screen(self) -> Self:
         """Switch to the terminal's alternate (unbuffered) screen."""
         return self.register(
@@ -201,14 +193,12 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
             Ansi.fuse(Ansi.CSI, "?1049l"),
         )
 
-
     def hidden_cursor(self) -> Self:
         """Make cursor invisible."""
         return self.register(
             Ansi.fuse(Ansi.CSI, "?25l"),
             Ansi.fuse(Ansi.CSI, "?25h"),
         )
-
 
     def batched_output(self) -> Self:
         """
@@ -223,7 +213,6 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
             Ansi.fuse(Ansi.CSI, "?2026l"),
         )
 
-
     def bracketed_paste(self) -> Self:
         """
         Enable `bracketed pasting
@@ -234,17 +223,14 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
             Ansi.fuse(Ansi.CSI, "?2004l"),
         )
 
-
     def scoped_style(self) -> Self:
         """Scope style changes by resetting the style on exit."""
         return self.register('', Ansi.fuse(Ansi.CSI, 'm'))
-
 
     def _create_control_writer(self, control: str) -> Callable[[], None]:
         def control_writer() -> None:
             self._terminal.write_control(control)
         return control_writer
-
 
     def __enter__(self) -> 'TermIO':
         if self._block_depth == 0:
@@ -265,7 +251,6 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
 
         self._block_depth += 1
         return self._terminal
-
 
     def __exit__(self, *args: Any) -> bool:
         # Exception suppression isn't needed right now but easy enough to support
@@ -391,7 +376,6 @@ class TermIO:
         """The terminal's input."""
         return self._input
 
-
     @property
     def output(self) -> TextIO:
         """The terminal's output."""
@@ -410,7 +394,6 @@ class TermIO:
         """The cached terminal height."""
         return self._height
 
-
     def request_size(self) -> None | tuple[int, int]:
         """
         Determine the terminal's size in fixed-width columns and rows. If the
@@ -427,12 +410,10 @@ class TermIO:
         except OSError:
             return None
 
-
     def update_size(self) -> Self:
         """Update the width and height cached by this class."""
         self._width, self._height = self.request_size() or (80, 24)
         return self
-
 
     def check_same_size(self) -> Self:
         """
@@ -474,7 +455,6 @@ class TermIO:
             and mode[TerminalModeComponent.CC][termios.VTIME] == 0
         )
 
-
     def check_cbreak_mode(self) -> Self:
         """
         Check that cbreak mode is enabled. THis method signals an exception if
@@ -483,7 +463,6 @@ class TermIO:
         if not self.is_cbreak_mode():
             raise ValueError('terminal is expected to be in cbreak mode but is not')
         return self
-
 
     def cbreak_mode(self) -> TerminalContextManager:
         """
@@ -508,7 +487,6 @@ class TermIO:
         self._output.write(''.join(fragments))
         return self
 
-
     def writeln(self, *fragments: str) -> Self:
         """
         Write the string fragments followed by a line terminator to this
@@ -516,7 +494,6 @@ class TermIO:
         """
         self.write(*fragments, '\n')
         return self
-
 
     def write_control(self, *fragments: None | int | str) -> Self:
         """
@@ -537,7 +514,6 @@ class TermIO:
         if self._should_write_control:
             self._output.write(Ansi.fuse(*fragments))
         return self
-
 
     def flush(self) -> Self:
         """Flush this terminal's output."""
@@ -652,7 +628,6 @@ class TermIO:
         except TimeoutError:
             return None
 
-
     def make_textual_request(
         self,
         *query: None | int | str,
@@ -687,7 +662,6 @@ class TermIO:
             suffix = Ansi.BEL
 
         return response[len(prefix): -len(suffix)]
-
 
     def make_numeric_request(
         self,
@@ -727,14 +701,12 @@ class TermIO:
         )
         return terminal
 
-
     def request_cursor_position(self) -> None | tuple[int, int]:
         """Request the cursor position in (x, y) order from this terminal."""
         numbers = self.make_numeric_request(
             Ansi.CSI, '6n', prefix=b'\x1b[', suffix=b'R'
         )
         return None if len(numbers) != 2 else (numbers[0], numbers[1])
-
 
     def request_batch_mode(self) -> BatchMode:
         """Determine the terminal's current batch mode."""
@@ -755,7 +727,6 @@ class TermIO:
             tuple(int(v, base=16) for v in response[4:].split('/'))
         )
 
-
     def request_ansi_color(self, color: int) -> None | tuple[int, int, int]:
         """
         Determine the color for the given extended ANSI color. This method
@@ -772,7 +743,6 @@ class TermIO:
             prefix=f'{Ansi.OSC}4;{color};',
             suffix=Ansi.ST,
         ))
-
 
     def request_dynamic_color(self, code: int) -> None | tuple[int, int, int]:
         """
@@ -829,26 +799,21 @@ class TermIO:
         """
         return TerminalContextManager(self).terminal_theme(theme)
 
-
     def window_title(self, title: str) -> TerminalContextManager:
         """Use a different window title."""
         return TerminalContextManager(self).window_title(title)
-
 
     def alternate_screen(self) -> TerminalContextManager:
         """Switch to the terminal's alternate (unbuffered) screen."""
         return TerminalContextManager(self).alternate_screen()
 
-
     def hidden_cursor(self) -> TerminalContextManager:
         """Make cursor invisible."""
         return TerminalContextManager(self).hidden_cursor()
 
-
     def batched_output(self) -> TerminalContextManager:
         """Batch terminal output."""
         return TerminalContextManager(self).batched_output()
-
 
     def bracketed_paste(self) -> TerminalContextManager:
         """
@@ -856,7 +821,6 @@ class TermIO:
         <https://gitlab.com/gnachman/iterm2/-/wikis/Paste-Bracketing>`_.
         """
         return TerminalContextManager(self).bracketed_paste()
-
 
     def scoped_style(self) -> TerminalContextManager:
         """
@@ -872,41 +836,33 @@ class TermIO:
         """Move cursor up."""
         return self.write_control(Ansi.CSI, rows, 'A')
 
-
     def down(self, rows: None | int = None) -> Self:
         """Move cursor down."""
         return self.write_control(Ansi.CSI, rows, 'B')
-
 
     def left(self, columns: None | int = None) -> Self:
         """Move cursor left."""
         return self.write_control(Ansi.CSI, columns, 'C')
 
-
     def right(self, columns: None | int = None) -> Self:
         """Move cursor right."""
         return self.write_control(Ansi.CSI, columns, 'D')
-
 
     def set_position(self, row: None | int = None, column: None | int = None) -> Self:
         """Move the cursor to the given row and column."""
         return self.write_control(Ansi.CSI, row, column, 'H')
 
-
     def set_column(self, column: None | int = None) -> Self:
         """Move the cursor to the given column"""
         return self.write_control(Ansi.CSI, column, 'G')
-
 
     def erase_screen(self) -> Self:
         """Erase the entire screen."""
         return self.write_control(Ansi.CSI, '2J')
 
-
     def erase_line(self) -> Self:
         """Erase the entire current line."""
         return self.write_control(Ansi.CSI, '2K')
-
 
     def link(self, text: str, href: str, id: None | str = None) -> Self:
         """
@@ -933,21 +889,27 @@ class TermIO:
         """Reset all styles."""
         return self.write_control(Ansi.CSI, 'm')
 
-
     def apply(self, style: StyleSpec) -> Self:
         """Apply the given style."""
         return self.write_control(Ansi.CSI, *style.sgr_parameters(), 'm')
 
+    def rich_text(self, *fragments: StyleSpec | str) -> Self:
+        """Write out content and styles."""
+        for fragment in fragments:
+            if isinstance(fragment, str):
+                self.write(fragment)
+            else:
+                # FIXME: adjust to terminal fidelity
+                self.write_control(str(fragment))
+        return self
 
     def bold(self) -> Self:
         """Set bold style."""
         return self.write_control(Ansi.CSI, '1m')
 
-
     def italic(self) -> Self:
         """Set italic style."""
         return self.write_control(Ansi.CSI, '2m')
-
 
     def _color_parameters(
         self,
@@ -971,7 +933,6 @@ class TermIO:
             cs = cast(int, r), g, b
 
         return Ansi.color_parameters(layer, *cs)
-
 
     @overload
     def fg(self, color: ColorSpec, /) -> Self:
@@ -1002,7 +963,6 @@ class TermIO:
             *self._color_parameters(Layer.TEXT, r, g, b),
             'm'
         )
-
 
     @overload
     def bg(self, color: ColorSpec, /) -> Self:
