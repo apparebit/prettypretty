@@ -13,6 +13,13 @@ prettypretty.ansi
     :members:
 
 
+prettypretty.fidelity
+---------------------
+
+.. automodule:: prettypretty.fidelity
+    :members:
+
+
 prettypretty.style
 ------------------
 
