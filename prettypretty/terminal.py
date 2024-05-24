@@ -168,12 +168,10 @@ class TerminalContextManager(AbstractContextManager['Terminal']):
 
     def terminal_theme(self, theme: None | Theme = None) -> Self:
         """
-        Use the terminal's color theme. Unless the theme argument is provided,
-        this terminal context manager queries the terminal for its theme on
-        entry. To do so, it temporarily puts the terminal into cbreak mode. This
-        is independent of whether this terminal context manager putting the
-        terminal into cbreak mode until exit. It ensures that this operation
-        stands on its own.
+        Use the terminal's color theme. Unless a theme is provided as argument,
+        the context manager puts the terminal temporarily into cbreak mode and
+        determines the current theme colors upon entry. It then makes that theme
+        the current theme until exit.
         """
         self._check_not_active()
         if theme is None:
@@ -616,11 +614,11 @@ class Terminal:
 
     def make_raw_request(self, *query: None | int | str) -> None | bytes:
         """
-        Make a request to this terminal.
+        Make a request to this terminal. This method writes an ANSI escape
+        sequence to this terminal as a query and then reads an ANSI escape
+        sequence as the response.
 
-        This method writes a query as ANSI escape sequence to this terminal and
-        then reads the corresponding response. This terminal must be in cbreak
-        mode.
+        The terminal must be in cbreak mode.
         """
         try:
             return (
@@ -648,6 +646,8 @@ class Terminal:
         in between. This method correctly accounts for the fact that ``ST`` and
         ``BEL`` may be used interchangeably at the end of OSC sequences. In such
         cases, please pass ``ST`` as  the suffix.
+
+        The terminal must be in cbreak mode.
 
         .. warning::
             This method requires that ``prefix`` and ``suffix`` each are at
@@ -684,6 +684,8 @@ class Terminal:
         ``BEL`` may be used interchangeably at the end of OSC sequences. In such
         cases, please pass ``ST`` as  the suffix.
 
+        The terminal must be in cbreak mode.
+
         .. warning::
             This method requires that ``prefix`` and ``suffix`` each are at
             least one character long.
@@ -700,21 +702,30 @@ class Terminal:
     # ----------------------------------------------------------------------------------
 
     def request_terminal_version(self) -> None | str:
-        """Request the terminal name and version."""
+        """
+        Request the terminal name and version. The terminal must be in cbreak
+        mode.
+        """
         terminal = self.make_textual_request(
             Ansi.CSI, '>q', prefix=f'{Ansi.DCS}>|', suffix=Ansi.ST
         )
         return terminal
 
     def request_cursor_position(self) -> None | tuple[int, int]:
-        """Request the cursor position in (x, y) order from this terminal."""
+        """
+        Request the cursor position in (x, y) order from this terminal. The
+        terminal must be in cbreak mode.
+        """
         numbers = self.make_numeric_request(
             Ansi.CSI, '6n', prefix=b'\x1b[', suffix=b'R'
         )
         return None if len(numbers) != 2 else (numbers[0], numbers[1])
 
     def request_batch_mode(self) -> BatchMode:
-        """Determine the terminal's current batch mode."""
+        """
+        Determine the terminal's current batch mode. The terminal must be in
+        cbreak mode.
+        """
         response = self.make_numeric_request(
             Ansi.CSI, "?2026$p", prefix=b"\x1b[?2026;", suffix=b"$y"
         )
@@ -740,6 +751,8 @@ class Terminal:
         hexadecimal digits per component and hence have higher resolution than
         RGB256. The returned color coordinates could be called RGB65536, since
         they are integers ranging from 0 to 65,535, inclusive.
+
+        The terminal must be in cbreak mode.
         """
         assert 0 <= color <= 15
 
@@ -762,6 +775,8 @@ class Terminal:
         comprise four hexadecimal digits per component and hence have higher
         resolution than RGB256. The returned color coordinates could be called
         RGB65536, since they are integers ranging from 0 to 65,535, inclusive.
+
+        The terminal must be in cbreak mode.
         """
         assert 10 <= code <= 11
 
@@ -772,7 +787,10 @@ class Terminal:
         ))
 
     def request_theme(self) -> Theme:
-        """Extract the entirety of the current color theme from the terminal."""
+        """
+        Extract the entirety of the current color theme from the terminal. The
+        terminal must be in cbreak mode.
+        """
         colors: list[tuple[int, int, int]] = []
 
         for code in range(10, 12):
@@ -800,7 +818,8 @@ class Terminal:
     def terminal_theme(self, theme: None | Theme = None) -> TerminalContextManager:
         """
         Use a different color theme. Unless a theme argument is provided, the
-        implementation queries the terminal for its current theme.
+        implementation queries the terminal for its current theme, while
+        temporarily putting the terminal in cbreak mode.
         """
         return TerminalContextManager(self).terminal_theme(theme)
 
