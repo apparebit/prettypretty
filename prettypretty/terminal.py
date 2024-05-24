@@ -1,9 +1,7 @@
-import argparse
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager, ExitStack
 import dataclasses
 import enum
-import json
 import os
 import select
 import sys
@@ -26,7 +24,7 @@ from .ansi import Ansi, Layer
 from .color.lores import rgb6_to_eight_bit
 from .color.spec import ColorSpec
 from .color.theme import current_theme, Theme
-from .style import StyleSpec
+from .style import RichText, RichTextElement, StyleSpec
 
 
 TerminalMode: TypeAlias = list[Any]
@@ -77,7 +75,7 @@ class BatchMode(enum.Enum):
         return self is not BatchMode.ENABLED
 
 
-class TerminalContextManager(AbstractContextManager['TermIO']):
+class TerminalContextManager(AbstractContextManager['Terminal']):
     """
     A context manager for terminal state.
 
@@ -97,25 +95,26 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
     This class is reentrant and reusable, though an instance does nothing on
     nested invocations.
 
-    :class:`TermIO` has several methods with the same names and signatures as
+    :class:`Terminal` has several methods with the same names and signatures as
     this class. They are the preferred way of creating terminal context manager
-    instances because they are far more convenient. Assuming that ``term`` is an
-    instance of ``TermIO``, the following, rather clumsy ``with`` statement
+    instances because they are far more convenient. For example, to get started
+    using prettypretty, you might write:
 
     .. code-block:: python
 
-        with TerminalContextManager(term).alternate_screen().hidden_cursor():
+        terminal = Terminal()
+        with TerminalContextManager(terminal).terminal_theme().scoped_style():
             ...
 
-    is equivalent to the following, far nicer one
+    is equivalent to this far nicer alternative
 
     .. code-block:: python
 
-        with term.alternate_screen().hidden_cursor():
+        with Terminal().alternate_screen().hidden_cursor() as terminal:
             ...
 
     """
-    def __init__(self, terminal: 'TermIO') -> None:
+    def __init__(self, terminal: 'Terminal') -> None:
         self._terminal = terminal
         self._updates: list[Callable[[], ContextManager[object]] | tuple[str, str]] = []
         self._block_depth = 0
@@ -138,7 +137,7 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
         return self
 
     @contextmanager
-    def _cbreak_mode(self) -> 'Iterator[TermIO]':
+    def _cbreak_mode(self) -> 'Iterator[Terminal]':
         fileno = self._terminal.input.fileno()
         saved_mode = termios.tcgetattr(fileno)
         if not self._terminal.is_cbreak_mode(saved_mode):
@@ -163,16 +162,22 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
         self._updates.append(lambda: self._cbreak_mode())
         return self
 
+    def _request_theme(self) -> Theme:
+        with self._cbreak_mode():
+            return self._terminal.request_theme()
+
     def terminal_theme(self, theme: None | Theme = None) -> Self:
         """
         Use the terminal's color theme. Unless the theme argument is provided,
-        the implementation queries the terminal for its current theme upon
-        entry. In other words, an instance queries the terminal every time it is
-        reused.
+        this terminal context manager queries the terminal for its theme on
+        entry. To do so, it temporarily puts the terminal into cbreak mode. This
+        is independent of whether this terminal context manager putting the
+        terminal into cbreak mode until exit. It ensures that this operation
+        stands on its own.
         """
         self._check_not_active()
         if theme is None:
-            factory = lambda: current_theme(self._terminal.request_theme())
+            factory = lambda: current_theme(self._request_theme())
         else:
             factory = lambda: current_theme(theme)
         self._updates.append(factory)
@@ -232,7 +237,7 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
             self._terminal.write_control(control)
         return control_writer
 
-    def __enter__(self) -> 'TermIO':
+    def __enter__(self) -> 'Terminal':
         if self._block_depth == 0:
             with ExitStack() as stack:
                 # Protect against partial terminal updates with an exit stack.
@@ -267,7 +272,7 @@ class TerminalContextManager(AbstractContextManager['TermIO']):
         return received_exception and suppressed_exception
 
 
-class TermIO:
+class Terminal:
     """
     Terminal input/output.
 
@@ -280,10 +285,10 @@ class TermIO:
     This class supports the following features:
 
     **Terminal window size**
-        ``TermIO`` caches the width and height of the terminal. It only updates
-        the cached values if an application explicitly polls for changes. That
-        way, the application is hopefully prepared to accommodate a terminal
-        size change as well.
+        ``Terminal`` caches the width and height of the terminal. It only
+        updates the cached values if an application explicitly polls for
+        changes. That way, the application is hopefully prepared to accommodate
+        a terminal size change as well.
 
         See :attr:`width`, :attr:`height`, :meth:`request_size`,
         :meth:`update_size`, and :meth:`check_same_size`.
@@ -327,7 +332,7 @@ class TermIO:
         :meth:`request_theme`.
 
     **Scoped changes of terminal state**
-        To more easily update, restore, and flush terminal states, ``TermIO``
+        To more easily update, restore, and flush terminal states, ``Terminal``
         delegates to a terminal context manager. It makes it possible to
         fluently queue up all restorable updates in a single ``with`` statement
         without worrying about many of the implementation details.
@@ -848,11 +853,11 @@ class TermIO:
         """Move cursor right."""
         return self.write_control(Ansi.CSI, columns, 'D')
 
-    def set_position(self, row: None | int = None, column: None | int = None) -> Self:
+    def at(self, row: None | int = None, column: None | int = None) -> Self:
         """Move the cursor to the given row and column."""
         return self.write_control(Ansi.CSI, row, column, 'H')
 
-    def set_column(self, column: None | int = None) -> Self:
+    def column(self, column: None | int = None) -> Self:
         """Move the cursor to the given column"""
         return self.write_control(Ansi.CSI, column, 'G')
 
@@ -889,17 +894,36 @@ class TermIO:
         """Reset all styles."""
         return self.write_control(Ansi.CSI, 'm')
 
-    def apply(self, style: StyleSpec) -> Self:
-        """Apply the given style."""
-        return self.write_control(Ansi.CSI, *style.sgr_parameters(), 'm')
+    @overload
+    def rich_text(self, fragments: Sequence[RichTextElement]) -> Self:
+        ...
+    @overload
+    def rich_text(self, *fragments: RichTextElement) -> Self:
+        ...
+    def rich_text(
+        self, *fragments: RichTextElement | Sequence[RichTextElement]
+    ) -> Self:
+        """Write rich text to terminal output"""
+        # Coerce to actual rich text to simplify fidelity adjustment
+        if (
+            len(fragments) == 1
+            and not isinstance(fragments[0], str)
+            and isinstance(fragments[0], Sequence)
+        ):
+            # Some sequence that may be RichText already
+            rich_text = fragments[0]
+            if not isinstance(rich_text, RichText):
+                rich_text = RichText(tuple(rich_text))
+        else:
+            # A tuple of strings and style specifications
+            rich_text = RichText(cast(tuple[str | StyleSpec, ...], fragments))
 
-    def rich_text(self, *fragments: StyleSpec | str) -> Self:
-        """Write out content and styles."""
-        for fragment in fragments:
+        # FIXME: adjust fidelity!
+
+        for fragment in rich_text:
             if isinstance(fragment, str):
                 self.write(fragment)
             else:
-                # FIXME: adjust to terminal fidelity
                 self.write_control(str(fragment))
         return self
 
@@ -993,56 +1017,3 @@ class TermIO:
             *self._color_parameters(Layer.BACKGROUND, r, g, b),
             'm'
         )
-
-
-def create_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument(
-        '--raw',
-        action='store_const',
-        const='raw',
-        dest='format',
-        help='show raw responses only',
-    )
-    group.add_argument(
-        '--theme',
-        action='store_const',
-        const='theme',
-        dest='format',
-        help='show parsed theme'
-    )
-    return parser
-
-
-if __name__ == '__main__':
-    options = create_parser().parse_args()
-
-    with TermIO().cbreak_mode() as terminal:
-        if options.format in (None, 'theme'):
-            theme = terminal.request_theme()
-            for name, color in theme.colors():
-                cs = cast(tuple[float, float, float], color.coordinates)
-                terminal.writeln(f'{name:<15} {cs[0]:.5f}, {cs[1]:.5f}, {cs[2]:.5f}')
-        else:
-            for index, field in enumerate(dataclasses.fields(Theme)):
-                if 0 <= index <= 1:
-                    response = terminal.make_raw_request(
-                        Ansi.OSC, 10 + index, ';?', Ansi.ST
-                    )
-                else:
-                    response = terminal.make_raw_request(
-                        Ansi.OSC, 4, index - 2, ';?', Ansi.ST,
-                    )
-                if response is None:
-                    (
-                        terminal
-                        .bold().fg(255).bg(88)
-                        .write(f'Unable to query {field.name} color!')
-                        .reset_style()
-                        .writeln()
-                    )
-                    break
-
-                response_text = json.dumps(response.decode('utf8'))
-                terminal.writeln(f'{field.name:<15} {response_text}')
