@@ -262,3 +262,43 @@ def oklab_to_ansi(L: float, a: float, b: float) -> tuple[int]:
     """
     index, _ = closest_oklab((L, a, b), _look_up_table.ansi)
     return index,
+
+
+# --------------------------------------------------------------------------------------
+
+
+def naive_eight_bit_to_ansi(color: int) -> tuple[int]:
+    """
+    Perform the naive RGB component conversion from 8-bit to ANSI colors.
+
+    This function maps 6x6x6 RGB colors and the 24-step gray gradient to the 16
+    extended ANSI colors:
+
+     1. It converts the input color to a 3-bit RGB color.
+     2. If the sum of the components exceeds some threshold, it makes the 3-bit
+        color a bright color.
+
+    Alas, if the sum of the components uses the 3-bit RGB color, possible
+    thresholds 0—3 simply are too coarse. Instead the implementation uses
+    performs downsampling in floating point and retains the resulting normal
+    values for summation during the second step. A threshold of 1.8 has been
+    experimentally validated as reasonable.
+
+    Arguably, this isn't the naive conversion any more. For example, the chalk
+    library implements an `even more naive version
+    <https://github.com/chalk/chalk/blob/main/source/vendor/ansi-styles/index.js>`_.
+    """
+    if 0 <= color <= 15:
+        return color,
+
+    if 16 <= color <= 231:
+        r, g, b = tuple(c / 5 for c in eight_bit_to_rgb6(color))
+    elif 232 <= color <= 255:
+        r = g = b = (color - 232) / 23
+    else:
+        raise ValueError(f'{color} is not a valid 8-bit terminal color')
+
+    color = 4 * round(b) + 2 * round(g) + round(r)
+    if r + g + b >= 1.8:
+        color += 8
+    return color,
