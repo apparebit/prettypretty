@@ -2,14 +2,41 @@
 import enum
 from typing import overload
 
+from .color.spec import ColorSpec
+
+
+def is_default(color: ColorSpec) -> bool:
+    """
+    Determine whether the color specification represents the default color.
+    """
+    return color.tag in ('ansi', 'eight_bit') and color.coordinates[0] == -1
+
+
+DEFAULT_COLOR = ColorSpec('ansi', (-1,))
+"""
+The default color for terminals. ANSI escape sequences actually support *two*
+default colors, one for the foreground and one for the background. Prettypretty
+does *not* support converting the default color into any other color. But it
+does represent it as either an ANSI or 8-bit color with -1 as its only
+component.
+"""
+
+
+# --------------------------------------------------------------------------------------
+
 
 class Layer(enum.Enum):
     """
     The display layer.
 
     Attributes:
-        TEXT: is in the foreground
+        TEXT: is in front, in the foreground
         BACKGROUND: is behind the text
+
+    The enumeration constant values capture the fact that the SGR parameters for
+    setting background color are the same as those for setting text color
+    shifted by 10, i.e., from 30–39 and 90–97 to 40–49 and 100–107. Hence the
+    value of :attr:`TEXT` is 0 and that of :attr:`BACKGROUND` is 10.
     """
     TEXT = 0
     BACKGROUND = 10
@@ -103,7 +130,7 @@ class Ansi(enum.StrEnum):
 
         assert b is None
         if r == -1:
-            return 30 + layer.value + 8,
+            return 30 + layer.value + 9,
         if 0 <= r <= 7:
             return 30 + r + layer.value,
         elif 8 <= r <= 15:
