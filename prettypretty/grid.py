@@ -18,7 +18,7 @@ from .color.lores import (
     naive_eight_bit_to_ansi,
 )
 from .color.theme import MACOS_TERMINAL, VGA, XTERM, builtin_theme_name, current_theme
-from .termio import TermIO
+from .terminal import Terminal
 
 
 class FramedBoxes:
@@ -29,7 +29,7 @@ class FramedBoxes:
     surrounding frame (or border). Each box has the same width and a height of
     one line. Boxes are formatted left-to-right.
     """
-    def __init__(self, term: TermIO, box_count: int = 1, min_width: int = 5) -> None:
+    def __init__(self, term: Terminal, box_count: int = 1, min_width: int = 5) -> None:
         self._term = term
         self._box_count = box_count
         self._box_width = (term.width - 2) // box_count
@@ -102,7 +102,7 @@ class FramedBoxes:
 
 
 def write_color_cube(
-    term: TermIO,
+    term: Terminal,
     *,
     layer: Layer = Layer.BACKGROUND,
     strategy: Literal['8bit', 'pretty', 'naive'] = '8bit',
@@ -173,7 +173,7 @@ def write_color_cube(
 
 
 def write_hires_slice(
-    term: TermIO,
+    term: Terminal,
     *,
     hold: Literal['r', 'g', 'b'] = 'g',
     level: int = 0,
@@ -282,8 +282,7 @@ def create_parser() -> argparse.ArgumentParser:
 if __name__ == '__main__':
     options = create_parser().parse_args()
 
-    term = TermIO()
-    with term.cbreak_mode().terminal_theme(options.theme).scoped_style():
+    with Terminal().terminal_theme(options.theme).scoped_style() as term:
         term.writeln()
 
         write_color_cube(term, label=options.label)
