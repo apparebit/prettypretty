@@ -20,6 +20,24 @@ from typing import Any, Callable, TextIO, TypeAlias, TYPE_CHECKING
 import unittest
 
 
+# --------------------------------------------------------------------------------------
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class Symbols:
+    h0: str
+    h1: str
+    h2: str
+    dot0: str
+    dot1: str
+
+
+UNICODE_SYMBOLS = Symbols('═', '━', '─', '•', '⋅')
+ASCII_SYMBOLS = Symbols('=', '-', '~', '.', '.')
+SYMBOLS = ASCII_SYMBOLS if os.name == 'nt' else UNICODE_SYMBOLS
+
+# --------------------------------------------------------------------------------------
+
+
 ExcInfo: TypeAlias = tuple[type[BaseException], BaseException, TracebackType]
 OptExcInfo: TypeAlias = ExcInfo | tuple[None, None, None]
 
@@ -112,13 +130,13 @@ class StyledStream:
         return f"\n{dash * 3} {text} {dash * length}"
 
     def h0(self, text: str) -> str:
-        return self._hn("═", len(text), self.strong(text))
+        return self._hn(SYMBOLS.h0, len(text), self.strong(text))
 
     def h1(self, text: str) -> str:
-        return self._hn("━", len(text), self.strong(text))
+        return self._hn(SYMBOLS.h1, len(text), self.strong(text))
 
     def h2(self, text: str) -> str:
-        return self._hn("─", len(text), self.italic(text))
+        return self._hn(SYMBOLS.h2, len(text), text)
 
     def sgr(self, ps: str, text: str) -> str:
         return f"\x1b[{ps}m{text}\x1b[0m" if self.isatty else text
@@ -160,7 +178,7 @@ def track_progress(stream: TextIO) -> ProgressTracker:
         nonlocal columns
 
         if test.is_success(err):
-            stream.write("⋅" if test.is_subtest else "•")
+            stream.write(SYMBOLS.dot1 if test.is_subtest else SYMBOLS.dot0)
         elif test.is_failure(err):
             stream.write("f" if test.is_subtest else "F")
         else:

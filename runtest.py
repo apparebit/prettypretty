@@ -22,6 +22,18 @@ if __name__ == "__main__":
         stream.flush()
 
     println(styled.h1("1. Setup"))
+    println(styled.h2("PYTHONIOENCODING"))
+    println(os.environ.get("PYTHONIOENCODING", "n/a"))
+    if os.name == "nt":
+        println(styled.h2("PYTHONLEGACYWINDOWSFSENCODING"))
+        println(os.environ.get("PYTHONLEGACYWINDOWSFSENCODING", "n/a"))
+        println(styled.h2("PYTHONLEGACYWINDOWSSTDIO"))
+        println(os.environ.get("PYTHONLEGACYWINDOWSSTDIO", "n/a"))
+    println(styled.h2("PYTHONUTF8"))
+    println(os.environ.get("PYTHONUTF8", "n/a"))
+    println(styled.h2("Standard Out/Err Encoding"))
+    println(sys.stdout.encoding)
+    println(sys.stderr.encoding)
     println(styled.h2("Python"))
     println(f"{sys.executable}")
     println(styled.h2("Python Prefix"))
