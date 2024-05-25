@@ -1,7 +1,8 @@
 import enum
 from typing import cast, Literal, Self, TypeAlias
 
-from .color.conversion import get_converter
+from .color.conversion import get_converter, srgb_to_rgb256
+from .color.gamut import map_into_gamut
 from .color.lores import rgb6_to_eight_bit
 from .color.spec import ColorSpec
 
@@ -65,7 +66,10 @@ class Fidelity(enum.Enum):
             return tag
 
         assert isinstance(tag, str)
-        return cls[tag]
+        try:
+            return cls[tag]
+        except KeyError:
+            return cls[tag.upper()]
 
     @classmethod
     def from_color(cls, color: None | ColorSpec) -> 'None | Fidelity':
@@ -159,6 +163,12 @@ class Fidelity(enum.Enum):
         ):
             # Do not relabel for other fidelity levels, SGR parameters differ.
             return ColorSpec('ansi', color.coordinates)
+
+        if self is Fidelity.RGB256:
+            # Ensure color is in sRGB gamut before converting into RGB256
+            coordinates = get_converter(color.tag, 'srgb')(*color.coordinates)
+            coordinates = map_into_gamut('srgb', coordinates)
+            return ColorSpec('rgb256', srgb_to_rgb256(*coordinates))
 
         return ColorSpec(
             self.tag,
