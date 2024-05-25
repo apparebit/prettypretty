@@ -24,21 +24,35 @@ class Fidelity(enum.Enum):
     directly incorporate ANSI colors, and finally "truecolor," i.e., RGB256.
 
     While there is not established mapping between ANSI and RGB256 colors, the
-    latter nonetheless subsumes ANSI, notably when it comes to display hardware.
-    Historically, no-color was the norm. In fact, even though DEC's VT100 series
-    of terminals popularized ANSI escape codes, none of the models in that
-    series had color monitors. Nowadays, no-color is important for modelling
-    restricted runtime environments, e.g., some continuous integration services,
-    as well as user preferences.
+    latter nonetheless subsumes ANSI, most certainly when it comes to display
+    hardware. Historically, no-color was the norm for terminals. In fact, even
+    though DEC's VT100 series of terminals popularized ANSI escape codes, none
+    of the models in that series had color monitors. Nowadays, no-color is
+    important for modelling restricted runtime environments, e.g., as found on
+    continuous integration services, and for respecting user preferences.
 
-    The obvious and motivating use case for fidelity levels is to serve as bound
-    that restricts renderable colors. Unless the bound is no-color, color
-    formats and spaces outside the bound need to first be converted to *one of
-    the formats* within the bound. In almost all cases, that means converting a
-    color to the bound's format, i.e., the bound in lower case. Though, with
-    RGB256 as bound, RGB6 should be converted to 8-bit, and with ANSI as bound,
-    8-bit colors with coordinates -1 through 15 should be converted by changing
-    the tag.
+    The original use case for fidelity levels is serving as bounds that restrict
+    renderable colors. Unless the bound is no-color, color formats and spaces
+    outside the bound need to be converted to *one of the formats* within the
+    bound. In almost all cases, that means converting a color to the bound's
+    format (denoted by the bound's name in lower case).
+
+    However, there are three complications.
+
+     1. When the fidelity level is RGB256, the original color may very well be
+        outside of RGB256's gamut as well. Since gamut mapping is more accurate
+        with floating point coordinates, preparing colors for RGB256 requires
+        first conversion to sRGB, then gamut mapping, and finally conversion to
+        RGB256.
+     2. Since RGB6 is a three-component version of (part of) 8-bit color,
+        converting to 8-bit color suffices for fidelity levels of 8-bit and
+        RGB256. In the latter case, 8-bit color may not be the bound's format
+        but it certainly is within the bound. Converting RGB6 to 8-bit is a
+        reasonable first step for ANSI fidelity, too.
+     3. When the fidelity level is ANSI and the original color is 8-bit with a
+        component value between -1 and 15 inclusive, a trivial re-tagging of the
+        color suffices. Technically, -1 stands for the default color. But that
+        color is part of the core ANSI colors, too.
 
     A second use case helps avoid repeated inspections and attempted conversions
     when colors may be shared and reused through style objects. It is based on
@@ -46,7 +60,7 @@ class Fidelity(enum.Enum):
     past color conversions. Here, :attr:`NOCOLOR` implies a lack of colors and
     no fidelity implies a lack of inspection.
 
-    Fidelity levels form a total order and hence support Python's comparison
+    Fidelity levels form a total order and support Python's comparison
     operators.
     """
     NOCOLOR = 0
@@ -136,10 +150,12 @@ class Fidelity(enum.Enum):
         accepts null colors and, if this fidelity level is :attr:`NOCOLOR`,
         returns null colors.
 
-        This method correctly handles the two corner cases for color
-        preparation, converting RGB6 to 8-bit if this fidelity level is RGB256
-        and just re-tagging 8-bit colors between -1 and 15 if this fidelity
-        level is ANSI.
+        This method correctly handles the three corner cases for color
+        preparation. First, independent of fidelity level, it converts RGB6 to
+        8-bit before considering further conversions. Second, instead of
+        directly converting to RGB256, it first converts to sRGB, then
+        gamut-maps the result, and only then converts to RGB256. Finally, when
+        converting to ANSI, it simply re-tags 8-bit colors between -1 and 15.
         """
         if color is None or self is Fidelity.NOCOLOR:
             return None
