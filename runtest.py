@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     println(styled.h1("2. Type Checking"))
     try:
-        subprocess.run(["./node_modules/.bin/pyright"], check=True)
+        subprocess.run(["npx", "pyright"], check=True)
     except subprocess.CalledProcessError:
         println(styled.failure("prettypretty failed to type check!"))
         exit(1)

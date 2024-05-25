@@ -32,7 +32,7 @@ class Symbols:
 
 
 UNICODE_SYMBOLS = Symbols('═', '━', '─', '•', '⋅')
-ASCII_SYMBOLS = Symbols('=', '-', '~', '.', '.')
+ASCII_SYMBOLS = Symbols('=', '=', '-', '.', '.')
 SYMBOLS = ASCII_SYMBOLS if os.name == 'nt' else UNICODE_SYMBOLS
 
 # --------------------------------------------------------------------------------------
