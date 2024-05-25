@@ -5,6 +5,7 @@
 import os
 import subprocess
 import sys
+import textwrap
 import traceback
 import unittest
 
@@ -49,7 +50,14 @@ if __name__ == "__main__":
 
     println(styled.h1("2. Type Checking"))
     if os.name == "nt":
-        println("Skipping for now on Windows...")
+        println(textwrap.dedent(
+            """
+            GitHub Actions on Windows seem gratuitously brittle. The console
+            encoding is CP1252 instead of UTF-8. Spawning a subprocess from
+            Python seemingly goes nowhere. So for now, there is no type checking
+            on Windows...
+            """
+        ))
     else:
         try:
             subprocess.run(["npm", "run", "pyright"], check=True)
