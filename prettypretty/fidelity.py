@@ -1,10 +1,12 @@
 import enum
-from typing import cast
+from typing import cast, Literal, Self, TypeAlias
 
 from .color.conversion import get_converter
 from .color.lores import rgb6_to_eight_bit
 from .color.spec import ColorSpec
 
+
+FidelityTag: TypeAlias = Literal['nocolor', 'ansi', 'eight_bit', 'rgb256']
 
 class Fidelity(enum.Enum):
     """
@@ -57,7 +59,16 @@ class Fidelity(enum.Enum):
         return self.name.lower()
 
     @classmethod
-    def of(cls, color: None | ColorSpec) -> 'None | Fidelity':
+    def from_tag(cls, tag: FidelityTag | Self) -> Self:
+        """Instantiate the fidelity level from a tag."""
+        if isinstance(tag, cls):
+            return tag
+
+        assert isinstance(tag, str)
+        return cls[tag]
+
+    @classmethod
+    def from_color(cls, color: None | ColorSpec) -> 'None | Fidelity':
         """
         Determine the fidelity required for the given color specification. If
         the color is ``None``, the required fidelity is ``NOCOLOR``. However, if
