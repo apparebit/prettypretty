@@ -13,6 +13,11 @@ uniform color spaces.
 
 .. toctree::
    :maxdepth: 1
+
+   howto
+
+.. toctree::
+   :maxdepth: 1
    :caption: Guides
 
    formats-and-spaces
