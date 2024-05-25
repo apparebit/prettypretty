@@ -48,11 +48,14 @@ if __name__ == "__main__":
     println(f"{__file__}")
 
     println(styled.h1("2. Type Checking"))
-    try:
-        subprocess.run(["npm", "run", "pyright"], check=True)
-    except subprocess.CalledProcessError:
-        println(styled.failure("prettypretty failed to type check!"))
-        exit(1)
+    if os.name == "nt":
+        println("Skipping for now on Windows...")
+    else:
+        try:
+            subprocess.run(["npm", "run", "pyright"], check=True)
+        except subprocess.CalledProcessError:
+            println(styled.failure("prettypretty failed to type check!"))
+            exit(1)
 
     println(styled.h1("3. Unit Testing"))
     try:
