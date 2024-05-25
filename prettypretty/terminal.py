@@ -24,6 +24,7 @@ from .ansi import Ansi, Layer
 from .color.lores import rgb6_to_eight_bit
 from .color.spec import ColorSpec
 from .color.theme import current_theme, Theme
+from .fidelity import Fidelity, FidelityTag
 from .style import RichText, RichTextElement, StyleSpec
 
 
@@ -138,7 +139,7 @@ class TerminalContextManager(AbstractContextManager['Terminal']):
 
     @contextmanager
     def _cbreak_mode(self) -> 'Iterator[Terminal]':
-        fileno = self._terminal.input.fileno()
+        fileno = self._terminal._input_fileno  # type: ignore[reportPrivateUsage]
         saved_mode = termios.tcgetattr(fileno)
         if not self._terminal.is_cbreak_mode(saved_mode):
             tty.setcbreak(fileno)
@@ -225,6 +226,21 @@ class TerminalContextManager(AbstractContextManager['Terminal']):
             Ansi.fuse(Ansi.CSI, "?2004h"),
             Ansi.fuse(Ansi.CSI, "?2004l"),
         )
+
+    @contextmanager
+    def _fidelity(self, fidelity: Fidelity) -> Iterator[Fidelity]:
+        saved_fidelity = self._terminal._fidelity  # type: ignore[reportPrivateUsage]
+        self._terminal._fidelity = fidelity  # type: ignore[reportPrivateUsage]
+        try:
+            yield fidelity
+        finally:
+            self._terminal._fidelity = saved_fidelity  # type: ignore[reportPrivateUsage]
+
+    def fidelity(self, fidelity: FidelityTag | Fidelity) -> Self:
+        """Use the given color fidelity for terminal output."""
+        fidelity = Fidelity.from_tag(fidelity)
+        self._updates.append(lambda: self._fidelity(fidelity))
+        return self
 
     def scoped_style(self) -> Self:
         """Scope style changes by resetting the style on exit."""
@@ -367,8 +383,7 @@ class Terminal:
         self._input = input or sys.__stdin__
         self._input_fileno: int = self._input.fileno()
         self._output = output or sys.__stdout__
-        self._should_write_control = True
-        self._pending_styles: list[None | int | str] = []
+        self._fidelity = Fidelity.RGB256
         self._width, self._height = self.request_size() or (80, 24)
 
     # ----------------------------------------------------------------------------------
@@ -514,8 +529,7 @@ class Terminal:
         separate method is to facilitate applications that need to separate
         content from styling etc.
         """
-        if self._should_write_control:
-            self._output.write(Ansi.fuse(*fragments))
+        self._output.write(Ansi.fuse(*fragments))
         return self
 
     def flush(self) -> Self:
@@ -846,6 +860,10 @@ class Terminal:
         """
         return TerminalContextManager(self).bracketed_paste()
 
+    def fidelity(self, fidelity: FidelityTag | Fidelity) -> TerminalContextManager:
+        """Use the given color fidelity for terminal output."""
+        return TerminalContextManager(self).fidelity(fidelity)
+
     def scoped_style(self) -> TerminalContextManager:
         """
         Scope style changes by resetting the style on exit. The ``style()``
@@ -937,9 +955,8 @@ class Terminal:
             # A tuple of strings and style specifications
             rich_text = RichText(cast(tuple[str | StyleSpec, ...], fragments))
 
-        # FIXME: adjust fidelity!
-
-        for fragment in rich_text:
+        # Adjust rich text to terminal fidelity and then output contents
+        for fragment in rich_text.prepare(self._fidelity):
             if isinstance(fragment, str):
                 self.write(fragment)
             else:
