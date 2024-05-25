@@ -21,8 +21,8 @@ import enum
 from typing import cast, overload, Self, TypeAlias
 
 from .ansi import Ansi, DEFAULT_COLOR, is_default, Layer
-from .color.spec import ColorSpec, CoordinateSpec
-from .fidelity import Fidelity
+from .color.spec import ColorSpec
+from .fidelity import Fidelity, FidelityTag
 
 
 class TextAttribute(enum.Enum):
@@ -290,15 +290,17 @@ class StyleSpec:
     def _use_color(
         self,
         color: int | ColorSpec | str,
-        coordinates: None | CoordinateSpec,
+        c1: None | float,
+        c2: None | float,
+        c3: None | float,
     ) -> ColorSpec:
         if isinstance(color, int):
             return ColorSpec('ansi' if color <= 15 else 'eight_bit', (color,))
-        elif isinstance(color, str):
-            assert coordinates is not None
-            return ColorSpec(color, coordinates)
-        else:
+        elif isinstance(color, ColorSpec):
             return color
+
+        assert c1 is not None and c2 is not None and c3 is not None
+        return ColorSpec(color, (c1, c2, c3))
 
     @overload
     def fg(self, color: int, /) -> Self:
@@ -307,12 +309,14 @@ class StyleSpec:
     def fg(self, color: ColorSpec, /) -> Self:
         ...
     @overload
-    def fg(self, tag: str, coordinates: CoordinateSpec, /) -> Self:
+    def fg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
         ...
     def fg(
         self,
         color: int | ColorSpec | str,
-        coordinates: None | CoordinateSpec = None
+        c1: None | float = None,
+        c2: None | float = None,
+        c3: None | float = None,
     ) -> Self:
         """
         Set the foreground color.
@@ -324,7 +328,7 @@ class StyleSpec:
         coordinates of color specifications. Otherwise, there are no
         restrictions on valid colors.
         """
-        return dataclasses.replace(self, foreground=self._use_color(color, coordinates))
+        return dataclasses.replace(self, foreground=self._use_color(color, c1, c2, c3))
 
     @overload
     def bg(self, color: int, /) -> Self:
@@ -333,12 +337,14 @@ class StyleSpec:
     def bg(self, color: ColorSpec, /) -> Self:
         ...
     @overload
-    def bg(self, tag: str, coordinates: CoordinateSpec, /) -> Self:
+    def bg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
         ...
     def bg(
         self,
         color: int | ColorSpec | str,
-        coordinates: None | CoordinateSpec = None
+        c1: None | float = None,
+        c2: None | float = None,
+        c3: None | float = None,
     ) -> Self:
         """
         Set the background color.
@@ -350,12 +356,13 @@ class StyleSpec:
         coordinates of color specifications. Otherwise, there are no
         restrictions on valid colors.
         """
-        return dataclasses.replace(self, background=self._use_color(color, coordinates))
+        return dataclasses.replace(self, background=self._use_color(color, c1, c2, c3))
 
-    def prepare(self, fidelity: Fidelity) -> Self:
+    def prepare(self, fidelity: Fidelity | FidelityTag) -> Self:
         """
         Adjust this style specification for rendering with the given fidelity.
         """
+        fidelity = Fidelity.from_tag(fidelity)
         if self.fidelity is not None and self.fidelity <= fidelity:
             return self
 
