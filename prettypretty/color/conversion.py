@@ -275,7 +275,7 @@ def _create_converter(conversions: tuple[ConverterSpec, ...]) -> ConverterSpec:
     def converter(*coordinates: float) -> CoordinateSpec:
         value = cast(CoordinateSpec, coordinates)
         for fn in conversions:
-            value = fn(*value)  # type: ignore
+            value = fn(*value)
         return value
     return cast(ConverterSpec, converter)
 
