@@ -352,6 +352,7 @@ class TestColor(unittest.TestCase):
             (Style.fg(1), (31,), (39,)),
             (Style.bg(9), (101,), (49,)),
             (Style.bg(240), (48, 5, 240), (49,)),
+            (Style.fg(ColorSpec('eight_bit', (12,))), (38, 5, 12), (39,)),
         ):
             actual_params = style.sgr_parameters()
             self.assertSequenceEqual(actual_params, expected_params)
