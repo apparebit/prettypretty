@@ -212,8 +212,8 @@ class StyleSpec:
         bg = self.background
 
         # Fill in the fidelity
-        fg_fid = Fidelity.of(fg)
-        bg_fid = Fidelity.of(bg)
+        fg_fid = Fidelity.from_color(fg)
+        bg_fid = Fidelity.from_color(bg)
 
         fidelity = None if fg_fid is None or bg_fid is None else max(fg_fid, bg_fid)
         object.__setattr__(self, 'fidelity', fidelity)
@@ -293,7 +293,7 @@ class StyleSpec:
         coordinates: None | CoordinateSpec,
     ) -> ColorSpec:
         if isinstance(color, int):
-            return ColorSpec('eight_bit', (color,))
+            return ColorSpec('ansi' if color <= 15 else 'eight_bit', (color,))
         elif isinstance(color, str):
             assert coordinates is not None
             return ColorSpec(color, coordinates)
