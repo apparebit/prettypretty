@@ -21,7 +21,7 @@ if __name__ == "__main__":
         stream.write("\n")
         stream.flush()
 
-    println(styled.h1("§1 Setup"))
+    println(styled.h1("1. Setup"))
     println(styled.h2("Python"))
     println(f"{sys.executable}")
     println(styled.h2("Python Prefix"))
@@ -35,14 +35,14 @@ if __name__ == "__main__":
     println(styled.h2("Current Module"))
     println(f"{__file__}")
 
-    println(styled.h1("§2  Type Checking"))
+    println(styled.h1("2. Type Checking"))
     try:
         subprocess.run(["./node_modules/.bin/pyright"], check=True)
     except subprocess.CalledProcessError:
         println(styled.failure("prettypretty failed to type check!"))
         exit(1)
 
-    println(styled.h1("§3  Unit Testing"))
+    println(styled.h1("3. Unit Testing"))
     try:
         runner = unittest.main(
             module="test",
