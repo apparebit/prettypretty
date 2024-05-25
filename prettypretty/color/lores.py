@@ -96,7 +96,7 @@ def ansi_to_rgb256(color: int) -> tuple[int, int, int]:
     c = current_theme().ansi(color)
 
     assert c.tag == 'rgb256'
-    return c.coordinates  # type: ignore
+    return cast(tuple[int, int, int], c.coordinates)
 
 
 def _eight_bit_gray_to_rgb256(color: int) -> tuple[int, int, int]:
@@ -208,7 +208,7 @@ class _LUT:
         if theme not in self._ansi:
             self._ansi[theme] = tuple(
                 (self.convert if c.tag == 'srgb' else get_converter(c.tag, 'oklab'))
-                (*c.coordinates)  # type: ignore
+                (*c.coordinates)
                 for n, c in theme.colors() if n not in ('text', 'background')
             )
         return self._ansi[theme]
