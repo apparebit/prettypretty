@@ -43,15 +43,15 @@ def format_bar(percent: float, style: StyleSpec) -> RichText:
     """Generate progress bar for given percentage."""
     percent = min(percent, 100)  # Clamp max at 100.0
 
-    # To format bar itself, we turn percent into integer indices.
+    # Need integer multiple (full) and index (partial), so round
     full, partial = divmod(round(percent), STEPS)
     bar = BLOCKS[-1] * full
     if partial > 0:
-        # Only add character if it visually grows bar
+        # Only add partial character if it is non-empty
         bar += BLOCKS[partial]
     bar = bar.ljust(WIDTH, BLOCKS[0])
 
-    # But the displayed percentage is nicely floating point.
+    # Displayed percentage remains nicely floating point
     return RichText.of('  ┫', style, bar, ~style, '┣', f' {percent:5.1f}%')
 
 
