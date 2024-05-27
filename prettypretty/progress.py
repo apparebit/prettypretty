@@ -29,11 +29,10 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-BLOCKS = ' ▎▌▊█'
+BLOCKS = ' ▎▌▊█'  # <empty> <partial>+ <full>
 STEPS = len(BLOCKS) - 1
 WIDTH = 100 // STEPS + (1 if 100 % STEPS != 0 else 0)
-assert WIDTH * STEPS >= 100
-
+assert WIDTH * STEPS >= 100  # Without the adjustment, this wouldn't hold
 
 LIGHT_MODE_BAR = Style.fg('p3', 0, 1, 0)
 DARK_MODE_BAR = Style.fg('rgb256', 3, 151, 49)
@@ -43,7 +42,7 @@ def format_bar(percent: float, style: StyleSpec) -> RichText:
     """Generate progress bar for given percentage."""
     percent = min(percent, 100)  # Clamp max at 100.0
 
-    # Need integer multiple (full) and index (partial), so round
+    # Need integer multiple (full) and index (partial), hence must round
     full, partial = divmod(round(percent), STEPS)
     bar = BLOCKS[-1] * full
     if partial > 0:
@@ -79,12 +78,13 @@ def main() -> None:
         fg = style.foreground
         term.writeln(f'Using {
             "no color" if fg is None else stringify(fg.tag, fg.coordinates)
-        }\n')
+        }\n').flush()
 
         for percent in progress_reports():
             bar = format_bar(percent, style)
             term.column(0).rich_text(bar).flush()
             time.sleep(random.uniform(1/60, 1/10))
+
         term.writeln('\n').flush()
 
 
