@@ -1,9 +1,15 @@
 prettypretty
 ============
 
-Prettypretty helps build terminal user interfaces in Python. Notably, it
-provides expressive color management, including operating in perceptually
-uniform color spaces.
+Prettypretty helps build awesome terminal user interfaces in Python. Notably, it
+incorporates a powerful and general color library. The resulting, near seemless
+integration of 1970s archaic but beloved ANSI escape codes for terminal styling
+with 2020s color science, notably via the `Oklab perceptual color space
+<https://bottosson.github.io/posts/oklab/>`_, is unique to prettypretty and
+helps your application automatically adapt its styles to a user's current color
+theme, dark or light mode, and color preferences. So, what are you waiting for?
+Switch to prettypretty for all your terminal styling needs. Prettypretty is
+awesome!
 
 .. toctree::
    :maxdepth: 1
@@ -13,8 +19,10 @@ uniform color spaces.
 
 .. toctree::
    :maxdepth: 1
+   :caption: How to Pretty-Pretty
 
-   howto
+   Style <howto-style>
+   Color <howto-color>
 
 .. toctree::
    :maxdepth: 1
@@ -94,17 +102,27 @@ very much different again.
    :alt: The 6x6x6 RGB cube downsampled to ANSI
 
 
+Overall, prettypretty has robust support for:
 
-To recap, prettypretty has robust support for:
-
-  * Maximizing the label contrast for a given background color;
-  * Maximizing the background contrast for a given text color;
+  * Automatically determining a terminal's level of color support;
+  * Automatically determining a terminal's color theme;
+  * Automatically determining whether a color theme is light or dark;
+  * Automatically determining whether the OS is in light or dark mode;
+  * Automatically adjusting terminal styles to terminal capabilities;
   * Finding the closest color out of several;
-  * Using that search to perform high-quality downsampling;
-  * Theming the sixteen extended ANSI colors;
-  * Automatically determining the current terminal theme.
+  * Using that search to perform high-quality downsampling to 8-bit
+    and ANSI colors;
+  * Maximizing label contrast for a given background color;
+  * Maximizing background contrast for a given text color;
+  * Converting colors between sRGB, Display P3, Oklab, Oklch, and a
+    few other color spaces;
+  * Gamut mapping out-of-gamut colors;
+  * Finding the closest color out of several;
+  * Using that search to perform high-quality downsampling to 8-bit
+    and ANSI colors;
 
-More is yet to come...
+Forget about those chalky or rich terminal interfaces and make them truly
+awesome with prettypretty!
 
 
 Acknowledgements

@@ -1,5 +1,5 @@
-How to Pretty-Pretty
-====================
+How to Pretty-Pretty: Color
+===========================
 
 Let's see what prettypretty can do for your command line tools. I picked the
 implementation of a progress bar for several reasons. First, I've been itching
@@ -10,12 +10,22 @@ features. The `complete script
 <https://github.com/apparebit/prettypretty/blob/main/prettypretty/progress.py>`_
 is part of prettypretty's distribution.
 
+*How to Pretty-Pretty* has two parts. This part focuses on prettypretty's color
+support. That includes a discussion of how prettypretty adjusts colors to
+terminal capabilities and plenty of examples for manipulating colors. The other
+part focuses on prettypretty-specific code in the progress bar script. You
+probably want to start by working through the other part to get a good overview.
+But if your learning styles favors fundamentals first, then this part probably
+is a better start.
+
 
 Visualizing Progress
 --------------------
 
-So, a good start for you is to create a new virtual environment, install
-prettypretty into it, and run the progress bar demo:
+In either case, you probably want to get started by running the progress bar
+script yourself. So please go through the usual incantations for creating a new
+virtual environment, installing prettypretty into it, and running the progress
+bar demo:
 
 .. code-block:: console
 
@@ -33,17 +43,19 @@ prettypretty into it, and run the progress bar demo:
 But you may have to adjust them somewhat, if you use a package manager other
 than pip or are running Windows. I trust you know what to do differently.)
 
-That last command actually executes the demo script. You should see a progress
-bar rapidly go from 0% to 100%. It may end up looking like this:
+That last command actually executes the progress bar script. You should see a
+green bar rapidly go from 0% to 100%. It may end up looking like this:
 
 .. image:: figures/progress-bar-light.png
    :alt: A bright green progress bar at 100% against a white background
+   :scale: 50 %
 
 Or, if your terminal's color theme is a dark theme, it may end up looking more
 like this:
 
 .. image:: figures/progress-bar-dark.png
    :alt: A medium green progress bar at 100% against a black background
+   :scale: 50 %
 
 
 P3, sRGB, 8-bit Color, Oh My
@@ -58,24 +70,25 @@ space, i.e., the color with tag ``p3`` and coordinates ``0, 1, 0`` when using
 prettypretty. Since bright colors seem even brighter against a dark background,
 that green most certainly won't do for dark mode and I picked a second, darker
 green as well, i.e., the color with tag ``rgb256`` and coordinates ``3, 151,
-49``, which is three divisions by 255 away from the color with tag ``srgb`` and
-coordinates ``0.01176, 0.59216, 0.19216`` (rounded to five decimals).
+49``, which is three divisions by 255 away from the `sRGB
+<https://en.wikipedia.org/wiki/SRGB>`_ color with tag ``srgb`` and coordinates
+``0.01176, 0.59216, 0.19216`` (rounded to five decimals). Between the two color
+spaces sRGB and Display P3, sRGB is the older and smaller one. It also has been
+the default color space for monitors and the web for the longest time.
 
 As the examples suggest, prettypretty's color representation includes a tag—to
 identify the color format or space—and the coordinates. Supported formats,
 including ``ansi``, ``eight_bit``, ``rgb6``, and ``rgb256``, have one or three
 integer coordinates, whereas supported color spaces, including ``srgb``, ``p3``,
-``oklab``, and ``oklch``, have three floating point coordinates. For the RGB
-color spaces, including ``srgb`` and ``p3``, the coordinates are normalized,
-i.e., range from 0 to 1, inclusive. Prettypretty can convert between all of
-these formats and color spaces, though some of the conversions are inherently
-lossy.
+``oklab``, and ``oklch``, have three floating point coordinates. For RGB color
+spaces such as ``srgb`` and ``p3`` the coordinates are normalized, i.e., range
+from 0 to 1, inclusive. Prettypretty can convert between all of these formats
+and color spaces, though some of the conversions are inherently lossy.
 
 Prettypretty's basic color abstraction, :class:`.ColorSpec`, is just a record
-with a ``tag`` and ``coordinates``. Prettypretty also has a fully featured color
-class, :class:`.Color`, that adds a good number of methods to the basic color
-specification record. To actually write out colors, you have a number of
-options:
+with a ``tag`` and ``coordinates``. In addition, prettypretty has a fully
+featured color class, :class:`.Color`, that adds a good number of methods to the
+basic color record. To actually write out colors, you have a number of options:
 
  1. Invoke :class:`.ColorSpec` on a tag and coordinates tuple;
  2. Use the :meth:`.ColorSpec.of` helper method, which gets rid of extra
@@ -226,119 +239,71 @@ as well as the green primary of sRGB. You can try this out yourself:
    >>> within_srgb_gamut = map_into_gamut('srgb', srgb)
    >>> [round(c, 5) for c in within_srgb_gamut]
    [0, 0.98576, 0.15974]
+   >>> rgb256 = get_converter('srgb', 'rgb256')(*within_srgb_gamut)
+   >>> rgb256
+   (0, 251, 41)
    >>> eight_bit = get_converter('srgb', 'eight_bit')(*within_srgb_gamut)
    >>> eight_bit
    (46,)
    >>> get_converter('eight_bit', 'rgb6')(*eight_bit)
    (0, 5, 0)
 
-The :func:`.get_converter` function can instantiate a converter for any pair of
-color formats and spaces supported by prettypretty. As the last example
-illustrates, that includes conversions implemented by the
+The :func:`.get_converter` function in the above example code can instantiate a
+converter for any pair of color formats and spaces supported by prettypretty. As
+the last example illustrates, that includes conversions implemented by the
 :mod:`prettypretty.color.lores` module.
 
-Originally, the conversion to 8-bit color compared to all 256 colors. But
-:doc:`experiments with color ranges <hires-slices>` showed ugly outliers
-corresponding to the 16 extended ANSI colors embedded in 8-bit color. They were
-the closest colors at times, but just didn't match the other colors well. To
-ensure more harmonious results, I eliminated them as candidates when converting
-to 8-bit color.
+The example shows the 24-bit RGB components for the gamut-mapped color as well.
+If your terminal supports truecolor, that should be the color of the progress
+bar when running in light mode.
+
+If you use :class:`.Color`, the above becomes a bit more uniform and hence
+simpler:
+
+.. code-block:: python
+
+   >>> from prettypretty.color.object import Color
+   >>> str(Color("p3(0, 1, 0)"))
+   'p3(0.0, 1.0, 0.0)'
+   >>> str(Color("p3(0, 1, 0)").to("srgb"))
+   'srgb(-0.5116, 1.0183, -0.31067)'
+   >>> str(Color("p3(0, 1, 0)").to("srgb").to_gamut())
+   'srgb(0.0, 0.98576, 0.15974)'
+   >>> str(Color("p3(0, 1, 0)").to("srgb").to_gamut().to("rgb256"))
+   'rgb(0, 251, 41)'
+   >>> str(Color("p3(0, 1, 0)").to("srgb").to_gamut().to("eight_bit"))
+   'eight_bit(46)'
+
+Originally, the conversion to 8-bit colors considered all 256 8-bit colors. But
+:doc:`experiments with high-resolution color ranges <hires-slices>` showed ugly
+outliers corresponding to the 16 extended ANSI colors embedded in 8-bit color.
+They were the closest colors, but just didn't match the results for close-by
+colors well, resulting in visually noticeable outliers. To ensure more
+harmonious results, I eliminated them as candidates when converting to 8-bit
+color.
 
 When converting to ANSI, prettypretty must of course consider the 16 extended
 ANSI colors as candidates. But to do so, it must also convert them to Oklab. The
-problem is that there is no standard for their color values and, even if there
-was, it wouldn't make much of a difference because most terminals modify the
-ANSI colors with themes. Prettypretty uses ANSI escape codes to query a terminal
-for all color values for the current theme and relies on those values when
-converting to ANSI, thus yielding a color that is optimal for the current
-terminal.
+problem is that there is no standard for their RGB color values and, even if
+there was, it wouldn't make much of a difference because most terminals modify
+the ANSI colors with themes. Therefore, prettypretty uses ANSI escape codes to
+query a terminal for the color values for the current theme and then uses those
+values when converting to ANSI. That does result in different colors depending
+on the terminal and its current theme. But as the :doc:`experiments with 8-bit
+color ranges <index>` across different terminals demonstrate, that's actually a
+unique strength of prettypretty, resulting in visually more consistent results.
 
-The progress bar demo includes command line options to further restrict colors.
-Try running it with ``--ansi`` or ``--nocolor`` like so:
+Assuming that your terminal supports at least 8-bit colors, you can use the
+``--ansi`` command line option to restrict the progress bar colors to just the
+16 extended ANSI colors.
 
 .. code-block:: console
 
    $ python -m prettypretty.progress --ansi
 
-
-Terminal Style
---------------
-
-While color is important, terminals also support a few attributes for styling
-text, including making the text appear bold or faint, using italics, or
-underlined.
-
-
-
-.. code-block:: python
-
-    WARNING = Style.bold.fg(0).bg(220)
-
-Only define complete styles. Don't bother with styles that undo or incrementally
-transition a style. You can automatically compute them with Python's negation
-``~`` and subtraction ``-`` operators. In particular, the style ``~style`` takes
-a terminal in style ``style`` and restores the default style, and ``style2 -
-style1`` incrementally transitions from the first to the second style.
-
-
-The last line of ``format_bar`` illustrates the use of styles. Since their
-string representation is the ANSI escape sequence effecting that style, you
-could convert it to string. But the more robust option is to simply build a
-sequence intermingling text and styles. If you use prettypretty's
-:class:`.RichText` may be a little more performant but really any sequence
-works.
-
-.. code-block:: python
-
-    return RichText.of('  ┫', style, bar, ~style, '┣', f' {percent:5.1f}%')
-
-As the example nicely illustrates, to undo a style you just invert the style
-specification. If you need to go from one style, ``style1``, to another,
-``style2``, you could write the inverted ``~style1`` followed by ``style2``. But
-that may unnecessarily reset and set terminal attributes. Instead just write
-``style2 - style1``, which is the difference between the two styles.
-
-The demo script creates the terminal object, possibly overwriting its color
-fidelity, then queries the terminal for its current color theme, hides the
-cursor, and commits to resetting all styles at the end of the ``with`` block.
-
-.. code-block:: python
-
-    with (
-        Terminal(fidelity=options.fidelity)
-        .terminal_theme()
-        .hidden_cursor()
-        .scoped_style()
-    ) as term:
-
-I strongly recommend always reading the terminal theme and always scoping
-styles.
-
-Prettypretty can display any sequence of style and text. But to correctly render
-colors, it needs to check each style and possibly convert one or both contained
-colors. But if styles are really reused, doing the same conversions over and
-over again makes little sense. Instead, you can precompute the styles for the
-current terminal as shown in the example:
-
-.. code-block:: python
-
-    style = DARK_MODE_BAR if is_dark_theme() else LIGHT_MODE_BAR
-    style = style.prepare(term.fidelity)
-
-
-Much of the demo script should be self-explanatory and is not specific to
-prettypretty at all. The two exceptions are the use of :data:`.Style` and
-:class:`.Terminal`. A single terminal style collects the stylistic attributes of
-text and the two foreground and background colors.
-
-The main loop is amazingly simple. For each percentage value, it first formats
-the progress bar from scratch. Then it instructs the terminal to move the
-(invisible) cursor back to the start of the line, to display the progress bar,
-and to flush the output. Finally, it rests from all the work.
-
-.. code-block:: python
-
-    for percent in progress_reports():
-        bar = format_bar(percent, style)
-        term.column(0).rich_text(bar).flush()
-        time.sleep(random.uniform(1/60, 1/10))
+The progress bar should use ANSI colors 2 or 10, i.e., the regular or bright
+green. But the result very much depends on your current terminal theme. If you
+are so inclined, you can take this all the way to ``--nocolor``. With that
+command line option, the progress bar is a stark black or white (or whatever
+color your current terminal theme includes for the default foreground color),
+just like the rest of the output.
