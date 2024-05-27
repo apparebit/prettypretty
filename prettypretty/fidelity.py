@@ -8,13 +8,14 @@ from .color.lores import rgb6_to_eight_bit
 from .color.spec import ColorSpec
 
 
-FidelityTag: TypeAlias = Literal['nocolor', 'ansi', 'eight_bit', 'rgb256']
+FidelityTag: TypeAlias = Literal['plain', 'nocolor', 'ansi', 'eight_bit', 'rgb256']
 
 class Fidelity(enum.Enum):
     """
     A terminal's color fidelity.
 
     Attributes:
+        PLAIN:
         NOCOLOR:
         ANSI:
         EIGHT_BIT:
@@ -23,20 +24,25 @@ class Fidelity(enum.Enum):
     When it comes to terminal color support, there are four levels, starting
     with no-color, then the 16 extended ANSI colors, then 8-bit colors, which
     directly incorporate ANSI colors, and finally "truecolor," i.e., RGB256.
+    Since no-color still allows for styling text with ANSI escape codes,
+    fidelity also includes the plain level, which prohibits the use of escapes.
 
-    While there is not established mapping between ANSI and RGB256 colors, the
-    latter nonetheless subsumes ANSI, most certainly when it comes to display
-    hardware. Historically, no-color was the norm for terminals. In fact, even
-    though DEC's VT100 series of terminals popularized ANSI escape codes, none
-    of the models in that series had color monitors. Nowadays, no-color is
-    important for modelling restricted runtime environments, e.g., as found on
-    continuous integration services, and for respecting user preferences.
+    Even though there is no established mapping between ANSI and RGB256 colors,
+    the latter nonetheless subsumes ANSI, most certainly when it comes to
+    display hardware. Historically, no-color was the norm for terminals. In
+    fact, even though DEC's VT100 series of terminals popularized ANSI escape
+    codes, none of the models in that series had color monitors. Nowadays,
+    no-color is important for modelling restricted runtime environments, e.g.,
+    as found on continuous integration services. Meanwhile plain is important
+    when producing machine-readable output. Furthermore, both no-color and plain
+    can capture user preferences.
 
     The original use case for fidelity levels is serving as bounds that restrict
-    renderable colors. Unless the bound is no-color, color formats and spaces
-    outside the bound need to be converted to *one of the formats* within the
-    bound. In almost all cases, that means converting a color to the bound's
-    format (denoted by the bound's name in lower case).
+    renderable colors—and renderable styles in case of the plain level. Unless
+    the bound is plain or no-color, color formats and spaces outside the bound
+    need to be converted to *one of the formats* within the bound. In almost all
+    cases, that means converting a color to the bound's format (denoted by the
+    bound's name in lower case).
 
     However, there are three complications.
 
@@ -64,6 +70,7 @@ class Fidelity(enum.Enum):
     Fidelity levels form a total order and support Python's comparison
     operators.
     """
+    PLAIN = -1
     NOCOLOR = 0
     ANSI = 1
     EIGHT_BIT = 2
@@ -82,9 +89,9 @@ class Fidelity(enum.Enum):
 
         assert isinstance(tag, str)
         try:
-            return cls[tag]
-        except KeyError:
             return cls[tag.upper()]
+        except KeyError:
+            return cls[tag]
 
     @classmethod
     def from_color(cls, color: None | ColorSpec) -> 'None | Fidelity':
@@ -135,7 +142,7 @@ class Fidelity(enum.Enum):
         colors should be converted to the fidelity level, except that RGB6
         should be converted to 8-bit color for RGB256 fidelity.
         """
-        if self is Fidelity.NOCOLOR:
+        if self in (Fidelity.PLAIN, Fidelity.NOCOLOR):
             return False
         if tag == 'ansi':
             return True
@@ -158,7 +165,7 @@ class Fidelity(enum.Enum):
         gamut-maps the result, and only then converts to RGB256. Finally, when
         converting to ANSI, it simply re-tags 8-bit colors between -1 and 15.
         """
-        if color is None or self is Fidelity.NOCOLOR:
+        if color is None or self in (Fidelity.PLAIN, Fidelity.NOCOLOR):
             return None
 
         if self.is_renderable(color.tag):
