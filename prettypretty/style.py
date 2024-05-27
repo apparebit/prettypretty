@@ -88,13 +88,41 @@ class Underline(TextAttribute):
     Underlined or not.
 
     Attributes:
-        NOT_UNDERLINED: has no inferior lines
+        NOT_UNDERLINED: has no inferior line
         DEFAULT: marks the lack of lines as the default
-        UNDERLINED: has inferior lines
+        UNDERLINED: has inferior line
     """
     NOT_UNDERLINED = 24
     DEFAULT = 24
     UNDERLINED = 4
+
+
+class Overline(TextAttribute):
+    """
+    Overlined or not.
+
+    Attributes:
+        NOT_OVERLINED: has no superior line
+        DEFAULT: marks the lack of lines as the default
+        OVERLINED: has superior line
+    """
+    NOT_OVERLINED = 55
+    DEFAULT = 55
+    OVERLINED = 53
+
+
+class Strikeline(TextAttribute):
+    """
+    Stricken or not.
+
+    Attributes:
+        NOT_STRICKEN: has no line through
+        DEFAULT: marks the lack of lines as the default
+        STRICKEN: has a line through
+    """
+    NOT_STRICKEN = 29
+    DEFAULT = 29
+    STRICKEN = 9
 
 
 class Coloring(TextAttribute):
@@ -138,7 +166,7 @@ def invert_color(color: None | ColorSpec) -> None | ColorSpec:
     return None if color is None or is_default(color) else DEFAULT_COLOR
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class StyleSpec:
     """
     Specification of a terminal style.
@@ -147,6 +175,8 @@ class StyleSpec:
         weight: for font weight
         slant: for font slant
         underline: for inferior lines
+        overline: for superior lines
+        strikeline: for lines through
         coloring: for color order
         visibility: for visibility
         foreground: for foreground color
@@ -226,6 +256,8 @@ class StyleSpec:
     weight: None | Weight = None
     slant: None | Slant = None
     underline: None | Underline = None
+    overline: None | Overline = None
+    strikeline: None | Strikeline = None
     coloring: None | Coloring = None
     visibility: None | Visibility = None
     foreground: None | ColorSpec = None
@@ -248,6 +280,8 @@ class StyleSpec:
             weight = invert_attr(self.weight),
             slant = invert_attr(self.slant),
             underline = invert_attr(self.underline),
+            overline = invert_attr(self.overline),
+            strikeline = invert_attr(self.strikeline),
             coloring = invert_attr(self.coloring),
             visibility = invert_attr(self.visibility),
             foreground = invert_color(self.foreground),
@@ -263,6 +297,8 @@ class StyleSpec:
             weight = self.weight or not_other.weight,
             slant = self.slant or not_other.slant,
             underline = self.underline or not_other.underline,
+            overline = self.overline or not_other.overline,
+            strikeline = self.strikeline or not_other.strikeline,
             coloring = self.coloring or not_other.coloring,
             visibility = self.visibility or not_other.visibility,
             foreground = self.foreground or not_other.foreground,
@@ -296,13 +332,33 @@ class StyleSpec:
 
     @property
     def not_underlined(self) -> Self:
-        """Render text underlined."""
-        return dataclasses.replace(self, underlined=Underline.NOT_UNDERLINED)
+        """Render text not underlined."""
+        return dataclasses.replace(self, underline=Underline.NOT_UNDERLINED)
 
     @property
     def underlined(self) -> Self:
         """Render text underlined."""
-        return dataclasses.replace(self, underlined=Underline.UNDERLINED)
+        return dataclasses.replace(self, underline=Underline.UNDERLINED)
+
+    @property
+    def not_overlined(self) -> Self:
+        """Render text not overlined."""
+        return dataclasses.replace(self, overline=Overline.NOT_OVERLINED)
+
+    @property
+    def overlined(self) -> Self:
+        """Render text overlined."""
+        return dataclasses.replace(self, overline=Overline.OVERLINED)
+
+    @property
+    def not_stricken(self) -> Self:
+        """Render text not stricken."""
+        return dataclasses.replace(self, strikeline=Strikeline.NOT_STRICKEN)
+
+    @property
+    def stricken(self) -> Self:
+        """Render text stricken."""
+        return dataclasses.replace(self, strikeline=Strikeline.STRICKEN)
 
     @property
     def not_reversed(self) -> Self:
@@ -402,6 +458,10 @@ class StyleSpec:
             parameters.append(self.slant.value)
         if self.underline is not None:
             parameters.append(self.underline.value)
+        if self.overline is not None:
+            parameters.append(self.overline.value)
+        if self.strikeline is not None:
+            parameters.append(self.strikeline.value)
         if self.coloring is not None:
             parameters.append(self.coloring.value)
         if self.visibility is not None:
