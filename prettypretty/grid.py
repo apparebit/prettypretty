@@ -303,6 +303,6 @@ if __name__ == '__main__':
                         )
 
         theme_name = builtin_theme_name(current_theme())
-        term.italic().writeln(
-            f'Used ', theme_name or 'current terminal theme', '!\n'
+        term.writeln(
+            f'Prettypretty used ', theme_name or 'current terminal theme', '!\n'
         ).flush()
