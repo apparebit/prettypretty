@@ -2,18 +2,20 @@ import os
 import sys
 
 from .color.conversion import get_converter
-from .color.theme import current_theme
+from .color.theme import current_theme, Theme
 
 
-def is_dark_theme() -> bool:
+def is_dark_theme(theme: None | Theme = None) -> bool:
     """
-    Determine whether the current terminal theme is a dark theme. This function
-    converts the default foreground and background colors of the current theme
-    to the XYZ color space and then compares their Y, that is, luminance,
-    components. If foreground has has higher luminance than the background, the
-    terminal is using a dark therme.
+    Determine whether the given terminal theme is a dark theme. If not theme is
+    provided, this function uses the current theme. To detect dark themes, this
+    function converts the default foreground and background colors to the XYZ
+    color space and then compares their Y or luminance components. If the
+    foreground has higher luminance than the background, the theme is a dark
+    theme.
     """
-    theme = current_theme()
+    if theme is None:
+        theme = current_theme()
 
     # Convert to XYZ
     foreground_xyz = get_converter(theme.text.tag, 'xyz')(*theme.text.coordinates)
