@@ -22,6 +22,12 @@ class Theme:
     color, ANSI escape codes cannot modify the appearance of these additional UI
     elements and hence they can be safely ignored.
 
+    Since circular definition of extended ANSI colors in terms of extended ANSI
+    colors defeats the purpose of color themes, this class rejects values tagged
+    as ``ansi`` or as ``eight_bit`` if the value is between -1 and 15,
+    inclusive. While technically acceptable, the remaining 8-bit colors as well
+    as the RGB6 colors are not recommended for theme colors either.
+
     Instances of this class are immutable.
     """
     text: ColorSpec
@@ -42,6 +48,14 @@ class Theme:
     bright_magenta: ColorSpec
     bright_cyan: ColorSpec
     bright_white: ColorSpec
+
+    def __post_init__(self) -> None:
+        for field, color in self.colors():
+            if (
+                color.tag == 'ansi'
+                or (color.tag == 'eight_bit' and -1 <= color.coordinates[0] <= 15)
+            ):
+                raise ValueError(f'ANSI color for {field} is defined by ANSI color')
 
     def colors(self) -> Iterator[tuple[str, ColorSpec]]:
         """Get an iterator over the name, color pairs of this theme."""
