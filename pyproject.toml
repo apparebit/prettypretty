@@ -13,6 +13,7 @@ dev = ["pyright", "flit"]
 doc = [
     "sphinx",
     "sphinxcontrib-autoprogram",
+    "sphinx-copybutton",
     "sphinx_design",
     "sphinx-rtd-theme",
 ]

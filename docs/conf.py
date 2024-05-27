@@ -36,6 +36,7 @@ extensions = [
     #"sphinx.ext.extlinks",
     "sphinx.ext.viewcode",
     "sphinxcontrib.autoprogram",
+    "sphinx_copybutton",
     "sphinx_design",
     "sphinx_rtd_theme",
 ]
@@ -43,6 +44,7 @@ extensions = [
 napoleon_include_init_with_doc = True
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+copybutton_exclude = '.linenos, .gp, .go'
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
