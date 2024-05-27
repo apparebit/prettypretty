@@ -1,4 +1,5 @@
 import enum
+import os
 from typing import cast, Literal, Self, TypeAlias
 
 from .color.conversion import get_converter, srgb_to_rgb256
@@ -192,29 +193,63 @@ class Fidelity(enum.Enum):
         )
 
 
-# def _defined(*variables: str) -> bool:
-#     for variable in variables:
-#         if variable in os.environ:
-#             return True
-#     return False
+def _defined(*variables: str) -> bool:
+    for variable in variables:
+        if variable in os.environ:
+            return True
+    return False
 
 
-# def environment_fidelity() -> str:
-#     if os.environ.get('TERM') == 'dumb':
-#         return 'nocolor'
+def environment_fidelity(is_tty: bool) -> Fidelity:
+    """
+    Determine the current terminal's fidelity based on the environment variables
+    for this process. This function incorporates logic from the `supports-color
+    <https://github.com/chalk/supports-color/blob/main/index.js>`_ package. The
+    ``istty`` argument indicates whether the terminal's output is a TTY.
+    """
+    force = os.environ.get('FORCE_COLOR')
+    if force is not None and force != 'false':
+        if force in ('', '1', 'true'):
+            return Fidelity.ANSI
+        if force == '2':
+            return Fidelity.EIGHT_BIT
+        if force == '3':
+            return Fidelity.RGB256
 
-#     if _defined('CI'):
-#         if _defined('GITHUB_ACTIONS', 'GITEA_ACTIONS'):
-#             return 'rgb256'
+    if _defined('TF_BUILD', 'AGENT_NAME'):
+        # Azure DevOps
+        return Fidelity.ANSI
 
-#         if _defined(
-#             'TRAVIS', 'CIRCLECI', 'APPVEYOR', 'GITLAB_CI', 'BUILDKITE', 'DRONE'
-#         ) or os.environ.get('CI_NAME') == 'codeship':
-#             return 'ansi'
+    if not is_tty:
+        return Fidelity.NOCOLOR
 
-#         return 'nocolor'
+    TERM = os.environ.get('TERM')
 
-#     if os.environ.get('COLORTERM') == 'truecolor':
-#         return 'rgb256'
+    if TERM == 'dumb':
+        return Fidelity.NOCOLOR
 
-#     return 'eight_bit'
+    # FIXME: Windows 10 build 10586 for eight_bit,
+    # Windows 10 build 14931 for truecolor, but what terminal??
+
+    if _defined('CI'):
+        if _defined('GITHUB_ACTIONS', 'GITEA_ACTIONS'):
+            return Fidelity.RGB256
+
+        if _defined(
+            'TRAVIS', 'CIRCLECI', 'APPVEYOR', 'GITLAB_CI', 'BUILDKITE', 'DRONE'
+        ) or os.environ.get('CI_NAME') == 'codeship':
+            return Fidelity.ANSI
+
+        return Fidelity.NOCOLOR
+
+    if os.environ.get('COLORTERM') == 'truecolor':
+        return Fidelity.RGB256
+
+    if TERM == 'xterm-kitty':
+        return Fidelity.RGB256
+
+    if TERM and (TERM.endswith('-256') or TERM.endswith('-256color')):
+        return Fidelity.EIGHT_BIT
+
+    # Even the Windows CMD shell does the basic colors
+    return Fidelity.ANSI
