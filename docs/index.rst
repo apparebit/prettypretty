@@ -18,11 +18,10 @@ uniform color spaces.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Guides
+   :caption: In Depth
 
    formats-and-spaces
    conversions
-   tooling
    hires-slices
 
 .. toctree::
@@ -31,6 +30,7 @@ uniform color spaces.
 
    apidocs/prettypretty
    apidocs/color
+   apidocs/tools
 
 .. toctree::
    :maxdepth: 1

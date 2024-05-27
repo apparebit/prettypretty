@@ -3,7 +3,9 @@ from collections.abc import Iterator
 import random
 import time
 
-from prettypretty.style import RichText, Style
+from prettypretty.color.serde import stringify
+from prettypretty.darkmode import is_dark_theme
+from prettypretty.style import RichText, Style, StyleSpec
 from prettypretty.terminal import Terminal
 
 
@@ -13,19 +15,16 @@ def create_parser() -> argparse.ArgumentParser:
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
-        '--ansi-only',
-        action='store_const',
-        const='ansi',
-        default='rgb256',
-        dest='fidelity',
-        help='use ANSI colors only',
+        '--nocolor', action='store_const', const='nocolor', dest='fidelity',
+        help='do not use any colors'
     )
     group.add_argument(
-        '--eight-bit-only',
-        action='store_const',
-        const='eight_bit',
-        dest='fidelity',
-        help='use 8-bit colors only',
+        '--ansi', action='store_const', const='ansi', dest='fidelity',
+        help='use at most ANSI colors only',
+    )
+    group.add_argument(
+        '--eight-bit', action='store_const', const='eight_bit', dest='fidelity',
+        help='use at most 8-bit colors',
     )
     return parser
 
@@ -36,10 +35,11 @@ WIDTH = 100 // STEPS + (1 if 100 % STEPS != 0 else 0)
 assert WIDTH * STEPS >= 100
 
 
-STYLE = Style.fg('p3', 0, 1, 0)
+LIGHT_MODE_BAR = Style.fg('p3', 0, 1, 0)
+DARK_MODE_BAR = Style.fg('rgb256', 3, 151, 49)
 
 
-def format_bar(percent: float) -> RichText:
+def format_bar(percent: float, style: StyleSpec) -> RichText:
     """Generate progress bar for given percentage."""
     percent = min(percent, 100)  # Clamp max at 100.0
 
@@ -52,7 +52,7 @@ def format_bar(percent: float) -> RichText:
     bar = bar.ljust(WIDTH, BLOCKS[0])
 
     # But the displayed percentage is nicely floating point.
-    return RichText.of('┫', STYLE, bar, ~STYLE, '┣', f' {percent:5.1f}%')
+    return RichText.of('  ┫', style, bar, ~style, '┣', f' {percent:5.1f}%')
 
 
 def progress_reports() -> Iterator[float]:
@@ -68,18 +68,23 @@ def main() -> None:
     options = create_parser().parse_args()
 
     with (
-        Terminal()
+        Terminal(fidelity=options.fidelity)
         .terminal_theme()
-        .fidelity(options.fidelity)
         .hidden_cursor()
         .scoped_style()
     ) as term:
-        term.writeln('\n')
+        style = DARK_MODE_BAR if is_dark_theme() else LIGHT_MODE_BAR
+        style = style.prepare(term.fidelity)
+
+        fg = style.foreground
+        term.writeln(f'Using {
+            "no color" if fg is None else stringify(fg.tag, fg.coordinates)
+        }\n')
 
         for percent in progress_reports():
-            term.column(0).rich_text(format_bar(percent)).flush()
+            bar = format_bar(percent, style)
+            term.column(0).rich_text(bar).flush()
             time.sleep(random.uniform(1/60, 1/10))
-
         term.writeln('\n').flush()
 
 
