@@ -323,8 +323,8 @@ class Terminal:
          3. Semantic level to identify terminal properties
 
         See :meth:`read` and :meth:`read_control`; also
-        :meth:`make_raw_request`, :meth:`make_textual_request`, and
-        :meth:`make_numeric_request`; also :meth:`request_terminal_version`,
+        :meth:`make_raw_request`, :meth:`parse_textual_response`, and
+        :meth:`parse_numeric_response`; also :meth:`request_terminal_version`,
         :meth:`request_cursor_position`, :meth:`request_batch_mode`,
         :meth:`request_ansi_color`, :meth:`request_dynamic_color`, and
         :meth:`request_theme`.
@@ -627,73 +627,65 @@ class Terminal:
         except TimeoutError:
             return None
 
-    def make_textual_request(
+    def parse_textual_response(
         self,
-        *query: None | int | str,
+        response: None | bytes,
         prefix: str,
         suffix: str,
     ) -> None | str:
         """
-        Process a request with textual response for this terminal.
+        Parse the terminal's textual response to an ANSI escape query.
 
-        This method write the request to this terminal, reads in the response,
-        converts it to UTF8, checks that the resulting string starts with
-        ``prefix`` and ends with ``suffix``, respectively, and returns the text
-        in between. This method correctly accounts for the fact that ``ST`` and
-        ``BEL`` may be used interchangeably at the end of OSC sequences. In such
-        cases, please pass ``ST`` as  the suffix.
+        This method converts the response to a string, checks that is starts
+        with the prefix and ends with the suffix, and then returns the text
+        between prefix and suffix. If the suffix is ST, this method also allows
+        BEL, as both are used interchangeably for terminating OSC.
 
-        The terminal must be in cbreak mode.
-
-        .. warning::
-            This method requires that ``prefix`` and ``suffix`` each are at
-            least one character long.
+        If the response is ``None`` or malformed, this method returns ``None``.
         """
-        byte_response = self.make_raw_request(*query)
-        if byte_response is None:
+        if response is None:
             return None
 
-        response = byte_response.decode('utf8')
-        if not response.startswith(prefix):
+        r = response.decode('utf8')
+        if not r.startswith(prefix):
             return None
-        if not response.endswith(suffix):
-            # BEL is just as valid as ST
-            if suffix != Ansi.ST or not response.endswith(Ansi.BEL):
+        if not r.endswith(suffix):
+            if suffix != Ansi.ST or not r.endswith(Ansi.BEL):
                 return None
             suffix = Ansi.BEL
 
-        return response[len(prefix): -len(suffix)]
+        end = -len(suffix) if suffix else len(r)
+        return r[len(prefix): end]
 
-    def make_numeric_request(
+    def parse_numeric_response(
         self,
-        *query: None | int | str,
+        response: None | bytes,
         prefix: bytes,
         suffix: bytes,
     ) -> list[int]:
         """
-        Process a request with a numeric response for this terminal.
+        Parse the terminal's numeric response to an ANSI escape query.
 
-        This method write the request to this terminal, reads in the response,
-        converts it to UTF8, checks that the resulting string starts with
-        ``prefix`` and ends with ``suffix``, respectively, and returns the text
-        in between. This method correctly accounts for the fact that ``ST`` and
-        ``BEL`` may be used interchangeably at the end of OSC sequences. In such
-        cases, please pass ``ST`` as  the suffix.
+        This method checks that the given response starts with the prefix and
+        ends with the suffix, splits the bytes between prefix and suffix by
+        semicolons, and parses the resulting byte fragments as integers. Empty
+        byte fragments are parsed as -1.
 
-        The terminal must be in cbreak mode.
-
-        .. warning::
-            This method requires that ``prefix`` and ``suffix`` each are at
-            least one character long.
+        If the response is ``None`` or malformed, this method returns an empty
+        list.
         """
-        byte_response = self.make_raw_request(*query)
-        if byte_response is None:
+        if (
+            response is None
+            or not response.startswith(prefix)
+            or not response.endswith(suffix)
+        ):
             return []
 
-        if not byte_response.startswith(prefix) or not byte_response.endswith(suffix):
-            return []
-
-        return [int(p) for p in byte_response[len(prefix): -len(suffix)].split(b';')]
+        end = -len(suffix) if suffix else len(response)
+        return [
+            (int(p) if p else -1)
+            for p in response[len(prefix): end].split(b';')
+        ]
 
     # ----------------------------------------------------------------------------------
 
@@ -702,63 +694,84 @@ class Terminal:
         Request the terminal name and version. The terminal must be in cbreak
         mode.
         """
-        terminal = self.make_textual_request(
-            Ansi.CSI, '>q', prefix=f'{Ansi.DCS}>|', suffix=Ansi.ST
+        return self.parse_textual_response(
+            self.make_raw_request(Ansi.CSI, '>q'),
+            prefix=f'{Ansi.DCS}>|',
+            suffix=Ansi.ST,
         )
-        return terminal
 
     def request_cursor_position(self) -> None | tuple[int, int]:
         """
         Request the cursor position in (x, y) order from this terminal. The
         terminal must be in cbreak mode.
         """
-        numbers = self.make_numeric_request(
-            Ansi.CSI, '6n', prefix=b'\x1b[', suffix=b'R'
+        parameters = self.parse_numeric_response(
+            self.make_raw_request(Ansi.CSI, '6n'),
+            prefix=b'\x1b[', suffix=b'R'
         )
-        return None if len(numbers) != 2 else (numbers[0], numbers[1])
+        return None if len(parameters) != 2 else (parameters[0], parameters[1])
 
     def request_batch_mode(self) -> BatchMode:
         """
         Determine the terminal's current batch mode. The terminal must be in
         cbreak mode.
         """
-        response = self.make_numeric_request(
-            Ansi.CSI, "?2026$p", prefix=b"\x1b[?2026;", suffix=b"$y"
+        parameters = self.parse_numeric_response(
+            self.make_raw_request(Ansi.CSI, "?2026$p"),
+            prefix=b"\x1b[?2026;",
+            suffix=b"$y",
         )
         return (
-            BatchMode(response[0]) if len(response) == 1 else BatchMode.NOT_SUPPORTED
+            BatchMode(parameters[0])
+            if len(parameters) == 1
+            else BatchMode.NOT_SUPPORTED
         )
 
     # ----------------------------------------------------------------------------------
 
-    def _process_color(self, response: None | str) -> None | tuple[int, int, int]:
-        if response is None or not response.startswith('rgb:'):
-            return None
-        return cast(
-            tuple[int, int, int],
-            tuple(int(v, base=16) for v in response[4:].split('/'))
+    def _parse_color(
+        self,
+        index: int,
+        name: str,
+        response: None | bytes,
+    ) -> ColorSpec:
+        if response is None:
+            raise ValueError(f"no response to request for {name}'s color")
+
+        if index <= 1:
+            prefix = f'{Ansi.OSC}{10 + index};'
+        else:
+            prefix = f'{Ansi.OSC}4;{index - 2};'
+
+        r = self.parse_textual_response(response, prefix=prefix, suffix=Ansi.ST)
+        if r is None or not r.startswith('rgb:'):
+            raise ValueError(f"malformed response for {name}'s color")
+
+        return ColorSpec(
+            'srgb',
+            cast(
+                tuple[float, float, float],
+                tuple(int(v, base=16) / 0xffff for v in r[4:].split('/'))
+            )
         )
 
-    def request_ansi_color(self, color: int) -> None | tuple[int, int, int]:
+    def request_ansi_color(self, color: int) -> ColorSpec:
         """
         Determine the color for the given extended ANSI color. This method
-        parses the color but does not normalize it. That matters because
-        terminals respond to OSC-4 queries with colors that comprise four
-        hexadecimal digits per component and hence have higher resolution than
-        RGB256. The returned color coordinates could be called RGB65536, since
-        they are integers ranging from 0 to 65,535, inclusive.
+        queries the terminal, parses the result, which by convention uses four
+        hexadecimal digits per component, and normalizes it to sRGB.
 
         The terminal must be in cbreak mode.
         """
         assert 0 <= color <= 15
 
-        return self._process_color(self.make_textual_request(
-            Ansi.OSC, 4, color, ';?', Ansi.ST,
-            prefix=f'{Ansi.OSC}4;{color};',
-            suffix=Ansi.ST,
-        ))
+        return self._parse_color(
+            color + 2,
+            dataclasses.fields(Theme)[color + 2].name,
+            self.make_raw_request(Ansi.OSC, 4, color, ';?', Ansi.ST)
+        )
 
-    def request_dynamic_color(self, code: int) -> None | tuple[int, int, int]:
+    def request_dynamic_color(self, code: int) -> ColorSpec:
         """
         Determine the color for the user interface element identified by
         ``code``:
@@ -766,47 +779,107 @@ class Terminal:
             * 10 is the foreground or text color
             * 11 is the background color
 
-        This method parses the color but does not normalize it. That matters
-        because terminals respond to OSC-10 and OSC-11 queries with colors that
-        comprise four hexadecimal digits per component and hence have higher
-        resolution than RGB256. The returned color coordinates could be called
-        RGB65536, since they are integers ranging from 0 to 65,535, inclusive.
+        This method queries the terminal, parses the result, which by convention
+        uses four hexadecimal digits per component, and normalizes it to sRGB.
 
         The terminal must be in cbreak mode.
         """
         assert 10 <= code <= 11
 
-        return self._process_color(self.make_textual_request(
-            Ansi.OSC, code, ';?', Ansi.ST,
-            prefix=f'{Ansi.OSC}{code};',
-            suffix=Ansi.ST,
-        ))
+        return self._parse_color(
+            code - 10,
+            dataclasses.fields(Theme)[code - 10].name,
+            self.make_raw_request(Ansi.OSC, code, ';?', Ansi.ST),
+        )
 
-    def request_theme(self) -> Theme:
+    def request_theme_pipelined(self, three_stages: bool = True) -> Theme:
         """
-        Extract the entirety of the current color theme from the terminal. The
-        terminal must be in cbreak mode.
+        Request all theme colors from the terminal. This method issues all
+        requests before reading and parsings responses. The terminal must be in
+        cbreak mode.
         """
-        colors: list[tuple[int, int, int]] = []
+        self.check_cbreak_mode()
 
         for code in range(10, 12):
-            color = self.request_dynamic_color(code)
-            if color is None:
-                raise ValueError(
-                    f'Unable to determine value for default color {code - 9}'
-                )
-            colors.append(color)
+            self.write_control(Ansi.OSC, code, ';?', Ansi.ST)
+        for color in range(16):
+            self.write_control(Ansi.OSC, 4, color, ';?', Ansi.ST)
+        self.flush()
 
+        if three_stages:
+            responses: list[bytes] = []
+            for _ in range(18):
+                response = self.read_control()
+                responses.append(response)
+
+            colors: list[ColorSpec] = []
+            for index, (field, response) in enumerate(
+                zip(dataclasses.fields(Theme), responses)
+            ):
+                colors.append(self._parse_color(index, field.name, response))
+        else:
+            colors = []
+            for index, field in enumerate(dataclasses.fields(Theme)):
+                response = self.read_control()
+                colors.append(self._parse_color(index, field.name, response))
+
+        return Theme(**{f.name: c for f, c in zip(dataclasses.fields(Theme), colors)})
+
+    def _request_theme_v1(self) -> Theme:
+        # (1) Completely process each color.
+        colors: list[ColorSpec] = []
+
+        for code in range(10, 12):
+            colors.append(self.request_dynamic_color(code))
         for code in range(16):
-            color = self.request_ansi_color(code)
-            if color is None:
-                raise ValueError(f'Unable to determine value for ANSI color {code}')
-            colors.append(color)
+            colors.append(self.request_ansi_color(code))
 
-        return Theme(**{
-            f.name: ColorSpec('srgb', (c[0] / 0xffff, c[1] / 0xffff, c[2] / 0xffff))
-            for f, c in zip(dataclasses.fields(Theme), colors)
-        })
+        return Theme(**{f.name: c for f, c in zip(dataclasses.fields(Theme), colors)})
+
+    def _request_theme_v2(self) -> Theme:
+        # (1) Write all requests. (2) Read + parse all responses.
+        colors: list[ColorSpec] = []
+
+        self.check_cbreak_mode()
+
+        for code in range(10, 12):
+            self.write_control(Ansi.OSC, code, ';?', Ansi.ST)
+        for color in range(16):
+            self.write_control(Ansi.OSC, 4, color, ';?', Ansi.ST)
+        self.flush()
+
+        for index, field in enumerate(dataclasses.fields(Theme)):
+            response = self.read_control()
+            colors.append(self._parse_color(index, field.name, response))
+
+        return Theme(**{f.name: c for f, c in zip(dataclasses.fields(Theme), colors)})
+
+    def _request_theme_v3(self) -> Theme:
+        # (1) Write all requests. (2) Read all responses. (3) Parse all responses.
+        colors: list[ColorSpec] = []
+
+        self.check_cbreak_mode()
+
+        for code in range(10, 12):
+            self.write_control(Ansi.OSC, code, ';?', Ansi.ST)
+        for color in range(16):
+            self.write_control(Ansi.OSC, 4, color, ';?', Ansi.ST)
+        self.flush()
+
+        responses: list[None | bytes] = []
+        for _ in range(18):
+            responses.append(self.read_control())
+
+        for i, (f, response) in enumerate(zip(dataclasses.fields(Theme), responses)):
+            colors.append(self._parse_color(i, f.name, response))
+
+        return Theme(**{f.name: c for f, c in zip(dataclasses.fields(Theme), colors)})
+
+    request_theme = _request_theme_v3
+    """
+    Request all theme colors from the terminal. The terminal must be in
+    cbreak mode.
+    """
 
     # ----------------------------------------------------------------------------------
     # Terminal Context
@@ -1002,3 +1075,20 @@ class Terminal:
                 Layer.BACKGROUND, *cast(tuple[int, ...], color.coordinates)
             ), 'm')
         return self
+
+
+if __name__ == '__main__':
+    import timeit
+
+    with Terminal().cbreak_mode() as term:
+        timer1 = timeit.Timer(lambda: term._request_theme_v1())  # type: ignore
+        time_taken = timer1.timeit(10)
+        print(f'1 stage : {time_taken / 10:.6f}')
+
+        timer2 = timeit.Timer(lambda: term._request_theme_v2())  # type: ignore
+        time_taken = timer2.timeit(10)
+        print(f'2 stages: {time_taken / 10:.6f}')
+
+        timer3 = timeit.Timer(lambda: term._request_theme_v3())  # type: ignore
+        time_taken = timer3.timeit(10)
+        print(f'3 stages: {time_taken / 10:.6f}')
