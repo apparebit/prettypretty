@@ -21,10 +21,9 @@ from typing import (
 )
 
 from .ansi import Ansi, Layer
-from .color.lores import rgb6_to_eight_bit
 from .color.spec import ColorSpec
 from .color.theme import current_theme, Theme
-from .fidelity import Fidelity, FidelityTag
+from .fidelity import environment_fidelity, Fidelity, FidelityTag
 from .style import RichText, RichTextElement, StyleSpec
 
 
@@ -227,21 +226,6 @@ class TerminalContextManager(AbstractContextManager['Terminal']):
             Ansi.fuse(Ansi.CSI, "?2004l"),
         )
 
-    @contextmanager
-    def _fidelity(self, fidelity: Fidelity) -> Iterator[Fidelity]:
-        saved_fidelity = self._terminal._fidelity  # type: ignore[reportPrivateUsage]
-        self._terminal._fidelity = fidelity  # type: ignore[reportPrivateUsage]
-        try:
-            yield fidelity
-        finally:
-            self._terminal._fidelity = saved_fidelity  # type: ignore[reportPrivateUsage]
-
-    def fidelity(self, fidelity: FidelityTag | Fidelity) -> Self:
-        """Use the given color fidelity for terminal output."""
-        fidelity = Fidelity.from_tag(fidelity)
-        self._updates.append(lambda: self._fidelity(fidelity))
-        return self
-
     def scoped_style(self) -> Self:
         """Scope style changes by resetting the style on exit."""
         return self.register('', Ansi.fuse(Ansi.CSI, 'm'))
@@ -371,33 +355,31 @@ class Terminal:
         probably want to use :data:`.Style` for defining styles instead and then
         apply them to this terminal.
 
-        See :meth:`reset_style`, :meth:`apply`, :meth:`bold`, :meth:`italic`,
-        :meth:`fg`, and :meth:`bg`.
+        See :meth:`reset_style`, :meth:`rich_text`, :meth:`bold`,
+        :meth:`italic`, :meth:`fg`, and :meth:`bg`.
 
     """
     def __init__(
         self,
         input: None | TextIO = None,
-        output: None | TextIO = None
+        output: None | TextIO = None,
+        fidelity: None | Fidelity | FidelityTag = None,
     ) -> None:
         self._input = input or sys.__stdin__
         self._input_fileno: int = self._input.fileno()
         self._output = output or sys.__stdout__
-        self._fidelity = Fidelity.RGB256
+        self._interactive = self._input.isatty() and self._output.isatty()
+        if fidelity is None:
+            fidelity = environment_fidelity(self._output.isatty())
+        self._fidelity = Fidelity.from_tag(fidelity)
         self._width, self._height = self.request_size() or (80, 24)
 
     # ----------------------------------------------------------------------------------
-    # The Underlying I/O
 
     @property
-    def input(self) -> TextIO:
-        """The terminal's input."""
-        return self._input
-
-    @property
-    def output(self) -> TextIO:
-        """The terminal's output."""
-        return self._output
+    def fidelity(self) -> Fidelity:
+        """This terminal's color fidelity."""
+        return self._fidelity
 
     # ----------------------------------------------------------------------------------
     # Terminal Size
@@ -860,10 +842,6 @@ class Terminal:
         """
         return TerminalContextManager(self).bracketed_paste()
 
-    def fidelity(self, fidelity: FidelityTag | Fidelity) -> TerminalContextManager:
-        """Use the given color fidelity for terminal output."""
-        return TerminalContextManager(self).fidelity(fidelity)
-
     def scoped_style(self) -> TerminalContextManager:
         """
         Scope style changes by resetting the style on exit. The ``style()``
@@ -971,29 +949,6 @@ class Terminal:
         """Set italic style."""
         return self.write_control(Ansi.CSI, '2m')
 
-    def _color_parameters(
-        self,
-        layer: Layer,
-        r: int | ColorSpec,
-        g: None | int = None,
-        b: None | int = None,
-    ) -> tuple[int, ...]:
-        if g is None:
-            assert b is None
-            if isinstance(r, int):
-                cs: tuple[int] | tuple[int, int, int] = r,
-            elif r.tag == 'rgb6':
-                cs = rgb6_to_eight_bit(*cast(tuple[int, int, int], r.coordinates))
-            elif r.tag in ('ansi', 'eight_bit', 'rgb256'):
-                cs = cast(tuple[int] | tuple[int, int, int], r.coordinates)
-            else:
-                raise ValueError(f'cannot use "{r.tag}" as terminal color')
-        else:
-            assert g is not None and b is not None
-            cs = cast(int, r), g, b
-
-        return Ansi.color_parameters(layer, *cs)
-
     @overload
     def fg(self, color: ColorSpec, /) -> Self:
         ...
@@ -1001,28 +956,25 @@ class Terminal:
     def fg(self, color: int, /) -> Self:
         ...
     @overload
-    def fg(self, r: int, g: int, b: int, /) -> Self:
+    def fg(self, tag: str, c: int, /) -> Self:
+        ...
+    @overload
+    def fg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
         ...
     def fg(
-        self, r: int | ColorSpec, g: None | int = None, b: None | int = None
+        self,
+        tag: int | str | ColorSpec,
+        c1: None | float = None,
+        c2: None | float = None,
+        c3: None | float = None,
     ) -> Self:
-        """
-        Set the foreground color.
-
-        When invoked on a color specification, it must be in the ``ansi``,
-        ``eight_bit``, ``rgb6``, or ``rgb256`` format.
-
-        When invoked with an integer color, the value must be -1 for the default
-        color or 0–255 for 8-bit terminal color.
-
-        When invoked with three integer coordinates, they must be the
-        coordinates of an RGB256 color.
-        """
-        return self.write_control(
-            Ansi.CSI,
-            *self._color_parameters(Layer.TEXT, r, g, b),
-            'm'
-        )
+        """Set the foreground color."""
+        color = self._fidelity.prepare_to_render(ColorSpec.of(tag, c1, c2, c3))
+        if color is not None:
+            self.write_control(Ansi.CSI, *Ansi.color_parameters(
+                Layer.TEXT, *cast(tuple[int, ...], color.coordinates)
+            ), 'm')
+        return self
 
     @overload
     def bg(self, color: ColorSpec, /) -> Self:
@@ -1031,25 +983,22 @@ class Terminal:
     def bg(self, color: int, /) -> Self:
         ...
     @overload
-    def bg(self, r: int, g: int, b: int, /) -> Self:
+    def bg(self, tag: str, c: int, /) -> Self:
+        ...
+    @overload
+    def bg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
         ...
     def bg(
-        self, r: int | ColorSpec, g: None | int = None, b: None | int = None
+        self,
+        tag: int | str | ColorSpec,
+        c1: None | float = None,
+        c2: None | float = None,
+        c3: None | float = None,
     ) -> Self:
-        """
-        Set the background color.
-
-        When invoked on a color specification, it must be in the ``ansi``,
-        ``eight_bit``, ``rgb6``, or ``rgb256`` format.
-
-        When invoked with an integer color, the value must be -1 for the default
-        color or 0–255 for 8-bit terminal color.
-
-        When invoked with three integer coordinates, they must be the
-        coordinates of an RGB256 color.
-        """
-        return self.write_control(
-            Ansi.CSI,
-            *self._color_parameters(Layer.BACKGROUND, r, g, b),
-            'm'
-        )
+        """Set the background color."""
+        color = self._fidelity.prepare_to_render(ColorSpec.of(tag, c1, c2, c3))
+        if color is not None:
+            self.write_control(Ansi.CSI, *Ansi.color_parameters(
+                Layer.BACKGROUND, *cast(tuple[int, ...], color.coordinates)
+            ), 'm')
+        return self
