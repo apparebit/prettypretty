@@ -18,7 +18,7 @@ them.
 from collections.abc import Sequence
 import dataclasses
 import enum
-from typing import cast, overload, Self, TypeAlias
+from typing import cast, overload, Self, TypeAlias, TypeVar
 
 from .ansi import Ansi, DEFAULT_COLOR, is_default, Layer
 from .color.spec import ColorSpec
@@ -125,6 +125,19 @@ class Visibility(TextAttribute):
     HIDDEN = 8
 
 
+TA = TypeVar('TA', bound=TextAttribute)
+
+
+def invert_attr(attr: None | TA) -> None | TA:
+    """Invert the given text attribute."""
+    return None if attr is None else ~attr
+
+
+def invert_color(color: None | ColorSpec) -> None | ColorSpec:
+    """Invert the given color."""
+    return None if color is None or is_default(color) else DEFAULT_COLOR
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class StyleSpec:
     """
@@ -195,6 +208,18 @@ class StyleSpec:
 
             print(WARNING, 'Warning!', ~WARNING)
 
+    .. note::
+
+        Style specifications also overload Python's subtraction operator. The
+        result of that operation is another style specification that takes the
+        terminal state from the second specification to the first. Assuming that
+        ``STYLE1`` and ``STYLE2`` are style specifications, the following two
+        print statements are equivalent:
+
+        .. code-block:: python
+
+            print(STYLE2)
+            print(STYLE1, STYLE2 - STYLE1)
 
     Instances of this class are immutable.
     """
@@ -219,17 +244,29 @@ class StyleSpec:
         object.__setattr__(self, 'fidelity', fidelity)
 
     def __invert__(self) -> Self:
-        def invert_color(color: None | ColorSpec) -> None | ColorSpec:
-            return None if color is None or is_default(color) else DEFAULT_COLOR
-
         return type(self)(
-            weight = None if self.weight is None else ~self.weight,
-            slant = None if self.slant is None else ~self.slant,
-            underline = None if self.underline is None else ~self.underline,
-            coloring = None if self.coloring is None else ~self.coloring,
-            visibility = None if self.visibility is None else ~self.visibility,
+            weight = invert_attr(self.weight),
+            slant = invert_attr(self.slant),
+            underline = invert_attr(self.underline),
+            coloring = invert_attr(self.coloring),
+            visibility = invert_attr(self.visibility),
             foreground = invert_color(self.foreground),
             background = invert_color(self.background),
+        )
+
+    def __sub__(self, other: object) -> Self:
+        if not isinstance(other, StyleSpec):
+            return NotImplemented
+
+        not_other = ~other
+        return type(self)(
+            weight = self.weight or not_other.weight,
+            slant = self.slant or not_other.slant,
+            underline = self.underline or not_other.underline,
+            coloring = self.coloring or not_other.coloring,
+            visibility = self.visibility or not_other.visibility,
+            foreground = self.foreground or not_other.foreground,
+            background = self.background or not_other.background,
         )
 
     @property
@@ -287,21 +324,6 @@ class StyleSpec:
         """Do not render text."""
         return dataclasses.replace(self, visibility=Visibility.HIDDEN)
 
-    def _use_color(
-        self,
-        color: int | ColorSpec | str,
-        c1: None | float,
-        c2: None | float,
-        c3: None | float,
-    ) -> ColorSpec:
-        if isinstance(color, int):
-            return ColorSpec('ansi' if color <= 15 else 'eight_bit', (color,))
-        elif isinstance(color, ColorSpec):
-            return color
-
-        assert c1 is not None and c2 is not None and c3 is not None
-        return ColorSpec(color, (c1, c2, c3))
-
     @overload
     def fg(self, color: int, /) -> Self:
         ...
@@ -309,26 +331,20 @@ class StyleSpec:
     def fg(self, color: ColorSpec, /) -> Self:
         ...
     @overload
+    def fg(self, tag: str, c: int, /) -> Self:
+        ...
+    @overload
     def fg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
         ...
     def fg(
         self,
-        color: int | ColorSpec | str,
+        color: int | str | ColorSpec,
         c1: None | float = None,
         c2: None | float = None,
         c3: None | float = None,
     ) -> Self:
-        """
-        Set the foreground color.
-
-        This method should be invoked with a color specification (or full color
-        object) as its only argument. However, to avoid notational clutter when
-        manually defining style specifications, this method also accepts the
-        singular integer value of ANSI or 8-bit colors as well as the tag and
-        coordinates of color specifications. Otherwise, there are no
-        restrictions on valid colors.
-        """
-        return dataclasses.replace(self, foreground=self._use_color(color, c1, c2, c3))
+        """Set the foreground color."""
+        return dataclasses.replace(self, foreground=ColorSpec.of(color, c1, c2, c3))
 
     @overload
     def bg(self, color: int, /) -> Self:
@@ -337,26 +353,20 @@ class StyleSpec:
     def bg(self, color: ColorSpec, /) -> Self:
         ...
     @overload
+    def bg(self, tag: str, c: int, /) -> Self:
+        ...
+    @overload
     def bg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
         ...
     def bg(
         self,
-        color: int | ColorSpec | str,
+        color: int | str | ColorSpec,
         c1: None | float = None,
         c2: None | float = None,
         c3: None | float = None,
     ) -> Self:
-        """
-        Set the background color.
-
-        This method should be invoked with a color specification (or full color
-        object) as its only argument. However, to avoid notational clutter when
-        manually defining style specifications, this method also accepts the
-        singular integer value of ANSI or 8-bit colors as well as the tag and
-        coordinates of color specifications. Otherwise, there are no
-        restrictions on valid colors.
-        """
-        return dataclasses.replace(self, background=self._use_color(color, c1, c2, c3))
+        """Set the background color."""
+        return dataclasses.replace(self, background=ColorSpec.of(color, c1, c2, c3))
 
     def prepare(self, fidelity: Fidelity | FidelityTag) -> Self:
         """
