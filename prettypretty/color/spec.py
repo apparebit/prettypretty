@@ -12,7 +12,7 @@ Basic type declarations for coordinates, colors, and conversions:
 All container types are immutable.
 """
 import dataclasses
-from typing import overload, Protocol, TypeAlias
+from typing import overload, Protocol, Self, TypeAlias
 
 IntCoordinateSpec: TypeAlias = tuple[int, int, int]
 FloatCoordinateSpec: TypeAlias = tuple[float, float, float]
@@ -89,3 +89,42 @@ class ColorSpec:
         count = 1 if code == '1i' else 3
         if (l := len(self.coordinates)) != count:
             raise ValueError(f'{self.tag} should have {count} coordinates, not {l}')
+
+    @classmethod
+    def of(
+        cls,
+        tag: int | str | Self,
+        c1: None | float = None,
+        c2: None | float = None,
+        c3: None | float = None,
+    ) -> Self:
+        """
+        Coerce the arguments into a color specification. While this method has
+        four distinct overloads, they remain intentionally undeclared. That way,
+        this method can be used to implement other methods with the same
+        signature and explicitly declared overloads. The four overloads are:
+
+         1. Invoking this method with a color specification results in the same
+            color specification.
+         2. Invoking this method with an integer results in a color
+            specification tagged ``ansi`` or ``eight_bit``, depending on whether
+            the value is below 16, and the value as coordinates.
+         3. Invoking this method with a string tag and integer coordinate
+            results in a new color specification with the same tag and
+            coordinate (as a tuple).
+         4. Invoking this method with a string and three integer or floating
+            point coordinates results in a new color specification with the same
+            tag and coordinates (as a tuple).
+        """
+        if isinstance(tag, cls):
+            return tag
+        if isinstance(tag, int):
+            return cls('ansi' if tag <= 15 else 'eight_bit', (tag,))
+
+        assert isinstance(tag, str)
+        if c2 is None:
+            assert isinstance(c1, int) and c3 is None
+            return cls(tag, (c1,))
+
+        assert c1 is not None and c2 is not None and c3 is not None
+        return cls(tag, (c1, c2, c3))
