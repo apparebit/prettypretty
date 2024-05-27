@@ -265,17 +265,34 @@ class StyleSpec:
     fidelity: None | Fidelity = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
-        fg = self.foreground
-        bg = self.background
+        if all(
+            getattr(self, f.name) is None
+            for f in dataclasses.fields(self)
+            if f.name != 'fidelity'  # Careful, the attribute has not been set!
+        ):
+            fidelity = Fidelity.PLAIN
+        else:
+            fg = self.foreground
+            bg = self.background
 
-        # Fill in the fidelity
-        fg_fid = Fidelity.from_color(fg)
-        bg_fid = Fidelity.from_color(bg)
+            # Fill in the fidelity
+            fg_fid = Fidelity.from_color(fg)
+            bg_fid = Fidelity.from_color(bg)
 
-        fidelity = None if fg_fid is None or bg_fid is None else max(fg_fid, bg_fid)
+            fidelity = None if fg_fid is None or bg_fid is None else max(fg_fid, bg_fid)
+
         object.__setattr__(self, 'fidelity', fidelity)
 
+    @property
+    def plain(self) -> bool:
+        """The flag for an empty style specification."""
+        return self.fidelity is Fidelity.PLAIN
+
     def __invert__(self) -> Self:
+        if self.plain:
+            # Nothing to invert
+            return self
+
         return type(self)(
             weight = invert_attr(self.weight),
             slant = invert_attr(self.slant),
@@ -292,17 +309,20 @@ class StyleSpec:
         if not isinstance(other, StyleSpec):
             return NotImplemented
 
-        not_other = ~other
+        inverted_other = ~other
+        if inverted_other.plain:
+            return self
+
         return type(self)(
-            weight = self.weight or not_other.weight,
-            slant = self.slant or not_other.slant,
-            underline = self.underline or not_other.underline,
-            overline = self.overline or not_other.overline,
-            strikeline = self.strikeline or not_other.strikeline,
-            coloring = self.coloring or not_other.coloring,
-            visibility = self.visibility or not_other.visibility,
-            foreground = self.foreground or not_other.foreground,
-            background = self.background or not_other.background,
+            weight = self.weight or inverted_other.weight,
+            slant = self.slant or inverted_other.slant,
+            underline = self.underline or inverted_other.underline,
+            overline = self.overline or inverted_other.overline,
+            strikeline = self.strikeline or inverted_other.strikeline,
+            coloring = self.coloring or inverted_other.coloring,
+            visibility = self.visibility or inverted_other.visibility,
+            foreground = self.foreground or inverted_other.foreground,
+            background = self.background or inverted_other.background,
         )
 
     @property
@@ -432,6 +452,9 @@ class StyleSpec:
         if self.fidelity is not None and self.fidelity <= fidelity:
             return self
 
+        if fidelity is Fidelity.PLAIN:
+            return type(self)()
+
         fg = fidelity.prepare_to_render(self.foreground)
         bg = fidelity.prepare_to_render(self.background)
         return dataclasses.replace(self, foreground=fg, background=bg)
@@ -538,7 +561,14 @@ class RichText(Sequence[RichTextElement]):
         """Prepare this rich text for rendering at the given fidelity."""
         if self.fidelity is not None and self.fidelity <= fidelity:
             return self
-        return type(self)(tuple(
-            f.prepare(fidelity) if isinstance(f, StyleSpec) else f
-            for f in self.fragments
-        ))
+
+        fragments: list[RichTextElement] = []
+        for fragment in self.fragments:
+            if isinstance(fragment, StyleSpec):
+                fragment = fragment.prepare(fidelity)
+                if fragment.plain:
+                    # A plain style specification is superfluous
+                    continue
+            fragments.append(fragment)
+
+        return type(self)(tuple(fragments))
