@@ -13,6 +13,7 @@ from typing import (
     cast,
     ClassVar,
     ContextManager,
+    Literal,
     Never,
     overload,
     Self,
@@ -24,7 +25,8 @@ from .ansi import Ansi, Layer
 from .color.spec import ColorSpec
 from .color.theme import current_theme, Theme
 from .fidelity import environment_fidelity, Fidelity, FidelityTag
-from .style import Link, MoveCursor, PlaceCursor, RichText, RichTextElement, StyleSpec
+from .ident import identify
+from .style import RichText, RichTextElement
 
 
 TerminalMode: TypeAlias = list[Any]
@@ -35,8 +37,8 @@ class TerminalModeComponent:
     LFLAG = 3
 
 
-_REFLECTIVE_METHODS = {
-    'at', 'column', 'down', 'left', 'link', 'right', 'up'
+_REFLECTED_METHODS = {
+    'write_control', 'at', 'column', 'down', 'left', 'link', 'right', 'up'
 }
 
 
@@ -370,6 +372,8 @@ class Terminal:
         output: None | TextIO = None,
         fidelity: None | Fidelity | FidelityTag = None,
     ) -> None:
+        self._name_version: Literal[False] | None | tuple[str, str] = False
+
         self._input = input or sys.__stdin__
         self._input_fileno: int = self._input.fileno()
         self._output = output or sys.__stdout__
@@ -711,18 +715,36 @@ class Terminal:
 
     # ----------------------------------------------------------------------------------
 
-    def request_terminal_version(self) -> None | str:
-        """
-        Request the terminal name and version.
-
-        The terminal must have TTYs for input and output. It also must be in
-        cbreak mode.
-        """
-        return self.parse_textual_response(
+    def _do_request_terminal_version(self) -> None | tuple[str, str]:
+        response = self.parse_textual_response(
             self.make_raw_request(Ansi.CSI, '>q'),
             prefix=f'{Ansi.DCS}>|',
             suffix=Ansi.ST,
         )
+        if response is None:
+            return None
+
+        if response.endswith(')'):
+            name, _, version = response[:-1].partition('(')
+        else:
+            name, _, version = response.partition(' ')
+
+        return name, version
+
+
+    def request_terminal_version(self) -> None | tuple[str, str]:
+        """
+        Request the terminal name and version.
+
+        If querying the terminal does not work, this method tries several other
+        alternatives. If any of them is successful, it caches the result.
+
+        The terminal must have TTYs for input and output. It also must be in
+        cbreak mode.
+        """
+        if self._name_version is False:
+            self._name_version = identify(self._do_request_terminal_version())
+        return self._name_version
 
     def request_cursor_position(self) -> None | tuple[int, int]:
         """
@@ -1028,21 +1050,18 @@ class Terminal:
             if not isinstance(rich_text, RichText):
                 rich_text = RichText(tuple(rich_text))
         else:
-            # A tuple of strings and style specifications
-            rich_text = RichText(cast(tuple[str | StyleSpec, ...], fragments))
+            # A tuple of rich text elements
+            rich_text = RichText(cast(tuple[RichTextElement, ...], fragments))
 
         # Adjust rich text to terminal fidelity and then output contents
         for fragment in rich_text.prepare(self._fidelity):
             if isinstance(fragment, str):
                 self.write(fragment)
-            elif isinstance(fragment, StyleSpec):
-                self.write_control(str(fragment))
             else:
-                assert isinstance(fragment, (Link, MoveCursor, PlaceCursor))
-                method = fragment.method()
-                if method not in _REFLECTIVE_METHODS:
-                    raise ValueError(f'{method} is not reflected')
-                getattr(self, method)(*fragment.args())
+                method, args = fragment.delegate()
+                if method not in _REFLECTED_METHODS:
+                    raise ValueError(f'{method} is not a reflected method')
+                getattr(self, method)(*args)
         return self
 
     def bold(self) -> Self:

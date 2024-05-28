@@ -345,14 +345,14 @@ class TestColor(unittest.TestCase):
 
 
     def test_parameters(self) -> None:
-        from prettypretty.style import Style
+        from prettypretty.style import rich
 
         for style, expected_params, inverse_params in (
-            (Style.fg(-1), (39,), ()),
-            (Style.fg(1), (31,), (39,)),
-            (Style.bg(9), (101,), (49,)),
-            (Style.bg(240), (48, 5, 240), (49,)),
-            (Style.fg(ColorSpec('eight_bit', (12,))), (38, 5, 12), (39,)),
+            (rich().fg(-1).style(), (39,), ()),
+            (rich().fg(1).style(), (31,), (39,)),
+            (rich().bg(9).style(), (101,), (49,)),
+            (rich().bg(240).style(), (48, 5, 240), (49,)),
+            (rich().fg(ColorSpec('eight_bit', (12,))).style(), (38, 5, 12), (39,)),
         ):
             actual_params = style.sgr_parameters()
             self.assertSequenceEqual(actual_params, expected_params)

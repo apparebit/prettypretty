@@ -5,7 +5,7 @@ import time
 
 from prettypretty.color.serde import stringify
 from prettypretty.darkmode import is_dark_theme
-from prettypretty.style import RichText, Style, StyleSpec
+from prettypretty.style import rich, RichText, Style
 from prettypretty.terminal import Terminal
 
 
@@ -34,11 +34,11 @@ STEPS = len(BLOCKS) - 1
 WIDTH = 100 // STEPS + (1 if 100 % STEPS != 0 else 0)
 assert WIDTH * STEPS >= 100  # Without the adjustment, this wouldn't hold
 
-LIGHT_MODE_BAR = Style.fg('p3', 0, 1, 0)
-DARK_MODE_BAR = Style.fg('rgb256', 3, 151, 49)
+LIGHT_MODE_BAR = rich().fg('p3', 0, 1, 0).style()
+DARK_MODE_BAR = rich().fg('rgb256', 3, 151, 49).style()
 
 
-def format_bar(percent: float, style: StyleSpec) -> RichText:
+def format_bar(percent: float, style: Style) -> RichText:
     """Generate progress bar for given percentage."""
     percent = min(percent, 100)  # Clamp max at 100.0
 

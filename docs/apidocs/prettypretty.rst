@@ -28,6 +28,13 @@ prettypretty.fidelity
     :members:
 
 
+prettypretty.ident
+------------------
+
+.. automodule:: prettypretty.ident
+    :members:
+
+
 prettypretty.style
 ------------------
 

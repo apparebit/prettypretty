@@ -63,31 +63,43 @@ Of Styles and Terminals
 
 In addition to colors, terminals support a few more attributes for styling text,
 including to change its weight or slant, add over-, middle-, and underlines, and
-so on. To fully leverage prettypretty, you declare each of these styles, which
-combine text attributes with fore- and background colors. The progress bar
-script declares two of them:
+so on. While you can directly write styles to terminal output, the more robust
+alternative is to declare all of your application's styles in one place. That
+helps with the design and maintenance of styles. It also makes it easier to
+select the right styles for use. The progress bar script uses the :class:`.rich`
+builder to declare two styles:
 
 .. code-block:: python
 
-   LIGHT_MODE_BAR = Style.fg('p3', 0, 1, 0)
-   DARK_MODE_BAR = Style.fg('rgb256', 3, 151, 49)
+   LIGHT_MODE_BAR = rich().fg('p3', 0, 1, 0).style()
+   DARK_MODE_BAR = rich().fg('rgb256', 3, 151, 49).style()
 
-If you wanted to highlight the effective color value, you might add a warning
-style:
+You could create styles with their constructor but, depending on the number of
+attributes you'd like set, that won't be very readable. The :class:`rich`
+builder is the cleaner option, since it provides a fluent interface for
+declaring styles—and also rich text sequences, which increase the repertoire
+with hyperlinks and cursor movement. Let's stick with styles, however, and
+see how we might declare a warning style:
 
 .. code-block:: python
 
-   WARNING = Style.bold.fg(0).bg(220)
+   WARNING = rich().bold.fg(0).bg(220).style()
 
-As you can see, styles fluently declare text attributes (through properties) and
-colors (through method invocations). When declaring a style, only include
-attributes that you want set and nothing else. Also, don't bother with defining
-styles that undo other styles or incrementally transition from one style to the
-next. You can easily and automatically compute them with Python's negation ``~``
-and subtraction ``-`` operators. In particular, the style ``~style`` undoes all
-attributes of ``style``, hence restoring the terminal to its default appearance.
-The style ``style2 - style1`` incrementally transitions from ``style1`` to
-``style2``.
+Compared to the two styles above, the warning style also sets a text attribute
+(through a property) and the background color (through a method). The latter
+color, by the way, is a bright 8-bit orange. When declaring a style, only
+include attributes that you want set and nothing else. Also, don't bother with
+defining styles that undo other styles or incrementally transition from one
+style to another.
+
+You can easily and automatically compute them with Python's negation ``~``,
+subtraction ``-``, and alternative ``|`` operators. In particular, the style
+``~style`` undoes all attributes of ``style``, hence restoring the terminal to
+its default appearance. The style ``style2 - style1`` incrementally transitions
+from ``style1`` to ``style2``. The style ``style1 | style2`` lets you recover
+complete styles from incremental transitions by combining all attributes from
+``style1`` and ``style2``. Remember that ``|`` does give precedence to the first
+operand ``style1`` if both of them impact the same attribute.
 
 For example, `the last line
 <https://github.com/apparebit/prettypretty/blob/da0d1a6d0277dd3a240a1b49037925036f7e8498/prettypretty/progress.py#L55>`_
@@ -98,9 +110,9 @@ intended purpose, restoring the default appearance:
 
    return RichText.of('  ┫', style, bar, ~style, '┣', f' {percent:5.1f}%')
 
-:class:`RichText` is a sequence of strings and style specifications that
-simplifies color adjustment during output. You don't need to use it but it may
-speed up output a little bit.
+:class:`RichText` is a sequence of strings, styles, and so on that simplifies
+color adjustment during output. You don't need to use it but it may speed up
+output a little bit.
 
 The progress bar script's `main function
 <https://github.com/apparebit/prettypretty/blob/da0d1a6d0277dd3a240a1b49037925036f7e8498/prettypretty/progress.py#L67>`_

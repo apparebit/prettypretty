@@ -18,7 +18,7 @@ them.
 from collections.abc import Sequence
 import dataclasses
 import enum
-from typing import Any, cast, Literal, overload, Self, TypeAlias, TypeVar
+from typing import cast, Literal, overload, Self, TypeAlias, TypeVar
 
 from .ansi import Ansi, DEFAULT_COLOR, is_default, Layer
 from .color.spec import ColorSpec
@@ -168,17 +168,22 @@ def invert_color(color: None | ColorSpec) -> None | ColorSpec:
 
 class Instruction:
     """
-    The superclass of all terminal instructions available to rich text. They
-    include styles to modify the appearance of text, absolute and relative
-    cursor positioning, as well as hyperlinks.
+    The superclass of all terminal instructions available to rich text.
     """
     __slots__ = ()
 
+    def delegate(self) -> tuple[str, tuple[object, ...]]:
+        raise NotImplementedError()
+
+    @property
+    def has_text(self) -> bool:
+        return False
+
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
-class StyleSpec(Instruction):
+class Style(Instruction):
     """
-    Specification of a terminal style.
+    A terminal style.
 
     Attributes:
         weight: for font weight
@@ -211,54 +216,17 @@ class StyleSpec(Instruction):
     initialization and identifies the minimum fidelity level needed for
     rendering this style. A null fidelity indicates that this style contains
     arbitrary colors and hence has unbounded fidelity. Meanwhile
-    :attr:`.Fidelity.NOCOLOR` indicates that the style specification does not
-    contain any colors.
+    :attr:`.Fidelity.NOCOLOR` indicates that the style does not contain any
+    colors and :attr:`.Fidelity.PLAIN` indicates an empty style.
 
     .. note::
 
-        Creating style specifications by invoking the constructor is *not*
-        idiomatic. It simply is too verbose to be ergonomic. Instead,
-        application code should use the fluent properties and methods defined by
-        this class to instantiate the desired style specification off the
-        module-level :data:`Style` object:
-
-        .. code-block:: python
-
-            WARNING = Style.bold.fg(0).bg(220)
-
-        The example defines the warning style as bold black text on a
-        yellow-orange background.
-
-    .. note::
-
-        Style specifications overload Python's inversion operator. The result of
-        that operation is another style specification that restores the default
-        terminal state after the original style specification.
-
-        Also, the string representation of a style specification is the
+        Styles overload Python's inversion operator. The result of that
+        operation is another style that restores the terminal to its default
+        appearance. Styles also overload Python's subtraction operator, which
+        returns the style that incrementally transitions from the second to the
+        first style. Finally, the string representation of styles is the
         corresponding SGR ANSI escape sequence.
-
-        The combination of the two features makes setting and unsetting styles
-        rather convenient. For example, to set the above warning style, print
-        " Warning! " (with a leading and trailing space) in that style, and then
-        restore the default style, we just write:
-
-        .. code-block:: python
-
-            print(WARNING, 'Warning!', ~WARNING)
-
-    .. note::
-
-        Style specifications also overload Python's subtraction operator. The
-        result of that operation is another style specification that takes the
-        terminal state from the second specification to the first. Assuming that
-        ``STYLE1`` and ``STYLE2`` are style specifications, the following two
-        print statements are equivalent:
-
-        .. code-block:: python
-
-            print(STYLE2)
-            print(STYLE1, STYLE2 - STYLE1)
 
     Instances of this class are immutable.
     """
@@ -315,7 +283,7 @@ class StyleSpec(Instruction):
         )
 
     def __sub__(self, other: object) -> Self:
-        if not isinstance(other, StyleSpec):
+        if not isinstance(other, type(self)):
             return NotImplemented
 
         inverted_other = ~other
@@ -334,124 +302,21 @@ class StyleSpec(Instruction):
             background = self.background or inverted_other.background,
         )
 
-    @property
-    def regular(self) -> Self:
-        """Render text with regular weight."""
-        return dataclasses.replace(self, weight=Weight.REGULAR)
+    def __or__(self, other: object) -> Self:
+        if not isinstance(other, type(self)):
+            return NotImplemented
 
-    @property
-    def light(self) -> Self:
-        """Render text with light weight."""
-        return dataclasses.replace(self, weight=Weight.LIGHT)
-
-    @property
-    def bold(self) -> Self:
-        """Render text with bold weight."""
-        return dataclasses.replace(self, weight=Weight.BOLD)
-
-    @property
-    def upright(self) -> Self:
-        """Render text in upright."""
-        return dataclasses.replace(self, slant=Slant.UPRIGHT)
-
-    @property
-    def italic(self) -> Self:
-        """Render text in italic."""
-        return dataclasses.replace(self, slant=Slant.ITALIC)
-
-    @property
-    def not_underlined(self) -> Self:
-        """Render text not underlined."""
-        return dataclasses.replace(self, underline=Underline.NOT_UNDERLINED)
-
-    @property
-    def underlined(self) -> Self:
-        """Render text underlined."""
-        return dataclasses.replace(self, underline=Underline.UNDERLINED)
-
-    @property
-    def not_overlined(self) -> Self:
-        """Render text not overlined."""
-        return dataclasses.replace(self, overline=Overline.NOT_OVERLINED)
-
-    @property
-    def overlined(self) -> Self:
-        """Render text overlined."""
-        return dataclasses.replace(self, overline=Overline.OVERLINED)
-
-    @property
-    def not_stricken(self) -> Self:
-        """Render text not stricken."""
-        return dataclasses.replace(self, strikeline=Strikeline.NOT_STRICKEN)
-
-    @property
-    def stricken(self) -> Self:
-        """Render text stricken."""
-        return dataclasses.replace(self, strikeline=Strikeline.STRICKEN)
-
-    @property
-    def not_reversed(self) -> Self:
-        """Render text with background and foreground colors reversed."""
-        return dataclasses.replace(self, coloring=Coloring.NOT_REVERSED)
-
-    @property
-    def reversed(self) -> Self:
-        """Render text with background and foreground colors reversed."""
-        return dataclasses.replace(self, coloring=Coloring.REVERSED)
-
-    @property
-    def not_hidden(self) -> Self:
-        """Do not render text."""
-        return dataclasses.replace(self, visibility=Visibility.NOT_HIDDEN)
-
-    @property
-    def hidden(self) -> Self:
-        """Do not render text."""
-        return dataclasses.replace(self, visibility=Visibility.HIDDEN)
-
-    @overload
-    def fg(self, color: int, /) -> Self:
-        ...
-    @overload
-    def fg(self, color: ColorSpec, /) -> Self:
-        ...
-    @overload
-    def fg(self, tag: str, c: int, /) -> Self:
-        ...
-    @overload
-    def fg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
-        ...
-    def fg(
-        self,
-        color: int | str | ColorSpec,
-        c1: None | float = None,
-        c2: None | float = None,
-        c3: None | float = None,
-    ) -> Self:
-        """Set the foreground color."""
-        return dataclasses.replace(self, foreground=ColorSpec.of(color, c1, c2, c3))
-
-    @overload
-    def bg(self, color: int, /) -> Self:
-        ...
-    @overload
-    def bg(self, color: ColorSpec, /) -> Self:
-        ...
-    @overload
-    def bg(self, tag: str, c: int, /) -> Self:
-        ...
-    @overload
-    def bg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
-        ...
-    def bg(
-        self,
-        color: int | str | ColorSpec,
-        c1: None | float = None,
-        c2: None | float = None,
-        c3: None | float = None,
-    ) -> Self:
-        """Set the background color."""
-        return dataclasses.replace(self, background=ColorSpec.of(color, c1, c2, c3))
+        return type(self)(
+            weight = self.weight or other.weight,
+            slant = self.slant or other.slant,
+            underline = self.underline or other.underline,
+            overline = self.overline or other.overline,
+            strikeline = self.strikeline or other.strikeline,
+            coloring = self.coloring or other.coloring,
+            visibility = self.visibility or other.visibility,
+            foreground = self.foreground or other.foreground,
+            background = self.background or other.background,
+        )
 
     def prepare(self, fidelity: Fidelity | FidelityTag) -> Self:
         """
@@ -512,18 +377,8 @@ class StyleSpec(Instruction):
     def __str__(self) -> str:
         return self.sgr()
 
-
-Style = StyleSpec()
-"""
-An empty style for starting fluent style configurations. It is used in the
-example below to define the style for error messages as bold white text on a
-deep red background.
-
-.. code-block:: python
-
-    ERROR_STYLE = Style.bold.fg(15).bg(88)
-
-"""
+    def delegate(self) -> tuple[str, tuple[object, ...]]:
+        return 'write_control', (self.sgr(),)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -540,11 +395,12 @@ class Link(Instruction):
     href: str
     id: None | str = None
 
-    def method(self) -> str:
-        return 'link'
+    def delegate(self) -> tuple[str, tuple[object, ...]]:
+        return 'link', (self.text, self.href, self.id)
 
-    def args(self) -> tuple[Any, ...]:
-        return self.text, self.href, self.id
+    @property
+    def has_text(self) -> bool:
+        return bool(self.text)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -556,15 +412,11 @@ class PlaceCursor(Instruction):
         row:
         column:
     """
-
     row: None | int = None
     column: None | int = None
 
-    def method(self) -> str:
-        return 'at'
-
-    def args(self) -> tuple[Any, ...]:
-        return self.row, self.column
+    def delegate(self) -> tuple[str, tuple[object, ...]]:
+        return 'at', (self.row, self.column)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -579,11 +431,8 @@ class MoveCursor(Instruction):
     move: Literal['up', 'down', 'left', 'right', 'column']
     offset: None | int = None
 
-    def method(self) -> str:
-        return self.move
-
-    def args(self) -> tuple[Any, ...]:
-        return self.offset,
+    def delegate(self) -> tuple[str, tuple[object, ...]]:
+        return self.move, (self.offset,)
 
 
 RichTextElement: TypeAlias = str | Instruction
@@ -606,7 +455,7 @@ class RichText(Sequence[RichTextElement]):
         for fragment in self.fragments:
             if isinstance(fragment, str):
                 continue
-            if isinstance(fragment, StyleSpec):
+            if isinstance(fragment, Style):
                 f = fragment.fidelity
                 if f is None:
                     fidelity = None
@@ -636,13 +485,13 @@ class RichText(Sequence[RichTextElement]):
 
         fragments: list[RichTextElement] = []
         for fragment in self.fragments:
-            if isinstance(fragment, str):
-                # Always keep text
+            if isinstance(fragment, str) or fragment.has_text:
+                # Keep all text
                 pass
             elif fidelity is Fidelity.PLAIN:
                 # Drop instructions on plain fidelity
                 continue
-            elif isinstance(fragment, StyleSpec):
+            elif isinstance(fragment, Style):
                 # Adjust style
                 fragment = fragment.prepare(fidelity)
                 if fragment.plain:
@@ -651,3 +500,293 @@ class RichText(Sequence[RichTextElement]):
             fragments.append(fragment)
 
         return type(self)(tuple(fragments))
+
+
+class rich:
+    """
+    A rich builder.
+
+    This class helps create styles and rich text through fluent property
+    accesses and method invocations. In addition to text attributes and colors,
+    it also tracks cursor movements and hyperlinks.
+
+    A rich builder can have isolated or incremental styles. Isolated styles are
+    the default for builders created by :meth:`rich`, whereas builders created
+    by :meth:`rich.incremental` have incremental styles. The trade-off is that,
+    with isolated styles, you don't need to worry about undoing styles because
+    this class does that for you. However, you do need to worry about all styles
+    standing on their own and cannot rely on the previous style contributing
+    attributes. It's just the opposite for incremental styles. You can rely on
+    the attributes of the previous style and incrementally add to them. But you
+    also need to undo your own styles.
+
+    For isolated and incremental styles alike, if you want to undo the current
+    style without setting a new style, you can just call :meth:`undo_style` and
+    let prettypretty figure out the needed antistyle. For isolated styles, that
+    always is the empty style. For incremental styles, that style may just
+    depend on all preceding styles.
+    """
+    def __init__(self, incremental: bool = False) -> None:
+        self._elements: list[None | RichTextElement] = []
+        self._last_style: None | int = None
+        self._incremental = incremental
+
+    @classmethod
+    def incremental(cls) -> Self:
+        """Create a new builder with incremental styles."""
+        return cls(incremental=True)
+
+    @overload
+    def style(self) -> Style:
+        ...
+    @overload
+    def style(self, style: Style) -> Self:
+        ...
+    def style(self, style: None | Style = None) -> Self | Style:
+        """
+        Get or add a style.
+
+        If invoked without arguments, this method returns the last updated
+        style. It does not consider any preceding styles, even if this rich
+        builder is in incremental mode.
+
+        If invoked with a style argument, this method adds the style to the rich
+        text sequence being built. Whether the style is treated as isolated or
+        incremental depends on this rich builder's mode.
+        """
+        if style is None:
+            if self._last_style is None:
+                raise ValueError('rich text without style')
+            return cast(Style, self._elements[self._last_style])
+
+        self._elements.append(style)
+        self._last_style = len(self._elements) - 1
+        return self
+
+    def undo(self) -> Self:
+        """Undo the currently effective style."""
+        self._elements.append(None)
+        return self
+
+    def emit(self, close_style: bool = True) -> RichText:
+        """
+        Emit the built rich text sequence.
+
+        This method computes effective styles to fill locations that undo the
+        current style. As long as the argument allows, it also adds a closing
+        style to restore the terminal's default appearance if there isn't one.
+        """
+        elements: list[RichTextElement] = []
+        previous_style = None
+
+        for element in self._elements:
+            if element is not None and not isinstance(element, Style):
+                elements.append(element)
+                continue
+
+            if previous_style is None:
+                # Current style is the only style
+                if element is not None:
+                    elements.append(element)
+                    previous_style = element
+            elif element is None:
+                # Undo previous style, in elements and in previous_style
+                elements.append(~previous_style)
+                previous_style = None
+            elif self._incremental:
+                # Incremental mode applies style as is, composes previous_style
+                elements.append(element)
+                previous_style = element | previous_style
+            else:
+                # Isolated mode applies style difference, sets previous_style
+                elements.append(element - previous_style)
+                previous_style = element
+
+        if close_style and previous_style is not None and not previous_style.plain:
+            elements.append(~previous_style)
+
+        self._elements = []
+        return RichText(tuple(elements))
+
+    def _prepare_style(self) -> Style:
+        if not self._elements or not isinstance(self._elements[-1], Style):
+            self._elements.append(Style())
+            self._last_style = len(self._elements) - 1
+
+        style = self._elements[-1]
+        assert isinstance(style, Style)
+        return style
+
+    def _handle_text_attribute(self, attribute: TextAttribute) -> Self:
+        self._elements[-1] = dataclasses.replace(
+            self._prepare_style(),
+            **{type(attribute).__name__.lower(): attribute}
+        )
+        return self
+
+    @property
+    def regular(self) -> Self:
+        """Update style with regular weight."""
+        return self._handle_text_attribute(Weight.REGULAR)
+
+    @property
+    def light(self) -> Self:
+        """Update style with light weight."""
+        return self._handle_text_attribute(Weight.LIGHT)
+
+    @property
+    def bold(self) -> Self:
+        """Update style with bold weight."""
+        return self._handle_text_attribute(Weight.BOLD)
+
+    @property
+    def upright(self) -> Self:
+        """Update style with upright."""
+        return self._handle_text_attribute(Slant.UPRIGHT)
+
+    @property
+    def italic(self) -> Self:
+        """Update style with italic."""
+        return self._handle_text_attribute(Slant.ITALIC)
+
+    @property
+    def not_underlined(self) -> Self:
+        """Update style with not underlined."""
+        return self._handle_text_attribute(Underline.NOT_UNDERLINED)
+
+    @property
+    def underlined(self) -> Self:
+        """Update style with underlined."""
+        return self._handle_text_attribute(Underline.UNDERLINED)
+
+    @property
+    def not_overlined(self) -> Self:
+        """Update style with not overlined."""
+        return self._handle_text_attribute(Overline.NOT_OVERLINED)
+
+    @property
+    def overlined(self) -> Self:
+        """Update style with overlined."""
+        return self._handle_text_attribute(Overline.OVERLINED)
+
+    @property
+    def not_stricken(self) -> Self:
+        """Update style with not stricken."""
+        return self._handle_text_attribute(Strikeline.NOT_STRICKEN)
+
+    @property
+    def stricken(self) -> Self:
+        """Update style with stricken."""
+        return self._handle_text_attribute(Strikeline.STRICKEN)
+
+    @property
+    def not_reversed(self) -> Self:
+        """Update style with background and foreground colors reversed."""
+        return self._handle_text_attribute(Coloring.NOT_REVERSED)
+
+    @property
+    def reversed(self) -> Self:
+        """Update style with background and foreground colors reversed."""
+        return self._handle_text_attribute(Coloring.REVERSED)
+
+    @property
+    def not_hidden(self) -> Self:
+        """Update style with not hidden."""
+        return self._handle_text_attribute(Visibility.NOT_HIDDEN)
+
+    @property
+    def hidden(self) -> Self:
+        """Update style with hidden."""
+        return self._handle_text_attribute(Visibility.HIDDEN)
+
+    @overload
+    def fg(self, color: int, /) -> Self:
+        ...
+    @overload
+    def fg(self, color: ColorSpec, /) -> Self:
+        ...
+    @overload
+    def fg(self, tag: str, c: int, /) -> Self:
+        ...
+    @overload
+    def fg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
+        ...
+    def fg(
+        self,
+        color: int | str | ColorSpec,
+        c1: None | float = None,
+        c2: None | float = None,
+        c3: None | float = None,
+    ) -> Self:
+        """Update style with foreground color."""
+        self._elements[-1] = dataclasses.replace(
+            self._prepare_style(),
+            foreground=ColorSpec.of(color, c1, c2, c3)
+        )
+        return self
+
+    @overload
+    def bg(self, color: int, /) -> Self:
+        ...
+    @overload
+    def bg(self, color: ColorSpec, /) -> Self:
+        ...
+    @overload
+    def bg(self, tag: str, c: int, /) -> Self:
+        ...
+    @overload
+    def bg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
+        ...
+    def bg(
+        self,
+        color: int | str | ColorSpec,
+        c1: None | float = None,
+        c2: None | float = None,
+        c3: None | float = None,
+    ) -> Self:
+        """Update style with background color."""
+        self._elements[-1] = dataclasses.replace(
+            self._prepare_style(),
+            background=ColorSpec.of(color, c1, c2, c3)
+        )
+        return self
+
+    def link(self, text: str, href: str, id: None | str = None) -> Self:
+        """Add hyperlink."""
+        self._elements.append(Link(text, href, id))
+        return self
+
+    def up(self, offset: None | int = None) -> Self:
+        """Move cursor up."""
+        self._elements.append(MoveCursor('up', offset))
+        return self
+
+    def down(self, offset: None | int = None) -> Self:
+        """"Move cursor down."""
+        self._elements.append(MoveCursor('down', offset))
+        return self
+
+    def left(self, offset: None | int = None) -> Self:
+        """Move cursor left."""
+        self._elements.append(MoveCursor('left', offset))
+        return self
+
+    def right(self, offset: None | int = None) -> Self:
+        """Move cursor right."""
+        self._elements.append(MoveCursor('right', offset))
+        return self
+
+    def column(self, offset: None | int = None) -> Self:
+        """Move cursor to the given column."""
+        self._elements.append(MoveCursor('column', offset))
+        return self
+
+    def at(self, row: None | int = None, column: None | int = None) -> Self:
+        """Move cursor to the given position."""
+        self._elements.append(PlaceCursor(row, column))
+        return self
+
+    def text(self, text: str = '') -> Self:
+        """Add the given text."""
+        self._elements.append(text)
+        return self
