@@ -121,19 +121,21 @@ Overall, prettypretty has robust support for:
   * Using that search to perform high-quality downsampling to 8-bit
     and ANSI colors;
 
-Forget about those chalky or rich terminal interfaces and make them truly
-awesome with prettypretty!
+Are you still using chalk or other, poor substitutes for real terminal color?
+It's time to switch to prettypretty!
 
 
 Acknowledgements
 ----------------
 
 Implementing this package's color support was a breeze. In part, that was
-because I had built a prototype before and knew what I was going for. In part,
-that was because I copied many of the nitty-gritty color algorithms and
+because I had built a prototype before and knew exactly what I was going for. In
+part, that was because I copied many of the nitty-gritty color algorithms and
 conversion matrices from the most excellent `Color.js <https://colorjs.io>`_
 library by `Lea Verou <http://lea.verou.me/>`_ and `Chris Lilley
 <https://svgees.us/>`_. Theirs being a JavaScript library and mine being a
 Python package, there are many differences, small and not so small. But without
 Color.js, I could not have implemented color support in less than a week. Thank
 you!
+
+Now how about bringing terminal colors to `Color.js <https://colorjs.io>`_?
