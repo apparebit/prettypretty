@@ -1015,6 +1015,10 @@ class Terminal:
         underlined. If that's too stringent for your use case, please do `open
         an issue <https://github.com/apparebit/prettypretty/issues/new>`_.
         """
+        if self._fidelity is Fidelity.PLAIN:
+            self.write(text)
+            return self
+
         code = f"8;id={id};" if id else "8;;"
         return (
             self
