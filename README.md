@@ -13,6 +13,10 @@ color theme, dark or light mode, and color preferences. So, what are you waiting
 for? Switch to prettypretty for all your terminal styling needs. Prettypretty is
 awesome!
 
+\[ [Repository](https://github.com/apparebit/prettypretty)
+| [Package](https://pypi.org/project/prettypretty/)
+| [Documentation](https://apparebit.github.io/prettypretty/)
+\]
 
 ## Prettypretty Illustrated
 
