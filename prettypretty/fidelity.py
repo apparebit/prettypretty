@@ -228,12 +228,12 @@ def environment_fidelity(is_tty: bool) -> Fidelity:
         return Fidelity.ANSI
 
     if not is_tty:
-        return Fidelity.NOCOLOR
+        return Fidelity.PLAIN
 
     TERM = os.environ.get('TERM')
 
     if TERM == 'dumb':
-        return Fidelity.NOCOLOR
+        return Fidelity.PLAIN
 
     # FIXME: Windows 10 build 10586 for eight_bit,
     # Windows 10 build 14931 for truecolor, but what terminal??
@@ -247,7 +247,7 @@ def environment_fidelity(is_tty: bool) -> Fidelity:
         ) or os.environ.get('CI_NAME') == 'codeship':
             return Fidelity.ANSI
 
-        return Fidelity.NOCOLOR
+        return Fidelity.PLAIN
 
     if os.environ.get('COLORTERM') == 'truecolor':
         return Fidelity.RGB256
