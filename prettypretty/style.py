@@ -18,7 +18,7 @@ them.
 from collections.abc import Sequence
 import dataclasses
 import enum
-from typing import cast, overload, Self, TypeAlias, TypeVar
+from typing import Any, cast, Literal, overload, Self, TypeAlias, TypeVar
 
 from .ansi import Ansi, DEFAULT_COLOR, is_default, Layer
 from .color.spec import ColorSpec
@@ -166,8 +166,17 @@ def invert_color(color: None | ColorSpec) -> None | ColorSpec:
     return None if color is None or is_default(color) else DEFAULT_COLOR
 
 
+class Instruction:
+    """
+    The superclass of all terminal instructions available to rich text. They
+    include styles to modify the appearance of text, absolute and relative
+    cursor positioning, as well as hyperlinks.
+    """
+    __slots__ = ()
+
+
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
-class StyleSpec:
+class StyleSpec(Instruction):
     """
     Specification of a terminal style.
 
@@ -517,7 +526,67 @@ deep red background.
 """
 
 
-RichTextElement: TypeAlias = str | StyleSpec
+@dataclasses.dataclass(frozen=True, slots=True)
+class Link(Instruction):
+    """
+    A hyperlink.
+
+    Attributes:
+        text:
+        href:
+        id:
+    """
+    text: str
+    href: str
+    id: None | str = None
+
+    def method(self) -> str:
+        return 'link'
+
+    def args(self) -> tuple[Any, ...]:
+        return self.text, self.href, self.id
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class PlaceCursor(Instruction):
+    """
+    Cursor placement by row and column.
+
+    Attributes:
+        row:
+        column:
+    """
+
+    row: None | int = None
+    column: None | int = None
+
+    def method(self) -> str:
+        return 'at'
+
+    def args(self) -> tuple[Any, ...]:
+        return self.row, self.column
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class MoveCursor(Instruction):
+    """
+    Cursor movement along one dimension.
+
+    Attributes:
+        move:
+        offset:
+    """
+    move: Literal['up', 'down', 'left', 'right', 'column']
+    offset: None | int = None
+
+    def method(self) -> str:
+        return self.move
+
+    def args(self) -> tuple[Any, ...]:
+        return self.offset,
+
+
+RichTextElement: TypeAlias = str | Instruction
 """The type of all rich text elements."""
 
 
@@ -533,16 +602,19 @@ class RichText(Sequence[RichTextElement]):
     fidelity: None | Fidelity = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
-        fidelity = Fidelity.NOCOLOR
+        fidelity = Fidelity.PLAIN
         for fragment in self.fragments:
-            if not isinstance(fragment, StyleSpec):
+            if isinstance(fragment, str):
                 continue
+            if isinstance(fragment, StyleSpec):
+                f = fragment.fidelity
+                if f is None:
+                    fidelity = None
+                    break
+            else:
+                f = Fidelity.NOCOLOR
 
-            f = fragment.fidelity
-            if f is None:
-                fidelity = None
-                break
-            fidelity = max(fidelity, f)
+            fidelity = max(f, fidelity)
 
         object.__setattr__(self, 'fidelity', fidelity)
 
@@ -564,11 +636,18 @@ class RichText(Sequence[RichTextElement]):
 
         fragments: list[RichTextElement] = []
         for fragment in self.fragments:
-            if isinstance(fragment, StyleSpec):
+            if isinstance(fragment, str):
+                # Always keep text
+                pass
+            elif fidelity is Fidelity.PLAIN:
+                # Drop instructions on plain fidelity
+                continue
+            elif isinstance(fragment, StyleSpec):
+                # Adjust style
                 fragment = fragment.prepare(fidelity)
                 if fragment.plain:
-                    # A plain style specification is superfluous
                     continue
+
             fragments.append(fragment)
 
         return type(self)(tuple(fragments))

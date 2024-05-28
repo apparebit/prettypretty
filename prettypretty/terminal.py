@@ -24,7 +24,7 @@ from .ansi import Ansi, Layer
 from .color.spec import ColorSpec
 from .color.theme import current_theme, Theme
 from .fidelity import environment_fidelity, Fidelity, FidelityTag
-from .style import RichText, RichTextElement, StyleSpec
+from .style import Link, MoveCursor, PlaceCursor, RichText, RichTextElement, StyleSpec
 
 
 TerminalMode: TypeAlias = list[Any]
@@ -33,6 +33,11 @@ TerminalMode: TypeAlias = list[Any]
 class TerminalModeComponent:
     CC = 6
     LFLAG = 3
+
+
+_REFLECTIVE_METHODS = {
+    'at', 'column', 'down', 'left', 'link', 'right', 'up'
+}
 
 
 class BatchMode(enum.Enum):
@@ -368,10 +373,13 @@ class Terminal:
         self._input = input or sys.__stdin__
         self._input_fileno: int = self._input.fileno()
         self._output = output or sys.__stdout__
-        self._interactive = self._input.isatty() and self._output.isatty()
+
+        self._all_tty = self._input.isatty() and self._output.isatty()
+
         if fidelity is None:
             fidelity = environment_fidelity(self._output.isatty())
         self._fidelity = Fidelity.from_tag(fidelity)
+
         self._width, self._height = self.request_size() or (80, 24)
 
     # ----------------------------------------------------------------------------------
@@ -380,6 +388,18 @@ class Terminal:
     def fidelity(self) -> Fidelity:
         """This terminal's color fidelity."""
         return self._fidelity
+
+    def check_output_tty(self) -> Self:
+        """Check that the output is a TTY."""
+        if self._fidelity is Fidelity.PLAIN:
+            raise ValueError('output does not accept ANSI escape sequences')
+        return self
+
+    def check_tty(self) -> Self:
+        """Check that both input and output are TTYs."""
+        if not self._all_tty:
+            raise ValueError('input and output are not both TTYs')
+        return self
 
     # ----------------------------------------------------------------------------------
     # Terminal Size
@@ -504,13 +524,12 @@ class Terminal:
         that string to this terminal's output. This method does not flush the
         terminal's output.
 
-        This method's implementation does *not* delegate to the :meth:`write`
-        method but directly writes to the terminal's output. While a separate
-        method for writing control sequences helps prepare those sequences
-        (here, by fusing the arguments), the primary motivation for exposing a
-        separate method is to facilitate applications that need to separate
-        content from styling etc.
+        This terminal's fidelity must not be :data:`Fidelity.PLAIN`, which is
+        the case if the output is not a TTY. That restriction applies to all
+        methods that write control sequences, since they always delegate to
+        this method.
         """
+        self.check_output_tty()
         self._output.write(Ansi.fuse(*fragments))
         return self
 
@@ -550,9 +569,10 @@ class Terminal:
         machine for parsing ANSI escape sequences and keeps calling ``read()``
         for more bytes as necessary. It uses ``ESCAPE_TIMEOUT`` as timeout.
 
-        The terminal must be in cbreak mode.
+        The terminal must have TTYs for input and output. It also must be in
+        cbreak mode.
         """
-        self.check_cbreak_mode()
+        self.check_tty().check_cbreak_mode()
         buffer = bytearray()
 
         def next_byte() -> int:
@@ -614,11 +634,13 @@ class Terminal:
         sequence to this terminal as a query and then reads an ANSI escape
         sequence as the response.
 
-        The terminal must be in cbreak mode.
+        The terminal must have TTYs for input and output. It also must be in
+        cbreak mode.
         """
         try:
             return (
                 self
+                .check_tty()
                 .check_cbreak_mode()
                 .write_control(*query)
                 .flush()
@@ -691,8 +713,10 @@ class Terminal:
 
     def request_terminal_version(self) -> None | str:
         """
-        Request the terminal name and version. The terminal must be in cbreak
-        mode.
+        Request the terminal name and version.
+
+        The terminal must have TTYs for input and output. It also must be in
+        cbreak mode.
         """
         return self.parse_textual_response(
             self.make_raw_request(Ansi.CSI, '>q'),
@@ -702,8 +726,10 @@ class Terminal:
 
     def request_cursor_position(self) -> None | tuple[int, int]:
         """
-        Request the cursor position in (x, y) order from this terminal. The
-        terminal must be in cbreak mode.
+        Request the cursor position in (x, y) order from this terminal.
+
+        The terminal must have TTYs for input and output. It also must be in
+        cbreak mode.
         """
         parameters = self.parse_numeric_response(
             self.make_raw_request(Ansi.CSI, '6n'),
@@ -713,7 +739,9 @@ class Terminal:
 
     def request_batch_mode(self) -> BatchMode:
         """
-        Determine the terminal's current batch mode. The terminal must be in
+        Determine the terminal's current batch mode.
+
+        The terminal must have TTYs for input and output. It also must be in
         cbreak mode.
         """
         parameters = self.parse_numeric_response(
@@ -761,7 +789,8 @@ class Terminal:
         queries the terminal, parses the result, which by convention uses four
         hexadecimal digits per component, and normalizes it to sRGB.
 
-        The terminal must be in cbreak mode.
+        The terminal must have TTYs for input and output. It also must be in
+        cbreak mode.
         """
         assert 0 <= color <= 15
 
@@ -782,7 +811,8 @@ class Terminal:
         This method queries the terminal, parses the result, which by convention
         uses four hexadecimal digits per component, and normalizes it to sRGB.
 
-        The terminal must be in cbreak mode.
+        The terminal must have TTYs for input and output. It also must be in
+        cbreak mode.
         """
         assert 10 <= code <= 11
 
@@ -791,39 +821,6 @@ class Terminal:
             dataclasses.fields(Theme)[code - 10].name,
             self.make_raw_request(Ansi.OSC, code, ';?', Ansi.ST),
         )
-
-    def request_theme_pipelined(self, three_stages: bool = True) -> Theme:
-        """
-        Request all theme colors from the terminal. This method issues all
-        requests before reading and parsings responses. The terminal must be in
-        cbreak mode.
-        """
-        self.check_cbreak_mode()
-
-        for code in range(10, 12):
-            self.write_control(Ansi.OSC, code, ';?', Ansi.ST)
-        for color in range(16):
-            self.write_control(Ansi.OSC, 4, color, ';?', Ansi.ST)
-        self.flush()
-
-        if three_stages:
-            responses: list[bytes] = []
-            for _ in range(18):
-                response = self.read_control()
-                responses.append(response)
-
-            colors: list[ColorSpec] = []
-            for index, (field, response) in enumerate(
-                zip(dataclasses.fields(Theme), responses)
-            ):
-                colors.append(self._parse_color(index, field.name, response))
-        else:
-            colors = []
-            for index, field in enumerate(dataclasses.fields(Theme)):
-                response = self.read_control()
-                colors.append(self._parse_color(index, field.name, response))
-
-        return Theme(**{f.name: c for f, c in zip(dataclasses.fields(Theme), colors)})
 
     def _request_theme_v1(self) -> Theme:
         # (1) Completely process each color.
@@ -840,7 +837,7 @@ class Terminal:
         # (1) Write all requests. (2) Read + parse all responses.
         colors: list[ColorSpec] = []
 
-        self.check_cbreak_mode()
+        self.check_tty().check_cbreak_mode()
 
         for code in range(10, 12):
             self.write_control(Ansi.OSC, code, ';?', Ansi.ST)
@@ -858,7 +855,7 @@ class Terminal:
         # (1) Write all requests. (2) Read all responses. (3) Parse all responses.
         colors: list[ColorSpec] = []
 
-        self.check_cbreak_mode()
+        self.check_tty().check_cbreak_mode()
 
         for code in range(10, 12):
             self.write_control(Ansi.OSC, code, ';?', Ansi.ST)
@@ -877,8 +874,36 @@ class Terminal:
 
     request_theme = _request_theme_v3
     """
-    Request all theme colors from the terminal. The terminal must be in
-    cbreak mode.
+    Request all theme colors from the terminal.
+
+    Currently, there are three different implementations of this method:
+
+     1. The first version completely processes one color at a time. It writes
+        the query, then reads the response, and then parses the response.
+     2. The second version operates in two phases: It first writes all 18
+        queries and then reads and parses all 18 responses.
+     3. The third version operates in three phases: It first writes all 18
+        queries, then reads all 18 responses, and finally parses all 18
+        responses.
+
+    In my measurements, the second and third version take only half the time of
+    the first version and, usually, the third version is a bit faster still. But
+    I have seen a couple of spurious failures for terminal queries and hence
+    expect the need for some retry logic, which would complicate things. So for
+    now, I am not ready to commit to either of those three versions. If you feel
+    like experimenting, you can run the microbenchmarks by running this module:
+
+    .. code-block:: console
+
+        python -m prettypretty.terminal
+
+    You can also switch between versions by updating the assignment above this
+    documentation comment in the source code. In either case, please report back
+    about your experiences by `filing an issue
+    <https://github.com/apparebit/prettypretty/issues/new/choose>`_.
+
+    The terminal must have TTYs for input and output. It also must be in cbreak
+    mode.
     """
 
     # ----------------------------------------------------------------------------------
@@ -1010,8 +1035,14 @@ class Terminal:
         for fragment in rich_text.prepare(self._fidelity):
             if isinstance(fragment, str):
                 self.write(fragment)
-            else:
+            elif isinstance(fragment, StyleSpec):
                 self.write_control(str(fragment))
+            else:
+                assert isinstance(fragment, (Link, MoveCursor, PlaceCursor))
+                method = fragment.method()
+                if method not in _REFLECTIVE_METHODS:
+                    raise ValueError(f'{method} is not reflected')
+                getattr(self, method)(*fragment.args())
         return self
 
     def bold(self) -> Self:
