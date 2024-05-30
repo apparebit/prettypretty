@@ -3,15 +3,17 @@ import subprocess
 import sys
 
 
-def identify(response: None | tuple[str, str]) -> None | tuple[str, str]:
-    """Identify the current terminal."""
-    if response is not None:
-        return normalize_name(response[0]), response[1]
+def identify_terminal() -> None | tuple[str, str]:
+    """
+    Identify the current terminal.
 
+    This function implements the fallback strategies for
+    :meth:`.Terminal.request_terminal_identity`.
+    """
     name = lookup_term_program()
     version = lookup_term_program_version()
     if name and version:
-        return normalize_name(name), version
+        return normalize_terminal_name(name), version
 
     if sys.platform != "darwin":
         return None
@@ -21,7 +23,7 @@ def identify(response: None | tuple[str, str]) -> None | tuple[str, str]:
         return None
 
     version = lookup_macos_bundle_version(bundle)
-    return normalize_name(bundle), version or ''
+    return normalize_terminal_name(bundle), version or ''
 
 
 def _init_registry() -> dict[str, str]:
@@ -48,7 +50,7 @@ def _init_registry() -> dict[str, str]:
 _REGISTRY = _init_registry()
 
 
-def normalize_name(name: str) -> str:
+def normalize_terminal_name(name: str) -> str:
     """
     Normalize the terminal name or bundle ID.
 

@@ -25,7 +25,7 @@ from .ansi import Ansi, Layer
 from .color.spec import ColorSpec
 from .color.theme import current_theme, Theme
 from .fidelity import environment_fidelity, Fidelity, FidelityTag
-from .ident import identify
+from .ident import identify_terminal, normalize_terminal_name
 from .style import RichText, RichTextElement
 
 
@@ -311,27 +311,31 @@ class Terminal:
 
     **Writing to terminal output**
         This class exposes different methods for writing text and for writing
-        control sequences. It helps add support for fragment fusion for the
-        latter. More importantly, it supports applications that need to
-        intercept the latter.
+        control sequences. The latter automatically fuses fragments together,
+        adding semicolons between empty and numeric parameters. It also checks
+        that the terminal supports ANSI escapes. Finally, it provides a
+        convenient hook for intercepting them.
 
         See :meth:`write`, :meth:`writeln`:, :meth:`write_control`, and
-        :meth:`flush`.
+        :meth:`flush`; also :attr:`fidelity`, :meth:`check_output_tty`, and
+        :meth:`check_tty`.
 
     **Reading terminal input and ingesting ANSI escapes**
         Python's standard library has extensive support for reading from
-        streams. But when it comes to interactive use, only line-oriented input
-        is reasonably well supported by standard library APIs. This class makes
-        up for that by focusing on character-oriented input and in particular
-        ANSI escape sequences. The latter require three levels of parsing:
+        streams, but only blocking calls including for line-oriented input are
+        convenient to use. This class makes up for that by implementing support
+        for character-oriented, non-blocking input as well as for ANSI escape
+        sequences. The latter require three levels of parsing:
 
-         1. Character level to read an entire control sequence, no less, no more
-         2. Message level to separate integral and textual parameters
-         3. Semantic level to identify terminal properties
+         1. Parse individual character to read an entire control sequence, no
+            less, no more.
+         2. Parse message to to separate the integral or textual payload from
+            message header and tail.
+         3. Parse text to extract terminal name, colors, etc.
 
         See :meth:`read` and :meth:`read_control`; also
         :meth:`make_raw_request`, :meth:`parse_textual_response`, and
-        :meth:`parse_numeric_response`; also :meth:`request_terminal_version`,
+        :meth:`parse_numeric_response`; also :meth:`request_terminal_identity`,
         :meth:`request_cursor_position`, :meth:`request_batch_mode`,
         :meth:`request_ansi_color`, :meth:`request_dynamic_color`, and
         :meth:`request_theme`.
@@ -346,10 +350,11 @@ class Terminal:
         :meth:`alternate_screen`, :meth:`hidden_cursor`, :meth:`batched_output`,
         :meth:`bracketed_paste`, and :meth:`scoped_style`.
 
-    **Setting terminal state**
+    **Simple updates of terminal state**
         Some terminal updates, notably for positioning the cursor and for
-        erasing (parts of) the screen need not or can not be easily undone
-        but still are eminently useful.
+        erasing (parts of) the screen need not or can not be easily undone but
+        still are eminently useful. You can also move the cursor and write links
+        in :class:`.rich` text.
 
         See :meth:`up`, :meth:`down`, :meth:`left`, :meth:`right`,
         :meth:`set_position`, :meth:`set_column`, :meth:`erase_screen`,
@@ -357,10 +362,11 @@ class Terminal:
 
     **Setting terminal styles**
         What's the point of integrating terminal colors with robust color
-        management? Styling terminal output, of course! Alas, this class only
-        has perfunctory support for styling the terminal on the quick. You
-        probably want to use :data:`.Style` for defining styles instead and then
-        apply them to this terminal.
+        management? Styling terminal output, of course! This class has methods
+        to set bold, italic, or plain text and to set the fore/background
+        colors. Those methods do not, however, adjust to the runtime context.
+        For that, you want to use prettypretty's :class:`.Style` objects and
+        :func:`rich` text.
 
         See :meth:`reset_style`, :meth:`rich_text`, :meth:`bold`,
         :meth:`italic`, :meth:`fg`, and :meth:`bg`.
@@ -372,7 +378,7 @@ class Terminal:
         output: None | TextIO = None,
         fidelity: None | Fidelity | FidelityTag = None,
     ) -> None:
-        self._name_version: Literal[False] | None | tuple[str, str] = False
+        self._identity: Literal[False] | None | tuple[str, str] = False
 
         self._input = input or sys.__stdin__
         self._input_fileno: int = self._input.fileno()
@@ -731,20 +737,38 @@ class Terminal:
 
         return name, version
 
-
-    def request_terminal_version(self) -> None | tuple[str, str]:
+    def request_terminal_identity(self) -> None | tuple[str, str]:
         """
         Request the terminal name and version.
 
-        If querying the terminal does not work, this method tries several other
-        alternatives. If any of them is successful, it caches the result.
+        Since support for the CSI >q escape sequence for querying a terminal for
+        its name and version is far from universal, this method employs the
+        following strategies:
+
+         1. Use CSI >q escape sequence to query terminal.
+         1. Inspect the ``TERMINAL_PROGRAM`` and ``TERMINAL_PROGRAM_VERSION``
+            environment variables.
+         2. On macOS only, get the bundle identifier from the
+            ``__CFBundleIdentifier`` environment variable and then use the
+            ``mdfind`` and ``mdls`` command line tools to extract the bundle's
+            version.
+
+        If any of these methods is successful, this method normalizes the
+        terminal name based on a list of known aliases. That includes bundle
+        identifiers for Linux and macOS. It also caches the result and returns
+        it for future invocations.
 
         The terminal must have TTYs for input and output. It also must be in
         cbreak mode.
         """
-        if self._name_version is False:
-            self._name_version = identify(self._do_request_terminal_version())
-        return self._name_version
+        if self._identity is False:
+            identity = self._do_request_terminal_version()
+            if identity:
+                self._identity = normalize_terminal_name(identity[0]), identity[1]
+            else:
+                self._identity = identify_terminal()
+
+        return self._identity
 
     def request_cursor_position(self) -> None | tuple[int, int]:
         """
