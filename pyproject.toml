@@ -9,7 +9,7 @@ keywords= ["awesome terminals"]
 dynamic = ["version"]
 
 [project.optional-dependencies]
-dev = ["pyright", "flit"]
+dev = ["flit", "ipython", "pyright"]
 doc = [
     "sphinx",
     "sphinxcontrib-autoprogram",
