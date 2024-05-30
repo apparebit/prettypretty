@@ -1,4 +1,4 @@
-# Prettypretty
+# Pretty 🌸 pretty
 
 [![Run Tests](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml)
 [![Publish to GitHub Pages](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml)
@@ -18,11 +18,44 @@ awesome!
 | [Documentation](https://apparebit.github.io/prettypretty/)
 \]
 
-## Prettypretty Illustrated
+## A Drab Reality
 
-The first screenshot illustrates prettypretty's support for maximizing text
-contrast by comparing against backgrounds in all 216 colors from the 6x6x6 RGB
-cube of 8-bit terminal colors.
+Building delightful terminal user interfaces requires coping with significant
+variability. Any given terminal may support only 16 or 256 colors. Furthermore,
+its appearance has probably been customized, often using a dark theme even if
+the OS isn't in dark mode. Such deep configurability is a must. That's because,
+in part, terminals' primary users like to tinker. Also, some of those users have
+strongly held convictions about their tools' appearances, with some favoring a
+low-contrast monochrome and others a psychedelic explosion of rainbows.
+
+So, determining the terminal's level of color support is only a first step out
+of many. A command line application also needs to take the current color theme
+into account, whether that theme is dark or light, and whether the user approves
+of color or not. Assembling all that information is three more steps in the
+right direction, but an application still needs *to do something* with that
+information, i.e., accordingly adjust its styles. Or, it can keep looking drab
+and sad.
+
+
+## Enter Pretty 🌸 Pretty
+
+Prettypretty helps you bring awesome color to this drab world: The library takes
+care of determining color support, color theme, and the polarity of the theme.
+It also supports user-directed overrides. Once assembled, prettypretty leverages
+this information to automatically adjust your application's styles to the
+current runtime context. And for that, it uses the latest in color spaces and
+algorithms, bringing the benefits of the Oklab perceptual color space and CSS
+Color algorithms for contrast and color adjustment to terminals.
+
+
+## Pretty 🌸 Pretty Illustrated
+
+The following screen shots illustrate some of the benefits of prettypretty's
+color management, showing off its algorithms for contrast and color adjustment
+for the 6x6x6 RGB cube embedded inside 8-bit terminal colors. The first
+screenshot demonstrates prettypretty's support for maximizing text contrast by
+comparing against backgrounds in all 216 colors from the 6x6x6 RGB cube of 8-bit
+terminal colors.
 
 ![Background color
 grid](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/rgb6-background.png)
@@ -61,22 +94,30 @@ iTerm's builtin themes and generates a substantially different grid!
 iTerm2](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/rgb6-ansi-iterm2.png)
 
 
-To recap, prettypretty has robust support for:
+Overall, prettypretty has robust support for:
 
-  * Maximizing the label contrast for a given background color;
-  * Maximizing the background contrast for a given text color;
+  * Automatically determining a terminal's level of color support;
+  * Automatically determining a terminal's color theme;
+  * Automatically determining whether a color theme is light or dark;
+  * Automatically determining whether the OS is in light or dark mode;
+  * Automatically adjusting terminal styles to terminal capabilities;
   * Finding the closest color out of several;
-  * Using that search to perform high-quality downsampling;
-  * Theming the sixteen extended ANSI colors;
-  * Automatically determining the current terminal theme.
+  * Using that search to perform high-quality downsampling to 8-bit
+    and ANSI colors;
+  * Maximizing label contrast for a given background color;
+  * Maximizing background contrast for a given text color;
+  * Converting colors between sRGB, Display P3, Oklab, Oklch, and a
+    few other color spaces;
+  * Gamut mapping out-of-gamut colors;
+  * Finding the closest color out of several;
+  * Using that search to perform high-quality downsampling to 8-bit
+    and ANSI colors;
 
-More is yet to come...
-
-
-
+Are you still using chalk or other, poor substitutes for real terminal color?
+It's time to switch to prettypretty!
 
 
 ---
 
 Copyright 2024 Robert Grimm. The code in this repository has been released as
-open source under the [Apache 2.0](LICENSE).
+open source under the [Apache 2.0](LICENSE) license.

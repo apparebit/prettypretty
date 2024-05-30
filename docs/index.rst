@@ -1,5 +1,5 @@
-prettypretty
-============
+Pretty 🌸 Pretty
+================
 
 Prettypretty helps build awesome terminal user interfaces in Python. Notably, it
 incorporates a powerful and general color library. The resulting, near seemless
@@ -10,6 +10,11 @@ helps your application automatically adapt its styles to a user's current color
 theme, dark or light mode, and color preferences. So, what are you waiting for?
 Switch to prettypretty for all your terminal styling needs. Prettypretty is
 awesome!
+
+.. image:: https://github.com/apparebit/prettypretty/actions/workflows/ci.yml/badge.svg
+
+.. image:: https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg
+
 
 .. toctree::
    :maxdepth: 1
@@ -50,12 +55,47 @@ awesome!
    Documentation <https://apparebit.github.io/prettypretty/>
 
 
-Prettypretty Illustrated
-------------------------
+A Drab Reality
+--------------
 
-The first screenshot illustrates prettypretty's support for maximizing text
-contrast by comparing against backgrounds in all 216 colors from the 6x6x6 RGB
-cube of 8-bit terminal colors.
+Building delightful terminal user interfaces requires coping with significant
+variability. Any given terminal may support only 16 or 256 colors. Furthermore,
+its appearance has probably been customized, often using a dark theme even if
+the OS isn't in dark mode. Such deep configurability is a must. That's because,
+in part, terminals' primary users like to tinker. Also, some of those users have
+strongly held convictions about their tools' appearances, with some favoring a
+low-contrast monochrome and others a psychedelic explosion of rainbows.
+
+So, determining the terminal's level of color support is only a first step out
+of many. A command line application also needs to take the current color theme
+into account, whether that theme is dark or light, and whether the user approves
+of color or not. Assembling all that information is three more steps in the
+right direction, but an application still needs *to do something* with that
+information, i.e., accordingly adjust its styles. Or, it can keep looking drab
+and sad.
+
+
+Enter Pretty 🌸 Pretty
+----------------------
+
+Prettypretty helps you bring awesome color to this drab world: The library takes
+care of determining color support, color theme, and the polarity of the theme.
+It also supports user-directed overrides. Once assembled, prettypretty leverages
+this information to automatically adjust your application's styles to the
+current runtime context. And for that, it uses the latest in color spaces and
+algorithms, bringing the benefits of the Oklab perceptual color space and CSS
+Color algorithms for contrast and color adjustment to terminals.
+
+
+Pretty 🌸 Pretty Illustrated
+----------------------------
+
+The following screen shots illustrate some of the benefits of prettypretty's
+color management, showing off its algorithms for contrast and color adjustment
+for the 6x6x6 RGB cube embedded inside 8-bit terminal colors. The first
+screenshot demonstrates prettypretty's support for maximizing text contrast by
+comparing against backgrounds in all 216 colors from the 6x6x6 RGB cube of 8-bit
+terminal colors.
 
 .. image:: figures/rgb6-background.png
    :alt: The 6x6x6 RGB cube used for background colors
