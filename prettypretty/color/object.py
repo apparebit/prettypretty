@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 from typing import cast, Literal, overload, Self
 
-from .apca import contrast, use_black_text, use_black_background
+from .apca import p3_contrast, srgb_contrast, use_black_text, use_black_background
 from .conversion import get_converter
 from .difference import deltaE_oklab, closest_oklab
 from .gamut import map_into_gamut
@@ -230,11 +230,38 @@ class Color(ColorSpec):
         """
         Determine the asymmetric contrast of text with this color against the
         given background.
+
+        The underlying APCA algorithm computes a non-standard luminance for the
+        two colors. Just like conversions from sRGB to XYZ and from Display P3
+        to XYZ, there are separate coefficients for converting sRGB and Display
+        P3 colors.
+
+         1. This method first converts both colors to sRGB and, if they are in
+            gamut, converts them to APCA's custom luminance, and then computes
+            contrast.
+         2. If the two colors are out of sRGB gamut, this method tries the same
+            for Display P3.
+
+        This method fails with an exception if the colors are out of gamut for
+        Display P3, too.
         """
-        return contrast(
-            cast(FloatCoordinateSpec, self.to('srgb').coordinates),
-            cast(FloatCoordinateSpec, background.to('srgb').coordinates),
-        )
+        fg_srgb = self.to('srgb')
+        bg_srgb = background.to('srgb')
+        if fg_srgb.in_gamut() and bg_srgb.in_gamut():
+            return srgb_contrast(
+                cast(FloatCoordinateSpec, fg_srgb.coordinates),
+                cast(FloatCoordinateSpec, bg_srgb.coordinates),
+            )
+
+        fg_p3 = self.to('p3')
+        bg_p3 = background.to('p3')
+        if fg_p3.in_gamut() and bg_p3.in_gamut():
+            return p3_contrast(
+                cast(FloatCoordinateSpec, fg_p3.coordinates),
+                cast(FloatCoordinateSpec, bg_p3.coordinates),
+            )
+
+        raise ValueError(f'{fg_p3} and/or {bg_p3} are out of gamut for Display P3')
 
     def use_black_text(self) -> bool:
         """

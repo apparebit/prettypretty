@@ -68,10 +68,7 @@ _Vector: TypeAlias = tuple[float, float, float]
 _Matrix: TypeAlias = tuple[_Vector, _Vector, _Vector]
 
 def _multiply(matrix: _Matrix, vector: _Vector) -> _Vector:
-    return cast(
-        _Vector,
-        tuple(sum(r * c for r, c in zip(row, vector)) for row in matrix)
-    )
+    return cast(_Vector, tuple(math.sumprod(row, vector) for row in matrix))
 
 
 # --------------------------------------------------------------------------------------

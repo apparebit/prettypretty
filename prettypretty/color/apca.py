@@ -8,8 +8,20 @@ colored background only and clamps small contrast values to zero.
 import math
 
 
+# Switching from naive floating point math to math.sumprod caused one test to
+# have -1e-16 for blue component, which triggers a math domain error in
+# srgb_to_luminance. The work-around is to clamp slightly negative values to 0.
+# FIXME: Consider doing the same when converting srgb or p3 to their linear
+# versions.
+_NEGATIVE_SRGB_TOLERANCE = -1e-15
+
 _APCA_EXPONENT = 2.4
-_APCA_COEFFICIENTS = (0.2126729, 0.7151522, 0.0721750)
+_APCA_SRGB_COEFFICIENTS = (0.2126729, 0.7151522, 0.0721750)
+_APCA_P3_COEFFICIENTS = (
+    0.2289829594805780,
+    0.6917492625852380,
+    0.0792677779341829,
+)
 
 _APCA_BLACK_THRESHOLD = 0.022
 _APCA_BLACK_CLIP = 1.414
@@ -29,9 +41,29 @@ def srgb_to_luminance(r: float, g: float, b: float) -> float:
     """
     :bdg-warning:`Internal API` Determine the non-standard APCA luminance for
     the given sRGB color.
+
+    Conceptually, this function performs a conversion similar to that from sRGB
+    to XYZ. That means undoing the gamma correction, which is impossible for
+    out-of-gamut, negative sRGB coordinates. To prevent spurious exceptions
+    caused by negative coordinates that are well within the floating point error
+    margins for color conversion, this function clamps values greater than
+    -1e-15 to zero.
     """
-    linear_srgb = (math.pow(c, _APCA_EXPONENT) for c in (r, g, b))
-    return sum(c1 * c2 for c1, c2 in zip(_APCA_COEFFICIENTS, linear_srgb))
+    if not all(_NEGATIVE_SRGB_TOLERANCE < c for c in (r, g, b)):
+        raise ValueError(f'Negative sRGB coordinate for {r}, {g}, {b}')
+
+    # The max(...) clamps c to a minimum of zero.
+    linear_srgb = (math.pow(max(c, 0.0), _APCA_EXPONENT) for c in (r, g, b))
+    return math.sumprod(_APCA_SRGB_COEFFICIENTS, linear_srgb)
+
+
+def p3_to_luminance(r: float, g: float, b: float) -> float:
+    """
+    :bdg-warning:`Internal API` Determine the non-standard APCA luminance for
+    the given P3 color.
+    """
+    linear_p3 = (math.pow(c, _APCA_EXPONENT) for c in (r, g, b))
+    return math.sumprod(_APCA_P3_COEFFICIENTS, linear_p3)
 
 
 def luminance_to_contrast(
@@ -81,16 +113,33 @@ def luminance_to_contrast(
         return contrast + _APCA_OFFSET
 
 
-def contrast(
+def srgb_contrast(
     text_color: tuple[float, float, float],
     background_color: tuple[float, float, float],
 ) -> float:
     """
     Compute the contrast between the given text and background colors in the
     sRGB color space.
+
+    Both text and background colors must be in gamut for sRGB.
     """
     text_luminance = srgb_to_luminance(*text_color)
     background_luminance = srgb_to_luminance(*background_color)
+    return luminance_to_contrast(text_luminance, background_luminance)
+
+
+def p3_contrast(
+    text_color: tuple[float, float, float],
+    background_color: tuple[float, float, float],
+) -> float:
+    """
+    Compute the contrast between the given text and background colors in the
+    Display P3 color space.
+
+    Both text and background color must in gamut for Display P3.
+    """
+    text_luminance = p3_to_luminance(*text_color)
+    background_luminance = p3_to_luminance(*background_color)
     return luminance_to_contrast(text_luminance, background_luminance)
 
 
