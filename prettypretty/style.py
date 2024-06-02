@@ -21,7 +21,7 @@ import enum
 from typing import cast, Literal, overload, Self, TypeAlias, TypeVar
 
 from .ansi import Ansi, DEFAULT_COLOR, is_default, Layer
-from .color.spec import ColorSpec
+from .color.spec import ColorSpec, CoordinateSpec
 from .fidelity import Fidelity, FidelityTag
 
 
@@ -703,10 +703,16 @@ class rich:
     def fg(self, color: int, /) -> Self:
         ...
     @overload
+    def fg(self, c1: int, c2: int, c3: int, /) -> Self:
+        ...
+    @overload
     def fg(self, color: ColorSpec, /) -> Self:
         ...
     @overload
     def fg(self, tag: str, c: int, /) -> Self:
+        ...
+    @overload
+    def fg(self, tag: str, coordinates: CoordinateSpec, /) -> Self:
         ...
     @overload
     def fg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
@@ -714,7 +720,7 @@ class rich:
     def fg(
         self,
         color: int | str | ColorSpec,
-        c1: None | float = None,
+        c1: None | float | CoordinateSpec = None,
         c2: None | float = None,
         c3: None | float = None,
     ) -> Self:
@@ -729,10 +735,16 @@ class rich:
     def bg(self, color: int, /) -> Self:
         ...
     @overload
+    def bg(self, c1: int, c2: int, c3: int, /) -> Self:
+        ...
+    @overload
     def bg(self, color: ColorSpec, /) -> Self:
         ...
     @overload
     def bg(self, tag: str, c: int, /) -> Self:
+        ...
+    @overload
+    def bg(self, tag: str, coordinates: CoordinateSpec, /) -> Self:
         ...
     @overload
     def bg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
@@ -740,7 +752,7 @@ class rich:
     def bg(
         self,
         color: int | str | ColorSpec,
-        c1: None | float = None,
+        c1: None | float | CoordinateSpec = None,
         c2: None | float = None,
         c3: None | float = None,
     ) -> Self:

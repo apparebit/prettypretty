@@ -174,6 +174,54 @@ class TestColor(unittest.TestCase):
             )
 
 
+    def test_same_color(self) -> None:
+        green = ColorSpec('srgb', (0.0, 1.0, 0.0))
+        self.assertEqual(green.tag, 'srgb')
+        self.assertTupleEqual(green.coordinates, (0.0, 1.0, 0.0))
+
+        also_green = ColorSpec('srgb', (0, 1, 0))
+        self.assertTupleEqual(also_green.coordinates, green.coordinates)
+
+        also_green = ColorSpec.of('srgb', 0, 1, 0)
+        self.assertTupleEqual(also_green.coordinates, green.coordinates)
+
+        also_green = ColorSpec.of('srgb', 0.0, 1.0, 0.0)
+        self.assertTupleEqual(also_green.coordinates, green.coordinates)
+
+        also_green = ColorSpec.of('srgb', (0, 1, 0))
+        self.assertTupleEqual(also_green.coordinates, green.coordinates)
+
+        also_green = ColorSpec.of('srgb', (0.0, 1.0, 0.0))
+        self.assertTupleEqual(also_green.coordinates, green.coordinates)
+
+        also_green = ColorSpec.of(46)
+        self.assertEqual(also_green.tag, 'eight_bit')
+        self.assertTupleEqual(also_green.coordinates, (46,))
+
+        also_green = ColorSpec.of('eight_bit', 46)
+        self.assertEqual(also_green.tag, 'eight_bit')
+        self.assertTupleEqual(also_green.coordinates, (46,))
+
+        also_green = ColorSpec.of('eight_bit', (46,))
+        self.assertEqual(also_green.tag, 'eight_bit')
+        self.assertTupleEqual(also_green.coordinates, (46,))
+
+        also_green = ColorSpec.of(0, 255, 0)
+        self.assertEqual(also_green.tag, 'rgb256')
+        self.assertTupleEqual(also_green.coordinates, (0, 255, 0))
+
+        also_green = ColorSpec.of('rgb256', 0, 255, 0)
+        self.assertEqual(also_green.tag, 'rgb256')
+        self.assertTupleEqual(also_green.coordinates, (0, 255, 0))
+
+        also_green = ColorSpec.of('rgb256', (0, 255, 0))
+        self.assertEqual(also_green.tag, 'rgb256')
+        self.assertTupleEqual(also_green.coordinates, (0, 255, 0))
+
+        also_green = ColorSpec.of(also_green)
+        self.assertEqual(also_green.tag, 'rgb256')
+        self.assertTupleEqual(also_green.coordinates, (0, 255, 0))
+
     def test_conversions(self) -> None:
         for color_name in ('BLACK', 'YELLOW', 'BLUE', 'WHITE'):
             values = getattr(self, color_name)

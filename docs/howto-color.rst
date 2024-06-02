@@ -91,17 +91,26 @@ featured color class, :class:`.Color`, that adds a good number of methods to the
 basic color record. To actually write out colors, you have a number of options:
 
  1. Invoke :class:`.ColorSpec` on a tag and coordinates tuple;
- 2. Use the :meth:`.ColorSpec.of` helper method, which gets rid of extra
-    parentheses by accepting coordinates inline, as arguments;
- 3. Treat prettypretty's main methods expecting colors, :meth:`.StyleSpec.fg`,
+ 2. Invoke :meth:`.ColorSpec.of` on a tag and coordinates tuple;
+ 3. Invoke :meth:`.ColorSpec.of` on a tag and coordinates but with the
+    coordinates specified inline, thus avoiding the extra parentheses;
+ 4. Invoke :meth:`.ColorSpec.of` on an integer representing an ANSI or 8-bit
+    color;
+ 5. Invoke :meth:`.ColorSpec.of` on three integers representing a 24-bit RGB
+    color;
+ 6. Treat prettypretty's main methods expecting colors, :meth:`.StyleSpec.fg`,
     :meth:`.StyleSpec.bg`, :meth:`.Terminal.fg`, and :meth:`.Terminal.bg`, as if
     they were :meth:`.ColorSpec.of`;
- 4. Invoke :class:`.Color` on a string literal with the color in hexadecimal, X
+ 7. Treat :class:`.Color`'s constructor as if it was :meth:`.ColorSpec.of`;
+ 8. Invoke :class:`.Color` on a string literal with the color in hexadecimal, X
     Windows, or functional notation.
 
-The code below illustrates all four options on the example of setting a
-terminal's foreground color to the primary greens of 8-bit and 24-bit colors,
-which really are one and the same color.
+To make this all work consistently, the implementations of :class:`.Color`,
+:meth:`.StyleSpec.fg`, :meth:`.StyleSpec.bg`, :meth:`.Terminal.fg`, and
+:meth:`.Terminal.bg` all delegate to :meth:`.ColorSpec.of`. The code below
+illustrates these options on the example of setting a terminal's foreground
+color to the primary greens of 8-bit and 24-bit colors, which really are one and
+the same.
 
 .. code-block:: python
 
@@ -114,14 +123,18 @@ which really are one and the same color.
 
       # 8-bit color 46 is primary green of embedded 6x6x6 RGB cube
       term.fg(ColorSpec('eight_bit', (46,)))
+      term.fg(ColorSpec.of('eight_bit', (46,)))
       term.fg(ColorSpec.of(46))
       term.fg(ColorSpec.of('eight_bit', 46))
       term.fg(46)
+      term.fg('eight_bit', 46)
       term.fg('rgb6', 0, 5, 0)
 
       # '#00FF00' is the primary green of sRGB
       term.fg('srgb', 0, 1, 0)
       term.fg('rgb256', 0, 255, 0)
+      term.fg(0, 255, 0)
+      term.fg(ColorSpec.of(0, 255, 0))
       term.fg(Color('#00ff00'))
       term.fg(Color('rgb:0000/ffff/0000'))
       term.fg(Color('srgb(0, 1, 0)'))
