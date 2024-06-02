@@ -3,12 +3,11 @@ A script to visualize 8-bit terminal colors as well as prettypretty's support
 for down-sampling colors and maximizing contrast.
 """
 import argparse
-import os
-from typing import Literal
+from typing import cast, Literal
 
 from .ansi import Layer
 from .color.conversion import get_converter
-from .color.apca import use_black_text, use_black_background
+from .color.contrast import srgb_to_luminance, use_black_text, use_black_background
 from .color.lores import (
     rgb6_to_eight_bit,
     rgb6_to_srgb,
@@ -29,10 +28,16 @@ class FramedBoxes:
     surrounding frame (or border). Each box has the same width and a height of
     one line. Boxes are formatted left-to-right.
     """
-    def __init__(self, term: Terminal, box_count: int = 1, min_width: int = 5) -> None:
+    def __init__(
+        self,
+        term: Terminal,
+        box_count: int = 1,
+        min_width: int = 5,
+        max_width: int = 1_000,
+    ) -> None:
         self._term = term
         self._box_count = box_count
-        self._box_width = (term.width - 2) // box_count
+        self._box_width = min(term.width - 2, max_width) // box_count
         if self._box_width < min_width:
             raise ValueError(
                 f'unable to fit {box_count} boxes into {term.width} columns'
@@ -80,7 +85,7 @@ class FramedBoxes:
         if len(box) != self._box_width:
             raise ValueError(f'"{text}" does not fit into {self._box_width}-wide box')
 
-        self._term.fg(*foreground).bg(*background).write(box)
+        self._term.fg(*foreground).bg(*background).bold().write(box)
         self._line_content_width += self._box_width
 
     def right(self) -> None:
@@ -158,11 +163,17 @@ def write_color_cube(
 
                 # Pick black or white for other color based on contrast
                 if layer is Layer.BACKGROUND:
-                    foreground = (232 if use_black_text(*srgb) else 255),
+                    foreground = (
+                        16 if use_black_text(srgb_to_luminance(*srgb))
+                        else 231
+                    ),
                     background = eight_bit
                 else:
                     foreground = eight_bit
-                    background = (232 if use_black_background(*srgb) else 255),
+                    background = (
+                        16 if use_black_background(srgb_to_luminance(*srgb))
+                        else 231
+                    ),
 
                 frame.box(f'{r}•{g}•{b}' if label else ' ', foreground, background)
 
@@ -226,6 +237,30 @@ def write_hires_slice(
     term.writeln()
 
 
+def write_theme_test(term: Terminal):
+    frame = FramedBoxes(term, 2, max_width=40)
+    frame.top('Actual vs Claimed Color')
+
+    theme = current_theme()
+    ansi_to_srgb = get_converter('ansi', 'srgb')
+
+    for index in range(16):
+        srgb = ansi_to_srgb(index)
+        fg = (16 if use_black_text(srgb_to_luminance(*srgb)) else 231)
+
+        bg_spec = theme.ansi(index)
+        bg = get_converter(bg_spec.tag, 'rgb256')(*bg_spec.coordinates)
+
+        label = ', '.join(f'{c:3d}' for c in bg)
+
+        frame.left()
+        frame.box(f'{index}', (fg,), (index,))
+        frame.box(label, (fg,), cast(tuple[int, int, int], bg))
+        frame.right()
+
+    frame.bottom()
+    term.writeln()
+
 def create_parser() -> argparse.ArgumentParser:
     """Create a command line argument parser."""
     parser = argparse.ArgumentParser(
@@ -282,7 +317,16 @@ def create_parser() -> argparse.ArgumentParser:
 if __name__ == '__main__':
     options = create_parser().parse_args()
 
-    with Terminal().terminal_theme(options.theme).scoped_style() as term:
+    fidelity = None
+    if options.truecolor is not None:
+        fidelity = 'rgb256' if options.truecolor else 'eight_bit'
+
+    with (
+        Terminal(fidelity=fidelity)
+        .terminal_theme(options.theme)
+        .scoped_style()
+        as term
+    ):
         term.writeln()
 
         write_color_cube(term, label=options.label)
@@ -290,8 +334,7 @@ if __name__ == '__main__':
         write_color_cube(term, strategy='naive', label=options.label)
         write_color_cube(term, layer=Layer.TEXT)
 
-        # First clause tests for absence of --truecolor/--no-truecolor or --truecolor
-        if options.truecolor in (None, True) and os.getenv('COLORTERM') == 'truecolor':
+        if term.fidelity.name == 'RGB256':
             for hold in ('r', 'g', 'b'):
                 for level in (0, 128, 255):
                     for downsample in (False, True):
@@ -302,7 +345,19 @@ if __name__ == '__main__':
                             eight_bit_only=downsample,
                         )
 
-        theme_name = builtin_theme_name(current_theme())
+            write_theme_test(term)
+
+            term.write_paragraph("""
+                The frame showing actual vs claimed colors has two columns. The
+                background colors of the first are the 16 extended ANSI colors.
+                The background colors of the second are the corresponding 24-bit
+                RGB colors advertised by the terminal.
+
+                Both columns should have the exact same visual background color.
+            """)
+
+        theme_name = builtin_theme_name(current_theme()) or 'current terminal theme'
+        color_mode = 'truecolor' if term.fidelity.name == 'RGB256' else '8-bit color'
         term.writeln(
-            f'Prettypretty used ', theme_name or 'current terminal theme', '!\n'
+            'The above charts use the ', theme_name, ' in ', color_mode, ' mode!\n'
         ).flush()
