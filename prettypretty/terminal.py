@@ -6,6 +6,7 @@ import os
 import select
 import sys
 import termios
+import textwrap
 import tty
 from typing import (
     Any,
@@ -22,7 +23,7 @@ from typing import (
 )
 
 from .ansi import Ansi, Layer
-from .color.spec import ColorSpec
+from .color.spec import ColorSpec, CoordinateSpec
 from .color.theme import current_theme, Theme
 from .fidelity import environment_fidelity, Fidelity, FidelityTag
 from .ident import identify_terminal, normalize_terminal_name
@@ -523,6 +524,49 @@ class Terminal:
         terminal's output. This method does not flush the output.
         """
         self.write(*fragments, '\n')
+        return self
+
+    def write_paragraph(self, text: str) -> Self:
+        """
+        Write the paragraph to this terminal's output.
+
+        This method strips all leading and trailing white space from each line
+        of the text. It then treats each span of consecutive, non-empty lines as
+        a paragraph and rewraps it to fit into the terminal width while still
+        being convenient to read. Finally, it writes the resulting text to this
+        terminal's output. This method does not flush the output.
+        """
+        lines = [l.strip() for l in text.splitlines()]
+        start = stop = 0
+
+        while True:
+            # Skip empty lines
+            while start < len(lines):
+                if lines[start]:
+                    break
+                start += 1
+            else:
+                break
+
+            # Determine span of non-empty lines
+            stop = start + 1
+            while stop < len(lines):
+                if not lines[stop]:
+                    break
+                stop += 1
+
+            # And rewrap the text in that span
+            for line in textwrap.wrap(
+                ' '.join(lines[start : stop]),
+                width=min(self._width, 76),
+                expand_tabs=False,
+            ):
+                self.writeln(line)
+
+            # Repeat
+            self.writeln()
+            start = stop
+
         return self
 
     def write_control(self, *fragments: None | int | str) -> Self:
@@ -1107,7 +1151,13 @@ class Terminal:
     def fg(self, color: int, /) -> Self:
         ...
     @overload
+    def fg(self, c1: int, c2: int, c3: int, /) -> Self:
+        ...
+    @overload
     def fg(self, tag: str, c: int, /) -> Self:
+        ...
+    @overload
+    def fg(self, tag: str, coordinates: CoordinateSpec, /) -> Self:
         ...
     @overload
     def fg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
@@ -1115,7 +1165,7 @@ class Terminal:
     def fg(
         self,
         tag: int | str | ColorSpec,
-        c1: None | float = None,
+        c1: None | float | CoordinateSpec = None,
         c2: None | float = None,
         c3: None | float = None,
     ) -> Self:
@@ -1134,7 +1184,13 @@ class Terminal:
     def bg(self, color: int, /) -> Self:
         ...
     @overload
+    def bg(self, c1: int, c2: int, c3: int, /) -> Self:
+        ...
+    @overload
     def bg(self, tag: str, c: int, /) -> Self:
+        ...
+    @overload
+    def bg(self, tag: str, coordinates: CoordinateSpec, /) -> Self:
         ...
     @overload
     def bg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
@@ -1142,7 +1198,7 @@ class Terminal:
     def bg(
         self,
         tag: int | str | ColorSpec,
-        c1: None | float = None,
+        c1: None | float | CoordinateSpec = None,
         c2: None | float = None,
         c3: None | float = None,
     ) -> Self:
