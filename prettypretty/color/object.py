@@ -3,7 +3,13 @@
 from collections.abc import Iterable
 from typing import cast, Literal, overload, Self
 
-from .apca import p3_contrast, srgb_contrast, use_black_text, use_black_background
+from .contrast import (
+    p3_to_luminance,
+    srgb_to_luminance,
+    luminance_to_contrast,
+    use_black_text,
+    use_black_background,
+)
 from .conversion import get_converter
 from .difference import deltaE_oklab, closest_oklab
 from .gamut import map_into_gamut
@@ -77,27 +83,27 @@ class Color(ColorSpec):
     # ----------------------------------------------------------------------------------
 
     @overload
-    def __init__(self, color: str | ColorSpec | Self, /) -> None:
+    def __init__(self, color: int | str | ColorSpec | Self, /) -> None:
         ...
-
+    @overload
+    def __init__(self, c1: int, c2: int, c3: int, /) -> None:
+        ...
     @overload
     def __init__(self, tag: str, coordinates: CoordinateSpec, /) -> None:
         ...
-
     @overload
     def __init__(self, tag: str, c1: float, c2: float, c3: float, /) -> None:
         ...
-
     def __init__(
         self,
-        tag: str | ColorSpec | Self,
+        tag: int | str | ColorSpec | Self,
         coordinates: None | float | CoordinateSpec = None,
         c2: None | float = None,
         c3: None | float = None,
     ) -> None:
         if isinstance(tag, ColorSpec):
             tag, coordinates = tag.tag, tag.coordinates
-        elif coordinates is None:
+        elif isinstance(tag, str) and coordinates is None:
             if tag.startswith('#'):
                 tag, coordinates = parse_hex(tag)
             elif tag.startswith('rgb:'):
@@ -108,20 +114,13 @@ class Color(ColorSpec):
                 tag, coordinates = parse_fn(tag)
             else:
                 raise ValueError(f'"{tag}" is not a valid color')
-        elif c2 is not None:
-            assert isinstance(coordinates, (int, float)) and c3 is not None
-            coordinates = coordinates, c2, c3
-
-        # Coerce coordinates to int for integral color formats and to float for
-        # color spaces.
-        coerce = int if Space.resolve(tag).integral else float
-        coordinates = cast(
-            CoordinateSpec,
-            tuple(coerce(c) for c in cast(CoordinateSpec, coordinates))
-        )
+        else:
+            spec = ColorSpec.of(tag, coordinates, c2, c3)
+            tag, coordinates = spec.tag, spec.coordinates
 
         object.__setattr__(self, 'tag', tag)
         object.__setattr__(self, 'coordinates', coordinates)
+        # Validate number of coordinates and coerce to int/float
         self.__post_init__()
 
     def update(
@@ -162,7 +161,7 @@ class Color(ColorSpec):
 
     def in_gamut(self, epsilon: float = EPSILON) -> bool:
         """Determine whether this color is within gamut for its color space."""
-        return self.space.in_gamut(*self.coordinates, epsilon)
+        return self.space.in_gamut(*self.coordinates, epsilon=epsilon)
 
     def clip(self, epsilon: float = 0) -> Self:
         """Clip this color to its color space's gamut."""
@@ -228,54 +227,58 @@ class Color(ColorSpec):
 
     def contrast_against(self, background: Self) -> float:
         """
-        Determine the asymmetric contrast of text with this color against the
+        Determine the perceptual contrast of text with this color against the
         given background.
-
-        The underlying APCA algorithm computes a non-standard luminance for the
-        two colors. Just like conversions from sRGB to XYZ and from Display P3
-        to XYZ, there are separate coefficients for converting sRGB and Display
-        P3 colors.
-
-         1. This method first converts both colors to sRGB and, if they are in
-            gamut, converts them to APCA's custom luminance, and then computes
-            contrast.
-         2. If the two colors are out of sRGB gamut, this method tries the same
-            for Display P3.
-
-        This method fails with an exception if the colors are out of gamut for
-        Display P3, too.
         """
-        fg_srgb = self.to('srgb')
-        bg_srgb = background.to('srgb')
-        if fg_srgb.in_gamut() and bg_srgb.in_gamut():
-            return srgb_contrast(
-                cast(FloatCoordinateSpec, fg_srgb.coordinates),
-                cast(FloatCoordinateSpec, bg_srgb.coordinates),
+        fg = self.to('srgb')
+        bg = background.to('srgb')
+
+        if fg.in_gamut() and bg.in_gamut():
+            return luminance_to_contrast(
+                srgb_to_luminance(*fg.coordinates),
+                srgb_to_luminance(*bg.coordinates),
             )
 
-        fg_p3 = self.to('p3')
-        bg_p3 = background.to('p3')
-        if fg_p3.in_gamut() and bg_p3.in_gamut():
-            return p3_contrast(
-                cast(FloatCoordinateSpec, fg_p3.coordinates),
-                cast(FloatCoordinateSpec, bg_p3.coordinates),
-            )
+        fg = self.to('p3')
+        bg = background.to('p3')
 
-        raise ValueError(f'{fg_p3} and/or {bg_p3} are out of gamut for Display P3')
+        # P3 will have to do...
+        return luminance_to_contrast(
+            p3_to_luminance(*fg.coordinates),
+            p3_to_luminance(*bg.coordinates),
+        )
+
 
     def use_black_text(self) -> bool:
         """
         Determine whether to use black or white text against a background of
-        this color for maximum contrast.
+        this color for maximum perceptual contrast.
         """
-        return use_black_text(*self.to('srgb').coordinates)
+        srgb = self.to('srgb')
+        if srgb.in_gamut():
+            return use_black_text(
+                srgb_to_luminance(*srgb.coordinates)
+            )
+
+        return use_black_text(
+            p3_to_luminance(*self.to('p3').coordinates)
+        )
+
 
     def use_black_background(self) -> bool:
         """
         Determine whether to use a black or white background for text of this
-        color for maximum contrast.
+        color for maximum perceptual contrast.
         """
-        return use_black_background(*self.to('srgb').coordinates)
+        srgb = self.to('srgb')
+        if srgb.in_gamut():
+            return use_black_background(
+                srgb_to_luminance(*srgb.coordinates)
+            )
+
+        return use_black_background(
+            p3_to_luminance(*self.to('p3').coordinates)
+        )
 
     # ----------------------------------------------------------------------------------
     # Serialization to Text
