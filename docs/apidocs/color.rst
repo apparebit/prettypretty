@@ -19,10 +19,10 @@ overhead, strictly more code is executed, and the potential for less accurate
 results, more floating point operations may be executed.
 
 
-prettypretty.color.apca
------------------------
+prettypretty.color.contrast
+---------------------------
 
-.. automodule:: prettypretty.color.apca
+.. automodule:: prettypretty.color.contrast
     :members:
 
 

@@ -104,9 +104,9 @@ terminal colors.
 The second screenshot illustrates the reverse challenge, with prettypretty
 picking the background color to maximize contrast for text in all 216 colors
 from the 6x6x6 RGB cube. If you compare with the previous screenshot, you may
-notice that prettypretty's contrast metric, `APCA
-<https://github.com/Myndex/apca-w3>`_, is *not* symmetric. That's just why it is
-more accurate than, say, the WCAG 2.0 formula.
+notice that prettypretty's contrast metric, a perceptual contrast metric
+surprisingly similar to `APCA <https://github.com/Myndex/apca-w3>`_, is *not*
+symmetric. That's just why it is more accurate than, say, the WCAG 2.0 formula.
 
 .. image:: figures/rgb6-text.png
    :alt: The 6x6x6 RGB cube used for text colors
