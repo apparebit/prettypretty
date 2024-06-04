@@ -111,7 +111,7 @@ def write_color_cube(
     *,
     layer: Layer = Layer.BACKGROUND,
     strategy: Literal['8bit', 'pretty', 'naive'] = '8bit',
-    label: bool = True,
+    show_label: bool = True,
 ) -> None:
     """
     Format a framed grid with 216 cells, where each cell displays a distinct
@@ -175,7 +175,9 @@ def write_color_cube(
                         else 231
                     ),
 
-                frame.box(f'{r}•{g}•{b}' if label else ' ', foreground, background)
+                frame.box(
+                    f'{r}•{g}•{b}' if show_label else ' ', foreground, background
+                )
 
             frame.right()
 
@@ -237,7 +239,7 @@ def write_hires_slice(
     term.writeln()
 
 
-def write_theme_test(term: Terminal):
+def write_theme_test(term: Terminal, show_label: bool = True):
     frame = FramedBoxes(term, 2, max_width=40)
     frame.top('Actual vs Claimed Color')
 
@@ -254,8 +256,8 @@ def write_theme_test(term: Terminal):
         label = ', '.join(f'{c:3d}' for c in bg)
 
         frame.left()
-        frame.box(f'{index}', (fg,), (index,))
-        frame.box(label, (fg,), cast(tuple[int, int, int], bg))
+        frame.box(f'{index}' if show_label else ' ', (fg,), (index,))
+        frame.box(label if show_label else ' ', (fg,), cast(tuple[int, int, int], bg))
         frame.right()
 
     frame.bottom()
@@ -266,9 +268,11 @@ def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="""
             Display color grids that visualize the range of terminal colors,
-            while also exercising prettypretty's support for maximizing
-            contrast and down-sampling colors. If not color theme is requested
-            with a command line argument, try to use terminal's current theme.
+            while also exercising prettypretty's support for maximizing contrast
+            and down-sampling colors. By default, this script uses the
+            terminal's current color theme and makes a best guess as to the
+            terminal's level of color support. That guess is likely less than
+            accurate when running ssh.
         """,
     )
 
@@ -299,14 +303,16 @@ def create_parser() -> argparse.ArgumentParser:
         '--truecolor',
         action=argparse.BooleanOptionalAction,
         default=None,
-        help='ignore advertised capabilities and force/suppress 24-bit color slices',
+        help='ignore advertised capabilities and force/suppress 24-bit mode',
     )
-
+    parser.add_argument(
+        '--slices',
+        action='store_true',
+        help='show slices through 24-bit RGB cube (in truecolor mode only)'
+    )
     parser.add_argument(
         '--no-label',
-        action='store_const',
-        const=False,
-        default=True,
+        action='store_false',
         dest='label',
         help='do not display color labels',
     )
@@ -329,23 +335,24 @@ if __name__ == '__main__':
     ):
         term.writeln()
 
-        write_color_cube(term, label=options.label)
-        write_color_cube(term, strategy='pretty', label=options.label)
-        write_color_cube(term, strategy='naive', label=options.label)
+        write_color_cube(term, show_label=options.label)
+        write_color_cube(term, strategy='pretty', show_label=options.label)
+        write_color_cube(term, strategy='naive', show_label=options.label)
         write_color_cube(term, layer=Layer.TEXT)
 
         if term.fidelity.name == 'RGB256':
-            for hold in ('r', 'g', 'b'):
-                for level in (0, 128, 255):
-                    for downsample in (False, True):
-                        write_hires_slice(
-                            term,
-                            hold=hold,
-                            level=level,
-                            eight_bit_only=downsample,
-                        )
+            if options.slices:
+                for hold in ('r', 'g', 'b'):
+                    for level in (0, 128, 255):
+                        for downsample in (False, True):
+                            write_hires_slice(
+                                term,
+                                hold=hold,
+                                level=level,
+                                eight_bit_only=downsample,
+                            )
 
-            write_theme_test(term)
+            write_theme_test(term, show_label=options.label)
 
             term.write_paragraph("""
                 The frame showing actual vs claimed colors has two columns. The
@@ -358,6 +365,17 @@ if __name__ == '__main__':
 
         theme_name = builtin_theme_name(current_theme()) or 'current terminal theme'
         color_mode = 'truecolor' if term.fidelity.name == 'RGB256' else '8-bit color'
+
         term.writeln(
             'The above charts use the ', theme_name, ' in ', color_mode, ' mode!\n'
-        ).flush()
+        )
+
+        color_support = None
+        with term.cbreak_mode():
+            color_support = term.request_color_support()
+        if color_support is None:
+            support_level = 'does not respond to style queries'
+        else:
+            support_level = f'reports support for {color_support.name.lower()} colors'
+
+        term.writeln(f'The terminal {support_level}!').flush()
