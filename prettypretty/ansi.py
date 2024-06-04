@@ -172,3 +172,27 @@ class Ansi(enum.StrEnum):
             previous_was_parameter = current_is_parameter
 
         return ''.join(processed)
+
+
+class RawAnsi(bytes, enum.Enum):
+    """
+    An enumeration of raw ANSi escape sequence components.
+
+    This is a simpler, ``bytes``-valued version of :class:`Ansi`; see its
+    documentation for more details.
+
+    Attributes:
+        BEL:
+        CSI:
+        DCS:
+        ST:
+    """
+    BEL = b'\a'
+    CSI = b'\x1b['
+    DCS = b'\x1bP'
+    ST = b'\x1b\\'
+
+    @staticmethod
+    def fuse(*fragments: bytes) -> bytes:
+        """Fuse the bytes fragments together."""
+        return b''.join(fragments)
