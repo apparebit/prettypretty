@@ -22,7 +22,7 @@ from typing import (
     TypeAlias,
 )
 
-from .ansi import Ansi, Layer
+from .ansi import Ansi, Layer, RawAnsi
 from .color.spec import ColorSpec, CoordinateSpec
 from .color.theme import current_theme, Theme
 from .fidelity import environment_fidelity, Fidelity, FidelityTag
@@ -715,7 +715,7 @@ class Terminal:
         This method converts the response to a string, checks that is starts
         with the prefix and ends with the suffix, and then returns the text
         between prefix and suffix. If the suffix is ST, this method also allows
-        BEL, as both are used interchangeably for terminating OSC.
+        BEL, as both are used interchangeably for terminating DSC/OSC.
 
         If the response is ``None`` or malformed, this method returns ``None``.
         """
@@ -745,23 +745,35 @@ class Terminal:
         This method checks that the given response starts with the prefix and
         ends with the suffix, splits the bytes between prefix and suffix by
         semicolons, and parses the resulting byte fragments as integers. Empty
-        byte fragments are parsed as -1.
+        byte fragments are parsed as -1. If the suffix ends with ST, this method
+        also allows BEL, as both are used interchangeably for terminating
+        DSC/OSC.
 
         If the response is ``None`` or malformed, this method returns an empty
         list.
         """
-        if (
-            response is None
-            or not response.startswith(prefix)
-            or not response.endswith(suffix)
-        ):
+        if response is None or not response.startswith(prefix):
             return []
 
+        if not response.endswith(suffix):
+            # BEL may stand in for ST
+            if not suffix.endswith(RawAnsi.ST):
+                return []
+
+            suffix = suffix[:-2] + RawAnsi.BEL
+            if not response.endswith(suffix):
+                return []
+
+        # Allow for empty suffixes
         end = -len(suffix) if suffix else len(response)
-        return [
-            (int(p) if p else -1)
-            for p in response[len(prefix): end].split(b';')
-        ]
+        payload = response[len(prefix): end]
+
+        # Allow for ``:`` separator in addition to ``;``
+        params: list[int] = []
+        for ps in payload.split(b';'):
+            for p in ps.split(b':'):
+                params.append(int(p) if p else -1)
+        return params
 
     # ----------------------------------------------------------------------------------
 
@@ -823,7 +835,7 @@ class Terminal:
         """
         parameters = self.parse_numeric_response(
             self.make_raw_request(Ansi.CSI, '6n'),
-            prefix=b'\x1b[', suffix=b'R'
+            prefix=RawAnsi.CSI, suffix=b'R'
         )
         return None if len(parameters) != 2 else (parameters[0], parameters[1])
 
@@ -844,6 +856,68 @@ class Terminal:
             if len(parameters) == 1
             else BatchMode.NOT_SUPPORTED
         )
+
+    def request_active_style(self) -> list[int]:
+        """
+        Request the terminal's current style settings.
+
+        The returned list contains the corresponding SGR parameters. Terminals
+        differ significantly in their support for this query. Since just this
+        query would help determine color support levels, that is rather ironic.
+        For instance, macOS Terminal.app does not handle the query, whereas
+        Visual Studio Code's builtin terminal and iTerm 2 both respond with
+        well-formed styles, which are completely wrong in case of Visual Studio
+        Code.
+
+        The terminal must have TTYs for input and output. It also must be in
+        cbreak mode.
+        """
+        return self.parse_numeric_response(
+            self.make_raw_request(Ansi.DCS, '$qm', Ansi.ST),
+            prefix=RawAnsi.fuse(RawAnsi.DCS, b'1$r'),
+            suffix=RawAnsi.fuse(b'm', RawAnsi.ST),
+        )
+
+    def request_color_support(self) -> None | Fidelity:
+        """
+        Request the terminal's color support.
+
+        This method uses style queries to test for 24-bit and 8-bit color.
+
+        The terminal must have TTYs for input and output. It also must be in
+        cbreak mode. This method resets the current style.
+        """
+        response = (
+            self
+            .reset_style()
+            .write_control(Ansi.CSI, '31m')
+            .write_control(Ansi.CSI, '38;2;6;65;234m')
+            .flush()
+            .request_active_style()
+        )
+
+        self.reset_style().flush()
+
+        if not response:
+            return None
+        if response == [0, 38, 2, 1, 6, 65, 234]:
+            return Fidelity.RGB256
+
+        response = (
+            self
+            .write_control(Ansi.CSI, '31m')
+            .write_control(Ansi.CSI, '38;5;66m')
+            .flush()
+            .request_active_style()
+        )
+
+        self.reset_style().flush()
+        if not response:
+            return None
+        elif response == [0, 38, 5, 66]:
+            return Fidelity.EIGHT_BIT
+        else:
+            return Fidelity.ANSI
 
     # ----------------------------------------------------------------------------------
 
