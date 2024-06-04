@@ -1,21 +1,29 @@
-//! # The Core of Color Support
+//! # Core Color
 //!
-//! This module implements key algorithms for high-resolution colors and color
-//! spaces. It favors simplicity and uniformity, notably representing color
-//! coordinates, no matter the color space, as three-element `f64` arrays and
-//! color spaces as variant tags, *without* data. That simplifies, for example,
-//! the compostion of conversions so that a color in every color space can be
-//! easily converted to a color in every other color space. Alas, that also
-//! allows for software bugs that Rust might otherwise catch. Hence, as the Rust
-//! implementation matures, these decisions will likely be revisited.
+//! This module implements the high-resolution, high-quality algorithms enabling
+//! the parent modules `Color` abstraction.
 //!
-//! All conversions between color spaces preserve color values and do *not*
-//! adjust the result to the gamut of the target color space, say, by clipping
-//! or gamut mapping.
+//! Unlike that struct, this module eschews encapsulation in favor of simplicity
+//! and uniformity. Notably, it represents color spaces as tag-like variants
+//! *without* associated values and color coordinates as three-element `f64`
+//! arrays. Besides the overall benefit of reduced complexity, this particularly
+//! aids conversion between color spaces. The `convert()` function performs 42
+//! different conversions between color spaces using a repertoire of only 10
+//! handwritten single-hop color space conversion functions and 6 two-hop color
+//! space conversion functions.
 //!
-//! Functions in this module order arguments for scalar values including color
-//! space tags before coordinate arrays, which always come last to allow for
-//! readable inline literals.
+//! All currently supported color spaces, including XYZ, use D65 as white point.
+//! The code neither performs nor supports chromatic adaptation.
+//!
+//! Conversion between color spaces preserves out-of-gamut values. It does *not*
+//! clip coordinates. It does *not* gamut-map coordinates.
+//!
+//! Not-a-number *is* a valid coordinate value for hue in Oklch. It necessarily
+//! implies that the chroma is zero, i.e., the color is gray (including black
+//! and white).
+//!
+//! Function arguments are ordered so that scalar arguments come before
+//! coordinates, which may be inline array literals.
 
 // ====================================================================================================================
 // Color Space Tags
@@ -161,35 +169,32 @@ pub fn xyz_to_linear_display_p3(value: &[f64; 3]) -> [f64; 3] {
 
 /// Convert coordinates for Oklch to Oklab. This is a one-hop, direct
 /// conversion.
+#[allow(non_snake_case)]
 pub fn oklch_to_oklab(value: &[f64; 3]) -> [f64; 3] {
-    if value[2].is_nan() {
-        [value[0], 0.0, 0.0]
+    let [L, C, h] = *value;
+
+    if h.is_nan() {
+        [L, 0.0, 0.0]
     } else {
-        let hue_radian = value[2] * std::f64::consts::PI / 180.0;
-        [
-            value[0],
-            value[1] * hue_radian.cos(),
-            value[1] * hue_radian.sin(),
-        ]
+        let hue_radian = h.to_radians();
+        [L, C * hue_radian.cos(), C * hue_radian.sin()]
     }
 }
 
 /// Convert coordinates for Oklab to Oklch. This is a one-hop, direct
 /// conversion.
+#[allow(non_snake_case)]
 pub fn oklab_to_oklch(value: &[f64; 3]) -> [f64; 3] {
     let epsilon = 0.0002;
 
-    let h = if value[1].abs() < epsilon && value[2].abs() < epsilon {
+    let [L, a, b] = *value;
+    let h = if a.abs() < epsilon && b.abs() < epsilon {
         f64::NAN
     } else {
-        value[2].atan2(value[1]) * 180.0 / std::f64::consts::PI
+        b.atan2(a).to_degrees()
     };
 
-    [
-        value[0],
-        (value[1].powi(2) + value[2].powi(2)).sqrt(),
-        h.rem_euclid(360.0),
-    ]
+    [L, (a.powi(2) + b.powi(2)).sqrt(), h.rem_euclid(360.0)]
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -364,19 +369,6 @@ pub fn in_gamut(space: ColorSpace, coordinates: &[f64; 3]) -> bool {
     }
 }
 
-/// Determine whether the coordinates are in gamut for the color space with some
-/// tolerance.
-pub fn approx_in_gamut(tolerance: f64, space: ColorSpace, coordinates: &[f64; 3]) -> bool {
-    use ColorSpace::*;
-
-    match space {
-        Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3 => {
-            coordinates.iter().all(|c| 0.0 - tolerance <= *c && *c <= 1.0 + tolerance)
-        }
-        _ => true,
-    }
-}
-
 /// Clip the coordinates to the gamut of the color space.
 pub fn clip(space: ColorSpace, coordinates: &mut [f64; 3]) {
     use ColorSpace::*;
@@ -496,6 +488,21 @@ pub fn into_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
 // Equality and Difference
 // ====================================================================================================================
 
+// #[allow(non_snake_case)]
+// pub fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
+//     match space {
+//         ColorSpace::Oklch => {
+//             let [L, C, h] = *coordinates;
+//             if h.is_nan() {
+//                 [L, 0.0, 0.0]
+//             } else {
+//                 [L, C, h]
+//             }
+//         },
+//         _ => *coordinates,
+//     }
+// }
+
 /// Determine whether two coordinates are the same for all practical purposes.
 /// This function correctly handles not-a-number, angles, floating point errors,
 /// and floating point ranges. It is critical for testing this library.
@@ -561,73 +568,6 @@ pub fn delta_e_ok(coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> f64 {
     let Δb = b1 - b2;
 
     ΔL.mul_add(ΔL, Δa.mul_add(Δa, Δb * Δb)).sqrt()
-}
-
-// ====================================================================================================================
-// The Color Abstraction
-// ====================================================================================================================
-
-/// A color in one of the supported color spaces.
-#[derive(Copy, Clone, Debug)]
-pub struct Color {
-    space: ColorSpace,
-    coordinates: [f64; 3],
-}
-
-impl Color {
-    /// Create a new color with the given color space and coordinates.
-    pub fn new(space: ColorSpace, coordinates: [f64; 3]) -> Self {
-        Color { space, coordinates }
-    }
-
-    /// The color's color space.
-    pub fn space(&self) -> ColorSpace {
-        self.space
-    }
-
-    /// The color's coordinates.
-    pub fn coordinates(&self) -> &[f64; 3] {
-        &self.coordinates
-    }
-
-    /// Convert this color to the given color space.
-    pub fn to(&self, space: ColorSpace) -> Color {
-        Self {
-            space,
-            coordinates: convert(self.space, space, &self.coordinates),
-        }
-    }
-
-    /// Determine whether this and the other color represent the same color.
-    pub fn same(&self, other: Self) -> bool {
-        self.space == other.space && same_coordinates(
-            self.space, &self.coordinates, &other.coordinates
-        )
-    }
-
-    /// Determine the difference or distance between the two colors. This method
-    /// uses delta E Ok.
-    pub fn distance(&self, other: Self) -> f64 {
-        return delta_e_ok(&self.coordinates, &other.coordinates)
-    }
-
-    /// Determine whether this color is in-gamut for its color space.
-    pub fn in_gamut(&self) -> bool {
-        in_gamut(self.space, &self.coordinates)
-    }
-
-    /// Clip this color to the gamut of its color space.
-    pub fn clip(&mut self) {
-        clip(self.space, &mut self.coordinates)
-    }
-
-    /// Map this color into the gamut of its color space.
-    pub fn into_gamut(&self) -> Self {
-        Self {
-            space: self.space,
-            coordinates: into_gamut(self.space, &self.coordinates),
-        }
-    }
 }
 
 // ====================================================================================================================
