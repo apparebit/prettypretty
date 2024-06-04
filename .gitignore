@@ -154,3 +154,8 @@ cython_debug/
 #.idea/
 
 doc/screenshot
+
+
+# Added by cargo
+
+/target
