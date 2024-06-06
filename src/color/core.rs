@@ -65,10 +65,7 @@ impl ColorSpace {
     /// Determine whether this color space is polar. Oklch is the only such
     /// color space.
     pub const fn is_polar(&self) -> bool {
-        match *self {
-            Self::Oklch => true,
-            _ => false,
-        }
+        matches!(*self, Self::Oklch)
     }
 
     /// Determine whether this color space is RGB, that is, has red, green, and
@@ -76,20 +73,13 @@ impl ColorSpace {
     /// in unit range `0..=1`.
     pub const fn is_rgb(&self) -> bool {
         use ColorSpace::*;
-
-        match *self {
-            Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3 => true,
-            _ => false,
-        }
+        matches!(*self, Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3)
     }
 
     /// Determine whether this color space is bounded. XYZ is the only such
     /// color space, but for now Oklab and Oklch are also treated as unbounded.
     pub const fn is_bounded(&self) -> bool {
-        match *self {
-            Self::Xyz | Self::Oklab | Self::Oklch => false,
-            _ => true,
-        }
+        !matches!(*self, Self::Xyz | Self::Oklab | Self::Oklch)
     }
 }
 
@@ -247,6 +237,7 @@ const OKLAB_TO_OKLMS: [[f64; 3]; 3] = [
 ];
 
 #[rustfmt::skip]
+#[allow(clippy::excessive_precision)]
 const OKLMS_TO_XYZ: [[f64; 3]; 3] = [
     [  1.2268798758459243, -0.5578149944602171,  0.2813910456659647 ],
     [ -0.0405757452148008,  1.1122868032803170, -0.0717110580655164 ],
@@ -264,6 +255,7 @@ pub fn oklab_to_xyz(value: &[f64; 3]) -> [f64; 3] {
 // https://github.com/color-js/color.js/blob/a77e080a070039c534dda3965a769675aac5f75e/src/spaces/oklab.js
 
 #[rustfmt::skip]
+#[allow(clippy::excessive_precision)]
 const XYZ_TO_OKLMS: [[f64; 3]; 3] = [
     [ 0.8190224379967030, 0.3619062600528904, -0.1288737815209879 ],
     [ 0.0329836539323885, 0.9292868615863434,  0.0361446663506424 ],
@@ -271,6 +263,7 @@ const XYZ_TO_OKLMS: [[f64; 3]; 3] = [
 ];
 
 #[rustfmt::skip]
+#[allow(clippy::excessive_precision)]
 const OKLMS_TO_OKLAB: [[f64; 3]; 3] = [
     [ 0.2104542683093140,  0.7936177747023054, -0.0040720430116193 ],
     [ 1.9779985324311684, -2.4285922420485799,  0.4505937096174110 ],
@@ -416,7 +409,7 @@ pub fn clip(space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
         Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3 => {
             let [r, g, b] = *coordinates;
             [r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)]
-        },
+        }
         _ => *coordinates,
     }
 }
@@ -468,10 +461,7 @@ pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
     // Goal: Minimize just noticeable difference between current and clipped
     // colors
     let mut current_as_oklch = origin_as_oklch;
-    let mut clipped_as_target = clip(
-        target,
-        &convert(Oklch, target, &current_as_oklch)
-    );
+    let mut clipped_as_target = clip(target, &convert(Oklch, target, &current_as_oklch));
 
     let difference = delta_e_ok(
         &convert(target, Oklab, &clipped_as_target),
@@ -613,11 +603,138 @@ pub fn delta_e_ok(coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> f64 {
 }
 
 // ====================================================================================================================
+// Parse String
+// ====================================================================================================================
+
+use std::error::Error;
+
+/// A parse error for colors.
+#[derive(Debug)]
+pub struct ParseColorError {
+    /// The offending color string.
+    pub text: String,
+    /// Optionally, an underlying error.
+    pub source: Option<Box<dyn Error>>,
+}
+
+impl ParseColorError {
+    /// Create a new parse color error with just the offending text.
+    pub fn with_text(text: &str) -> Self {
+        Self {
+            text: text.to_owned(),
+            source: None,
+        }
+    }
+
+    /// Create a new parse color error with offending text and source error.
+    pub fn new<E: Error + 'static>(text: &str, source: E) -> Self {
+        Self {
+            text: text.to_owned(),
+            source: Some(Box::new(source)),
+        }
+    }
+}
+
+impl std::fmt::Display for ParseColorError {
+    /// Format this parse color error.
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "\"{}\" is not a valid color", self)
+    }
+}
+
+impl Error for ParseColorError {
+    /// Access the source for this parse color error.
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        self.source.as_deref()
+    }
+}
+
+/// Parse the textual representation of a color. This function recognizes
+/// the following formats:
+///
+///   * the hashed hexadecimal format familiar from the web, e.g., `#efbbfc`;
+///   * the X Windows color format, e.g., `rgb:<hex>/<hex>/<hex>`;
+///
+/// The hashed format allows for 1 digit per coordinate and 2 digits per
+/// coordinate, consistently for all coordinates. The X Windows format allows
+/// between 1 and 4 coordinates, seemingly independently for each
+/// coordinate.
+pub fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ParseColorError> {
+    // Both
+
+    let mut t1 = None;
+    let mut t2 = None;
+    let mut t3 = None;
+    let mut scale = true;
+
+    if s.starts_with("rgb:") {
+        let mut coor_iter = s.get(4..).unwrap().split('/');
+        t1 = coor_iter.next();
+        t2 = coor_iter.next();
+        t3 = coor_iter.next();
+    } else if s.starts_with('#') {
+        scale = false;
+
+        if s.len() == 4 {
+            t1 = s.get(1..2);
+            t2 = s.get(2..3);
+            t3 = s.get(3..4);
+        } else if s.len() == 7 {
+            t1 = s.get(1..3);
+            t2 = s.get(3..5);
+            t3 = s.get(5..7);
+        }
+    }
+
+    if t1.is_none() || t2.is_none() || t3.is_none() {
+        return Err(ParseColorError::with_text(s));
+    }
+
+    let t1 = t1.unwrap();
+    let t2 = t2.unwrap();
+    let t3 = t3.unwrap();
+    if t1.len() > 4 || t2.len() > 4 || t3.len() > 4 {
+        return Err(ParseColorError::with_text(s));
+    }
+
+    let make_error = |e| ParseColorError::new(s, e);
+    let mut n1 = u8::from_str_radix(t1, 16).map_err(make_error)?;
+    let mut n2 = u8::from_str_radix(t2, 16).map_err(make_error)?;
+    let mut n3 = u8::from_str_radix(t3, 16).map_err(make_error)?;
+
+    if scale {
+        return Ok((
+            ColorSpace::Srgb,
+            [
+                (n1 as f64) / (16.0_f64.powi(t1.len() as i32) - 1.0),
+                (n2 as f64) / (16.0_f64.powi(t2.len() as i32) - 1.0),
+                (n3 as f64) / (16.0_f64.powi(t3.len() as i32) - 1.0),
+            ],
+        ));
+    }
+
+    if t1.len() == 1 {
+        n1 = 16 * n1 + n1;
+        n2 = 16 * n2 + n2;
+        n3 = 16 * n3 + n3;
+    }
+
+    Ok((
+        ColorSpace::Srgb,
+        [
+            (n1 as f64) / 255.0,
+            (n2 as f64) / 255.0,
+            (n3 as f64) / 255.0,
+        ],
+    ))
+}
+
+// ====================================================================================================================
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use super::ColorSpace::*;
+    use super::*;
 
     #[allow(dead_code)]
     struct Representations {
@@ -712,23 +829,11 @@ mod test {
         let f10 = 10.0 * base;
         let f20 = 20.0 * base;
 
-        assert!(same_coordinates(
-            Srgb,
-            &[f01, f02, f03],
-            &[f00, f00, f00],
-        ));
+        assert!(same_coordinates(Srgb, &[f01, f02, f03], &[f00, f00, f00],));
 
-        assert!(same_coordinates(
-            Srgb,
-            &[f05, f07, f09],
-            &[f10, f10, f10],
-        ));
+        assert!(same_coordinates(Srgb, &[f05, f07, f09], &[f10, f10, f10],));
 
-        assert!(!same_coordinates(
-            Srgb,
-            &[f10, f10, f10],
-            &[f20, f20, f20],
-        ));
+        assert!(!same_coordinates(Srgb, &[f10, f10, f10], &[f20, f20, f20],));
     }
 
     #[test]
@@ -736,7 +841,11 @@ mod test {
         for &color in [&BLACK, &YELLOW, &BLUE, &WHITE].iter() {
             // Test all one-hop conversions
             let linear_srgb = rgb_to_linear_rgb(&color.srgb);
-            assert!(same_coordinates(LinearSrgb, &linear_srgb, &color.linear_srgb));
+            assert!(same_coordinates(
+                LinearSrgb,
+                &linear_srgb,
+                &color.linear_srgb
+            ));
 
             let srgb = linear_rgb_to_rgb(&linear_srgb);
             assert!(same_coordinates(Srgb, &srgb, &color.srgb));
@@ -745,10 +854,18 @@ mod test {
             assert!(same_coordinates(Xyz, &xyz, &color.xyz));
 
             let also_linear_srgb = xyz_to_linear_srgb(&xyz);
-            assert!(same_coordinates(LinearSrgb, &also_linear_srgb, &linear_srgb));
+            assert!(same_coordinates(
+                LinearSrgb,
+                &also_linear_srgb,
+                &linear_srgb
+            ));
 
             let linear_p3 = xyz_to_linear_display_p3(&xyz);
-            assert!(same_coordinates(LinearDisplayP3, &linear_p3, &color.linear_p3));
+            assert!(same_coordinates(
+                LinearDisplayP3,
+                &linear_p3,
+                &color.linear_p3
+            ));
 
             let also_xyz = linear_display_p3_to_xyz(&linear_p3);
             assert!(same_coordinates(Xyz, &also_xyz, &xyz));
@@ -757,7 +874,11 @@ mod test {
             assert!(same_coordinates(DisplayP3, &p3, &color.p3));
 
             let also_linear_p3 = rgb_to_linear_rgb(&p3);
-            assert!(same_coordinates(LinearDisplayP3, &also_linear_p3, &linear_p3));
+            assert!(same_coordinates(
+                LinearDisplayP3,
+                &also_linear_p3,
+                &linear_p3
+            ));
 
             let oklab = xyz_to_oklab(&xyz);
             assert!(same_coordinates(Oklab, &oklab, &color.oklab));
@@ -778,30 +899,40 @@ mod test {
         // A very green green.
         let p3 = [0.0, 1.0, 0.0];
         let srgb = convert(DisplayP3, Srgb, &p3);
-        assert!(same_coordinates(Srgb, &srgb, &[
-            -0.5116049825853448, 1.0182656579378029, -0.3106746212905826
-        ]));
+        assert!(same_coordinates(
+            Srgb,
+            &srgb,
+            &[-0.5116049825853448, 1.0182656579378029, -0.3106746212905826]
+        ));
 
         let srgb_mapped = map_to_gamut(Srgb, &srgb);
-        assert!(same_coordinates(Srgb, &srgb_mapped, &[
-            0.0, 0.9857637107710327, 0.15974244397343723
-        ]));
+        assert!(same_coordinates(
+            Srgb,
+            &srgb_mapped,
+            &[0.0, 0.9857637107710327, 0.15974244397343723]
+        ));
 
         // A very yellow yellow.
         let p3 = [1.0, 1.0, 0.0];
         let srgb = convert(DisplayP3, Srgb, &p3);
-        assert!(same_coordinates(Srgb, &srgb, &[
-            0.9999999999999999, 0.9999999999999999, -0.3462679629331063
-        ]));
+        assert!(same_coordinates(
+            Srgb,
+            &srgb,
+            &[0.9999999999999999, 0.9999999999999999, -0.3462679629331063]
+        ));
 
         let linear_srgb = convert(DisplayP3, LinearSrgb, &p3);
-        assert!(same_coordinates(LinearSrgb, &linear_srgb, &[
-            1.0, 1.0000000000000002, -0.09827360014096621
-        ]));
+        assert!(same_coordinates(
+            LinearSrgb,
+            &linear_srgb,
+            &[1.0, 1.0000000000000002, -0.09827360014096621]
+        ));
 
         let linear_srgb_mapped = map_to_gamut(LinearSrgb, &linear_srgb);
-        assert!(same_coordinates(LinearSrgb, &linear_srgb_mapped, &[
-            0.9914525477996114, 0.9977581974546286, 0.0
-        ]));
+        assert!(same_coordinates(
+            LinearSrgb,
+            &linear_srgb_mapped,
+            &[0.9914525477996114, 0.9977581974546286, 0.0]
+        ));
     }
 }
