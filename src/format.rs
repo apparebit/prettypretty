@@ -6,8 +6,6 @@
 //! three coordinates do not use floating point but integral numbers drawn from
 //! a specific range.
 
-#![allow(dead_code)]
-
 // ====================================================================================================================
 // Errors
 // ====================================================================================================================
@@ -26,20 +24,8 @@ use std::ops::RangeInclusive;
 ///   * `232..=255` for the 24-step gray gradient.
 #[derive(Clone, Debug)]
 pub struct OutOfBoundsError {
-    value: u8,
-    expected: RangeInclusive<u8>,
-}
-
-impl OutOfBoundsError {
-    /// Access the offending value.
-    pub fn value(&self) -> u8 {
-        self.value
-    }
-
-    /// Access the expected range.
-    pub fn expected(&self) -> &RangeInclusive<u8> {
-        &self.expected
-    }
+    pub value: u8,
+    pub expected: RangeInclusive<u8>,
 }
 
 impl std::fmt::Display for OutOfBoundsError {
@@ -48,13 +34,14 @@ impl std::fmt::Display for OutOfBoundsError {
         write!(
             f,
             "{} should fit into range {}..={}",
-            self.value, self.expected.start(), self.expected.end()
+            self.value,
+            self.expected.start(),
+            self.expected.end()
         )
     }
 }
 
 impl std::error::Error for OutOfBoundsError {}
-
 
 // ====================================================================================================================
 // Ansi Color
@@ -90,7 +77,7 @@ pub enum AnsiColor {
 impl TryFrom<u8> for AnsiColor {
     type Error = OutOfBoundsError;
 
-    /// Try to convert the unsigned byte to an ANSI color.
+    /// Try to convert an unsigned byte to an ANSI color.
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         Ok(match value {
             0 => AnsiColor::Black,
@@ -110,7 +97,10 @@ impl TryFrom<u8> for AnsiColor {
             14 => AnsiColor::BrightCyan,
             15 => AnsiColor::BrightWhite,
             _ => {
-                return Err(OutOfBoundsError { value, expected: 0..=15 })
+                return Err(OutOfBoundsError {
+                    value,
+                    expected: 0..=15,
+                })
             }
         })
     }
@@ -135,11 +125,20 @@ impl EmbeddedRgb {
     /// Instantiate a new embedded RGB value from its coordinates.
     pub fn new(r: u8, g: u8, b: u8) -> Result<Self, OutOfBoundsError> {
         if r >= 6 {
-            Err(OutOfBoundsError { value: r, expected: 0..=5 })
+            Err(OutOfBoundsError {
+                value: r,
+                expected: 0..=5,
+            })
         } else if g >= 6 {
-            Err(OutOfBoundsError { value: g, expected: 0..=5 })
+            Err(OutOfBoundsError {
+                value: g,
+                expected: 0..=5,
+            })
         } else if b >= 6 {
-            Err(OutOfBoundsError { value: b, expected: 0..=5 })
+            Err(OutOfBoundsError {
+                value: b,
+                expected: 0..=5,
+            })
         } else {
             Ok(Self([r, g, b]))
         }
@@ -157,8 +156,11 @@ impl TryFrom<u8> for EmbeddedRgb {
 
     /// Try instantiating an embedded RGB color from an unsigned byte.
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value < 16 || value >= 231 {
-            Err(Self::Error { value, expected: 16..=231 })
+        if !(16..=231).contains(&value) {
+            Err(Self::Error {
+                value,
+                expected: 16..=231,
+            })
         } else {
             let mut b = value - 16;
             let r = b / 36;
@@ -197,7 +199,10 @@ impl GrayGradient {
         if value <= 23 {
             Ok(Self(value))
         } else {
-            Err(OutOfBoundsError { value, expected: 0..=23 })
+            Err(OutOfBoundsError {
+                value,
+                expected: 0..=23,
+            })
         }
     }
 
@@ -217,7 +222,10 @@ impl TryFrom<u8> for GrayGradient {
         if 232 <= value {
             Ok(Self(value - 232))
         } else {
-            Err(OutOfBoundsError { value, expected: 232..=255 })
+            Err(OutOfBoundsError {
+                value,
+                expected: 232..=255,
+            })
         }
     }
 }
@@ -233,7 +241,8 @@ impl From<GrayGradient> for u8 {
 // 8-bit Color
 // ====================================================================================================================
 
-/// An 8-bit terminal color.
+/// 8-bit terminal colors combine ANSI colors, embedded RGB colors, and the gray
+/// gradient.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum EightBitColor {
     Ansi(AnsiColor),
@@ -257,11 +266,7 @@ impl EightBitColor {
 
     /// Determine whether this 8-bit color is an ANSI color.
     pub fn is_ansi(&self) -> bool {
-        if let Self::Ansi(_) = *self {
-            true
-        } else {
-            false
-        }
+        matches!(*self, Self::Ansi(_))
     }
 
     /// Access this 8-bit color as an ANSI color.
@@ -275,11 +280,7 @@ impl EightBitColor {
 
     /// Determine whether this 8-bit color is an embedded RGB color.
     pub fn is_rgb(&self) -> bool {
-        if let Self::Rgb(_) = *self {
-            true
-        } else {
-            false
-        }
+        matches!(*self, Self::Rgb(_))
     }
 
     /// Access this 8-bit color as an embedded RGB color.
@@ -293,11 +294,7 @@ impl EightBitColor {
 
     /// Determine whether this 8-bit color is a gray gradient.
     pub fn is_gray(&self) -> bool {
-        if let Self::Gray(_) = *self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Gray(_))
     }
 
     /// Access this 8-bit color as a gray gradient.
@@ -372,6 +369,7 @@ impl From<GrayGradient> for TrueColor {
 // ====================================================================================================================
 
 /// Terminal fidelity.
+#[allow(dead_code)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Fidelity {
     /// The equivalent of true color.
@@ -386,6 +384,7 @@ pub enum Fidelity {
     None,
 }
 
+// ====================================================================================================================
 
 #[cfg(test)]
 mod test {
@@ -398,7 +397,7 @@ mod test {
         let magenta = AnsiColor::Magenta;
         assert_eq!(magenta as u8, 5);
 
-        let green= EmbeddedRgb::new(0, 4, 0)?;
+        let green = EmbeddedRgb::new(0, 4, 0)?;
         assert_eq!(green.coordinates(), &[0, 4, 0]);
 
         let gray = GrayGradient::new(12)?;
@@ -415,6 +414,32 @@ mod test {
         assert_eq!(EightBitColor::from(5), also_magenta);
         assert_eq!(EightBitColor::from(40), also_green);
         assert_eq!(EightBitColor::from(244), also_gray);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_limits() -> Result<(), OutOfBoundsError> {
+        let black_ansi = AnsiColor::try_from(0)?;
+        assert_eq!(black_ansi, AnsiColor::Black);
+        assert_eq!(u8::from(black_ansi), 0);
+        let white_ansi = AnsiColor::try_from(15)?;
+        assert_eq!(white_ansi, AnsiColor::BrightWhite);
+        assert_eq!(u8::from(white_ansi), 15);
+
+        let black_rgb = EmbeddedRgb::try_from(16)?;
+        assert_eq!(*black_rgb.coordinates(), [0_u8, 0_u8, 0_u8]);
+        assert_eq!(u8::from(black_rgb), 16);
+        let white_rgb = EmbeddedRgb::try_from(231)?;
+        assert_eq!(*white_rgb.coordinates(), [5_u8, 5_u8, 5_u8]);
+        assert_eq!(u8::from(white_rgb), 231);
+
+        let black_gray = GrayGradient::try_from(232)?;
+        assert_eq!(black_gray.level(), 0);
+        assert_eq!(u8::from(black_gray), 232);
+        let white_gray = GrayGradient::try_from(255)?;
+        assert_eq!(white_gray.level(), 23);
+        assert_eq!(u8::from(white_gray), 255);
 
         Ok(())
     }
