@@ -29,27 +29,66 @@
 // Color Space Tags
 // ====================================================================================================================
 
-/// All supported color spaces. This enumeration just collects the variant tags,
-/// no more.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// The enumeration of supported color spaces.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ColorSpace {
+    /// [sRGB](https://en.wikipedia.org/wiki/SRGB) has long served as the
+    /// default color space for the web.
     Srgb,
+
+    /// The linear version of sRGB.
     LinearSrgb,
+
+    /// [Display P3](https://en.wikipedia.org/wiki/DCI-P3) has a wider gamut,
+    /// that is, accommodates more colors, than sRGB and is increasingly
+    /// supported by new computer monitors.
     DisplayP3,
+
+    /// The linear version of Display P3.
     LinearDisplayP3,
-    Oklch,
+
+    /// [Oklab](https://bottosson.github.io/posts/oklab/) is a perceptually
+    /// uniform color space that improves upon Lab.
     Oklab,
+
+    /// Oklch is the polar version of Oklab.
+    Oklch,
+
+    /// [XYZ](https://en.wikipedia.org/wiki/CIE_1931_color_space) is a
+    /// foundational color space. Here it assumes the [D65 standard
+    /// illuminant](https://en.wikipedia.org/wiki/Standard_illuminant) (or white
+    /// point).
     Xyz,
 }
 
 impl ColorSpace {
-    /// Determine whether this color space is polar. Out of the currently
-    /// supported color spaces, only Oklch is polar.
-    pub fn is_polar(&self) -> bool {
-        if let Self::Oklch = *self {
-            true
-        } else {
-            false
+    /// Determine whether this color space is polar. Oklch is the only such
+    /// color space.
+    pub const fn is_polar(&self) -> bool {
+        match *self {
+            Self::Oklch => true,
+            _ => false,
+        }
+    }
+
+    /// Determine whether this color space is RGB, that is, has red, green, and
+    /// blue coordinates. In-gamut colors for RGB color spaces have coordinates
+    /// in unit range `0..=1`.
+    pub const fn is_rgb(&self) -> bool {
+        use ColorSpace::*;
+
+        match *self {
+            Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3 => true,
+            _ => false,
+        }
+    }
+
+    /// Determine whether this color space is bounded. XYZ is the only such
+    /// color space, but for now Oklab and Oklch are also treated as unbounded.
+    pub const fn is_bounded(&self) -> bool {
+        match *self {
+            Self::Xyz | Self::Oklab | Self::Oklch => false,
+            _ => true,
         }
     }
 }
@@ -185,10 +224,10 @@ pub fn oklch_to_oklab(value: &[f64; 3]) -> [f64; 3] {
 /// conversion.
 #[allow(non_snake_case)]
 pub fn oklab_to_oklch(value: &[f64; 3]) -> [f64; 3] {
-    let epsilon = 0.0002;
+    const EPSILON: f64 = 0.0002;
 
     let [L, a, b] = *value;
-    let h = if a.abs() < epsilon && b.abs() < epsilon {
+    let h = if a.abs() < EPSILON && b.abs() < EPSILON {
         f64::NAN
     } else {
         b.atan2(a).to_degrees()
@@ -370,19 +409,17 @@ pub fn in_gamut(space: ColorSpace, coordinates: &[f64; 3]) -> bool {
 }
 
 /// Clip the coordinates to the gamut of the color space.
-pub fn clip(space: ColorSpace, coordinates: &mut [f64; 3]) {
+pub fn clip(space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
     use ColorSpace::*;
 
     match space {
         Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3 => {
-            coordinates.iter_mut().for_each(|c| (*c = c.clamp(0.0, 1.0)))
-        }
-        _ => (),
+            let [r, g, b] = *coordinates;
+            [r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)]
+        },
+        _ => *coordinates,
     }
 }
-
-const JND: f64 = 0.02;
-const EPSILON: f64 = 0.0001;
 
 /// Map the color into gamut by using the [CSS Color 4
 /// algorithm](https://drafts.csswg.org/css-color/#css-gamut-mapping).
@@ -402,13 +439,15 @@ const EPSILON: f64 = 0.0001;
 /// The simultaneous use of Oklab/Oklch nicely illustrates that both Cartesian
 /// and polar coordinates are uniquely suitable for computing some color
 /// properties but not nearly all.
-pub fn into_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
+pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
     use ColorSpace::*;
 
+    const JND: f64 = 0.02;
+    const EPSILON: f64 = 0.0001;
+
     // If the color space is unbounded, there is nothing to map to
-    match target {
-        Xyz | Oklab | Oklch => return *coordinates,
-        _ => ()
+    if !target.is_bounded() {
+        return *coordinates;
     }
 
     // Preliminary 1/2: Clamp Lightness
@@ -429,8 +468,10 @@ pub fn into_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
     // Goal: Minimize just noticeable difference between current and clipped
     // colors
     let mut current_as_oklch = origin_as_oklch;
-    let mut clipped_as_target = convert(Oklch, target, &current_as_oklch);
-    clip(target, &mut clipped_as_target);
+    let mut clipped_as_target = clip(
+        target,
+        &convert(Oklch, target, &current_as_oklch)
+    );
 
     let difference = delta_e_ok(
         &convert(target, Oklab, &clipped_as_target),
@@ -447,7 +488,6 @@ pub fn into_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
     let mut min_in_gamut = true;
 
     loop {
-        println!("start loop body");
         if max - min <= EPSILON {
             break;
         }
@@ -462,8 +502,7 @@ pub fn into_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
             continue;
         }
 
-        clipped_as_target = current_as_target;
-        clip(target, &mut clipped_as_target);
+        clipped_as_target = clip(target, &current_as_target);
 
         let difference = delta_e_ok(
             &convert(target, Oklab, &clipped_as_target),
@@ -488,65 +527,68 @@ pub fn into_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
 // Equality and Difference
 // ====================================================================================================================
 
-// #[allow(non_snake_case)]
-// pub fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
-//     match space {
-//         ColorSpace::Oklch => {
-//             let [L, C, h] = *coordinates;
-//             if h.is_nan() {
-//                 [L, 0.0, 0.0]
-//             } else {
-//                 [L, C, h]
-//             }
-//         },
-//         _ => *coordinates,
-//     }
-// }
+/// Normalize the coordinates in preparation of hashing and equality testing.
+/// This function performs the following transformations:
+///
+///   * To ensure coordinates are numbers, zero out not-a-numbers. If the hue in
+///     Oklch is not-a-number, also zero out the chroma.
+///   * To ensure hues are comparable with each other, remove full rotations.
+///   * To ensure hues can be rounded like other coordinates, divide by 360.
+///   * To allow for small floating point errors, drop one significant digit.
+///     Thanks to the previous step, all coordinates have (roughly) unit range.
+///     Hence, multiply by suitable power of 10 and round the result.
+///   * To ensure equal numbers are equal, normalize negative zeroes to their
+///     positive equivalent.
+///   * To produce a result suitable to hashing and equality testing in Rust,
+///     convert to bits.
+///
+/// The above steps ensure that all coordinates have a range close to the unit
+/// range before the scaling and rounding step, which suffices for correctness.
+/// Full normalization would need to account for a and b in Oklab ranging from
+/// -0.5 to 0.5 and chroma in Oklch from 0 to 0.5.
+pub fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> [u64; 3] {
+    let [mut c1, mut c2, mut c3] = *coordinates;
 
-/// Determine whether two coordinates are the same for all practical purposes.
-/// This function correctly handles not-a-number, angles, floating point errors,
-/// and floating point ranges. It is critical for testing this library.
-pub fn same(c1: f64, c2: f64, is_angle: bool) -> bool {
-    // Compare not-a-number for equality after all
+    // Ensure all coordinates are numbers
     if c1.is_nan() {
-        return c2.is_nan()
-    } else if c2.is_nan() {
-        return false
+        c1 = 0.0;
     }
 
-    // Normalize angular coordinates
-    let n1 = if is_angle { c1.rem_euclid(360.0) } else { c1 };
-    let n2 = if is_angle { c2.rem_euclid(360.0) } else { c2 };
+    if c2.is_nan() {
+        c2 = 0.0;
+    }
 
-    // Round to some fixed number of decimals
-    let decimals = if is_angle { 12 } else { 14 };
-    let factor = 10.0_f64.powi(decimals);
-    // Skip downscaling by factor since we don't reveal values.
-    let n1 = (n1 * factor).round();
-    let n2 = (n2 * factor).round();
-
-    // Now, compare for equality
-    n1 == n2
-}
-
-/// Determine whether the coordinates designate the same color in the color
-/// space.
-pub fn same_coordinates(
-    space: ColorSpace,
-    coordinates1: &[f64; 3],
-    coordinates2: &[f64; 3],
-) -> bool {
-    let is_polar = space.is_polar();
-
-    for index in 0..3 {
-        let c1 = coordinates1[index];
-        let c2 = coordinates2[index];
-        if !same(c1, c2, is_polar && index == 2) {
-            return false
+    if c3.is_nan() {
+        c3 = 0.0;
+        if space.is_polar() {
+            c2 = 0.0;
         }
-    };
+    }
 
-    true
+    // Ensure only partial rotations and unit range
+    if space.is_polar() {
+        c3 = c3.rem_euclid(360.0) / 360.0
+    }
+
+    // Ensure one less significant digit
+    let factor = 10.0_f64.powi((f64::DIGITS as i32) - 1);
+    c1 = (factor * c1).round();
+    c2 = (factor * c2).round();
+    c3 = (factor * c3).round();
+
+    // Ensure canonical zero
+    if c1 == -c1 {
+        c1 = 0.0;
+    }
+    if c2 == -c2 {
+        c2 = 0.0
+    }
+    if c3 == -c3 {
+        c3 = 0.0
+    }
+
+    // Et voilà!
+    [c1.to_bits(), c2.to_bits(), c3.to_bits()]
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -645,18 +687,30 @@ mod test {
         xyz: [0.9504559270516717, 1.0, 1.0890577507598784],
     };
 
+    pub fn same_coordinates(
+        space: ColorSpace,
+        coordinates1: &[f64; 3],
+        coordinates2: &[f64; 3],
+    ) -> bool {
+        let n1 = normalize(space, coordinates1);
+        let n2 = normalize(space, coordinates2);
+
+        n1 == n2
+    }
+
     #[test]
     fn test_equivalence() {
-        // Good grief: In Pyhon 0.5 rounds down. In Rust, it rounds up.
+        // Good grief: In Python 0.5 rounds down. In Rust, it rounds up.
+        let base = 10.0_f64.powi(-(f64::DIGITS as i32));
         let f00 = 0.0;
-        let f01 = 1e-15_f64;
-        let f02 = 2e-15_f64;
-        let f03 = 3e-15_f64;
-        let f05 = 5e-15_f64;
-        let f07 = 7e-15_f64;
-        let f09 = 9e-15_f64;
-        let f10 = 1e-14_f64;
-        let f20 = 2e-14_f64;
+        let f01 = base;
+        let f02 = 2.0 * base;
+        let f03 = 3.0 * base;
+        let f05 = 5.0 * base;
+        let f07 = 7.0 * base;
+        let f09 = 9.0 * base;
+        let f10 = 10.0 * base;
+        let f20 = 20.0 * base;
 
         assert!(same_coordinates(
             Srgb,
@@ -728,7 +782,7 @@ mod test {
             -0.5116049825853448, 1.0182656579378029, -0.3106746212905826
         ]));
 
-        let srgb_mapped = into_gamut(Srgb, &srgb);
+        let srgb_mapped = map_to_gamut(Srgb, &srgb);
         assert!(same_coordinates(Srgb, &srgb_mapped, &[
             0.0, 0.9857637107710327, 0.15974244397343723
         ]));
@@ -745,7 +799,7 @@ mod test {
             1.0, 1.0000000000000002, -0.09827360014096621
         ]));
 
-        let linear_srgb_mapped = into_gamut(LinearSrgb, &linear_srgb);
+        let linear_srgb_mapped = map_to_gamut(LinearSrgb, &linear_srgb);
         assert!(same_coordinates(LinearSrgb, &linear_srgb_mapped, &[
             0.9914525477996114, 0.9977581974546286, 0.0
         ]));
