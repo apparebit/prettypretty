@@ -1,26 +1,28 @@
 //! # Core Color
 //!
 //! This module implements the high-resolution, high-quality algorithms enabling
-//! the parent modules `Color` abstraction.
+//! the parent module's `Color` abstraction.
 //!
 //! Unlike that struct, this module eschews encapsulation in favor of simplicity
-//! and uniformity. Notably, it represents color spaces as tag-like variants
-//! *without* associated values and color coordinates as three-element `f64`
-//! arrays. Besides the overall benefit of reduced complexity, this particularly
-//! aids conversion between color spaces. The `convert()` function performs 42
-//! different conversions between color spaces using a repertoire of only 10
-//! handwritten single-hop color space conversion functions and 6 two-hop color
-//! space conversion functions.
+//! and uniformity. That has significant benefits in terms of reduced
+//! complexity, notably for conversions, and hence seems acceptable. After all,
+//! only [`ColorSpace`] is exposed outside this crate and this module largely is
+//! an "implementation detail."
+//!
+//! In some more detail, this module represents color spaces as tag-like
+//! variants *without* associated values and color coordinates as three-element
+//! `f64` arrays. It does not (and cannot) enforce limits on bounded color
+//! spaces' coordinates, preserving out of gamut colors instead. It does,
+//! however, implement operations for in-gamut testing, clipping, and
+//! gamut-mapping.
 //!
 //! All currently supported color spaces, including XYZ, use D65 as white point.
-//! The code neither performs nor supports chromatic adaptation.
-//!
-//! Conversion between color spaces preserves out-of-gamut values. It does *not*
-//! clip coordinates. It does *not* gamut-map coordinates.
+//! This module does not support chromatic adaptation.
 //!
 //! Not-a-number *is* a valid coordinate value for hue in Oklch. It necessarily
-//! implies that the chroma is zero, i.e., the color is gray (including black
-//! and white).
+//! implies that the chroma is zero, i.e., the color is gray including black and
+//! white. To correctly implement equality testing and hashing, this module
+//! provides [`normalize`]
 //!
 //! Function arguments are ordered so that scalar arguments come before
 //! coordinates, which may be inline array literals.
@@ -318,33 +320,7 @@ pub fn xyz_to_oklch(value: &[f64; 3]) -> [f64; 3] {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// Convert the coordinates from the `from_space` to the `to_space`. This
-/// function leverages the fact that the one-hop conversions effectively form a
-/// tree rooted at XYZ D65 and proceeds as following:
-///
-///  1. It first handles the trivial case, both color spaces being equal, and
-///     if that's the case, simply returns the coordinates.
-///  2. Then it handles all single-hop conversions that do not touch on the
-///     effective root of the color space conversion tree, XYZ.
-///  3. At this point, `from_space` and `to_space` must be on different branches
-///     and this function handles all remaining conversions as the composition
-///     of two conversions:
-///
-///      1. along one branch from `from_space` to the root XYZ;
-///      2. along another branch from the root XYZ to `to_space`.
-///
-/// This requires matching six color space pairs in addition to exhaustively
-/// matching on `from_space` and `to_space`, all of it *in sequence*. That is
-/// critical because it ensures a simple, straight-forward implementation with
-/// trivial control flow. By contrast, the naive approach to implementing this
-/// function, which matches each `from_space` with every `to_space` to select
-/// some conversion, executes fewer matches in the worst case (since it has no
-/// steps 1 and 2) but its code complexity is O(n^2), whereas the code
-/// complexity of this function is O(3n). Trees are nice that way!
-///
-/// If this function becomes a bottleneck, it can be replaced with a factory
-/// function that amortizes the overhead of converter selection over more than
-/// one conversion.
+/// Convert the coordinates from the `from_space` to the `to_space`.
 pub fn convert(from_space: ColorSpace, to_space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
     use ColorSpace::*;
 
@@ -416,22 +392,6 @@ pub fn clip(space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
 
 /// Map the color into gamut by using the [CSS Color 4
 /// algorithm](https://drafts.csswg.org/css-color/#css-gamut-mapping).
-///
-/// The algorithm performs an Oklch-based binary search across the chroma range
-/// from 0 to the original level. It stops the search once the chroma-adjusted
-/// color is within the just noticeable difference (JND) of its clipped version,
-/// using that clipped version as result. JND is measured by deltaEOK, the Oklab
-/// version of the deltaE distance/difference metrics for colors. In other words,
-/// the algorithm relies on three distinct views of each color:
-///
-///  1. the target space view for gamut testing and clipping;
-///  2. the Oklch-based view for producing candidate colors by changing the
-///     chroma;
-///  3. the Oklab-based view for measuring distance.
-///
-/// The simultaneous use of Oklab/Oklch nicely illustrates that both Cartesian
-/// and polar coordinates are uniquely suitable for computing some color
-/// properties but not nearly all.
 pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
     use ColorSpace::*;
 
@@ -514,24 +474,19 @@ pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
 // ====================================================================================================================
 
 /// Normalize the coordinates in preparation of hashing and equality testing.
-/// This function performs the following transformations:
 ///
-///   * To ensure coordinates are numbers, zero out not-a-numbers. If the hue in
-///     Oklch is not-a-number, also zero out the chroma.
-///   * To ensure hues are comparable with each other, remove full rotations.
-///   * To ensure hues can be rounded like other coordinates, divide by 360.
-///   * To allow for small floating point errors, drop one significant digit.
-///     Thanks to the previous step, all coordinates have (roughly) unit range.
-///     Hence, multiply by suitable power of 10 and round the result.
-///   * To ensure equal numbers are equal, normalize negative zeroes to their
-///     positive equivalent.
-///   * To produce a result suitable to hashing and equality testing in Rust,
-///     convert to bits.
+/// Note: In-gamut RGB coordinates and the lightness for Oklab and Oklch have
+/// unit range already. No coordinate-specific normalization is required.
 ///
-/// The above steps ensure that all coordinates have a range close to the unit
-/// range before the scaling and rounding step, which suffices for correctness.
-/// Full normalization would need to account for a and b in Oklab ranging from
-/// -0.5 to 0.5 and chroma in Oklch from 0 to 0.5.
+/// The implementation normalizes hues by computing the remainder of division by
+/// 360, which removes full rotations, and then dividing by 360 to scale down to
+/// unit range.
+///
+/// The implementation currently does not normalize chroma for Oklch as well as
+/// a and b for Oklab because all three have bounds similar to the unit range.
+/// Notably, chroma ranges from 0 to 0.5, and a/b range from -0.5 to 0.5. These
+/// bounds are generous; the current CSS 4 Color draft uses 0.4 as the magnitude
+/// for all non-zero bounds.
 pub fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> [u64; 3] {
     let [mut c1, mut c2, mut c3] = *coordinates;
 
@@ -645,16 +600,14 @@ impl Error for ParseColorError {
     }
 }
 
-/// Parse the textual representation of a color. This function recognizes
-/// the following formats:
+/// Parse the textual representation of a color. This function recognizes the
+/// following formats:
 ///
-///   * the hashed hexadecimal format familiar from the web, e.g., `#efbbfc`;
-///   * the X Windows color format, e.g., `rgb:<hex>/<hex>/<hex>`;
+///   * `#abc` and `#abcdef`
+///   * `rgb:a/bc/defa`
 ///
-/// The hashed format allows for 1 digit per coordinate and 2 digits per
-/// coordinate, consistently for all coordinates. The X Windows format allows
-/// between 1 and 4 coordinates, seemingly independently for each
-/// coordinate.
+/// Note that the red coordinate in `#abc` is 0xaa/0xff, not 0xa/0xf. However
+/// the red coordinate in `rgb:...` is scaled, i.e., 0xa/0xf.
 pub fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ParseColorError> {
     // Both
 

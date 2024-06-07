@@ -11,10 +11,10 @@
 //! # From Color Formats to Colors
 //!
 //! When converting color formats to color objects, this crate uses established
-//! formulae for [`EmbeddedRgb`] and [`GrayGradient`]. However, unlike these
-//! formats and color objects, ANSI colors have names but no intrinsic color
-//! values. Consequently, to convert ANSI colors to instances of [`Color`], this
-//! crate relies on a global theme providing the color values.
+//! formulae for [`EmbeddedRgb`] and [`GrayGradient`]. However, ANSI colors have
+//! names but no intrinsic color values. Consequently, to convert ANSI colors to
+//! instances of [`Color`], this crate relies on a global theme providing the
+//! color values.
 //!
 //!
 //! # From Colors to Color Formats
