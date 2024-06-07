@@ -6,6 +6,7 @@ pub use self::core::ColorSpace;
 use self::core::{
     clip, convert, delta_e_ok, in_gamut, map_to_gamut, normalize, parse, ParseColorError,
 };
+pub use super::util::Coordinate;
 
 /// A color object.
 ///
@@ -274,14 +275,6 @@ impl PartialEq for Color {
 impl Eq for Color {}
 
 // --------------------------------------------------------------------------------------------------------------------
-
-/// A safe, symbolic index for the three color coordinates.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Coordinate {
-    C1 = 0,
-    C2 = 1,
-    C3 = 2,
-}
 
 impl std::ops::Index<Coordinate> for Color {
     type Output = f64;

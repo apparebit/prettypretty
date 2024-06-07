@@ -2,6 +2,7 @@ use std::sync::{Mutex, MutexGuard};
 
 mod color;
 mod format;
+mod util;
 
 pub use color::Color;
 pub use color::ColorSpace;
