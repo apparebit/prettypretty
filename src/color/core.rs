@@ -477,11 +477,7 @@ pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
     let mut max = origin_as_oklch[1];
     let mut min_in_gamut = true;
 
-    loop {
-        if max - min <= EPSILON {
-            break;
-        }
-
+    while max - min > EPSILON {
         let chroma = (min + max) / 2.0;
         current_as_oklch = [current_as_oklch[0], chroma, current_as_oklch[2]];
 
