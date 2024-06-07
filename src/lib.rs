@@ -1,3 +1,33 @@
+//! # Oxidized colors for terminals
+//!
+//! This library supports terminal color formats through [`EightBitColor`] and
+//! [`TrueColor`] and arbitrary but color-spaced colors through [`Color`]. The
+//! 8-bit color format, in turn, comprises three more formats, [`AnsiColor`],
+//! [`EmbeddedRgb`], and [`GrayGradient`], each of which has its own code range
+//! amongst unsigned 8-bit numbers. All four can easily be converted from and to
+//! `u8`.
+//!
+//!
+//! # From Color Formats to Colors
+//!
+//! When converting color formats to color objects, this crate uses established
+//! formulae for [`EmbeddedRgb`] and [`GrayGradient`]. However, unlike these
+//! formats and color objects, ANSI colors have names but no intrinsic color
+//! values. Consequently, to convert ANSI colors to instances of [`Color`], this
+//! crate relies on a global theme providing the color values.
+//!
+//!
+//! # From Colors to Color Formats
+//!
+//! Meanwhile, to perform high-quality conversions from arbitrary colors to the
+//! 8-bit color format, this crate searches for the closest color amongst 8-bit
+//! colors. Candidates are *all* colors from [`EmbeddedRgb`] and
+//! [`GrayGradient`] when converting to 8-bit colors and *all* 16 extended
+//! [`AnsiColor`] when converting to ANSI colors. The ANSI colors are *not*
+//! considered when converting to 8-bit colors, even though they take up the
+//! first 16 code points, because they tend to stick out and disrupt any
+//! gradation.
+
 use std::sync::{Mutex, MutexGuard};
 
 mod color;

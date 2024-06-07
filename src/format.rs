@@ -120,12 +120,13 @@ impl From<AnsiColor> for u8 {
 
 /// The 6x6x6 RGB cube embedded in 8-bit terminal colors.
 ///
-/// Unlike [`TrueColor`] and [`Color`], this struct only implements the
-/// [`Index`] trait but not the [`IndexMut`] trait. The latter cannot ensure
-/// that coordinates have range `0..=5`. While that could be addressed with a
-/// newtype wrapping u8, the resulting notational overhead also seems
-/// incommensurate with the benefits. Instead, this struct implements
-/// [`EmbeddedRgb.update`] as setter.
+/// Unlike [`TrueColor`] and [`super::Color`], this struct only implements
+/// [`EmbeddedRgb.index`] but not `index_mut()`. The latter cannot ensure the
+/// critical invariant that coordinates have range `0..=5`. While that could be
+/// addressed with a newtype wrapping u8, the resulting notational overhead also
+/// seems incommensurate with the benefits. Instead, this struct implements
+/// [`EmbeddedRgb.update`] as setter. It may not be as quite as elegant, but it
+/// sure works.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EmbeddedRgb([u8; 3]);
 
@@ -159,7 +160,7 @@ impl EmbeddedRgb {
     }
 
     /// Update the named coordinate to the given value. This struct implements
-    /// this method in lieu of [`IndexMut`], which cannot enforce the invariant
+    /// this method in lieu of `index_mut()`, which cannot enforce the invariant
     /// that coordinates must be between 0 and 5, inclusive.
     pub fn update(&mut self, index: Coordinate, value: u8) -> Result<(), OutOfBoundsError> {
         if value <= 5 {
