@@ -11,6 +11,7 @@
 // ====================================================================================================================
 
 use std::ops::RangeInclusive;
+use super::util::Coordinate;
 
 /// An out-of-bounds error.
 ///
@@ -118,6 +119,13 @@ impl From<AnsiColor> for u8 {
 // ====================================================================================================================
 
 /// The 6x6x6 RGB cube embedded in 8-bit terminal colors.
+///
+/// Unlike [`TrueColor`] and [`Color`], this struct only implements the
+/// [`Index`] trait but not the [`IndexMut`] trait. The latter cannot ensure
+/// that coordinates have range `0..=5`. While that could be addressed with a
+/// newtype wrapping u8, the resulting notational overhead also seems
+/// incommensurate with the benefits. Instead, this struct implements
+/// [`EmbeddedRgb.update`] as setter.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EmbeddedRgb([u8; 3]);
 
@@ -149,6 +157,21 @@ impl EmbeddedRgb {
     pub fn coordinates(&self) -> &[u8; 3] {
         &self.0
     }
+
+    /// Update the named coordinate to the given value. This struct implements
+    /// this method in lieu of [`IndexMut`], which cannot enforce the invariant
+    /// that coordinates must be between 0 and 5, inclusive.
+    pub fn update(&mut self, index: Coordinate, value: u8) -> Result<(), OutOfBoundsError> {
+        if value <= 5 {
+            self.0[index as usize] = value;
+            Ok(())
+        } else {
+            Err(OutOfBoundsError {
+                value,
+                expected: 0..=5,
+            })
+        }
+    }
 }
 
 impl TryFrom<u8> for EmbeddedRgb {
@@ -178,6 +201,15 @@ impl From<EmbeddedRgb> for u8 {
     fn from(value: EmbeddedRgb) -> u8 {
         let [r, g, b] = value.0;
         16 + 36 * r + 6 * g + b
+    }
+}
+
+impl std::ops::Index<Coordinate> for EmbeddedRgb {
+    type Output = u8;
+
+    /// Access the named coordinate.
+    fn index(&self, index: Coordinate) -> &Self::Output {
+        &self.0[index as usize]
     }
 }
 
@@ -361,6 +393,22 @@ impl From<GrayGradient> for TrueColor {
     fn from(value: GrayGradient) -> Self {
         let level = 8 + 10 * value.level();
         Self([level, level, level])
+    }
+}
+
+impl std::ops::Index<Coordinate> for TrueColor {
+    type Output = u8;
+
+    /// Access the named coordinate.
+    fn index(&self, index: Coordinate) -> &Self::Output {
+        &self.0[index as usize]
+    }
+}
+
+impl std::ops::IndexMut<Coordinate> for TrueColor {
+    /// Mutably access the named coordinate.
+    fn index_mut(&mut self, index: Coordinate) -> &mut Self::Output {
+        &mut self.0[index as usize]
     }
 }
 
