@@ -5,6 +5,8 @@
         "Hifi",
         "OKLAB",
         "oklch",
+        "Oklrab",
+        "Oklrch",
         "srgb"
     ],
     "python.testing.unittestArgs": [
