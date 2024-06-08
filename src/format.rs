@@ -10,8 +10,8 @@
 // Errors
 // ====================================================================================================================
 
-use std::ops::RangeInclusive;
 use super::util::Coordinate;
+use std::ops::RangeInclusive;
 
 /// An out-of-bounds error.
 ///
@@ -291,7 +291,7 @@ impl EightBitColor {
 
         if value <= 15 {
             Ansi(value.try_into().unwrap())
-        } else if value <= 215 {
+        } else if value <= 231 {
             Rgb(value.try_into().unwrap())
         } else {
             Gray(value.try_into().unwrap())
