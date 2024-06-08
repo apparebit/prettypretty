@@ -2,32 +2,38 @@
 
 mod core;
 
-pub use self::core::ColorSpace;
 use self::core::{
-    clip, convert, delta_e_ok, in_gamut, map_to_gamut, normalize, parse, ParseColorError,
+    clip, convert, delta_e_ok, in_gamut, map_to_gamut, normalize, parse, to_contrast,
+    to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
 };
+pub use self::core::{ColorSpace, ParseColorError};
 pub use super::util::Coordinate;
 
-/// A color object.
+/// A high-resolution color object.
 ///
-/// # In-Gamut Colors
+///
+/// # Managing Gamut
 ///
 /// Color objects have a uniform representation for all supported color spaces,
 /// combining a color space tag with a three-element array of coordinates. That
-/// does get in the way of automatically enforcing typestate invariants for
-/// color spaces, including the coordinate ranges of in-gamut colors. E.g., for
-/// the RGB color spaces sRGB, linear sRGB, Display P3, and linear Display P3,
-/// in-gamut red, green, and blue coordinates have unit range `0..=1`.
+/// does get in the way of color objects enforcing invariants specific to color
+/// spaces, notably that coordinates always fall within gamut limits. For
+/// example, in-gamut red, green, and blue coordinates for the RGB color spaces
+/// sRGB, linear sRGB, Display P3, and linear Display P3 have unit range
+/// `0..=1`. But such automatic enforcement of gamut limits might also lead to
+/// information loss (by converting from a larger to a smaller space).
 ///
-/// Instead of automatically limiting colors, color objects preserve computed
-/// coordinate values even if they are out of gamut. That way, no information is
-/// lost and colors in larger color spaces can easily be recovered by converting
-/// them.
+/// That's why this crate preserves computed coordinates, even if they are out
+/// of gamut. Instead, code using this library needs to make sure colors are in
+/// gamut before trying to display them:
 ///
-/// To explicitly manage gamut, use [`Color::in_gamut`] to test whether a color
-/// is in gamut. Use [`Color::clip`] to quickly compute a low quality in-gamut
-/// color. Use [`Color::map_to_gamut`] to more slowly search for a
-/// higher-quality in-gamut color.
+///   * Use [`Color::in_gamut`] to test whether a color is in gamut;
+///   * Use [`Color::clip`] to quickly calculate an in-gamut color that may be a
+///     subpar stand-in for the original color;
+///   * Use [`Color::map_to_gamut`] to more slowly search for a more accurate
+///     stand-in;
+///   * Use [`Color::difference`] and [`Color::closest`] to implement custom
+///     search strategies.
 ///
 ///
 /// # Equality Testing and Hashing
@@ -51,6 +57,16 @@ pub use super::util::Coordinate;
 ///
 /// While rounding isn't strictly necessary for correctness, it makes for a more
 /// robust comparison without meaningfully reducing precision.
+///
+///
+/// # Doctest Coloring
+///
+/// Not surprisingly, doctests with example code for using [`Color`] require
+/// their own colors. To make the code examples more accessible, each code block
+/// is followed by a simple color swatch that shows the example's colors. Swatch
+/// colors use the same color space (sRGB, Display P3, Oklab, or Oklch) where
+/// possible and an equivalent color in another space where necessary (Oklrab
+/// and Oklrch).
 #[derive(Clone, Debug)]
 pub struct Color {
     space: ColorSpace,
@@ -62,9 +78,11 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let hot_pink = Color::new(ColorSpace::Oklch, 0.7, 0.22, 3.0);
-    /// assert!(!hot_pink.to(ColorSpace::Srgb).in_gamut());
+    /// let pink = Color::new(ColorSpace::Oklch, 0.7, 0.22, 3.0);
+    /// assert_eq!(pink.coordinates(), &[0.7_f64, 0.22_f64, 3.0_f64]);
     /// ```
+    /// <div style="background-color: oklch(0.7 0.22 3.0); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
     pub const fn new(space: ColorSpace, c1: f64, c2: f64, c3: f64) -> Self {
         Color {
             space,
@@ -80,6 +98,8 @@ impl Color {
     /// let fire_brick = Color::srgb(177.0/255.0, 31.0/255.0, 36.0/255.0);
     /// assert_eq!(fire_brick.space(), ColorSpace::Srgb);
     /// ```
+    /// <div style="background-color: rgb(177 31 36); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
     pub const fn srgb(r: f64, g: f64, b: f64) -> Self {
         Color {
             space: ColorSpace::Srgb,
@@ -92,9 +112,11 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let cyan = Color::p3(0.0, 1.0, 1.0);
-    /// assert_eq!(cyan.coordinates(), &[0.0, 1.0, 1.0]);
+    /// let cyan = Color::p3(0.0, 0.87, 0.85);
+    /// assert_eq!(cyan.space(), ColorSpace::DisplayP3);
     /// ```
+    /// <div style="background-color: color(display-p3 0 0.87 0.85); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
     pub const fn p3(r: f64, g: f64, b: f64) -> Self {
         Color {
             space: ColorSpace::DisplayP3,
@@ -102,14 +124,17 @@ impl Color {
         }
     }
 
-    /// Instantiate a new Oklab color with the given lightness, a, and b
+    /// Instantiate a new Oklab color with the given lightness L, a, and b
     /// coordinates.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let blue_cyanish = Color::oklab(0.78, -0.1, -0.1);
-    /// assert_eq!(blue_cyanish.space(), ColorSpace::Oklab);
+    /// let blueish = Color::oklab(0.78, -0.1, -0.1);
+    /// assert_eq!(blueish.space(), ColorSpace::Oklab);
     /// ```
+    /// <div style="background-color: oklab(0.78 -0.1 -0.1); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+
     pub const fn oklab(l: f64, a: f64, b: f64) -> Self {
         Color {
             space: ColorSpace::Oklab,
@@ -117,18 +142,59 @@ impl Color {
         }
     }
 
-    /// Instantiate a new Oklch color with the given lightness, chroma, and hue
-    /// coordinates.
+    /// Instantiate a new Oklrab color with the given revised lightness Lr, a,
+    /// and b coordinates.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let blueish = Color::oklrab(0.48, -0.1, -0.1);
+    /// assert_eq!(blueish.space(), ColorSpace::Oklrab);
+    /// assert!(
+    ///     (blueish.to(ColorSpace::Oklab).coordinates()[0] - 0.5514232757779728).abs()
+    ///     < 1e-13
+    /// );
+    /// ```
+    /// <div style="background-color: oklab(0.5514232757779728 -0.1 -0.1); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    pub const fn oklrab(lr: f64, a: f64, b: f64) -> Self {
+        Color {
+            space: ColorSpace::Oklrab,
+            coordinates: [lr, a, b],
+        }
+    }
+
+    /// Instantiate a new Oklch color with the given lightness L, chroma C, and
+    /// hue h coordinates.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
     /// let deep_purple = Color::oklch(0.5, 0.25, 308.0);
     /// assert_eq!(deep_purple.space(), ColorSpace::Oklch);
     /// ```
+    /// <div style="background-color: oklch(0.5 0.25 308); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
     pub const fn oklch(l: f64, c: f64, h: f64) -> Self {
         Color {
             space: ColorSpace::Oklch,
             coordinates: [l, c, h],
+        }
+    }
+
+    /// Instantiate a new Oklrch color with the given revised lightness Lr,
+    /// chroma C, and hue h coordinates.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let deep_purple = Color::oklrch(0.5, 0.25, 308.0);
+    /// let also_purple = deep_purple.to(ColorSpace::Oklch);
+    /// assert_eq!(also_purple, Color::oklch(0.568838198942395, 0.25, 308.0));
+    /// ```
+    /// <div style="background-color: oklch(0.569 0.25 308); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    pub const fn oklrch(lr: f64, c: f64, h: f64) -> Self {
+        Color {
+            space: ColorSpace::Oklrch,
+            coordinates: [lr, c, h],
         }
     }
 
@@ -141,6 +207,9 @@ impl Color {
     /// let blue = Color::srgb(0.0, 0.0, 1.0);
     /// assert_eq!(blue.space(), ColorSpace::Srgb);
     /// ```
+    /// <div style="background-color: color(srgb 0 0 1); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    #[inline]
     pub fn space(&self) -> ColorSpace {
         self.space
     }
@@ -152,6 +221,9 @@ impl Color {
     /// let green = Color::new(ColorSpace::DisplayP3, 0.0, 1.0, 0.0);
     /// assert_eq!(green.coordinates(), &[0.0, 1.0, 0.0]);
     /// ```
+    /// <div style="background-color: color(display-p3 0 1 0); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    #[inline]
     pub fn coordinates(&self) -> &[f64; 3] {
         &self.coordinates
     }
@@ -161,85 +233,37 @@ impl Color {
     /// Convert this color to the target color space.
     ///
     ///
-    /// # Challenge
+    /// # Approach
     ///
     /// A color space is usually defined through a conversion from and to
     /// another color space. The color module includes handwritten functions
     /// that implement just those single-hop conversions. The basic challenge
     /// for arbitrary conversions, as implemented by this method, is to find a
     /// path through the graph of single-hop conversions. Dijkstra's algorithm
-    /// would certainly work also is too general because the graph really is a
-    /// tree rooted in XYZ D65 and edges only have unit weights. But even an
-    /// optimized version would repeatedly find the same path through a rather
-    /// small graph. It currently has seven nodes and is unlikely to grow beyond
-    /// twice that size.
+    /// would certainly work. But it also incurs substantial dynamic overhead on
+    /// every conversion.
     ///
+    /// The algorithm used by this method can avoid much of this dynamic
+    /// overhead. It is based on the observation that single-hop conversions
+    /// form a tree rooted in XYZ. That suggests taking a divide and conquer
+    /// approach towards the most general conversions, which go through XYZ:
+    /// Split the path into two, from the source color space to XYZ and from XYZ
+    /// to the target color space.
     ///
-    /// # Algorithm
+    /// Alas, conversions that do not go through XYZ need to be handled
+    /// separately and the cluster of Oklab, Oklrab, Oklch, and Oklrch—with
+    /// Oklab converting to Oklrab and Oklch, which in turn both convert to
+    /// Oklrch—requires 4 single-hop and 4 double-hop conversion functions in
+    /// addition to the 2 single-hop, 4 double-hop, and 2 triple-hop functions
+    /// for converting from and to XYZ.
     ///
-    /// Instead, this method implements the following algorithm, which requires
-    /// a few more handwritten functions, but avoids most of the overhead of
-    /// dynamic routing:
-    ///
-    ///  1. If the current color space *is* the target color space, simply
-    ///     return the coordinates.
-    ///  2. Handle all single-hop conversions that do not involve the root XYZ
-    ///     D65. Since the gamma curve for sRGB and Display P3 is the same,
-    ///     there really are only four conversions:
-    ///
-    ///      1. From sRGB to Linear sRGB, from Display P3 to Linear Display P3;
-    ///      2. The inverse from linear to gamma-corrected coordinates;
-    ///      3. From Oklab to Oklch;
-    ///      4. From Oklch to Oklab.
-    ///
-    ///  3. With same hop and same branch conversions taken care of, we know
-    ///     that the current and target color spaces are on separate branches,
-    ///     with one of the two color spaces possibly XYZ itself. As a result,
-    ///     all remaining conversions can be broken down into two simpler
-    ///     conversions:
-    ///
-    ///      1. Along one branch from the current color space to the root XYZ;
-    ///      2. Along another branch from the root XYZ to the target color space.
-    ///
-    /// By breaking conversions that go through XYZ into two steps, the
-    /// conversion algorithm limits the number of hops that need to be supported
-    /// by handwritten functions to two hops (currently). Furthermore,
-    /// implementing these two-hop conversion functions by composing single-hop
-    /// conversions is trivial. Altogether, the implementation relies on 10
-    /// single-hop and 6 dual-hop conversions.
-    ///
-    ///
-    /// # Trade-Offs
-    ///
-    /// The above algorithm represents a compromise between full specialization
-    /// and entirely dynamic routing. Full specialization would require
-    /// (7-1)(7-1) = 36 conversion functions, some of them spanning four hops.
-    /// Its implementation would also require 7*7 = 49 matches on color space
-    /// identifiers because it needs to look up the target color space *for
-    /// each* source color space.
-    ///
-    /// In contrast, dynamic routing gets by with the 10 single-hop conversions
-    /// but its implementation needs to recompute paths of up to 4 hops over and
-    /// over again.
-    ///
-    /// Meanwhile, the above algorithm requires 6 additional dual-hop
-    /// conversions. Its implementation comprises 6 matches on pairs, 7 matches
-    /// on the source color space, and 7 matches on the target color space, *in
-    /// series*, to a total of 20 matches. That's also the maximum number of
-    /// matches it performs, which is 6 more than the fully specialized case. At
-    /// the same time, its implementation requires much less machinery than the
-    /// fully specialized one.
-    ///
-    /// Now, if branches were deeper, say, we also supported HSL, HSV, and HWB
-    /// (with sRGB converting to HSL then HSV then HWB), the above algorithm
-    /// would require three-, four-, and five-hop conversions as well, which
-    /// would be cumbersome to implement. However, the general divide and
-    /// conquer approach would apply to such long branches as well. For example,
-    /// HSL could serve as midpoint. All other color spaces on the same branch
-    /// are within two hops, with exception of XYZ, which requires three (i.e.,
-    /// two three-hop conversion functions). In short, by performing *limited*
-    /// dynamic look-ups, we can get most of the benefits of a fully specialized
-    /// implementation.
+    /// With those conversion functions in place, routing through the conversion
+    /// graph is a straightforward linear case analysis that first matches pairs
+    /// of color spaces to handle conversions within subtrees, then matches on
+    /// the source color space, and finally matches on the target color space.
+    /// Conveniently, a match during the first step also eliminates the need for
+    /// the second and third match. See the source code for the full details.
+    #[inline]
     #[must_use = "method returns a new color and does not mutate original value"]
     pub fn to(&self, target: ColorSpace) -> Self {
         Self {
@@ -258,6 +282,13 @@ impl Color {
     /// let green = Color::new(ColorSpace::DisplayP3, 0.0, 1.0, 0.0);
     /// assert!(!green.to(ColorSpace::Srgb).in_gamut());
     /// ```
+    /// <div style="display: flex;">
+    /// <div style="background-color: color(srgb 1 0 0); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    /// <div style="background-color: color(display-p3 0 1 0); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    /// </div>
+    #[inline]
     pub fn in_gamut(&self) -> bool {
         in_gamut(self.space, &self.coordinates)
     }
@@ -279,6 +310,13 @@ impl Color {
     /// let green = too_green.clip();
     /// assert!(green.in_gamut());
     /// ```
+    /// <div style="display: flex;">
+    /// <div style="background-color: color(display-p3 0 1 0); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    /// <div style="background-color: color(srgb 0 1 0); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    /// </div>
+    #[inline]
     #[must_use = "method returns a new color and does not mutate original value"]
     pub fn clip(&self) -> Self {
         Self {
@@ -318,13 +356,20 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let too_yellow = Color::new(ColorSpace::DisplayP3, 1.0, 1.0, 0.0)
+    /// let too_green = Color::new(ColorSpace::DisplayP3, 0.0, 1.0, 0.0)
     ///     .to(ColorSpace::Srgb);
-    /// assert!(!too_yellow.in_gamut());
+    /// assert!(!too_green.in_gamut());
     ///
-    /// let yellow = too_yellow.map_to_gamut();
-    /// assert!(yellow.in_gamut());
+    /// let green = too_green.map_to_gamut();
+    /// assert!(green.in_gamut());
     /// ```
+    /// <div style="display: flex;">
+    /// <div style="background-color: color(display-p3 0 1 0); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    /// <div style="background-color: color(srgb 0.0 0.9857637107710325 0.15974244397344017); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    /// </div>
+    #[inline]
     #[must_use = "method returns a new color and does not mutate original value"]
     pub fn map_to_gamut(&self) -> Self {
         Self {
@@ -333,14 +378,158 @@ impl Color {
         }
     }
 
-    /// Determine the difference between the two colors. This method returns the
-    /// delta E OK metric, which is the same as the Euclidian distance between
-    /// the two colors in Oklab.
-    pub fn difference(&self, other: Self) -> f64 {
+    /// Determine the difference between the two colors. This method computes
+    /// the Euclidian distance in the Oklrab color space, calculating the
+    /// equivalent of the Delta-E for Oklab.
+    #[inline]
+    pub fn difference(&self, other: &Self) -> f64 {
         delta_e_ok(
-            self.to(ColorSpace::Oklab).coordinates(),
-            other.to(ColorSpace::Oklab).coordinates(),
+            &self.to(ColorSpace::Oklrab).coordinates,
+            &other.to(ColorSpace::Oklrab).coordinates,
         )
+    }
+
+    /// Find the position of the candidate color closest to this color. This
+    /// method measures distance as the Euclidian distance in Oklrab. If there
+    /// are no candidates, the position of the closest color is `None`.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let colors = [
+    ///     &Color::srgb(1.0, 0.0, 0.0),
+    ///     &Color::srgb(0.0, 1.0, 0.0),
+    ///     &Color::srgb(0.0, 0.0, 1.0),
+    /// ];
+    /// let rose = Color::srgb(1.0, 0.5, 0.5);
+    /// let closest = rose.closest(colors);
+    /// assert_eq!(closest, Some(0));
+    ///
+    /// let closest = Color::srgb(0.5, 1.0, 0.6).closest(colors);
+    /// assert_eq!(closest, Some(1))
+    /// ```
+    /// <div style="display: flex;">
+    /// <div style="background-color: color(srgb 1 0 0); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    /// <div style="background-color: color(srgb 0 1 0); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    /// <div style="background-color: color(srgb 0 0 1); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    /// <div style="background-color: color(srgb 1 0.5 0.5); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    /// <div style="background-color: color(srgb 0.5 1 0.6); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// </div>
+    /// </div>
+    ///
+    pub fn closest<'c, C>(&self, candidates: C) -> Option<usize>
+    where
+        C: IntoIterator<Item = &'c Color>,
+    {
+        let origin = self.to(ColorSpace::Oklrab);
+        let mut min_difference = f64::INFINITY;
+        let mut min_index = None;
+
+        for (index, candidate) in candidates.into_iter().enumerate() {
+            let difference = delta_e_ok(
+                &origin.coordinates,
+                &candidate.to(ColorSpace::Oklrab).coordinates,
+            );
+
+            if difference < min_difference {
+                min_difference = difference;
+                min_index = Some(index);
+            }
+        }
+
+        min_index
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+
+    /// Determine the perceptual contrast of text against a solidly colored
+    /// background.
+    ///
+    /// This method computes the asymmetric, perceptual contrast of text with
+    /// this color against a background with the given color. It uses an
+    /// algorithm that is surprisingly similar to [Accessible Perceptual
+    /// Contrast Algorithm](https://github.com/Myndex/apca-w3), version
+    /// 0.0.98G-4g.
+    pub fn contrast_against(&self, background: Self) -> f64 {
+        let fg = self.to(ColorSpace::Srgb);
+        let bg = background.to(ColorSpace::Srgb);
+
+        // Try sRGB
+        if fg.in_gamut() && bg.in_gamut() {
+            return to_contrast(
+                to_contrast_luminance(&SRGB_CONTRAST, &fg.coordinates),
+                to_contrast_luminance(&SRGB_CONTRAST, &bg.coordinates),
+            );
+        };
+
+        // Fall back on Display P3
+        let fg = self.to(ColorSpace::DisplayP3);
+        let bg = background.to(ColorSpace::DisplayP3);
+        to_contrast(
+            to_contrast_luminance(&P3_CONTRAST, &fg.coordinates),
+            to_contrast_luminance(&P3_CONTRAST, &bg.coordinates),
+        )
+    }
+
+    /// Determine whether black or white text maximizes perceptual contrast
+    /// against a solid background with this color. This function uses the
+    /// same algorithm as [`Color::contrast_against`].
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace, ParseColorError};
+    /// let blue: Color = str::parse("#6872ff")?;
+    /// assert!(!blue.use_black_text());
+    /// # Ok::<(), ParseColorError>(())
+    /// ```
+    /// <div style="display: flex;">
+    /// <div style="background-color: #6872ff; height: 4em; width: 4em; display: flex; align-items: center; justify-content: center; border: black 0.5pt solid;">
+    /// <span style="color: #000;">Don't!</span>
+    /// </div>
+    /// <div style="background-color: #6872ff; height: 4em; width: 4em; display: flex; align-items: center; justify-content: center; border: black 0.5pt solid;">
+    /// <span style="color: #fff;">Do!</span>
+    /// </div>
+    /// </div>
+    pub fn use_black_text(&self) -> bool {
+        let background = self.to(ColorSpace::Srgb);
+        let luminance = if background.in_gamut() {
+            to_contrast_luminance(&SRGB_CONTRAST, &background.coordinates)
+        } else {
+            to_contrast_luminance(&P3_CONTRAST, &self.to(ColorSpace::DisplayP3).coordinates)
+        };
+
+        to_contrast(0.0, luminance) >= -to_contrast(1.0, luminance)
+    }
+
+    /// Determine whether a black or white background maximizes perceptual
+    /// contrast behind text with this color. This function uses the same
+    /// algorithm as [`Color::contrast_against`].
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace, ParseColorError};
+    /// let blue: Color = str::parse("#68a0ff")?;
+    /// assert!(blue.use_black_background());
+    /// # Ok::<(), ParseColorError>(())
+    /// ```
+    /// <div style="display: flex;">
+    /// <div style="background-color: #000; height: 4em; width: 4em; display: flex; align-items: center; justify-content: center;">
+    /// <span style="color: #68a0ff;">Do!</span>
+    /// </div>
+    /// <div style="background-color: #fff; height: 4em; width: 4em; display: flex; align-items: center; justify-content: center; border: black 0.5pt solid;">
+    /// <span style="color: #68a0ff;">Don't!</span>
+    /// </div>
+    /// </div>
+    pub fn use_black_background(&self) -> bool {
+        let text = self.to(ColorSpace::Srgb);
+        let luminance = if text.in_gamut() {
+            to_contrast_luminance(&SRGB_CONTRAST, &text.coordinates)
+        } else {
+            to_contrast_luminance(&P3_CONTRAST, &self.to(ColorSpace::DisplayP3).coordinates)
+        };
+
+        to_contrast(luminance, 0.0) <= -to_contrast(luminance, 1.0)
     }
 }
 
@@ -375,6 +564,15 @@ impl std::str::FromStr for Color {
     /// The X Windows notation has between one and four hexadecimal digits per
     /// coordinate, e.g., `rgb:1/00/cafe`. Here, every coordinate is scaled,
     /// i.e., the red coordinate in the example is 0x1/0xf.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace, ParseColorError};
+    /// let blue: Color = str::parse("#35f")?;
+    /// assert_eq!(blue, Color::srgb(0.2, 0.3333333333333333, 1.0));
+    /// # Ok::<(), ParseColorError>(())
+    /// ```
+    /// <div style="background-color: #35f; height: 4em; width: 4em; display: flex; align-items: center; justify-content: center;">
+    /// </div>
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         parse(s).map(|(space, coordinates)| Color { space, coordinates })
     }
@@ -417,6 +615,12 @@ impl PartialEq for Color {
     ///     Color::new(ColorSpace::Oklch, 0.5, 0.1, 305.0)
     /// );
     /// ```
+    /// <div style="display: flex;">
+    /// <div style="background-color: color(srgb 0 0 0.00000000000001); height: 4em; width: 4em; display: flex; align-items: center; justify-content: center;">
+    /// </div>
+    /// <div style="background-color: oklch(0.5 0.1 305); height: 4em; width: 4em; display: flex; align-items: center; justify-content: center;">
+    /// </div>
+    /// </div>
     fn eq(&self, other: &Self) -> bool {
         if self.space != other.space {
             return false;
@@ -441,9 +645,11 @@ impl std::ops::Index<Coordinate> for Color {
     /// # use prettypretty::{Color, ColorSpace};
     /// use prettypretty::Coordinate::*;
     ///
-    /// let blue = Color::srgb(0.0, 0.0, 1.0);
-    /// assert_eq!(blue[C3], 1.0);
+    /// let purple = Color::srgb(0.5, 0.4, 0.75);
+    /// assert_eq!(purple[C3], 0.75);
     /// ```
+    /// <div style="background-color: color(srgb 0.5 0.4 0.75); height: 4em; width: 4em; display: flex; align-items: center; justify-content: center;">
+    /// </div>
     fn index(&self, index: Coordinate) -> &Self::Output {
         &self.coordinates[index as usize]
     }
@@ -456,11 +662,13 @@ impl std::ops::IndexMut<Coordinate> for Color {
     /// # use prettypretty::{Color, ColorSpace};
     /// use prettypretty::Coordinate::*;
     ///
-    /// let mut magenta = Color::srgb(0.0, 0.0, 1.0);
+    /// let mut magenta = Color::srgb(0.0, 0.3, 0.8);
     /// // Oops, we forgot to set the red coordinate. Let's fix that.
-    /// magenta[C1] = 1.0;
-    /// assert_eq!(magenta.coordinates(), &[1.0_f64, 0.0_f64, 1.0_f64]);
+    /// magenta[C1] = 0.9;
+    /// assert_eq!(magenta.coordinates(), &[0.9_f64, 0.3_f64, 0.8_f64]);
     /// ```
+    /// <div style="background-color: color(srgb 0.9 0.3 0.8); height: 4em; width: 4em; display: flex; align-items: center; justify-content: center;">
+    /// </div>
     fn index_mut(&mut self, index: Coordinate) -> &mut Self::Output {
         &mut self.coordinates[index as usize]
     }
