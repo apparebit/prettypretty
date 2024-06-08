@@ -662,6 +662,7 @@ pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
 // Limit visibility of many contrast-specific constants
 mod contrast {
     pub const SRGB_CONTRAST: [f64; 3] = [0.2126729, 0.7151522, 0.0721750];
+    #[allow(clippy::excessive_precision)]
     pub const P3_CONTRAST: [f64; 3] = [0.2289829594805780, 0.6917492625852380, 0.0792677779341829];
 
     /// Convert the given color coordinates to perceptual contrast luminance.
@@ -696,11 +697,9 @@ mod contrast {
 
         // Make sure the luminance values are legit
         if text_luminance.is_nan()
-            || text_luminance < 0.0
-            || 1.1 < text_luminance
+            || !(0.0..=1.1).contains(&text_luminance)
             || background_luminance.is_nan()
-            || background_luminance < 0.0
-            || 1.1 < background_luminance
+            || !(0.0..=1.1).contains(&background_luminance)
         {
             return 0.0;
         }
@@ -784,7 +783,7 @@ impl ParseColorError {
 impl std::fmt::Display for ParseColorError {
     /// Format this parse color error.
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "\"{}\" is not a valid color", self)
+        write!(f, "\"{}\" is not a valid color", self.text)
     }
 }
 
@@ -915,9 +914,17 @@ mod test {
         p3: [0.967346220711791, 0.8002244967941964, 0.27134084647161244],
         linear_p3: [0.9273192749713864, 0.6042079205196976, 0.059841923211596565],
         oklch: [0.8613332073307732, 0.1760097742886813, 89.440876452466],
-        oklab: [0.8613332073307732, 0.0017175723640959761, 0.17600139371700052],
+        oklab: [
+            0.8613332073307732,
+            0.0017175723640959761,
+            0.17600139371700052,
+        ],
         oklrch: [0.8385912822460642, 0.1760097742886813, 89.440876452466],
-        oklrab: [0.8385912822460642, 0.0017175723640959761, 0.17600139371700052],
+        oklrab: [
+            0.8385912822460642,
+            0.0017175723640959761,
+            0.17600139371700052,
+        ],
         xyz: [0.6235868473237722, 0.635031101987136, 0.08972950140152941],
     };
 
@@ -932,9 +939,17 @@ mod test {
         p3: [0.26851535563550943, 0.4644576150842869, 0.8876966971452301],
         linear_p3: [0.058605969547446124, 0.18260572039525869, 0.763285235993837],
         oklch: [0.5909012953108558, 0.18665606306724153, 259.66681920272595],
-        oklab: [0.5909012953108558, -0.03348086515869664, -0.1836287492414715],
+        oklab: [
+            0.5909012953108558,
+            -0.03348086515869664,
+            -0.1836287492414715,
+        ],
         oklrch: [0.5253778775789848, 0.18665606306724153, 259.66681920272595],
-        oklrab: [0.5253778775789848, -0.03348086515869664, -0.1836287492414715],
+        oklrab: [
+            0.5253778775789848,
+            -0.03348086515869664,
+            -0.1836287492414715,
+        ],
         xyz: [0.22832473003420622, 0.20025321836938534, 0.80506528557483],
     };
 
