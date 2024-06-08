@@ -224,14 +224,15 @@ impl TerminalColorConverter {
     #[allow(dead_code)]
     fn new() -> Self {
         fn make_colors(range: RangeInclusive<u8>) -> Vec<Color> {
-            range.into_iter()
-            .map(|n| Color::from(EightBitColor::from(n)))
-            .collect()
+            range
+                .into_iter()
+                .map(|n| Color::from(EightBitColor::from(n)))
+                .collect()
         }
 
         Self {
             ansi: make_colors(0..=15),
-            eight_bit: make_colors(16..=255)
+            eight_bit: make_colors(16..=255),
         }
     }
 
@@ -260,5 +261,4 @@ mod test {
         let ansi = converter.to_ansi(&Color::srgb(1.0, 1.0, 0.0));
         assert_eq!(ansi, AnsiColor::BrightYellow);
     }
-
 }
