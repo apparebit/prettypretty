@@ -50,6 +50,7 @@ pub use format::TrueColor;
 /// ANSI colors do not have intrinsic color values, so we provide them through
 /// the [`current_theme`]. In addition to the 16 extended ANSI colors, a theme
 /// includes two more colors for the foreground and background defaults.
+#[derive(Clone,Debug)]
 pub struct Theme {
     #[allow(dead_code)]
     foreground: Color,
@@ -161,7 +162,9 @@ impl From<AnsiColor> for Color {
     /// color theme.
     fn from(value: AnsiColor) -> Color {
         let theme = current_theme();
-        *theme.ansi(value)
+        // From<EmbeddedRgb> and From<GrayGradient> create a new color objects.
+        // We do the same here, just with an explicit clone().
+        theme.ansi(value).clone()
     }
 }
 

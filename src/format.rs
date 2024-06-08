@@ -162,6 +162,7 @@ impl EmbeddedRgb {
     /// Update the named coordinate to the given value. This struct implements
     /// this method in lieu of `index_mut()`, which cannot enforce the invariant
     /// that coordinates must be between 0 and 5, inclusive.
+    #[must_use = "method fails to update coordinate if value is out of bounds"]
     pub fn update(&mut self, index: Coordinate, value: u8) -> Result<(), OutOfBoundsError> {
         if value <= 5 {
             self.0[index as usize] = value;

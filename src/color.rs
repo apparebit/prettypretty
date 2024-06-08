@@ -51,7 +51,7 @@ pub use super::util::Coordinate;
 ///
 /// While rounding isn't strictly necessary for correctness, it makes for a more
 /// robust comparison without meaningfully reducing precision.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Color {
     space: ColorSpace,
     coordinates: [f64; 3],
@@ -132,6 +132,8 @@ impl Color {
         }
     }
 
+    // ----------------------------------------------------------------------------------------------------------------
+
     /// Access the color space.
     ///
     /// ```
@@ -153,6 +155,8 @@ impl Color {
     pub fn coordinates(&self) -> &[f64; 3] {
         &self.coordinates
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
 
     /// Convert this color to the target color space.
     ///
@@ -236,6 +240,7 @@ impl Color {
     /// two three-hop conversion functions). In short, by performing *limited*
     /// dynamic look-ups, we can get most of the benefits of a fully specialized
     /// implementation.
+    #[must_use = "method returns a new color and does not mutate original value"]
     pub fn to(&self, target: ColorSpace) -> Self {
         Self {
             space: target,
@@ -274,6 +279,7 @@ impl Color {
     /// let green = too_green.clip();
     /// assert!(green.in_gamut());
     /// ```
+    #[must_use = "method returns a new color and does not mutate original value"]
     pub fn clip(&self) -> Self {
         Self {
             space: self.space,
@@ -319,6 +325,7 @@ impl Color {
     /// let yellow = too_yellow.map_to_gamut();
     /// assert!(yellow.in_gamut());
     /// ```
+    #[must_use = "method returns a new color and does not mutate original value"]
     pub fn map_to_gamut(&self) -> Self {
         Self {
             space: self.space,
@@ -340,7 +347,8 @@ impl Color {
 // --------------------------------------------------------------------------------------------------------------------
 
 impl Default for Color {
-    /// Create an instance of the default color, which is black in XYZ.
+    /// Create an instance of the default color. The chosen default for this
+    /// crate is pitch black, i.e., the origin in XYZ.
     fn default() -> Self {
         Color {
             space: ColorSpace::Xyz,
