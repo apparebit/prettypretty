@@ -28,6 +28,7 @@
 //! first 16 code points, because they tend to stick out and disrupt any
 //! gradation.
 
+use std::ops::RangeInclusive;
 use std::sync::{Mutex, MutexGuard};
 
 mod color;
@@ -42,15 +43,21 @@ pub use format::AnsiColor;
 pub use format::EightBitColor;
 pub use format::EmbeddedRgb;
 pub use format::GrayGradient;
-pub use format::OutOfBoundsError;
 pub use format::TrueColor;
+
+pub use color::ParseColorError;
+pub use format::OutOfBoundsError;
+
+// ====================================================================================================================
+// Color Theme
+// ====================================================================================================================
 
 /// A color theme.
 ///
 /// ANSI colors do not have intrinsic color values, so we provide them through
 /// the [`current_theme`]. In addition to the 16 extended ANSI colors, a theme
 /// includes two more colors for the foreground and background defaults.
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct Theme {
     #[allow(dead_code)]
     foreground: Color,
@@ -193,14 +200,65 @@ impl From<EightBitColor> for Color {
     }
 }
 
-// --------------------------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// Terminal Color Converter
+// ====================================================================================================================
 
-// struct TerminalColorConverter {
-//     candidates: [Color; 216 + 24]
-// }
+/// A state container for converting colors
+///
+/// A terminal color converter owns the 256 color objects necessary for high
+/// quality conversions from [`Color`] to terminals' 8-bit or ANSI colors. The
+/// color theme current at creation time determines the color values for the
+/// ANSI colors.
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct TerminalColorConverter {
+    ansi: Vec<Color>,
+    eight_bit: Vec<Color>,
+}
 
-// impl TerminalColorConverter {
-//     pub fn new() -> Self {
-//         Self
-//     }
-// }
+impl TerminalColorConverter {
+    /// Create a new terminal color converter. This method initializes the
+    /// internal state, which comprises 256 color objects, one each for every
+    /// 8-bit color.
+    #[allow(dead_code)]
+    fn new() -> Self {
+        fn make_colors(range: RangeInclusive<u8>) -> Vec<Color> {
+            range.into_iter()
+            .map(|n| Color::from(EightBitColor::from(n)))
+            .collect()
+        }
+
+        Self {
+            ansi: make_colors(0..=15),
+            eight_bit: make_colors(16..=255)
+        }
+    }
+
+    /// Find the ANSI color that comes closest to the given color.
+    #[allow(dead_code)]
+    fn to_ansi(&self, color: &Color) -> AnsiColor {
+        AnsiColor::try_from(color.closest(&self.ansi).unwrap() as u8).unwrap()
+    }
+
+    /// Find the 8-bit color that comes closest to the given color.
+    #[allow(dead_code)]
+    fn to_eight_bit(&self, color: &Color) -> EightBitColor {
+        EightBitColor::new((color.closest(&self.eight_bit).unwrap() as u8) + 16)
+    }
+}
+
+// ====================================================================================================================
+
+#[cfg(test)]
+mod test {
+    use super::{AnsiColor, Color, TerminalColorConverter};
+
+    #[test]
+    fn test_converter() {
+        let converter = TerminalColorConverter::new();
+        let ansi = converter.to_ansi(&Color::srgb(1.0, 1.0, 0.0));
+        assert_eq!(ansi, AnsiColor::BrightYellow);
+    }
+
+}
