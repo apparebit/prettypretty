@@ -20,8 +20,8 @@ _P3_COEFFICIENTS = (
 )
 
 _BLACK_THRESHOLD = 0.022
-_BLACK_CLIP = 1.414
-_DELTA_Y_MIN = 0.0005
+_BLACK_EXPONENT = 1.414
+_INPUT_CLAMP = 0.0005
 
 _BoW_TEXT = 0.57
 _BoW_BACKGROUND = 0.56
@@ -29,7 +29,7 @@ _WoB_TEXT = 0.62
 _WoB_BACKGROUND = 0.65
 
 _SCALE = 1.14
-_CLAMP = 0.1
+_OUTPUT_CLAMP = 0.1
 _OFFSET = 0.027
 
 
@@ -69,22 +69,28 @@ def luminance_to_contrast(
     """
     Determine the contrast between the text and background luminance values.
     """
-    assert 0.0 <= text_luminance <= 1.1 and 0.0 <= background_luminance <= 1.1
+    if (
+        math.isnan(text_luminance)
+        or not 0.0 <= text_luminance <= 1.1
+        or math.isnan(background_luminance)
+        or not 0.0 <= background_luminance <= 1.1
+    ):
+        return 0.0
 
-    # Soft-clip and clamp black
+    # Soft-clip black
     if text_luminance < _BLACK_THRESHOLD:
         text_luminance += math.pow(
             _BLACK_THRESHOLD - text_luminance,
-            _BLACK_CLIP,
+            _BLACK_EXPONENT,
         )
     if background_luminance < _BLACK_THRESHOLD:
         background_luminance += math.pow(
             _BLACK_THRESHOLD - background_luminance,
-            _BLACK_CLIP,
+            _BLACK_EXPONENT,
         )
 
     # Small ΔY have too little contrast. Clamp result to zero.
-    if abs(text_luminance - background_luminance) < _DELTA_Y_MIN:
+    if abs(text_luminance - background_luminance) < _INPUT_CLAMP:
         return 0.0
 
     # Computer Lc
@@ -94,7 +100,7 @@ def luminance_to_contrast(
             - math.pow(text_luminance, _BoW_TEXT)
         ) * _SCALE
 
-        if contrast < _CLAMP:
+        if contrast < _OUTPUT_CLAMP:
             return 0.0
         return contrast - _OFFSET
 
@@ -104,7 +110,7 @@ def luminance_to_contrast(
             - math.pow(text_luminance, _WoB_TEXT)
         ) * _SCALE
 
-        if contrast > -_CLAMP:
+        if contrast > -_OUTPUT_CLAMP:
             return 0.0
         return contrast + _OFFSET
 
