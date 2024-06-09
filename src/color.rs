@@ -67,6 +67,20 @@ pub use super::util::Coordinate;
 /// colors use the same color space (sRGB, Display P3, Oklab, or Oklch) where
 /// possible and an equivalent color in another space where necessary (Oklrab
 /// and Oklrch).
+///
+/// <style>
+/// .color-swatch {
+///     display: flex;
+/// }
+/// .color-swatch > div {
+///     height: 4em;
+///     width: 4em;
+///     border: black 0.5pt solid;
+///     display: flex;
+///     align-items: center;
+///     justify-content: center;
+/// }
+/// </style>
 #[derive(Clone, Debug)]
 pub struct Color {
     space: ColorSpace,
@@ -81,7 +95,8 @@ impl Color {
     /// let pink = Color::new(ColorSpace::Oklch, 0.7, 0.22, 3.0);
     /// assert_eq!(pink.coordinates(), &[0.7_f64, 0.22_f64, 3.0_f64]);
     /// ```
-    /// <div style="background-color: oklch(0.7 0.22 3.0); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklch(0.7 0.22 3.0);"></div>
     /// </div>
     pub const fn new(space: ColorSpace, c1: f64, c2: f64, c3: f64) -> Self {
         Color {
@@ -98,7 +113,8 @@ impl Color {
     /// let fire_brick = Color::srgb(177.0/255.0, 31.0/255.0, 36.0/255.0);
     /// assert_eq!(fire_brick.space(), ColorSpace::Srgb);
     /// ```
-    /// <div style="background-color: rgb(177 31 36); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: rgb(177 31 36);"></div>
     /// </div>
     pub const fn srgb(r: f64, g: f64, b: f64) -> Self {
         Color {
@@ -115,7 +131,8 @@ impl Color {
     /// let cyan = Color::p3(0.0, 0.87, 0.85);
     /// assert_eq!(cyan.space(), ColorSpace::DisplayP3);
     /// ```
-    /// <div style="background-color: color(display-p3 0 0.87 0.85); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(display-p3 0 0.87 0.85);"></div>
     /// </div>
     pub const fn p3(r: f64, g: f64, b: f64) -> Self {
         Color {
@@ -132,7 +149,8 @@ impl Color {
     /// let blueish = Color::oklab(0.78, -0.1, -0.1);
     /// assert_eq!(blueish.space(), ColorSpace::Oklab);
     /// ```
-    /// <div style="background-color: oklab(0.78 -0.1 -0.1); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklab(0.78 -0.1 -0.1);"></div>
     /// </div>
 
     pub const fn oklab(l: f64, a: f64, b: f64) -> Self {
@@ -154,7 +172,8 @@ impl Color {
     ///     < 1e-13
     /// );
     /// ```
-    /// <div style="background-color: oklab(0.5514232757779728 -0.1 -0.1); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklab(0.5514232757779728 -0.1 -0.1);"></div>
     /// </div>
     pub const fn oklrab(lr: f64, a: f64, b: f64) -> Self {
         Color {
@@ -171,7 +190,8 @@ impl Color {
     /// let deep_purple = Color::oklch(0.5, 0.25, 308.0);
     /// assert_eq!(deep_purple.space(), ColorSpace::Oklch);
     /// ```
-    /// <div style="background-color: oklch(0.5 0.25 308); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklch(0.5 0.25 308);"></div>
     /// </div>
     pub const fn oklch(l: f64, c: f64, h: f64) -> Self {
         Color {
@@ -189,7 +209,8 @@ impl Color {
     /// let also_purple = deep_purple.to(ColorSpace::Oklch);
     /// assert_eq!(also_purple, Color::oklch(0.568838198942395, 0.25, 308.0));
     /// ```
-    /// <div style="background-color: oklch(0.569 0.25 308); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklch(0.569 0.25 308);"></div>
     /// </div>
     pub const fn oklrch(lr: f64, c: f64, h: f64) -> Self {
         Color {
@@ -207,7 +228,8 @@ impl Color {
     /// let blue = Color::srgb(0.0, 0.0, 1.0);
     /// assert_eq!(blue.space(), ColorSpace::Srgb);
     /// ```
-    /// <div style="background-color: color(srgb 0 0 1); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(srgb 0 0 1);"></div>
     /// </div>
     #[inline]
     pub fn space(&self) -> ColorSpace {
@@ -221,7 +243,8 @@ impl Color {
     /// let green = Color::new(ColorSpace::DisplayP3, 0.0, 1.0, 0.0);
     /// assert_eq!(green.coordinates(), &[0.0, 1.0, 0.0]);
     /// ```
-    /// <div style="background-color: color(display-p3 0 1 0); height: 4em; width: 4em; border: black 0.5pt solid;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(display-p3 0 1 0);"></div>
     /// </div>
     #[inline]
     pub fn coordinates(&self) -> &[f64; 3] {
@@ -282,11 +305,9 @@ impl Color {
     /// let green = Color::new(ColorSpace::DisplayP3, 0.0, 1.0, 0.0);
     /// assert!(!green.to(ColorSpace::Srgb).in_gamut());
     /// ```
-    /// <div style="display: flex;">
-    /// <div style="background-color: color(srgb 1 0 0); height: 4em; width: 4em; border: black 0.5pt solid;">
-    /// </div>
-    /// <div style="background-color: color(display-p3 0 1 0); height: 4em; width: 4em; border: black 0.5pt solid;">
-    /// </div>
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(srgb 1 0 0);"></div>
+    /// <div style="background-color: color(display-p3 0 1 0);"></div>
     /// </div>
     #[inline]
     pub fn in_gamut(&self) -> bool {
@@ -310,11 +331,9 @@ impl Color {
     /// let green = too_green.clip();
     /// assert!(green.in_gamut());
     /// ```
-    /// <div style="display: flex;">
-    /// <div style="background-color: color(display-p3 0 1 0); height: 4em; width: 4em; border: black 0.5pt solid;">
-    /// </div>
-    /// <div style="background-color: color(srgb 0 1 0); height: 4em; width: 4em; border: black 0.5pt solid;">
-    /// </div>
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(display-p3 0 1 0);"></div>
+    /// <div style="background-color: color(srgb 0 1 0);"></div>
     /// </div>
     #[inline]
     #[must_use = "method returns a new color and does not mutate original value"]
@@ -363,11 +382,9 @@ impl Color {
     /// let green = too_green.map_to_gamut();
     /// assert!(green.in_gamut());
     /// ```
-    /// <div style="display: flex;">
-    /// <div style="background-color: color(display-p3 0 1 0); height: 4em; width: 4em; border: black 0.5pt solid;">
-    /// </div>
-    /// <div style="background-color: color(srgb 0.0 0.9857637107710325 0.15974244397344017); height: 4em; width: 4em; border: black 0.5pt solid;">
-    /// </div>
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(display-p3 0 1 0);"></div>
+    /// <div style="background-color: color(srgb 0.0 0.9857637107710325 0.15974244397344017);"></div>
     /// </div>
     #[inline]
     #[must_use = "method returns a new color and does not mutate original value"]
@@ -407,17 +424,12 @@ impl Color {
     /// let closest = Color::srgb(0.5, 1.0, 0.6).closest(colors);
     /// assert_eq!(closest, Some(1))
     /// ```
-    /// <div style="display: flex;">
-    /// <div style="background-color: color(srgb 1 0 0); height: 4em; width: 4em; border: black 0.5pt solid;">
-    /// </div>
-    /// <div style="background-color: color(srgb 0 1 0); height: 4em; width: 4em; border: black 0.5pt solid;">
-    /// </div>
-    /// <div style="background-color: color(srgb 0 0 1); height: 4em; width: 4em; border: black 0.5pt solid;">
-    /// </div>
-    /// <div style="background-color: color(srgb 1 0.5 0.5); height: 4em; width: 4em; border: black 0.5pt solid;">
-    /// </div>
-    /// <div style="background-color: color(srgb 0.5 1 0.6); height: 4em; width: 4em; border: black 0.5pt solid;">
-    /// </div>
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(srgb 1 0 0);"></div>
+    /// <div style="background-color: color(srgb 0 1 0);"></div>
+    /// <div style="background-color: color(srgb 0 0 1);"></div>
+    /// <div style="background-color: color(srgb 1 0.5 0.5);"></div>
+    /// <div style="background-color: color(srgb 0.5 1 0.6);"></div>
     /// </div>
     ///
     pub fn closest<'c, C>(&self, candidates: C) -> Option<usize>
@@ -484,12 +496,12 @@ impl Color {
     /// assert!(!blue.use_black_text());
     /// # Ok::<(), ParseColorError>(())
     /// ```
-    /// <div style="display: flex;">
-    /// <div style="background-color: #6872ff; height: 4em; width: 4em; display: flex; align-items: center; justify-content: center; border: black 0.5pt solid;">
-    /// <span style="color: #000;">Don't!</span>
+    /// <div class=color-swatch>
+    /// <div style="background-color: #6872ff;">
+    ///     <span style="color: #000;">Don't!</span>
     /// </div>
-    /// <div style="background-color: #6872ff; height: 4em; width: 4em; display: flex; align-items: center; justify-content: center; border: black 0.5pt solid;">
-    /// <span style="color: #fff;">Do!</span>
+    /// <div style="background-color: #6872ff;">
+    ///     <span style="color: #fff;">Do!</span>
     /// </div>
     /// </div>
     pub fn use_black_text(&self) -> bool {
@@ -513,11 +525,11 @@ impl Color {
     /// assert!(blue.use_black_background());
     /// # Ok::<(), ParseColorError>(())
     /// ```
-    /// <div style="display: flex;">
-    /// <div style="background-color: #000; height: 4em; width: 4em; display: flex; align-items: center; justify-content: center;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: #000;">
     /// <span style="color: #68a0ff;">Do!</span>
     /// </div>
-    /// <div style="background-color: #fff; height: 4em; width: 4em; display: flex; align-items: center; justify-content: center; border: black 0.5pt solid;">
+    /// <div style="background-color: #fff;">
     /// <span style="color: #68a0ff;">Don't!</span>
     /// </div>
     /// </div>
@@ -571,7 +583,8 @@ impl std::str::FromStr for Color {
     /// assert_eq!(blue, Color::srgb(0.2, 0.3333333333333333, 1.0));
     /// # Ok::<(), ParseColorError>(())
     /// ```
-    /// <div style="background-color: #35f; height: 4em; width: 4em; display: flex; align-items: center; justify-content: center;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: #35f;"></div>
     /// </div>
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         parse(s).map(|(space, coordinates)| Color { space, coordinates })
@@ -615,11 +628,9 @@ impl PartialEq for Color {
     ///     Color::new(ColorSpace::Oklch, 0.5, 0.1, 305.0)
     /// );
     /// ```
-    /// <div style="display: flex;">
-    /// <div style="background-color: color(srgb 0 0 0.00000000000001); height: 4em; width: 4em; display: flex; align-items: center; justify-content: center;">
-    /// </div>
-    /// <div style="background-color: oklch(0.5 0.1 305); height: 4em; width: 4em; display: flex; align-items: center; justify-content: center;">
-    /// </div>
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(srgb 0 0 0.00000000000001);"></div>
+    /// <div style="background-color: oklch(0.5 0.1 305);"></div>
     /// </div>
     fn eq(&self, other: &Self) -> bool {
         if self.space != other.space {
@@ -648,7 +659,8 @@ impl std::ops::Index<Coordinate> for Color {
     /// let purple = Color::srgb(0.5, 0.4, 0.75);
     /// assert_eq!(purple[C3], 0.75);
     /// ```
-    /// <div style="background-color: color(srgb 0.5 0.4 0.75); height: 4em; width: 4em; display: flex; align-items: center; justify-content: center;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(srgb 0.5 0.4 0.75);"></div>
     /// </div>
     fn index(&self, index: Coordinate) -> &Self::Output {
         &self.coordinates[index as usize]
@@ -667,7 +679,8 @@ impl std::ops::IndexMut<Coordinate> for Color {
     /// magenta[C1] = 0.9;
     /// assert_eq!(magenta.coordinates(), &[0.9_f64, 0.3_f64, 0.8_f64]);
     /// ```
-    /// <div style="background-color: color(srgb 0.9 0.3 0.8); height: 4em; width: 4em; display: flex; align-items: center; justify-content: center;">
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(srgb 0.9 0.3 0.8);"></div>
     /// </div>
     fn index_mut(&mut self, index: Coordinate) -> &mut Self::Output {
         &mut self.coordinates[index as usize]
