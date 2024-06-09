@@ -75,11 +75,9 @@ pub enum AnsiColor {
     BrightWhite,
 }
 
-impl TryFrom<u8> for AnsiColor {
-    type Error = OutOfBoundsError;
-
-    /// Try to convert an unsigned byte to an ANSI color.
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
+impl AnsiColor {
+    /// Instantiate an ANSI color from the 8-bit color code.
+    pub const fn new(value: u8) -> Result<Self, OutOfBoundsError> {
         Ok(match value {
             0 => AnsiColor::Black,
             1 => AnsiColor::Red,
@@ -104,6 +102,15 @@ impl TryFrom<u8> for AnsiColor {
                 })
             }
         })
+    }
+}
+
+impl TryFrom<u8> for AnsiColor {
+    type Error = OutOfBoundsError;
+
+    /// Try to convert an unsigned byte to an ANSI color.
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        AnsiColor::new(value)
     }
 }
 
@@ -132,7 +139,7 @@ pub struct EmbeddedRgb([u8; 3]);
 
 impl EmbeddedRgb {
     /// Instantiate a new embedded RGB value from its coordinates.
-    pub fn new(r: u8, g: u8, b: u8) -> Result<Self, OutOfBoundsError> {
+    pub const fn new(r: u8, g: u8, b: u8) -> Result<Self, OutOfBoundsError> {
         if r >= 6 {
             Err(OutOfBoundsError {
                 value: r,
@@ -153,9 +160,26 @@ impl EmbeddedRgb {
         }
     }
 
+    pub const fn with_byte(value: u8) -> Result<Self, OutOfBoundsError> {
+        if value < 16 || 231 < value {
+            Err(OutOfBoundsError {
+                value,
+                expected: 16..=231,
+            })
+        } else {
+            let mut b = value - 16;
+            let r = b / 36;
+            b -= r * 36;
+            let g = b / 6;
+            b -= g * 6;
+
+            Ok(Self([r, g, b]))
+        }
+    }
+
     /// Access the coordinates of the embedded RGB color.
     #[inline]
-    pub fn coordinates(&self) -> &[u8; 3] {
+    pub const fn coordinates(&self) -> &[u8; 3] {
         &self.0
     }
 
@@ -181,20 +205,7 @@ impl TryFrom<u8> for EmbeddedRgb {
 
     /// Try instantiating an embedded RGB color from an unsigned byte.
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if !(16..=231).contains(&value) {
-            Err(Self::Error {
-                value,
-                expected: 16..=231,
-            })
-        } else {
-            let mut b = value - 16;
-            let r = b / 36;
-            b -= r * 36;
-            let g = b / 6;
-            b -= g * 6;
-
-            Ok(Self([r, g, b]))
-        }
+        EmbeddedRgb::with_byte(value)
     }
 }
 
@@ -225,11 +236,12 @@ pub struct GrayGradient(u8);
 
 impl GrayGradient {
     /// Instantiate a new gray gradient from the level value. This associated
-    /// function differs from `try_from()` in the accepted range: `new()`
-    /// implies intentional instantiation and hence accepts `0..=23`, whereas
-    /// `try_from()` implies conversion from unsigned bytes, i.e., 8-bit color,
-    /// and hence accepts `232..=255`.
-    pub fn new(value: u8) -> Result<Self, OutOfBoundsError> {
+    /// function differs from [`GrayGradient::with_byte`] in the accepted range:
+    /// `new()` implies intentional, fresh instantiation and hence accepts
+    /// `0..=23`, whereas `with_byte()` implies conversion from an unsigned
+    /// byte, i.e., a 8-bit color value. Therefore `with_byte()` accepts
+    /// `232..=255`.
+    pub const fn new(value: u8) -> Result<Self, OutOfBoundsError> {
         if value <= 23 {
             Ok(Self(value))
         } else {
@@ -240,8 +252,21 @@ impl GrayGradient {
         }
     }
 
+    /// Create a new gray gradient from the 8-bit color value.
+    pub const fn with_byte(value: u8) -> Result<Self, OutOfBoundsError> {
+        if 232 <= value {
+            Ok(Self(value - 232))
+        } else {
+            Err(OutOfBoundsError {
+                value,
+                expected: 0..=23,
+            })
+        }
+    }
+
     /// Access the gray level `0..24`.
-    pub fn level(&self) -> u8 {
+    #[inline]
+    pub const fn level(&self) -> u8 {
         self.0
     }
 }
@@ -253,14 +278,7 @@ impl TryFrom<u8> for GrayGradient {
     /// the numerical representation of 8-bit color. In contrast to `new()`,
     /// this associated function accepts 232..=255.
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if 232 <= value {
-            Ok(Self(value - 232))
-        } else {
-            Err(OutOfBoundsError {
-                value,
-                expected: 232..=255,
-            })
-        }
+        GrayGradient::with_byte(value)
     }
 }
 
@@ -290,11 +308,11 @@ impl EightBitColor {
         use EightBitColor::*;
 
         if value <= 15 {
-            Ansi(value.try_into().unwrap())
+            Ansi(AnsiColor::new(value).unwrap())
         } else if value <= 231 {
-            Rgb(value.try_into().unwrap())
+            Rgb(EmbeddedRgb::with_byte(value).unwrap())
         } else {
-            Gray(value.try_into().unwrap())
+            Gray(GrayGradient::with_byte(value).unwrap())
         }
     }
 
@@ -371,13 +389,13 @@ pub struct TrueColor([u8; 3]);
 
 impl TrueColor {
     /// Create a new true color from its coordinates.
-    pub fn new(r: u8, g: u8, b: u8) -> Self {
+    pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self([r, g, b])
     }
 
     /// Access the coordinates.
     #[inline]
-    pub fn coordinates(&self) -> &[u8; 3] {
+    pub const fn coordinates(&self) -> &[u8; 3] {
         &self.0
     }
 }
