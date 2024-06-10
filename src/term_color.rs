@@ -160,7 +160,7 @@ impl EmbeddedRgb {
         }
     }
 
-    pub const fn with_byte(value: u8) -> Result<Self, OutOfBoundsError> {
+    pub const fn from_byte(value: u8) -> Result<Self, OutOfBoundsError> {
         if value < 16 || 231 < value {
             Err(OutOfBoundsError {
                 value,
@@ -186,7 +186,7 @@ impl EmbeddedRgb {
     /// Update the named coordinate to the given value. This struct implements
     /// this method in lieu of `index_mut()`, which cannot enforce the invariant
     /// that coordinates must be between 0 and 5, inclusive.
-    #[must_use = "method fails to update coordinate if value is out of bounds"]
+    #[must_use = "method fails on out-of-bounds coordinates"]
     pub fn update(&mut self, index: Coordinate, value: u8) -> Result<(), OutOfBoundsError> {
         if value <= 5 {
             self.0[index as usize] = value;
@@ -205,7 +205,7 @@ impl TryFrom<u8> for EmbeddedRgb {
 
     /// Try instantiating an embedded RGB color from an unsigned byte.
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        EmbeddedRgb::with_byte(value)
+        EmbeddedRgb::from_byte(value)
     }
 }
 
@@ -236,10 +236,10 @@ pub struct GrayGradient(u8);
 
 impl GrayGradient {
     /// Instantiate a new gray gradient from the level value. This associated
-    /// function differs from [`GrayGradient::with_byte`] in the accepted range:
+    /// function differs from [`GrayGradient::from_byte`] in the accepted range:
     /// `new()` implies intentional, fresh instantiation and hence accepts
-    /// `0..=23`, whereas `with_byte()` implies conversion from an unsigned
-    /// byte, i.e., a 8-bit color value. Therefore `with_byte()` accepts
+    /// `0..=23`, whereas `from_byte()` implies conversion from an unsigned
+    /// byte, i.e., a 8-bit color value. Therefore `from_byte()` accepts
     /// `232..=255`.
     pub const fn new(value: u8) -> Result<Self, OutOfBoundsError> {
         if value <= 23 {
@@ -253,7 +253,7 @@ impl GrayGradient {
     }
 
     /// Create a new gray gradient from the 8-bit color value.
-    pub const fn with_byte(value: u8) -> Result<Self, OutOfBoundsError> {
+    pub const fn from_byte(value: u8) -> Result<Self, OutOfBoundsError> {
         if 232 <= value {
             Ok(Self(value - 232))
         } else {
@@ -278,7 +278,7 @@ impl TryFrom<u8> for GrayGradient {
     /// the numerical representation of 8-bit color. In contrast to `new()`,
     /// this associated function accepts 232..=255.
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        GrayGradient::with_byte(value)
+        GrayGradient::from_byte(value)
     }
 }
 
@@ -310,9 +310,9 @@ impl EightBitColor {
         if value <= 15 {
             Ansi(AnsiColor::new(value).unwrap())
         } else if value <= 231 {
-            Rgb(EmbeddedRgb::with_byte(value).unwrap())
+            Rgb(EmbeddedRgb::from_byte(value).unwrap())
         } else {
-            Gray(GrayGradient::with_byte(value).unwrap())
+            Gray(GrayGradient::from_byte(value).unwrap())
         }
     }
 
@@ -456,9 +456,7 @@ pub enum Fidelity {
 
 #[cfg(test)]
 mod test {
-    use crate::format::{AnsiColor, EightBitColor, GrayGradient};
-
-    use super::{EmbeddedRgb, OutOfBoundsError};
+    use super::{AnsiColor, EightBitColor, EmbeddedRgb, GrayGradient, OutOfBoundsError};
 
     #[test]
     fn test_conversion() -> Result<(), OutOfBoundsError> {
