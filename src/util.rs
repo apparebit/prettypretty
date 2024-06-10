@@ -12,7 +12,7 @@ pub enum Coordinate {
 /// words, this function treats not-a-number as comparable and tolerates a small
 /// absolute error for numbers.
 #[allow(dead_code)]
-pub fn almost_eq(n1: f64, n2: f64) -> bool {
+pub(crate) fn almost_eq(n1: f64, n2: f64) -> bool {
     if n1.is_nan() {
         return n2.is_nan();
     } else if n2.is_nan() {
