@@ -31,7 +31,46 @@
 // Color Space Tags
 // ====================================================================================================================
 
-/// The enumeration of supported color spaces.
+/// The enumeration of supported color spaces
+///
+///
+/// # The Oklab Variations
+///
+/// This crate supports the
+/// [Oklab/Oklch](https://bottosson.github.io/posts/oklab/) and
+/// [Oklrab/Oklrch](https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab)
+/// color spaces. All four really are variations of the same perceptually
+/// uniform color space, which, like CIELAB, uses one coordinate for lightness
+/// and two coordinates for "colorness."
+///
+/// Oklab and Oklch reflect the original design. They improve on CIELAB by using
+/// the D65 standard illuminant (not the print-oriented D50), which is also used
+/// by sRGB and Display P3. They further improve on CIELAB by avoiding visible
+/// distortions around the blues. However, they also regress, since their
+/// lightness is heavily biased towards dark tones. Oklrab and Oklrch result
+/// from an update nine months later that changes lightness to closely resemble
+/// CIELAB's far better, perceptually uniform lightness.
+/// At the same time, Oklab's and Oklch's
+///
+/// Oklab/Oklrab use Cartesian coordinates a, b for colorness—with a varying
+/// red/green and b varying blue/yellow. That makes both color spaces
+/// well-suited to computing the relative distance of colors. In contrast,
+/// Oklch/Oklrch use polar coordinates C, h—with C expressing chroma and h or hº
+/// expressing hue. That makes both color spaces well-suited to modifying
+/// colors.
+///
+/// Compared to the conversion between XYZ and Oklab, conversions between the
+/// four variations are simpler mathematically and may not even change all
+/// coordinates. After all, there are four three-dimensional color spaces but
+/// only six distinct quantities:
+///
+/// | Color space | Lightness | Colorness 1 | Colorness 2 |
+/// | :---------- | :-------: | :---------: | :---------: |
+/// | Oklab       | L         | a           | b           |
+/// | Oklch       | L         | C           | hº          |
+/// | Oklrab      | Lr        | a           | b           |
+/// | Oklrch      | Lr        | C           | hº          |
+///
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ColorSpace {
     /// [sRGB](https://en.wikipedia.org/wiki/SRGB) has long served as the
@@ -41,31 +80,32 @@ pub enum ColorSpace {
     /// The linear version of sRGB.
     LinearSrgb,
 
-    /// [Display P3](https://en.wikipedia.org/wiki/DCI-P3) has a wider gamut,
-    /// that is, accommodates more colors, than sRGB and is increasingly
-    /// supported by new computer monitors.
+    /// [Display P3](https://en.wikipedia.org/wiki/DCI-P3) has a wider gamut
+    /// than sRGB, that is, it accommodates more colors. It seems
+    /// well-positioned to become the next default color space.
     DisplayP3,
 
     /// The linear version of Display P3.
     LinearDisplayP3,
 
     /// [Oklab](https://bottosson.github.io/posts/oklab/) is a perceptually
-    /// uniform color space that improves upon Lab.
+    /// uniform color space that improves upon CIELAB.
     Oklab,
 
     /// Oklch is the polar version of Oklab.
     Oklch,
 
-    /// Oklrab is Oklab but using an [improved lightness
+    /// Oklrab is Oklab but with an [improved lightness
     /// Lr](https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab).
     Oklrab,
 
-    /// Oklrch is Oklch but using an [improved lightness
+    /// Oklrch is Oklch, i.e., the polar version of Oklab, but with an [improved
+    /// lightness
     /// Lr](https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab).
     Oklrch,
 
     /// [XYZ](https://en.wikipedia.org/wiki/CIE_1931_color_space) is a
-    /// foundational color space. Here it assumes the [D65 standard
+    /// foundational color space. This crate uses XYZ with a [D65 standard
     /// illuminant](https://en.wikipedia.org/wiki/Standard_illuminant) (or white
     /// point).
     Xyz,
@@ -746,131 +786,6 @@ mod contrast {
 }
 
 pub use contrast::{to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST};
-
-// ====================================================================================================================
-// Parse String
-// ====================================================================================================================
-
-use std::error::Error;
-
-/// A parse error for colors.
-#[derive(Debug)]
-pub struct ParseColorError {
-    /// The offending color string.
-    pub text: String,
-    /// Optionally, an underlying error.
-    pub source: Option<Box<dyn Error>>,
-}
-
-impl ParseColorError {
-    /// Create a new parse color error with just the offending text.
-    pub fn with_text(text: &str) -> Self {
-        Self {
-            text: text.to_owned(),
-            source: None,
-        }
-    }
-
-    /// Create a new parse color error with offending text and source error.
-    pub fn new<E: Error + 'static>(text: &str, source: E) -> Self {
-        Self {
-            text: text.to_owned(),
-            source: Some(Box::new(source)),
-        }
-    }
-}
-
-impl std::fmt::Display for ParseColorError {
-    /// Format this parse color error.
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "\"{}\" is not a valid color", self.text)
-    }
-}
-
-impl Error for ParseColorError {
-    /// Access the source for this parse color error.
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.source.as_deref()
-    }
-}
-
-/// Parse the textual representation of a color. This function recognizes the
-/// following formats:
-///
-///   * `#abc` and `#abcdef`
-///   * `rgb:a/bc/defa`
-///
-/// Note that the red coordinate in `#abc` is 0xaa/0xff, not 0xa/0xf. However
-/// the red coordinate in `rgb:...` is scaled, i.e., 0xa/0xf.
-pub fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ParseColorError> {
-    // Both
-
-    let mut t1 = None;
-    let mut t2 = None;
-    let mut t3 = None;
-    let mut scale = true;
-
-    if s.starts_with("rgb:") {
-        let mut coor_iter = s.get(4..).unwrap().split('/');
-        t1 = coor_iter.next();
-        t2 = coor_iter.next();
-        t3 = coor_iter.next();
-    } else if s.starts_with('#') {
-        scale = false;
-
-        if s.len() == 4 {
-            t1 = s.get(1..2);
-            t2 = s.get(2..3);
-            t3 = s.get(3..4);
-        } else if s.len() == 7 {
-            t1 = s.get(1..3);
-            t2 = s.get(3..5);
-            t3 = s.get(5..7);
-        }
-    }
-
-    if t1.is_none() || t2.is_none() || t3.is_none() {
-        return Err(ParseColorError::with_text(s));
-    }
-
-    let t1 = t1.unwrap();
-    let t2 = t2.unwrap();
-    let t3 = t3.unwrap();
-    if t1.len() > 4 || t2.len() > 4 || t3.len() > 4 {
-        return Err(ParseColorError::with_text(s));
-    }
-
-    let make_error = |e| ParseColorError::new(s, e);
-    let mut n1 = u8::from_str_radix(t1, 16).map_err(make_error)?;
-    let mut n2 = u8::from_str_radix(t2, 16).map_err(make_error)?;
-    let mut n3 = u8::from_str_radix(t3, 16).map_err(make_error)?;
-
-    if scale {
-        return Ok((
-            ColorSpace::Srgb,
-            [
-                (n1 as f64) / (16.0_f64.powi(t1.len() as i32) - 1.0),
-                (n2 as f64) / (16.0_f64.powi(t2.len() as i32) - 1.0),
-                (n3 as f64) / (16.0_f64.powi(t3.len() as i32) - 1.0),
-            ],
-        ));
-    }
-
-    if t1.len() == 1 {
-        n1 = 16 * n1 + n1;
-        n2 = 16 * n2 + n2;
-        n3 = 16 * n3 + n3;
-    }
-
-    Ok((
-        ColorSpace::Srgb,
-        [
-            (n1 as f64) / 255.0,
-            (n2 as f64) / 255.0,
-            (n3 as f64) / 255.0,
-        ],
-    ))
-}
 
 // ====================================================================================================================
 
