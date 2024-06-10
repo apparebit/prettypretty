@@ -1,52 +1,54 @@
 //! # Oxidized colors for terminals
 //!
-//! This library supports terminal color formats through [`EightBitColor`] and
-//! [`TrueColor`] and arbitrary but color-spaced colors through [`Color`]. The
-//! 8-bit color format, in turn, comprises three more formats, [`AnsiColor`],
-//! [`EmbeddedRgb`], and [`GrayGradient`], each of which has its own code range
-//! amongst unsigned 8-bit numbers. All four can easily be converted from and to
-//! `u8`.
+//! This library brings 2020s color science to 1970s terminals to build good
+//! looking and adaptable terminal user interfaces. It supports high-resolution
+//! colors, accurate conversion between color spaces, gamut testing and mapping,
+//! finding the closest matching color, and computing text contrast against the
+//! background.
+//!
+//! The 2020s are represented through two abstractions:
+//!
+//!   * [`ColorSpace`] enumerates supported color spaces
+//!   * [`Color`] adds `f64` coordinates to precisely represent colors
+//!
+//! The 1970s (and subsequent decades) are represented with more limited
+//! terminal color formats:
+//!
+//!   * [`EightBitColor`] combines [`AnsiColor`], [`EmbeddedRgb`], and
+//!     [`GrayGradient`]
+//!   * [`TrueColor`] represents 24-bit RGB colors; the historical term
+//!     is a clear misnomer
+//!
+//! Two abstractions facilitate high-quality conversion between terminal color
+//! formats and high-resolution colors:
+//!
+//!   * [`Theme`] provides high-resolution color values for the 16 extended ANSI
+//!     colors and the terminal defaults
+//!   * [`TerminalColorConverter`] keeps the state for converting high-resolution
+//!     to terminal colors
 //!
 //!
-//! # From Color Formats to Colors
-//!
-//! When converting color formats to color objects, this crate uses established
-//! formulae for [`EmbeddedRgb`] and [`GrayGradient`]. However, ANSI colors have
-//! names but no intrinsic color values. Consequently, to convert ANSI colors to
-//! instances of [`Color`], this crate relies on a global theme providing the
-//! color values.
-//!
-//!
-//! # From Colors to Color Formats
-//!
-//! Meanwhile, to perform high-quality conversions from arbitrary colors to the
-//! 8-bit color format, this crate searches for the closest color amongst 8-bit
-//! colors. Candidates are *all* colors from [`EmbeddedRgb`] and
-//! [`GrayGradient`] when converting to 8-bit colors and *all* 16 extended
-//! [`AnsiColor`] when converting to ANSI colors. The ANSI colors are *not*
-//! considered when converting to 8-bit colors, even though they take up the
-//! first 16 code points, because they tend to stick out and disrupt any
-//! gradation.
 
 use std::ops::RangeInclusive;
 use std::sync::{Mutex, MutexGuard};
 
 mod color;
-mod format;
+mod serde;
+mod term_color;
 mod util;
 
 pub use color::Color;
 pub use color::ColorSpace;
-pub use color::Coordinate;
+pub use util::Coordinate;
 
-pub use format::AnsiColor;
-pub use format::EightBitColor;
-pub use format::EmbeddedRgb;
-pub use format::GrayGradient;
-pub use format::TrueColor;
+pub use term_color::AnsiColor;
+pub use term_color::EightBitColor;
+pub use term_color::EmbeddedRgb;
+pub use term_color::GrayGradient;
+pub use term_color::TrueColor;
 
-pub use color::ParseColorError;
-pub use format::OutOfBoundsError;
+pub use serde::ColorFormatError;
+pub use term_color::OutOfBoundsError;
 
 // ====================================================================================================================
 // Color Theme
@@ -83,17 +85,17 @@ pub struct Theme {
 
 impl Theme {
     /// Access the theme's foreground color.
-    pub fn foreground(&self) -> &Color {
+    pub const fn foreground(&self) -> &Color {
         &self.foreground
     }
 
     /// Access the theme's background color.
-    pub fn background(&self) -> &Color {
+    pub const fn background(&self) -> &Color {
         &self.background
     }
 
     // Access the theme's ANSI colors.
-    pub fn ansi(&self, value: AnsiColor) -> &Color {
+    pub const fn ansi(&self, value: AnsiColor) -> &Color {
         use AnsiColor::*;
 
         match value {
@@ -210,7 +212,6 @@ impl From<EightBitColor> for Color {
 /// quality conversions from [`Color`] to terminals' 8-bit or ANSI colors. The
 /// color theme current at creation time determines the color values for the
 /// ANSI colors.
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct TerminalColorConverter {
     ansi: Vec<Color>,
@@ -221,8 +222,7 @@ impl TerminalColorConverter {
     /// Create a new terminal color converter. This method initializes the
     /// internal state, which comprises 256 color objects, one each for every
     /// 8-bit color.
-    #[allow(dead_code)]
-    fn new() -> Self {
+    pub fn new() -> Self {
         fn make_colors(range: RangeInclusive<u8>) -> Vec<Color> {
             range
                 .into_iter()
@@ -237,14 +237,15 @@ impl TerminalColorConverter {
     }
 
     /// Find the ANSI color that comes closest to the given color.
-    #[allow(dead_code)]
-    fn to_ansi(&self, color: &Color) -> AnsiColor {
+    pub fn to_ansi(&self, color: &Color) -> AnsiColor {
+        // The first unwrap() is safe because there is at least one candidate.
+        // The second unwrap() is safe because there are at most 16 candidates.
         AnsiColor::try_from(color.closest(&self.ansi).unwrap() as u8).unwrap()
     }
 
     /// Find the 8-bit color that comes closest to the given color.
-    #[allow(dead_code)]
-    fn to_eight_bit(&self, color: &Color) -> EightBitColor {
+    pub fn to_eight_bit(&self, color: &Color) -> EightBitColor {
+        // The unwrap() is safe because there is at least one candidate.
         EightBitColor::new((color.closest(&self.eight_bit).unwrap() as u8) + 16)
     }
 }
