@@ -83,7 +83,7 @@ impl Error for ColorFormatError {
 /// Parse a 24-bit color in hashed hexadecimal format. If successful, this
 /// function returns the three coordinates as unsigned bytes. It transparently
 /// handles single-digit coordinates.
-pub fn parse_hashed(s: &str) -> Result<[u8; 3], ColorFormatError> {
+fn parse_hashed(s: &str) -> Result<[u8; 3], ColorFormatError> {
     if !s.starts_with('#') {
         return Err(ColorFormatError::UnknownFormat);
     } else if s.len() != 4 && s.len() != 7 {
@@ -110,7 +110,7 @@ pub fn parse_hashed(s: &str) -> Result<[u8; 3], ColorFormatError> {
 /// Parse a color in X Windows format. If successful, this function returns
 /// three pairs with the number of hexadecimal digits and the numeric value for
 /// each coordinate.
-pub fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
+fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
     if !s.starts_with("rgb:") {
         return Err(ColorFormatError::UnknownFormat);
     }
@@ -142,7 +142,7 @@ pub fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
 }
 
 /// Parse the given string as a color in hashed hexadecimal or X Windows format.
-pub fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
+pub(crate) fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
     if s.starts_with('#') {
         let [c1, c2, c3] = parse_hashed(s)?;
         Ok((
@@ -164,37 +164,73 @@ pub fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
 
 #[cfg(test)]
 mod test {
-    use super::{ColorFormatError, parse_hashed, parse_x};
+    use super::{parse_hashed, parse_x, ColorFormatError};
 
     #[test]
     fn test_parse_hashed() -> Result<(), ColorFormatError> {
         assert_eq!(parse_hashed("#123")?, [0x11_u8, 0x22, 0x33]);
         assert_eq!(parse_hashed("#112233")?, [0x11_u8, 0x22, 0x33]);
         assert_eq!(parse_hashed("fff"), Err(ColorFormatError::UnknownFormat));
-        assert_eq!(parse_hashed("#ff"), Err(ColorFormatError::UnexpectedCharacters));
-        assert_eq!(parse_hashed("#💩00"), Err(ColorFormatError::UnexpectedCharacters));
+        assert_eq!(
+            parse_hashed("#ff"),
+            Err(ColorFormatError::UnexpectedCharacters)
+        );
+        assert_eq!(
+            parse_hashed("#💩00"),
+            Err(ColorFormatError::UnexpectedCharacters)
+        );
 
         let result = parse_hashed("#0g0");
-        assert!(matches!(result, Err(ColorFormatError::MalformedCoordinate(1, _))));
+        assert!(matches!(
+            result,
+            Err(ColorFormatError::MalformedCoordinate(1, _))
+        ));
 
         let result = parse_hashed("#00g");
-        assert!(matches!(result, Err(ColorFormatError::MalformedCoordinate(2, _))));
+        assert!(matches!(
+            result,
+            Err(ColorFormatError::MalformedCoordinate(2, _))
+        ));
 
         Ok(())
     }
 
     #[test]
     fn test_parse_x() -> Result<(), ColorFormatError> {
-        assert_eq!(parse_x("rgb:a/bb/ccc")?, [(1_u8, 0xa_u16), (2, 0xbb), (3, 0xccc)]);
-        assert_eq!(parse_x("rgb:0123/4567/89ab")?, [(4_u8, 0x123_u16), (4, 0x4567), (4, 0x89ab)]);
-        assert_eq!(parse_x("rgbi:0.1/0.1/0.1"), Err(ColorFormatError::UnknownFormat));
-        assert_eq!(parse_x("rgb:0"), Err(ColorFormatError::MissingCoordinate(1)));
-        assert_eq!(parse_x("rgb:0//2"), Err(ColorFormatError::MissingCoordinate(1)));
-        assert_eq!(parse_x("rgb:1/12345/1"), Err(ColorFormatError::OversizedCoordinate(1)));
-        assert_eq!(parse_x("rgb:1/2/3/4"), Err(ColorFormatError::TooManyCoordinates));
+        assert_eq!(
+            parse_x("rgb:a/bb/ccc")?,
+            [(1_u8, 0xa_u16), (2, 0xbb), (3, 0xccc)]
+        );
+        assert_eq!(
+            parse_x("rgb:0123/4567/89ab")?,
+            [(4_u8, 0x123_u16), (4, 0x4567), (4, 0x89ab)]
+        );
+        assert_eq!(
+            parse_x("rgbi:0.1/0.1/0.1"),
+            Err(ColorFormatError::UnknownFormat)
+        );
+        assert_eq!(
+            parse_x("rgb:0"),
+            Err(ColorFormatError::MissingCoordinate(1))
+        );
+        assert_eq!(
+            parse_x("rgb:0//2"),
+            Err(ColorFormatError::MissingCoordinate(1))
+        );
+        assert_eq!(
+            parse_x("rgb:1/12345/1"),
+            Err(ColorFormatError::OversizedCoordinate(1))
+        );
+        assert_eq!(
+            parse_x("rgb:1/2/3/4"),
+            Err(ColorFormatError::TooManyCoordinates)
+        );
 
         let result = parse_x("rgb:f/g/f");
-        assert!(matches!(result, Err(ColorFormatError::MalformedCoordinate(1, _))));
+        assert!(matches!(
+            result,
+            Err(ColorFormatError::MalformedCoordinate(1, _))
+        ));
 
         Ok(())
     }
