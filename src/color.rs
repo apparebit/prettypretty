@@ -2,12 +2,14 @@
 
 mod core;
 
+pub use self::core::ColorSpace;
 use self::core::{
-    clip, convert, delta_e_ok, in_gamut, map_to_gamut, normalize, parse, to_contrast,
+    clip, convert, delta_e_ok, in_gamut, map_to_gamut, normalize, to_contrast,
     to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
 };
-pub use self::core::{ColorSpace, ParseColorError};
-pub use super::util::Coordinate;
+use super::serde::parse;
+pub use super::serde::ColorFormatError;
+use super::util::Coordinate;
 
 /// A high-resolution color object.
 ///
@@ -217,6 +219,45 @@ impl Color {
             space: ColorSpace::Oklrch,
             coordinates: [lr, c, h],
         }
+    }
+
+    /// Instantiate a color from its string representation.
+    ///
+    /// This method recognizes two hexadecimal notations for RGB colors, the
+    /// hashed notation familiar from the web and an older notation used by X
+    /// Windows. Even though the latter is intended to represent *device RGB*,
+    /// this crate treats both as sRGB.
+    ///
+    /// The *hashed notation* has three or six hexadecimal digits, e.g., `#123` or
+    /// #`cafe00`. Note that the three digit version is a short form of the six
+    /// digit version with every digit repeated. In other words, the red
+    /// coordinate in `#123` is not 0x1/0xf but 0x11/0xff.
+    ///
+    /// The *X Windows notation* has between one and four hexadecimal digits per
+    /// coordinate, e.g., `rgb:1/00/cafe`. Here, every coordinate is scaled,
+    /// i.e., the red coordinate in the example is 0x1/0xf.
+    ///
+    /// This struct implements the `FromStr` trait, which forwards to this
+    /// method. Hence `str::parse` works just the same for parsing color
+    /// formats—that is, as long as type inference can determine the type. For
+    /// that reason, the definition of `orange` below includes a type whereas
+    /// the definition of `blue` does not.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace, ColorFormatError};
+    /// let blue = Color::from_str("#35f")?;
+    /// assert_eq!(blue, Color::srgb(0.2, 0.3333333333333333, 1.0));
+    ///
+    /// let orange: Color = str::parse("rgb:ffff/9696/0000")?;
+    /// assert_eq!(orange, Color::srgb(1.0, 0.5882352941176471, 0.0));
+    /// # Ok::<(), ColorFormatError>(())
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #35f;"></div>
+    /// <div style="background-color: #ff9600;"></div>
+    /// </div>
+    pub fn from_str(s: &str) -> Result<Self, ColorFormatError> {
+        parse(s).map(|(space, coordinates)| Color { space, coordinates })
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -491,10 +532,10 @@ impl Color {
     /// same algorithm as [`Color::contrast_against`].
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, ParseColorError};
+    /// # use prettypretty::{Color, ColorSpace, ColorFormatError};
     /// let blue: Color = str::parse("#6872ff")?;
     /// assert!(!blue.use_black_text());
-    /// # Ok::<(), ParseColorError>(())
+    /// # Ok::<(), ColorFormatError>(())
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: #6872ff;">
@@ -520,10 +561,10 @@ impl Color {
     /// algorithm as [`Color::contrast_against`].
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, ParseColorError};
+    /// # use prettypretty::{Color, ColorSpace, ColorFormatError};
     /// let blue: Color = str::parse("#68a0ff")?;
     /// assert!(blue.use_black_background());
-    /// # Ok::<(), ParseColorError>(())
+    /// # Ok::<(), ColorFormatError>(())
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: #000;">
@@ -559,35 +600,12 @@ impl Default for Color {
 }
 
 impl std::str::FromStr for Color {
-    type Err = ParseColorError;
+    type Err = ColorFormatError;
 
-    /// Instantiate a color from its string representation.
-    ///
-    /// This method recognizes two hexadecimal notations for RGB colors, the
-    /// hashed notation familiar from the web and an older notation used by X
-    /// Windows. Even though the latter is intended to represent *device RGB*,
-    /// this crate maps both to sRGB.
-    ///
-    /// The hashed notation has three or six hexadecimal digits, e.g., `#123` or
-    /// #`cafe00`. Note that the three digit version is a short form of the six
-    /// digit version with every digit repeated. In other words, the red
-    /// coordinate in `#123` is not 0x1/0xf but 0x11/0xff.
-    ///
-    /// The X Windows notation has between one and four hexadecimal digits per
-    /// coordinate, e.g., `rgb:1/00/cafe`. Here, every coordinate is scaled,
-    /// i.e., the red coordinate in the example is 0x1/0xf.
-    ///
-    /// ```
-    /// # use prettypretty::{Color, ColorSpace, ParseColorError};
-    /// let blue: Color = str::parse("#35f")?;
-    /// assert_eq!(blue, Color::srgb(0.2, 0.3333333333333333, 1.0));
-    /// # Ok::<(), ParseColorError>(())
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: #35f;"></div>
-    /// </div>
+    /// Instantiate a color from its string representation. See
+    /// [`Color::from_str`].
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse(s).map(|(space, coordinates)| Color { space, coordinates })
+        Color::from_str(s)
     }
 }
 
