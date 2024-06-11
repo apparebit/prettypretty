@@ -18,7 +18,9 @@
 //! The example below instantiates a color in the polar Oklch color space. It
 //! then converts the color to Display P3 and tests whether it is in gamut—it
 //! is. Next, it converts the color sRGB and tests whether it is in gamut—it is
-//! not. Finally, it maps the color into sRGB's gamut.
+//! not. Finally, it maps the color into sRGB's gamut. If you are reading this
+//! on a wide-gamut screen, the color swatch should show two distinct pinks,
+//! with the left one considerably more intense.
 //!
 //! ```
 //! # use prettypretty::{Color, ColorSpace};
@@ -44,10 +46,14 @@
 //!     align-items: center;
 //!     justify-content: center;
 //! }
+//! .small.color-swatch > div {
+//!     height: 1em;
+//!     width: 1em;
+//! }
 //! </style>
 //! <div class=color-swatch>
 //! <div style="background-color: oklch(0.716 0.349 335);"></div>
-//! <div style="background-color: #fff;"></div>
+//! <div style="background-color: color(srgb 1 0.15942 0.92227);"></div>
 //! </div>
 //!
 //!
@@ -65,6 +71,262 @@
 //! [`TrueColor`] is anything but true. The term's use in this crate reflects
 //! ironic detachment as much as nostalgia.
 //!
+//! <div class="small color-swatch">
+//! <div style="background-color: #000000;"></div>
+//! <div style="background-color: #00005f;"></div>
+//! <div style="background-color: #000087;"></div>
+//! <div style="background-color: #0000af;"></div>
+//! <div style="background-color: #0000d7;"></div>
+//! <div style="background-color: #0000ff;"></div>
+//! <div style="background-color: #005f00;"></div>
+//! <div style="background-color: #005f5f;"></div>
+//! <div style="background-color: #005f87;"></div>
+//! <div style="background-color: #005faf;"></div>
+//! <div style="background-color: #005fd7;"></div>
+//! <div style="background-color: #005fff;"></div>
+//! <div style="background-color: #008700;"></div>
+//! <div style="background-color: #00875f;"></div>
+//! <div style="background-color: #008787;"></div>
+//! <div style="background-color: #0087af;"></div>
+//! <div style="background-color: #0087d7;"></div>
+//! <div style="background-color: #0087ff;"></div>
+//! <div style="background-color: #00af00;"></div>
+//! <div style="background-color: #00af5f;"></div>
+//! <div style="background-color: #00af87;"></div>
+//! <div style="background-color: #00afaf;"></div>
+//! <div style="background-color: #00afd7;"></div>
+//! <div style="background-color: #00afff;"></div>
+//! <div style="background-color: #00d700;"></div>
+//! <div style="background-color: #00d75f;"></div>
+//! <div style="background-color: #00d787;"></div>
+//! <div style="background-color: #00d7af;"></div>
+//! <div style="background-color: #00d7d7;"></div>
+//! <div style="background-color: #00d7ff;"></div>
+//! <div style="background-color: #00ff00;"></div>
+//! <div style="background-color: #00ff5f;"></div>
+//! <div style="background-color: #00ff87;"></div>
+//! <div style="background-color: #00ffaf;"></div>
+//! <div style="background-color: #00ffd7;"></div>
+//! <div style="background-color: #00ffff;"></div>
+//! </div>
+//! <div class="small color-swatch">
+//! <div style="background-color: #5f0000;"></div>
+//! <div style="background-color: #5f005f;"></div>
+//! <div style="background-color: #5f0087;"></div>
+//! <div style="background-color: #5f00af;"></div>
+//! <div style="background-color: #5f00d7;"></div>
+//! <div style="background-color: #5f00ff;"></div>
+//! <div style="background-color: #5f5f00;"></div>
+//! <div style="background-color: #5f5f5f;"></div>
+//! <div style="background-color: #5f5f87;"></div>
+//! <div style="background-color: #5f5faf;"></div>
+//! <div style="background-color: #5f5fd7;"></div>
+//! <div style="background-color: #5f5fff;"></div>
+//! <div style="background-color: #5f8700;"></div>
+//! <div style="background-color: #5f875f;"></div>
+//! <div style="background-color: #5f8787;"></div>
+//! <div style="background-color: #5f87af;"></div>
+//! <div style="background-color: #5f87d7;"></div>
+//! <div style="background-color: #5f87ff;"></div>
+//! <div style="background-color: #5faf00;"></div>
+//! <div style="background-color: #5faf5f;"></div>
+//! <div style="background-color: #5faf87;"></div>
+//! <div style="background-color: #5fafaf;"></div>
+//! <div style="background-color: #5fafd7;"></div>
+//! <div style="background-color: #5fafff;"></div>
+//! <div style="background-color: #5fd700;"></div>
+//! <div style="background-color: #5fd75f;"></div>
+//! <div style="background-color: #5fd787;"></div>
+//! <div style="background-color: #5fd7af;"></div>
+//! <div style="background-color: #5fd7d7;"></div>
+//! <div style="background-color: #5fd7ff;"></div>
+//! <div style="background-color: #5fff00;"></div>
+//! <div style="background-color: #5fff5f;"></div>
+//! <div style="background-color: #5fff87;"></div>
+//! <div style="background-color: #5fffaf;"></div>
+//! <div style="background-color: #5fffd7;"></div>
+//! <div style="background-color: #5fffff;"></div>
+//! </div>
+//! <div class="small color-swatch">
+//! <div style="background-color: #870000;"></div>
+//! <div style="background-color: #87005f;"></div>
+//! <div style="background-color: #870087;"></div>
+//! <div style="background-color: #8700af;"></div>
+//! <div style="background-color: #8700d7;"></div>
+//! <div style="background-color: #8700ff;"></div>
+//! <div style="background-color: #875f00;"></div>
+//! <div style="background-color: #875f5f;"></div>
+//! <div style="background-color: #875f87;"></div>
+//! <div style="background-color: #875faf;"></div>
+//! <div style="background-color: #875fd7;"></div>
+//! <div style="background-color: #875fff;"></div>
+//! <div style="background-color: #878700;"></div>
+//! <div style="background-color: #87875f;"></div>
+//! <div style="background-color: #878787;"></div>
+//! <div style="background-color: #8787af;"></div>
+//! <div style="background-color: #8787d7;"></div>
+//! <div style="background-color: #8787ff;"></div>
+//! <div style="background-color: #87af00;"></div>
+//! <div style="background-color: #87af5f;"></div>
+//! <div style="background-color: #87af87;"></div>
+//! <div style="background-color: #87afaf;"></div>
+//! <div style="background-color: #87afd7;"></div>
+//! <div style="background-color: #87afff;"></div>
+//! <div style="background-color: #87d700;"></div>
+//! <div style="background-color: #87d75f;"></div>
+//! <div style="background-color: #87d787;"></div>
+//! <div style="background-color: #87d7af;"></div>
+//! <div style="background-color: #87d7d7;"></div>
+//! <div style="background-color: #87d7ff;"></div>
+//! <div style="background-color: #87ff00;"></div>
+//! <div style="background-color: #87ff5f;"></div>
+//! <div style="background-color: #87ff87;"></div>
+//! <div style="background-color: #87ffaf;"></div>
+//! <div style="background-color: #87ffd7;"></div>
+//! <div style="background-color: #87ffff;"></div>
+//! </div>
+//! <div class="small color-swatch">
+//! <div style="background-color: #af0000;"></div>
+//! <div style="background-color: #af005f;"></div>
+//! <div style="background-color: #af0087;"></div>
+//! <div style="background-color: #af00af;"></div>
+//! <div style="background-color: #af00d7;"></div>
+//! <div style="background-color: #af00ff;"></div>
+//! <div style="background-color: #af5f00;"></div>
+//! <div style="background-color: #af5f5f;"></div>
+//! <div style="background-color: #af5f87;"></div>
+//! <div style="background-color: #af5faf;"></div>
+//! <div style="background-color: #af5fd7;"></div>
+//! <div style="background-color: #af5fff;"></div>
+//! <div style="background-color: #af8700;"></div>
+//! <div style="background-color: #af875f;"></div>
+//! <div style="background-color: #af8787;"></div>
+//! <div style="background-color: #af87af;"></div>
+//! <div style="background-color: #af87d7;"></div>
+//! <div style="background-color: #af87ff;"></div>
+//! <div style="background-color: #afaf00;"></div>
+//! <div style="background-color: #afaf5f;"></div>
+//! <div style="background-color: #afaf87;"></div>
+//! <div style="background-color: #afafaf;"></div>
+//! <div style="background-color: #afafd7;"></div>
+//! <div style="background-color: #afafff;"></div>
+//! <div style="background-color: #afd700;"></div>
+//! <div style="background-color: #afd75f;"></div>
+//! <div style="background-color: #afd787;"></div>
+//! <div style="background-color: #afd7af;"></div>
+//! <div style="background-color: #afd7d7;"></div>
+//! <div style="background-color: #afd7ff;"></div>
+//! <div style="background-color: #afff00;"></div>
+//! <div style="background-color: #afff5f;"></div>
+//! <div style="background-color: #afff87;"></div>
+//! <div style="background-color: #afffaf;"></div>
+//! <div style="background-color: #afffd7;"></div>
+//! <div style="background-color: #afffff;"></div>
+//! </div>
+//! <div class="small color-swatch">
+//! <div style="background-color: #d70000;"></div>
+//! <div style="background-color: #d7005f;"></div>
+//! <div style="background-color: #d70087;"></div>
+//! <div style="background-color: #d700af;"></div>
+//! <div style="background-color: #d700d7;"></div>
+//! <div style="background-color: #d700ff;"></div>
+//! <div style="background-color: #d75f00;"></div>
+//! <div style="background-color: #d75f5f;"></div>
+//! <div style="background-color: #d75f87;"></div>
+//! <div style="background-color: #d75faf;"></div>
+//! <div style="background-color: #d75fd7;"></div>
+//! <div style="background-color: #d75fff;"></div>
+//! <div style="background-color: #d78700;"></div>
+//! <div style="background-color: #d7875f;"></div>
+//! <div style="background-color: #d78787;"></div>
+//! <div style="background-color: #d787af;"></div>
+//! <div style="background-color: #d787d7;"></div>
+//! <div style="background-color: #d787ff;"></div>
+//! <div style="background-color: #d7af00;"></div>
+//! <div style="background-color: #d7af5f;"></div>
+//! <div style="background-color: #d7af87;"></div>
+//! <div style="background-color: #d7afaf;"></div>
+//! <div style="background-color: #d7afd7;"></div>
+//! <div style="background-color: #d7afff;"></div>
+//! <div style="background-color: #d7d700;"></div>
+//! <div style="background-color: #d7d75f;"></div>
+//! <div style="background-color: #d7d787;"></div>
+//! <div style="background-color: #d7d7af;"></div>
+//! <div style="background-color: #d7d7d7;"></div>
+//! <div style="background-color: #d7d7ff;"></div>
+//! <div style="background-color: #d7ff00;"></div>
+//! <div style="background-color: #d7ff5f;"></div>
+//! <div style="background-color: #d7ff87;"></div>
+//! <div style="background-color: #d7ffaf;"></div>
+//! <div style="background-color: #d7ffd7;"></div>
+//! <div style="background-color: #d7ffff;"></div>
+//! </div>
+//! <div class="small color-swatch">
+//! <div style="background-color: #ff0000;"></div>
+//! <div style="background-color: #ff005f;"></div>
+//! <div style="background-color: #ff0087;"></div>
+//! <div style="background-color: #ff00af;"></div>
+//! <div style="background-color: #ff00d7;"></div>
+//! <div style="background-color: #ff00ff;"></div>
+//! <div style="background-color: #ff5f00;"></div>
+//! <div style="background-color: #ff5f5f;"></div>
+//! <div style="background-color: #ff5f87;"></div>
+//! <div style="background-color: #ff5faf;"></div>
+//! <div style="background-color: #ff5fd7;"></div>
+//! <div style="background-color: #ff5fff;"></div>
+//! <div style="background-color: #ff8700;"></div>
+//! <div style="background-color: #ff875f;"></div>
+//! <div style="background-color: #ff8787;"></div>
+//! <div style="background-color: #ff87af;"></div>
+//! <div style="background-color: #ff87d7;"></div>
+//! <div style="background-color: #ff87ff;"></div>
+//! <div style="background-color: #ffaf00;"></div>
+//! <div style="background-color: #ffaf5f;"></div>
+//! <div style="background-color: #ffaf87;"></div>
+//! <div style="background-color: #ffafaf;"></div>
+//! <div style="background-color: #ffafd7;"></div>
+//! <div style="background-color: #ffafff;"></div>
+//! <div style="background-color: #ffd700;"></div>
+//! <div style="background-color: #ffd75f;"></div>
+//! <div style="background-color: #ffd787;"></div>
+//! <div style="background-color: #ffd7af;"></div>
+//! <div style="background-color: #ffd7d7;"></div>
+//! <div style="background-color: #ffd7ff;"></div>
+//! <div style="background-color: #ffff00;"></div>
+//! <div style="background-color: #ffff5f;"></div>
+//! <div style="background-color: #ffff87;"></div>
+//! <div style="background-color: #ffffaf;"></div>
+//! <div style="background-color: #ffffd7;"></div>
+//! <div style="background-color: #ffffff;"></div>
+//! </div>
+//!
+//! <br>
+//! <div class="small color-swatch">
+//! <div style="background-color: #121212;"></div>
+//! <div style="background-color: #1c1c1c;"></div>
+//! <div style="background-color: #262626;"></div>
+//! <div style="background-color: #303030;"></div>
+//! <div style="background-color: #3a3a3a;"></div>
+//! <div style="background-color: #444444;"></div>
+//! <div style="background-color: #4e4e4e;"></div>
+//! <div style="background-color: #585858;"></div>
+//! <div style="background-color: #626262;"></div>
+//! <div style="background-color: #6c6c6c;"></div>
+//! <div style="background-color: #767676;"></div>
+//! <div style="background-color: #808080;"></div>
+//! <div style="background-color: #8a8a8a;"></div>
+//! <div style="background-color: #949494;"></div>
+//! <div style="background-color: #9e9e9e;"></div>
+//! <div style="background-color: #a8a8a8;"></div>
+//! <div style="background-color: #b2b2b2;"></div>
+//! <div style="background-color: #bcbcbc;"></div>
+//! <div style="background-color: #c6c6c6;"></div>
+//! <div style="background-color: #d0d0d0;"></div>
+//! <div style="background-color: #dadada;"></div>
+//! <div style="background-color: #e4e4e4;"></div>
+//! <div style="background-color: #eeeeee;"></div>
+//! <div style="background-color: #f8f8f8;"></div>
+//! </div>
 //!
 //! ## Conversion Between Colors and Color Formats
 //!
@@ -117,13 +379,11 @@
 //!
 //! # Color Swatches
 //!
-//! Not surprisingly, doctests with example code for using [`Color`] require
-//! their own color objects. To make the examples more approachable, each code
-//! block is followed by a color swatch showing the example's colors. Swatch
-//! colors use the same color space (sRGB, Display P3, Oklab, or Oklch) where
-//! possible and an equivalent color in another space where necessary (Oklrab
-//! and Oklrch).
-
+//! As already illustrated above, most code examples come with their own color
+//! swatches, which show the color values mentioned in the code. Where possible,
+//! swatches use the exact same color spaces as the code (sRGB, Display P3,
+//! Oklab, or Oklch). Otherwise, they fall back on an equivalent color in a
+//! comparable color space (Oklrab and Oklrch).
 
 mod color;
 mod serde;
@@ -155,7 +415,7 @@ pub use term_color::OutOfBoundsError;
 /// ANSI colors to high-resolution colors. Through a [`ColorMatcher`], a
 /// theme also enables conversion of high-resolution colors ANSI (and possibly
 /// 8-bit) colors.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Theme {
     foreground: Color,
     background: Color,
@@ -178,6 +438,11 @@ pub struct Theme {
 }
 
 impl Theme {
+    /// Instantiate a new theme builder for incrementally building a theme.
+    pub fn builder() -> ThemeBuilder {
+        ThemeBuilder::default()
+    }
+
     /// Access the theme's foreground color.
     pub const fn foreground(&self) -> &Color {
         &self.foreground
@@ -240,273 +505,80 @@ pub const DEFAULT_THEME: Theme = Theme {
 };
 
 /// An incremental theme builder.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ThemeBuilder {
-    foreground: Option<Color>,
-    background: Option<Color>,
-    black: Option<Color>,
-    red: Option<Color>,
-    green: Option<Color>,
-    yellow: Option<Color>,
-    blue: Option<Color>,
-    magenta: Option<Color>,
-    cyan: Option<Color>,
-    white: Option<Color>,
-    bright_black: Option<Color>,
-    bright_red: Option<Color>,
-    bright_green: Option<Color>,
-    bright_yellow: Option<Color>,
-    bright_blue: Option<Color>,
-    bright_magenta: Option<Color>,
-    bright_cyan: Option<Color>,
-    bright_white: Option<Color>,
+    theme: Theme,
 }
 
 impl ThemeBuilder {
-    /// Create a new theme builder.
-    pub fn new() -> Self {
-        Self {
-            foreground: None,
-            background: None,
-            black: None,
-            red: None,
-            green: None,
-            yellow: None,
-            blue: None,
-            magenta: None,
-            cyan: None,
-            white: None,
-            bright_black: None,
-            bright_red: None,
-            bright_green: None,
-            bright_yellow: None,
-            bright_blue: None,
-            bright_magenta: None,
-            bright_cyan: None,
-            bright_white: None,
-        }
-    }
-
     /// Update the default foreground color.
-    pub fn foreground(self, value: Color) -> Self {
-        Self {
-            foreground: Some(value),
-            ..self
-        }
+    pub fn foreground(&mut self, value: Color) -> &mut Self {
+        self.theme.foreground = value;
+        self
     }
 
     /// Update the default background color.
-    pub fn background(self, value: Color) -> Self {
-        Self {
-            background: Some(value),
-            ..self
-        }
+    pub fn background(&mut self, value: Color) -> &mut Self {
+        self.theme.background = value;
+        self
     }
 
-    pub fn with_ansi_color(self, term: AnsiColor, value: Color) -> Self {
+    /// Update the color value for an ANSI color.
+    pub fn with_ansi_color(&mut self, term: AnsiColor, value: Color) -> &mut Self {
         use AnsiColor::*;
 
         match term {
-            Black => Self { black: Some(value), .. self },
-            Red => Self { red: Some(value), .. self },
-            Green => Self { green: Some(value), .. self },
-            Yellow => Self { yellow: Some(value), .. self },
-            Blue => Self { blue: Some(value), .. self },
-            Magenta => Self { magenta: Some(value), .. self },
-            Cyan => Self { cyan: Some(value), .. self },
-            White => Self { white: Some(value), .. self },
-            BrightBlack => Self { bright_black: Some(value), .. self },
-            BrightRed => Self { bright_red: Some(value), .. self },
-            BrightGreen => Self { bright_green: Some(value), .. self },
-            BrightYellow => Self { bright_yellow: Some(value), .. self },
-            BrightBlue => Self { bright_blue: Some(value), .. self },
-            BrightMagenta => Self { bright_magenta: Some(value), .. self },
-            BrightCyan => Self { bright_cyan: Some(value), .. self },
-            BrightWhite => Self { bright_white: Some(value), .. self },
+            Black => self.theme.black = value,
+            Red => self.theme.red = value,
+            Green => self.theme.green = value,
+            Yellow => self.theme.yellow = value,
+            Blue => self.theme.blue = value,
+            Magenta => self.theme.magenta = value,
+            Cyan => self.theme.cyan = value,
+            White => self.theme.white = value,
+            BrightBlack => self.theme.bright_black = value,
+            BrightRed => self.theme.bright_red = value,
+            BrightGreen => self.theme.bright_green = value,
+            BrightYellow => self.theme.bright_yellow = value,
+            BrightBlue => self.theme.bright_blue = value,
+            BrightMagenta => self.theme.bright_magenta = value,
+            BrightCyan => self.theme.bright_cyan = value,
+            BrightWhite => self.theme.bright_white = value,
         }
-    }
 
-
-
-    /// Update the color value for black.
-    pub fn black(self, value: Color) -> Self {
-        Self {
-            black: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for red.
-    pub fn red(self, value: Color) -> Self {
-        Self {
-            red: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for green.
-    pub fn green(self, value: Color) -> Self {
-        Self {
-            green: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for yellow.
-    pub fn yellow(self, value: Color) -> Self {
-        Self {
-            yellow: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for blue.
-    pub fn blue(self, value: Color) -> Self {
-        Self {
-            blue: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for magenta.
-    pub fn magenta(self, value: Color) -> Self {
-        Self {
-            magenta: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for cyan.
-    pub fn cyan(self, value: Color) -> Self {
-        Self {
-            cyan: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for white.
-    pub fn white(self, value: Color) -> Self {
-        Self {
-            white: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for bright black.
-    pub fn bright_black(self, value: Color) -> Self {
-        Self {
-            bright_black: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for bright red.
-    pub fn bright_red(self, value: Color) -> Self {
-        Self {
-            bright_red: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for bright green.
-    pub fn bright_green(self, value: Color) -> Self {
-        Self {
-            bright_green: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for bright yellow.
-    pub fn bright_yellow(self, value: Color) -> Self {
-        Self {
-            bright_yellow: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for bright blue.
-    pub fn bright_blue(self, value: Color) -> Self {
-        Self {
-            bright_blue: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for bright magenta.
-    pub fn bright_magenta(self, value: Color) -> Self {
-        Self {
-            bright_magenta: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for bright cyan.
-    pub fn bright_cyan(self, value: Color) -> Self {
-        Self {
-            bright_cyan: Some(value),
-            ..self
-        }
-    }
-
-    /// Update the color value for bright white.
-    pub fn bright_white(self, value: Color) -> Self {
-        Self {
-            bright_white: Some(value),
-            ..self
-        }
+        self
     }
 
     /// Determine whether this theme builder is ready, i.e., all fields have
-    /// some color value. Admittedly, this method is next to useless without
-    /// some interface for finding out what colors are still missing. That's why
-    /// it is not public for now.
+    /// some color value.
     fn ready(&self) -> bool {
-        self.black.is_some()
-            && self.red.is_some()
-            && self.green.is_some()
-            && self.yellow.is_some()
-            && self.blue.is_some()
-            && self.magenta.is_some()
-            && self.cyan.is_some()
-            && self.white.is_some()
-            && self.bright_black.is_some()
-            && self.bright_red.is_some()
-            && self.bright_green.is_some()
-            && self.bright_yellow.is_some()
-            && self.bright_blue.is_some()
-            && self.bright_magenta.is_some()
-            && self.bright_cyan.is_some()
-            && self.bright_white.is_some()
+        !self.theme.foreground.is_default()
+            && !self.theme.background.is_default()
+            // Skip black
+            && !self.theme.red.is_default()
+            && !self.theme.green.is_default()
+            && !self.theme.yellow.is_default()
+            && !self.theme.blue.is_default()
+            && !self.theme.magenta.is_default()
+            && !self.theme.cyan.is_default()
+            && !self.theme.white.is_default()
+            && !self.theme.bright_black.is_default()
+            && !self.theme.bright_red.is_default()
+            && !self.theme.bright_green.is_default()
+            && !self.theme.bright_yellow.is_default()
+            && !self.theme.bright_blue.is_default()
+            && !self.theme.bright_magenta.is_default()
+            && !self.theme.bright_cyan.is_default()
+            && !self.theme.bright_white.is_default()
     }
 
-    /// Build the theme. If any color is missing, this builder vanishes into
-    /// `None` and the application needs to start from scratch, with a new
-    /// builder again. As an escape hatch during development, theme builder
-    /// *does* support `clone()`.
+    /// Build the theme. If all colors of the theme but black have been updated,
+    /// this method returns a clone of the current theme.
     pub fn build(self) -> Option<Theme> {
         if !self.ready() {
             None
         } else {
-            Some(Theme {
-                foreground: self.foreground.unwrap(),
-                background: self.background.unwrap(),
-                black: self.black.unwrap(),
-                red: self.red.unwrap(),
-                green: self.green.unwrap(),
-                yellow: self.yellow.unwrap(),
-                blue: self.blue.unwrap(),
-                magenta: self.magenta.unwrap(),
-                cyan: self.cyan.unwrap(),
-                white: self.white.unwrap(),
-                bright_black: self.bright_black.unwrap(),
-                bright_red: self.bright_red.unwrap(),
-                bright_green: self.bright_green.unwrap(),
-                bright_yellow: self.bright_yellow.unwrap(),
-                bright_blue: self.bright_blue.unwrap(),
-                bright_magenta: self.bright_magenta.unwrap(),
-                bright_cyan: self.bright_cyan.unwrap(),
-                bright_white: self.bright_white.unwrap(),
-            })
+            Some(self.theme.clone())
         }
     }
 }
@@ -668,7 +740,11 @@ impl ColorMatcher {
     ///             let color = Color::from(embedded);
     ///             assert_eq!(color.space(), ColorSpace::Srgb);
     ///
-    ///             let c1 = (55.0 + 40.0 * (r as f64)) / 255.0;
+    ///             let c1 = if r == 0 {
+    ///                 0.0
+    ///             } else {
+    ///                 (55.0 + 40.0 * (r as f64)) / 255.0
+    ///             };
     ///             assert!((color[C1] - c1).abs() < f64::EPSILON);
     ///
     ///             let result = matcher.to_eight_bit(&color);
