@@ -61,15 +61,6 @@ use super::util::Coordinate;
 /// robust comparison without meaningfully reducing precision.
 ///
 ///
-/// # Doctest Coloring
-///
-/// Not surprisingly, doctests with example code for using [`Color`] require
-/// their own colors. To make the code examples more accessible, each code block
-/// is followed by a simple color swatch that shows the example's colors. Swatch
-/// colors use the same color space (sRGB, Display P3, Oklab, or Oklch) where
-/// possible and an equivalent color in another space where necessary (Oklrab
-/// and Oklrch).
-///
 /// <style>
 /// .color-swatch {
 ///     display: flex;
@@ -118,10 +109,10 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: rgb(177 31 36);"></div>
     /// </div>
-    pub const fn srgb(r: f64, g: f64, b: f64) -> Self {
+    pub fn srgb(r: impl Into<f64>, g: impl Into<f64>, b: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::Srgb,
-            coordinates: [r, g, b],
+            coordinates: [r.into(), g.into(), b.into()],
         }
     }
 
@@ -130,16 +121,16 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let cyan = Color::p3(0.0, 0.87, 0.85);
+    /// let cyan = Color::p3(0, 0.87, 0.85);
     /// assert_eq!(cyan.space(), ColorSpace::DisplayP3);
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: color(display-p3 0 0.87 0.85);"></div>
     /// </div>
-    pub const fn p3(r: f64, g: f64, b: f64) -> Self {
+    pub fn p3(r: impl Into<f64>, g: impl Into<f64>, b: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::DisplayP3,
-            coordinates: [r, g, b],
+            coordinates: [r.into(), g.into(), b.into()],
         }
     }
 
@@ -154,11 +145,10 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklab(0.78 -0.1 -0.1);"></div>
     /// </div>
-
-    pub const fn oklab(l: f64, a: f64, b: f64) -> Self {
+    pub fn oklab(l: impl Into<f64>, a: impl Into<f64>, b: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::Oklab,
-            coordinates: [l, a, b],
+            coordinates: [l.into(), a.into(), b.into()],
         }
     }
 
@@ -177,10 +167,10 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklab(0.5514232757779728 -0.1 -0.1);"></div>
     /// </div>
-    pub const fn oklrab(lr: f64, a: f64, b: f64) -> Self {
+    pub fn oklrab(lr: impl Into<f64>, a: impl Into<f64>, b: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::Oklrab,
-            coordinates: [lr, a, b],
+            coordinates: [lr.into(), a.into(), b.into()],
         }
     }
 
@@ -189,16 +179,16 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let deep_purple = Color::oklch(0.5, 0.25, 308.0);
+    /// let deep_purple = Color::oklch(0.5, 0.25, 308);
     /// assert_eq!(deep_purple.space(), ColorSpace::Oklch);
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: oklch(0.5 0.25 308);"></div>
     /// </div>
-    pub const fn oklch(l: f64, c: f64, h: f64) -> Self {
+    pub fn oklch(l: impl Into<f64>, c: impl Into<f64>, h: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::Oklch,
-            coordinates: [l, c, h],
+            coordinates: [l.into(), c.into(), h.into()],
         }
     }
 
@@ -207,57 +197,18 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let deep_purple = Color::oklrch(0.5, 0.25, 308.0);
+    /// let deep_purple = Color::oklrch(0.5, 0.25, 308);
     /// let also_purple = deep_purple.to(ColorSpace::Oklch);
-    /// assert_eq!(also_purple, Color::oklch(0.568838198942395, 0.25, 308.0));
+    /// assert_eq!(also_purple, Color::oklch(0.568838198942395, 0.25, 308));
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: oklch(0.569 0.25 308);"></div>
     /// </div>
-    pub const fn oklrch(lr: f64, c: f64, h: f64) -> Self {
+    pub fn oklrch(lr: impl Into<f64>, c: impl Into<f64>, h: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::Oklrch,
-            coordinates: [lr, c, h],
+            coordinates: [lr.into(), c.into(), h.into()],
         }
-    }
-
-    /// Instantiate a color from its string representation.
-    ///
-    /// This method recognizes two hexadecimal notations for RGB colors, the
-    /// hashed notation familiar from the web and an older notation used by X
-    /// Windows. Even though the latter is intended to represent *device RGB*,
-    /// this crate treats both as sRGB.
-    ///
-    /// The *hashed notation* has three or six hexadecimal digits, e.g., `#123` or
-    /// #`cafe00`. Note that the three digit version is a short form of the six
-    /// digit version with every digit repeated. In other words, the red
-    /// coordinate in `#123` is not 0x1/0xf but 0x11/0xff.
-    ///
-    /// The *X Windows notation* has between one and four hexadecimal digits per
-    /// coordinate, e.g., `rgb:1/00/cafe`. Here, every coordinate is scaled,
-    /// i.e., the red coordinate in the example is 0x1/0xf.
-    ///
-    /// This struct implements the `FromStr` trait, which forwards to this
-    /// method. Hence `str::parse` works just the same for parsing color
-    /// formats—that is, as long as type inference can determine the type. For
-    /// that reason, the definition of `orange` below includes a type whereas
-    /// the definition of `blue` does not.
-    ///
-    /// ```
-    /// # use prettypretty::{Color, ColorSpace, ColorFormatError};
-    /// let blue = Color::from_str("#35f")?;
-    /// assert_eq!(blue, Color::srgb(0.2, 0.3333333333333333, 1.0));
-    ///
-    /// let orange: Color = str::parse("rgb:ffff/9696/0000")?;
-    /// assert_eq!(orange, Color::srgb(1.0, 0.5882352941176471, 0.0));
-    /// # Ok::<(), ColorFormatError>(())
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: #35f;"></div>
-    /// <div style="background-color: #ff9600;"></div>
-    /// </div>
-    pub fn from_str(s: &str) -> Result<Self, ColorFormatError> {
-        parse(s).map(|(space, coordinates)| Color { space, coordinates })
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -266,7 +217,7 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let blue = Color::srgb(0.0, 0.0, 1.0);
+    /// let blue = Color::srgb(0, 0, 1);
     /// assert_eq!(blue.space(), ColorSpace::Srgb);
     /// ```
     /// <div class=color-swatch>
@@ -281,7 +232,7 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let green = Color::new(ColorSpace::DisplayP3, 0.0, 1.0, 0.0);
+    /// let green = Color::p3(0, 1, 0);
     /// assert_eq!(green.coordinates(), &[0.0, 1.0, 0.0]);
     /// ```
     /// <div class=color-swatch>
@@ -340,10 +291,10 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let red = Color::srgb(1.0, 0.0, 0.0);
+    /// let red = Color::srgb(1, 0, 0);
     /// assert!(red.in_gamut());
     ///
-    /// let green = Color::new(ColorSpace::DisplayP3, 0.0, 1.0, 0.0);
+    /// let green = Color::p3(0, 1, 0);
     /// assert!(!green.to(ColorSpace::Srgb).in_gamut());
     /// ```
     /// <div class=color-swatch>
@@ -454,15 +405,15 @@ impl Color {
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
     /// let colors = [
-    ///     &Color::srgb(1.0, 0.0, 0.0),
-    ///     &Color::srgb(0.0, 1.0, 0.0),
-    ///     &Color::srgb(0.0, 0.0, 1.0),
+    ///     &Color::srgb(1, 0, 0),
+    ///     &Color::srgb(0, 1, 0),
+    ///     &Color::srgb(0, 0, 1),
     /// ];
-    /// let rose = Color::srgb(1.0, 0.5, 0.5);
+    /// let rose = Color::srgb(1, 0.5, 0.5);
     /// let closest = rose.closest(colors);
     /// assert_eq!(closest, Some(0));
     ///
-    /// let closest = Color::srgb(0.5, 1.0, 0.6).closest(colors);
+    /// let closest = Color::srgb(0.5, 1, 0.6).closest(colors);
     /// assert_eq!(closest, Some(1))
     /// ```
     /// <div class=color-swatch>
@@ -602,10 +553,44 @@ impl Default for Color {
 impl std::str::FromStr for Color {
     type Err = ColorFormatError;
 
-    /// Instantiate a color from its string representation. See
-    /// [`Color::from_str`].
+    /// Instantiate a color from its string representation.
+    ///
+    /// This method recognizes two hexadecimal notations for RGB colors, the
+    /// hashed notation familiar from the web and an older notation used by X
+    /// Windows. Even though the latter is intended to represent *device RGB*,
+    /// this crate treats both as sRGB.
+    ///
+    /// The *hashed notation* has three or six hexadecimal digits, e.g., `#123` or
+    /// #`cafe00`. Note that the three digit version is a short form of the six
+    /// digit version with every digit repeated. In other words, the red
+    /// coordinate in `#123` is not 0x1/0xf but 0x11/0xff.
+    ///
+    /// The *X Windows notation* has between one and four hexadecimal digits per
+    /// coordinate, e.g., `rgb:1/00/cafe`. Here, every coordinate is scaled,
+    /// i.e., the red coordinate in the example is 0x1/0xf.
+    ///
+    /// By implementing the `FromStr` trait, `str::parse` works just the same
+    /// for parsing color formats—that is, as long as type inference can
+    /// determine what type to parse. For that reason, the definition of
+    /// `orange` below includes a type whereas the definition of `blue` does
+    /// not.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace, ColorFormatError};
+    /// # use std::str::FromStr;
+    /// let blue = Color::from_str("#35f")?;
+    /// assert_eq!(blue, Color::srgb(0.2, 0.3333333333333333, 1));
+    ///
+    /// let orange: Color = str::parse("rgb:ffff/9696/0000")?;
+    /// assert_eq!(orange, Color::srgb(1, 0.5882352941176471, 0));
+    /// # Ok::<(), ColorFormatError>(())
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #35f;"></div>
+    /// <div style="background-color: #ff9600;"></div>
+    /// </div>
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Color::from_str(s)
+        parse(s).map(|(space, coordinates)| Color { space, coordinates })
     }
 }
 
@@ -638,12 +623,12 @@ impl PartialEq for Color {
     /// # use prettypretty::{Color, ColorSpace};
     /// assert_eq!(
     ///     Color::srgb(f64::NAN, 3e-15, 8e-15),
-    ///     Color::srgb(0.0,      0.0,   1e-14)
+    ///     Color::srgb(0,        0,     1e-14)
     /// );
     ///
     /// assert_eq!(
-    ///     Color::new(ColorSpace::Oklch, 0.5, 0.1, 665.0),
-    ///     Color::new(ColorSpace::Oklch, 0.5, 0.1, 305.0)
+    ///     Color::oklch(0.5, 0.1, 665),
+    ///     Color::oklch(0.5, 0.1, 305)
     /// );
     /// ```
     /// <div class=color-swatch>
@@ -692,7 +677,7 @@ impl std::ops::IndexMut<Coordinate> for Color {
     /// # use prettypretty::{Color, ColorSpace};
     /// use prettypretty::Coordinate::*;
     ///
-    /// let mut magenta = Color::srgb(0.0, 0.3, 0.8);
+    /// let mut magenta = Color::srgb(0, 0.3, 0.8);
     /// // Oops, we forgot to set the red coordinate. Let's fix that.
     /// magenta[C1] = 0.9;
     /// assert_eq!(magenta.coordinates(), &[0.9_f64, 0.3_f64, 0.8_f64]);
