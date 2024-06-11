@@ -6,7 +6,6 @@ edition = "2021"
 description = "applying 2020s color science for 1970s terminal user interfaces"
 repository = "https://github.com/apparebit/prettypretty"
 license = "Apache 2.0"
-license-file = "LICENSE"
-include = ["/README.md", "/src"]
+include = ["/README.md", "/LICENSE", "/src"]
 
 [dependencies]
