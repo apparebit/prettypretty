@@ -1,13 +1,13 @@
-//! # Oxidized Colors for Terminals
+//! # Pretty 🌸 Pretty
 //!
-//! This library brings 2020s color science to 1970s terminals to build good
-//! looking and adaptable terminal user interfaces. It supports high-resolution
-//! colors, accurate conversion between color spaces, gamut testing and mapping,
-//! finding the closest matching color, and computing text contrast against the
-//! background.
+//! This library brings 2020s color science to 1970s terminals to help build
+//! awesome looking and adaptable terminal user interfaces. It supports
+//! high-resolution colors, accurate conversion between color spaces, finding
+//! the closest matching color, gamut testing and mapping, and computing text
+//! contrast.
 //!
 //!
-//! ## High-Resolution Colors
+//! ## 1. High-Resolution Colors
 //!
 //! High-resolution colors from the 2020s have floating point coordinates and
 //! explicit color spaces:
@@ -19,8 +19,8 @@
 //! then converts the color to Display P3 and tests whether it is in gamut—it
 //! is. Next, it converts the color sRGB and tests whether it is in gamut—it is
 //! not. Finally, it maps the color into sRGB's gamut. If you are reading this
-//! on a wide-gamut screen, the color swatch should show two distinct pinks,
-//! with the left one considerably more intense.
+//! on a wide-gamut screen, the color swatch below the code should show two
+//! distinct shades of pink, with the left one considerably more intense.
 //!
 //! ```
 //! # use prettypretty::{Color, ColorSpace};
@@ -28,11 +28,11 @@
 //! let p3 = oklch.to(ColorSpace::DisplayP3);
 //! assert!(p3.in_gamut());
 //!
-//! let srgb = oklch.to(ColorSpace::Srgb);
-//! assert!(!srgb.in_gamut());
+//! let not_srgb = oklch.to(ColorSpace::Srgb);
+//! assert!(!not_srgb.in_gamut());
 //!
-//! let mapped = srgb.map_to_gamut();
-//! assert_eq!(mapped, Color::srgb(1, 0.15942348587138203, 0.9222706101768445));
+//! let srgb = not_srgb.map_to_gamut();
+//! assert_eq!(srgb, Color::srgb(1, 0.15942348587138203, 0.9222706101768445));
 //! ```
 //! <style>
 //! .color-swatch {
@@ -56,21 +56,44 @@
 //! <div style="background-color: color(srgb 1 0.15942 0.92227);"></div>
 //! </div>
 //!
+//! ### Different Color Spaces for Different Tasks
 //!
-//! ## Terminal Colors
+//! Instead of creating a color out of nothing, we could as easily modify an
+//! existing color, for example, by pushing lightness, reducing chroma, or
+//! nudging the hue. As it turns out, the perceptually uniform polar coordinates
+//! of Oklch and Oklrch make them great color spaces for modifying colors.
 //!
-//! Terminal color formats from the 1970s and 1980s have integer coordinates at
-//! best may are represented through the following abstractions:
+//! If we need to compare colors, however, then the Cartesian coordinates of
+//! Oklab and Oklrab support a straight-forward Euclidian distance metric.
+//!
+//! Alas, it's back to sRGB for checking that thusly manipulated colors can
+//! actually be displayed in terminals. If we are targeting other platforms,
+//! such as the web, then Display P3 becomes an option, too.
+//!
+//!
+//! ## 2. Terminal Colors
+//!
+//! In contrast to high-resolution colors, terminal color formats from the 1970s
+//! and 1980s may not even have coordinates, only an integer index. They are
+//! represented through the following abstractions:
 //!
 //!   * [`EightBitColor`] combines [`AnsiColor`], [`EmbeddedRgb`], and
 //!     [`GrayGradient`].
-//!   * [`TrueColor`] represents 24-bit RGB colors, presumably in the sRGB color
-//!     space.
+//!   * [`TrueColor`] represents 24-bit RGB colors, originally in the "device
+//!     RGB" color space, nowadays sRGB.
 //!
-//! Given contemporary wide-gamut, high-dynamic-range (HDR) displays,
-//! [`TrueColor`] is anything but true. The term's use in this crate reflects
-//! ironic detachment as much as nostalgia.
+//! [`AnsiColor`] represents the 16 extended ANSI colors. They are eight base
+//! colors—black, red, green, yellow, blue, magenta, cyan, and white—and their
+//! bright variations—including bright black and bright white. ANSI colors have
+//! names but no agreed-upon color values.
 //!
+//! [`EmbeddedRgb`] is a 6x6x6 RGB cube, i.e., every coordinate ranges from 0 to
+//! 5, inclusive. Xterm's formula for converting to 24-bit RGB colors is widely
+//! accepted. The color swatch below shows all 216 colors, with blue cycling
+//! every column, green increasing every six columns, and red increasing every
+//! row.
+//!
+//! <figure>
 //! <div class="small color-swatch">
 //! <div style="background-color: #000000;"></div>
 //! <div style="background-color: #00005f;"></div>
@@ -299,8 +322,14 @@
 //! <div style="background-color: #ffffd7;"></div>
 //! <div style="background-color: #ffffff;"></div>
 //! </div>
+//! </figure>
 //!
-//! <br>
+//! [`GrayGradient`] represents a 24-step gradient from almost black to almost
+//! white. As for the embedded RGB cube, Xterm's formula for converting to
+//! 24-bit RGB colors is widely accepted. The color swatch below illustrates the
+//! gray gradient.
+//!
+//! <figure>
 //! <div class="small color-swatch">
 //! <div style="background-color: #121212;"></div>
 //! <div style="background-color: #1c1c1c;"></div>
@@ -327,26 +356,75 @@
 //! <div style="background-color: #eeeeee;"></div>
 //! <div style="background-color: #f8f8f8;"></div>
 //! </div>
+//! </figure>
 //!
-//! ## Conversion Between Colors and Color Formats
+//! By combining ANSI, embedded RGB, and gray gradient colors, [`EightBitColor`]
+//! covers the entire 8-bit code space. As a result, conversion from `u8` is
+//! infallible, whereas it is fallible for the three component colors.
 //!
-//! Even if we limit ourselves to 8-bit color and (not really) true color,
-//! conversion between the terminal color formats is rather tricky. First, ANSI
-//! colors have only names, but no color values. Second, mapping 16 million
-//! colors to 240 or 16 colors is inherently and very noticeably lossy.
+//! [`TrueColor`] was a misnomer even when 24-bit video cards first came out.
+//! Nowadays, the ready availability of wide-gamut and high-dynamic-range (HDR)
+//! displays only underlines that true color is anything but true. But it *is*
+//! the historically accurate term and lives on in this crate thanks to a mix of
+//! ironic detachment and nostalgia.
 //!
-//! Still, this crate does significantly better than previous libraries by
-//! taking themes into account and by searching for closest matching colors in
-//! perceptually uniform color space:
+//! The example code below illustrates how [`AnsiColor`], [`EmbeddedRgb`],
+//! [`GrayGradient`], and [`EightBitColor`] abstract over the underlying 8-bit
+//! index space while also providing convenient access to RGB coordinates and
+//! gray levels. Embedded RGB and gray gradient colors also nicely convert to
+//! true colors, but ANSI and therefore 8-bit colors do not.
+//!
+//! ```
+//! # use prettypretty::{AnsiColor, Coordinate::*, EightBitColor, EmbeddedRgb};
+//! # use prettypretty::{GrayGradient, TrueColor};
+//! assert_eq!(u8::from(AnsiColor::BrightRed), 9);
+//! // Is TrueColor the equivalent of #f00, #f55, #e60000, #e74856, or what?
+//!
+//! let purple = EmbeddedRgb::new(3, 1, 4).unwrap();
+//! let index = 16 + 3 * 36 + 1 * 6 + 4 * 1;
+//! assert_eq!(index, 134);
+//! assert_eq!(u8::from(purple), index);
+//! assert_eq!(TrueColor::from(purple), TrueColor::new(175, 95, 215));
+//!
+//! let gray = GrayGradient::new(18).unwrap();
+//! let index = 232 + 18;
+//! assert_eq!(index, 250);
+//! assert_eq!(gray.level(), 18);
+//! assert_eq!(u8::from(gray), index);
+//! assert_eq!(TrueColor::from(gray), TrueColor::new(188, 188, 188));
+//!
+//! let green = EightBitColor::from(71);
+//! assert!(green.is_rgb());
+//! let green = green.rgb().unwrap();
+//! assert_eq!(green[C1], 1);
+//! assert_eq!(green[C2], 3);
+//! assert_eq!(green[C3], 1);
+//! assert_eq!(TrueColor::from(green), TrueColor::new(95, 175, 95));
+//! ```
+//! <div class=color-swatch>
+//! <div style="background: repeating-linear-gradient(45deg, #fff, #fff 10px, #fcc 10px, #fcc 20px);">
+//! <span style="font-weight: bold; font-size: 2em;">?</span>
+//! </div>
+//! <div style="background-color: #af5fd7;"></div>
+//! <div style="background-color: #bcbcbc;"></div>
+//! <div style="background-color: #5faf5f;"></div>
+//! </div>
+//!
+//!
+//! ## 3. Integration of High-Resolution and Terminal Colors
+//!
+//! To apply 2020s color science to terminal colors, we need to be able to
+//! convert terminal to high-resolution colors and back again:
 //!
 //!   * [`Theme`] provides high-resolution color values for the 16 extended ANSI
 //!     colors and terminal defaults.
-//!   * [`ThemeBuilder`] helps to incrementally initialize a theme.
+//!   * [`ThemeBuilder`] helps to incrementally fill in a theme.
 //!   * [`ColorMatcher`] stores high-resolution color values for all
 //!     8-bit terminal colors to find closest matching color.
 //!
 //!
-//! # BYOIO: Bring Your Own (Terminal) I/O
+//!
+//! ## 4. BYOIO: Bring Your Own (Terminal) I/O
 //!
 //! Unlike the Python version, the Rust version of prettypretty does not (yet?)
 //! include its own facilities for styled text or terminal I/O. Instead, it is
@@ -377,7 +455,7 @@
 //! backslash). Some terminals answer with `\x0b` (bell) instead of ST.
 //!
 //!
-//! # Color Swatches
+//! ## Color Swatches
 //!
 //! As already illustrated above, most code examples come with their own color
 //! swatches, which show the color values mentioned in the code. Where possible,
