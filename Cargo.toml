@@ -1,6 +1,9 @@
 [package]
 name = "prettypretty"
 version = "0.1.0"
+authors = ["Robert Grimm"]
 edition = "2021"
+description = "applying 2020s color science for 1970s terminal user interfaces"
+repository = "https://github.com/apparebit/prettypretty"
 
 [dependencies]
