@@ -651,7 +651,6 @@ impl ColorMatcher {
     /// the gray gradient colors.
     pub fn new(theme: &Theme) -> Self {
         let ansi = (0..=15)
-            .into_iter()
             .map(|n| {
                 theme
                     .ansi(AnsiColor::try_from(n).unwrap())
@@ -660,11 +659,9 @@ impl ColorMatcher {
             .collect();
 
         let eight_bit: Vec<Color> = (16..=231)
-            .into_iter()
             .map(|n| Color::from(EmbeddedRgb::try_from(n).unwrap()).to(ColorSpace::Oklrab))
             .chain(
                 (232..=255)
-                    .into_iter()
                     .map(|n| Color::from(GrayGradient::try_from(n).unwrap()).to(ColorSpace::Oklrab)),
             )
             .collect();

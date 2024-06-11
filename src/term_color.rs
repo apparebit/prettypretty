@@ -219,7 +219,7 @@ impl TryFrom<u8> for EmbeddedRgb {
 
     /// Try instantiating an embedded RGB color from an unsigned byte.
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value < 16 || 231 < value {
+        if !(16..=231).contains(&value) {
             Err(OutOfBoundsError::from_u8(value, 16..=231))
         } else {
             let mut b = value - 16;

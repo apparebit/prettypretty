@@ -116,8 +116,8 @@ fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
     }
 
     fn parse_coordinate(s: Option<&str>, index: usize) -> Result<(u8, u16), ColorFormatError> {
-        let t = s.ok_or_else(|| ColorFormatError::MissingCoordinate(index))?;
-        if t.len() == 0 {
+        let t = s.ok_or(ColorFormatError::MissingCoordinate(index))?;
+        if t.is_empty() {
             return Err(ColorFormatError::MissingCoordinate(index));
         } else if t.len() > 4 {
             return Err(ColorFormatError::OversizedCoordinate(index));
