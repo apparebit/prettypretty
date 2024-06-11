@@ -609,10 +609,10 @@ impl std::hash::Hash for Color {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.space.hash(state);
 
-        let n = normalize(self.space, &self.coordinates);
-        n[0].hash(state);
-        n[1].hash(state);
-        n[2].hash(state);
+        let [n1, n2, n3] = normalize(self.space, &self.coordinates);
+        n1.hash(state);
+        n2.hash(state);
+        n3.hash(state);
     }
 }
 
@@ -644,6 +644,8 @@ impl PartialEq for Color {
     fn eq(&self, other: &Self) -> bool {
         if self.space != other.space {
             return false;
+        } else if self.coordinates == other.coordinates {
+            return true;
         }
 
         let n1 = normalize(self.space, &self.coordinates);
@@ -671,6 +673,7 @@ impl std::ops::Index<Coordinate> for Color {
     /// <div class=color-swatch>
     /// <div style="background-color: color(srgb 0.5 0.4 0.75);"></div>
     /// </div>
+    #[inline]
     fn index(&self, index: Coordinate) -> &Self::Output {
         &self.coordinates[index as usize]
     }
@@ -691,6 +694,7 @@ impl std::ops::IndexMut<Coordinate> for Color {
     /// <div class=color-swatch>
     /// <div style="background-color: color(srgb 0.9 0.3 0.8);"></div>
     /// </div>
+    #[inline]
     fn index_mut(&mut self, index: Coordinate) -> &mut Self::Output {
         &mut self.coordinates[index as usize]
     }

@@ -206,6 +206,7 @@ pub(crate) fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> [u64; 3] {
 /// it appears that Ottosson [was a bit too
 /// fast](https://github.com/w3c/csswg-drafts/issues/6642#issuecomment-945714988)
 /// in defining Delta E that way...
+#[inline]
 #[allow(non_snake_case)]
 pub(crate) fn delta_e_ok(coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> f64 {
     let [L1, a1, b1] = coordinates1;
@@ -239,7 +240,9 @@ fn multiply(matrix: &[[f64; 3]; 3], vector: &[f64; 3]) -> [f64; 3] {
 /// Convert coordinates from gamma-corrected RGB to linear RGB using sRGB's
 /// gamma. Display P3 uses the very same gamma. This is a one-hop, direct
 /// conversion.
+#[inline]
 fn rgb_to_linear_rgb(value: &[f64; 3]) -> [f64; 3] {
+    #[inline]
     fn convert(value: f64) -> f64 {
         let magnitude = value.abs();
         if magnitude <= 0.04045 {
@@ -255,7 +258,9 @@ fn rgb_to_linear_rgb(value: &[f64; 3]) -> [f64; 3] {
 /// Convert coordinates from linear RGB to gamma-corrected RGB using sRGB's
 /// gamma. Display P3 uses the very same gamma. This is a one-hop, direct
 /// conversion.
+#[inline]
 fn linear_rgb_to_rgb(value: &[f64; 3]) -> [f64; 3] {
+    #[inline]
     fn convert(value: f64) -> f64 {
         let magnitude = value.abs();
         if magnitude <= 0.00313098 {
@@ -279,6 +284,7 @@ const LINEAR_SRGB_TO_XYZ: [[f64; 3]; 3] = [
 ];
 
 /// Convert coordinates for linear sRGB to XYZ. This is a one-hop, direct conversion.
+#[inline]
 fn linear_srgb_to_xyz(value: &[f64; 3]) -> [f64; 3] {
     multiply(&LINEAR_SRGB_TO_XYZ, value)
 }
@@ -294,6 +300,7 @@ const XYZ_TO_LINEAR_SRGB: [[f64; 3]; 3] = [
 
 /// Convert coordinates for XYZ to linear sRGB. THis is a one-hop, direct
 /// conversion.
+#[inline]
 fn xyz_to_linear_srgb(value: &[f64; 3]) -> [f64; 3] {
     multiply(&XYZ_TO_LINEAR_SRGB, value)
 }
@@ -310,6 +317,7 @@ const LINEAR_DISPLAY_P3_TO_XYZ: [[f64; 3]; 3] = [
 
 /// Convert coordinates for linear Display P3 to XYZ. This is a one-hop, direct
 /// conversion.
+#[inline]
 fn linear_display_p3_to_xyz(value: &[f64; 3]) -> [f64; 3] {
     multiply(&LINEAR_DISPLAY_P3_TO_XYZ, value)
 }
@@ -325,6 +333,7 @@ const XYZ_TO_LINEAR_DISPLAY_P3: [[f64; 3]; 3] = [
 
 /// Convert coordinates for XYZ to linear Display P3. This is a one-hop, direct
 /// conversion.
+#[inline]
 fn xyz_to_linear_display_p3(value: &[f64; 3]) -> [f64; 3] {
     multiply(&XYZ_TO_LINEAR_DISPLAY_P3, value)
 }
@@ -333,6 +342,7 @@ fn xyz_to_linear_display_p3(value: &[f64; 3]) -> [f64; 3] {
 
 /// Convert coordinates for Oklch to Oklab or for Oklrch to Oklrab. This is a
 /// one-hop, direct conversion.
+#[inline]
 #[allow(non_snake_case)]
 fn oklch_to_oklab(value: &[f64; 3]) -> [f64; 3] {
     let [L, C, h] = *value;
@@ -347,6 +357,7 @@ fn oklch_to_oklab(value: &[f64; 3]) -> [f64; 3] {
 
 /// Convert coordinates for Oklab to Oklch or for Oklrab to Oklrch. This is a
 /// one-hop, direct conversion.
+#[inline]
 #[allow(non_snake_case)]
 fn oklab_to_oklch(value: &[f64; 3]) -> [f64; 3] {
     const EPSILON: f64 = 0.0002;
@@ -369,6 +380,7 @@ mod oklr {
     /// function replaces the lightness L with the [improved lightness
     /// Lr](https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab).
     /// This is a one-hop, direct conversion.
+    #[inline]
     #[allow(non_snake_case)]
     pub(crate) fn oklab_to_oklrab(value: &[f64; 3]) -> [f64; 3] {
         let k3 = (1.0 + K1) / (1.0 + K2);
@@ -385,6 +397,7 @@ mod oklr {
     /// function replaces the [improved lightness
     /// Lr](https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab)
     /// with the original lightness L. This is a one-hop, direct conversion.
+    #[inline]
     #[allow(non_snake_case)]
     pub(crate) fn oklrab_to_oklab(value: &[f64; 3]) -> [f64; 3] {
         let k3 = (1.0 + K1) / (1.0 + K2);
@@ -416,6 +429,7 @@ const OKLMS_TO_XYZ: [[f64; 3]; 3] = [
 /// Convert coordinates for Oklab to XYZ. This is a one-hop, direct conversion,
 /// even though it requires two matrix multiplications and a coordinate-wise
 /// exponential.
+#[inline]
 fn oklab_to_xyz(value: &[f64; 3]) -> [f64; 3] {
     let [l, m, s] = multiply(&OKLAB_TO_OKLMS, value);
     multiply(&OKLMS_TO_XYZ, &[l.powi(3), m.powi(3), s.powi(3)])
@@ -442,6 +456,7 @@ const OKLMS_TO_OKLAB: [[f64; 3]; 3] = [
 /// Convert coordinates for XYZ to Oklab. This is a one-hop, direct conversion,
 /// even though it requires two matrix multiplications and a coordinate-wise
 /// exponential.
+#[inline]
 fn xyz_to_oklab(value: &[f64; 3]) -> [f64; 3] {
     let [l, m, s] = multiply(&XYZ_TO_OKLMS, value);
     multiply(&OKLMS_TO_OKLAB, &[l.cbrt(), m.cbrt(), s.cbrt()])
@@ -450,71 +465,83 @@ fn xyz_to_oklab(value: &[f64; 3]) -> [f64; 3] {
 // --------------------------------------------------------------------------------------------------------------------
 
 /// Convert coordinates for sRGB to XYZ. This is a two-hop conversion.
+#[inline]
 fn srgb_to_xyz(value: &[f64; 3]) -> [f64; 3] {
     let linear_srgb = rgb_to_linear_rgb(value);
     linear_srgb_to_xyz(&linear_srgb)
 }
 
 /// Convert coordinates for XYZ to sRGB. This is a two-hop conversion.
+#[inline]
 fn xyz_to_srgb(value: &[f64; 3]) -> [f64; 3] {
     let linear_srgb = xyz_to_linear_srgb(value);
     linear_rgb_to_rgb(&linear_srgb)
 }
 
 /// Convert coordinates for Display P3 to XYZ. This is a two-hop conversion.
+#[inline]
 fn display_p3_to_xyz(value: &[f64; 3]) -> [f64; 3] {
     let linear_p3 = rgb_to_linear_rgb(value);
     linear_display_p3_to_xyz(&linear_p3)
 }
 
 /// Convert coordinates for XYZ to Display P3. This is a two-hop conversion.
+#[inline]
 fn xyz_to_display_p3(value: &[f64; 3]) -> [f64; 3] {
     let linear_p3 = xyz_to_linear_display_p3(value);
     linear_rgb_to_rgb(&linear_p3)
 }
 
 /// Convert coordinates for Oklch to XYZ. This is a two-hop conversion.
+#[inline]
 fn oklch_to_xyz(value: &[f64; 3]) -> [f64; 3] {
     let oklab = oklch_to_oklab(value);
     oklab_to_xyz(&oklab)
 }
 
 /// Convert coordinates for XYZ to Oklch. This is a two-hop conversion.
+#[inline]
 fn xyz_to_oklch(value: &[f64; 3]) -> [f64; 3] {
     let oklab = xyz_to_oklab(value);
     oklab_to_oklch(&oklab)
 }
 
 /// Convert coordinates for Oklrab to XYZ. This is a two-hop conversion.
+#[inline]
 fn oklrab_to_xyz(value: &[f64; 3]) -> [f64; 3] {
     let oklab = oklrab_to_oklab(value);
     oklab_to_xyz(&oklab)
 }
 /// Convert coordinates for XYZ to Oklrab. This is a two-hop conversion.
+#[inline]
 fn xyz_to_oklrab(value: &[f64; 3]) -> [f64; 3] {
     let oklab = xyz_to_oklab(value);
     oklab_to_oklrab(&oklab)
 }
 
 /// Convert coordinates for Oklab to Oklrch. This is a two-hop conversion.
+#[inline]
 fn oklab_to_oklrch(value: &[f64; 3]) -> [f64; 3] {
     let oklch = oklab_to_oklch(value);
     oklab_to_oklrab(&oklch)
 }
 
 /// Convert coordinates for Oklrch to Oklab. This is a two-hop conversion.
+#[inline]
 fn oklrch_to_oklab(value: &[f64; 3]) -> [f64; 3] {
     let oklch = oklrab_to_oklab(value);
     oklch_to_oklab(&oklch)
 }
 
 /// Convert coordinates for Oklrab to Oklch. This is a two-hop conversion.
+#[inline]
 fn oklrab_to_oklch(value: &[f64; 3]) -> [f64; 3] {
     let oklab = oklrab_to_oklab(value);
     oklab_to_oklch(&oklab)
 }
 
 /// Convert coordinates for Oklch to Oklrab. This is a two-hop conversion.
+#[inline]
 fn oklch_to_oklrab(value: &[f64; 3]) -> [f64; 3] {
     let oklab = oklch_to_oklab(value);
     oklab_to_oklrab(&oklab)
@@ -523,11 +550,13 @@ fn oklch_to_oklrab(value: &[f64; 3]) -> [f64; 3] {
 // --------------------------------------------------------------------------------------------------------------------
 
 /// Convert coordinates for Oklrch to XYZ. This is a three-hop conversion.
+#[inline]
 fn oklrch_to_xyz(value: &[f64; 3]) -> [f64; 3] {
     let oklch = oklrab_to_oklab(value);
     oklch_to_xyz(&oklch)
 }
 /// Convert coordinates for XYZ to Oklrab. This is a three-hop conversion.
+#[inline]
 fn xyz_to_oklrch(value: &[f64; 3]) -> [f64; 3] {
     let oklch = xyz_to_oklch(value);
     oklab_to_oklrab(&oklch)
