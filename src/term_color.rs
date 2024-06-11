@@ -69,14 +69,25 @@ impl std::error::Error for OutOfBoundsError {}
 /// include a four-color gray gradient from *black* to *bright black* to *white*
 /// to *bright white*.
 ///
-/// Since [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`], and
-/// [`EightBitColor`] can all be represented by a single unsigned byte, all four
-/// structures have a `from_u8` and `to_u8` methods. Since they cannot claim the
-/// entire range of `u8` values, [`AnsiColor::from_u8`],
-/// [`EmbeddedRgb::from_u8`], and [`GrayGradient::from_u8`] are fallible,
-/// whereas [`EightBitColor::from_u8`] is not. In the other direction,
-/// [`AnsiColor::to_u8`], [`EmbeddedRgb::to_u8`], [`GrayGradient::to_u8`], and
-/// [`EightBitColor::to_u8`] are all infallible.
+/// With [`EightBitColor`]  composing [`AnsiColor`], [`EmbeddedRgb`], and
+/// [`GrayGradient`] to represent 8-bit terminal colors, all four support
+/// conversions from and to `u8`. In particular, this crate provides
+/// implementations of the infallible
+/// [`From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8),
+/// [`From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8),
+/// [`From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8),
+/// and
+/// [`From<EightBitColor>`](enum.EightBitColor.html#impl-From%3CEightBitColor%3E-for-u8),
+/// all for `u8`. In the other direction, it provides implementations of the
+/// fallible
+/// [`TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) for
+/// `AnsiColor`,
+/// [`TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
+/// for `EmbeddedRgb`, and
+/// [`TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
+/// for `GrayGradient`, as well as the infallible
+/// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
+/// for `EightBitColor`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum AnsiColor {
     Black,
@@ -97,10 +108,12 @@ pub enum AnsiColor {
     BrightWhite,
 }
 
-impl AnsiColor {
-    /// Instantiate an ANSI color from the 8-bit color code.
-    pub const fn from_u8(value: u8) -> Result<Self, OutOfBoundsError> {
-        Ok(match value {
+impl TryFrom<u8> for AnsiColor {
+    type Error = OutOfBoundsError;
+
+    /// Try to convert an unsigned byte to an ANSI color.
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        let ansi = match value {
             0 => AnsiColor::Black,
             1 => AnsiColor::Red,
             2 => AnsiColor::Green,
@@ -118,21 +131,9 @@ impl AnsiColor {
             14 => AnsiColor::BrightCyan,
             15 => AnsiColor::BrightWhite,
             _ => return Err(OutOfBoundsError::from_u8(value, 0..=15)),
-        })
-    }
+        };
 
-    /// Convert this ANSI color to an unsigned byte.
-    pub const fn to_u8(&self) -> u8 {
-        return *self as u8;
-    }
-}
-
-impl TryFrom<u8> for AnsiColor {
-    type Error = OutOfBoundsError;
-
-    /// Try to convert an unsigned byte to an ANSI color.
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        AnsiColor::from_u8(value)
+        Ok(ansi)
     }
 }
 
@@ -157,14 +158,25 @@ impl From<AnsiColor> for u8 {
 /// [`EmbeddedRgb.update`] as setter. It may not be as quite as elegant, but it
 /// sure works.
 ///
-/// Since [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`], and
-/// [`EightBitColor`] can all be represented by a single unsigned byte, all four
-/// structures have a `from_u8` and `to_u8` methods. Since they cannot claim the
-/// entire range of `u8` values, [`AnsiColor::from_u8`],
-/// [`EmbeddedRgb::from_u8`], and [`GrayGradient::from_u8`] are fallible,
-/// whereas [`EightBitColor::from_u8`] is not. In the other direction,
-/// [`AnsiColor::to_u8`], [`EmbeddedRgb::to_u8`], [`GrayGradient::to_u8`], and
-/// [`EightBitColor::to_u8`] are all infallible.
+/// With [`EightBitColor`]  composing [`AnsiColor`], [`EmbeddedRgb`], and
+/// [`GrayGradient`] to represent 8-bit terminal colors, all four support
+/// conversions from and to `u8`. In particular, this crate provides
+/// implementations of the infallible
+/// [`From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8),
+/// [`From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8),
+/// [`From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8),
+/// and
+/// [`From<EightBitColor>`](enum.EightBitColor.html#impl-From%3CEightBitColor%3E-for-u8),
+/// all for `u8`. In the other direction, it provides implementations of the
+/// fallible
+/// [`TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) for
+/// `AnsiColor`,
+/// [`TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
+/// for `EmbeddedRgb`, and
+/// [`TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
+/// for `GrayGradient`, as well as the infallible
+/// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
+/// for `EightBitColor`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EmbeddedRgb([u8; 3]);
 
@@ -180,27 +192,6 @@ impl EmbeddedRgb {
         } else {
             Ok(Self([r, g, b]))
         }
-    }
-
-    /// Create a new embedded RGB value from the unsigned byte.
-    pub const fn from_u8(value: u8) -> Result<Self, OutOfBoundsError> {
-        if value < 16 || 231 < value {
-            Err(OutOfBoundsError::from_u8(value, 16..=231))
-        } else {
-            let mut b = value - 16;
-            let r = b / 36;
-            b -= r * 36;
-            let g = b / 6;
-            b -= g * 6;
-
-            Ok(Self([r, g, b]))
-        }
-    }
-
-    /// Convert this embedded RGB color to an unsigned byte value.
-    pub const fn to_u8(&self) -> u8 {
-        let [r, g, b] = self.0;
-        16 + 36 * r + 6 * g + b
     }
 
     /// Access the coordinates of the embedded RGB color.
@@ -228,14 +219,25 @@ impl TryFrom<u8> for EmbeddedRgb {
 
     /// Try instantiating an embedded RGB color from an unsigned byte.
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        EmbeddedRgb::from_u8(value)
+        if value < 16 || 231 < value {
+            Err(OutOfBoundsError::from_u8(value, 16..=231))
+        } else {
+            let mut b = value - 16;
+            let r = b / 36;
+            b -= r * 36;
+            let g = b / 6;
+            b -= g * 6;
+
+            Ok(Self([r, g, b]))
+        }
     }
 }
 
 impl From<EmbeddedRgb> for u8 {
     /// Convert an embedded RGB color to an unsigned byte.
     fn from(value: EmbeddedRgb) -> u8 {
-        value.to_u8()
+        let [r, g, b] = value.0;
+        16 + 36 * r + 6 * g + b
     }
 }
 
@@ -254,24 +256,30 @@ impl std::ops::Index<Coordinate> for EmbeddedRgb {
 
 /// The 24-step gray gradient embedded in 8-bit terminal colors.
 ///
-/// Since [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`], and
-/// [`EightBitColor`] can all be represented by a single unsigned byte, all four
-/// structures have a `from_u8` and `to_u8` methods. Since they cannot claim the
-/// entire range of `u8` values, [`AnsiColor::from_u8`],
-/// [`EmbeddedRgb::from_u8`], and [`GrayGradient::from_u8`] are fallible,
-/// whereas [`EightBitColor::from_u8`] is not. In the other direction,
-/// [`AnsiColor::to_u8`], [`EmbeddedRgb::to_u8`], [`GrayGradient::to_u8`], and
-/// [`EightBitColor::to_u8`] are all infallible.
+/// With [`EightBitColor`]  composing [`AnsiColor`], [`EmbeddedRgb`], and
+/// [`GrayGradient`] to represent 8-bit terminal colors, all four support
+/// conversions from and to `u8`. In particular, this crate provides
+/// implementations of the infallible
+/// [`From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8),
+/// [`From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8),
+/// [`From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8),
+/// and
+/// [`From<EightBitColor>`](enum.EightBitColor.html#impl-From%3CEightBitColor%3E-for-u8),
+/// all for `u8`. In the other direction, it provides implementations of the
+/// fallible
+/// [`TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) for
+/// `AnsiColor`,
+/// [`TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
+/// for `EmbeddedRgb`, and
+/// [`TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
+/// for `GrayGradient`, as well as the infallible
+/// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
+/// for `EightBitColor`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GrayGradient(u8);
 
 impl GrayGradient {
-    /// Instantiate a new gray gradient from the level value. This associated
-    /// function differs from [`GrayGradient::from_u8`] in the accepted range:
-    /// `new()` implies intentional, fresh instantiation and hence accepts
-    /// `0..=23`, whereas `from_u8()` implies conversion from an unsigned
-    /// byte, i.e., a 8-bit color value. Therefore `from_u8()` accepts
-    /// `232..=255`.
+    /// Instantiate a new gray gradient from the level value `0..=23`.
     pub const fn new(value: u32) -> Result<Self, OutOfBoundsError> {
         if value >= 24 {
             Err(OutOfBoundsError {
@@ -283,21 +291,7 @@ impl GrayGradient {
         }
     }
 
-    /// Create a new gray gradient from the 8-bit color value.
-    pub const fn from_u8(value: u8) -> Result<Self, OutOfBoundsError> {
-        if value <= 231 {
-            Err(OutOfBoundsError::from_u8(value, 232..=255))
-        } else {
-            Ok(Self(value - 232))
-        }
-    }
-
-    /// Convert this gray gradient into an unsigned byte.
-    pub const fn to_u8(&self) -> u8 {
-        232 + self.0
-    }
-
-    /// Access the gray level `0..24`.
+    /// Access the gray level `0..=23`.
     #[inline]
     pub const fn level(&self) -> u8 {
         self.0
@@ -309,14 +303,18 @@ impl TryFrom<u8> for GrayGradient {
 
     /// Try instantiating a gray gradient value from an unsigned byte.
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        GrayGradient::from_u8(value)
+        if value <= 231 {
+            Err(OutOfBoundsError::from_u8(value, 232..=255))
+        } else {
+            Ok(Self(value - 232))
+        }
     }
 }
 
 impl From<GrayGradient> for u8 {
     /// Convert the gray gradient to an unsigned byte.
     fn from(value: GrayGradient) -> u8 {
-        value.to_u8()
+        232 + value.0
     }
 }
 
@@ -327,14 +325,25 @@ impl From<GrayGradient> for u8 {
 /// 8-bit terminal colors combine ANSI colors, embedded RGB colors, and the gray
 /// gradient.
 ///
-/// Since [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`], and
-/// [`EightBitColor`] can all be represented by a single unsigned byte, all four
-/// structures have a `from_u8` and `to_u8` methods. Since they cannot claim the
-/// entire range of `u8` values, [`AnsiColor::from_u8`],
-/// [`EmbeddedRgb::from_u8`], and [`GrayGradient::from_u8`] are fallible,
-/// whereas [`EightBitColor::from_u8`] is not. In the other direction,
-/// [`AnsiColor::to_u8`], [`EmbeddedRgb::to_u8`], [`GrayGradient::to_u8`], and
-/// [`EightBitColor::to_u8`] are all infallible.
+/// With [`EightBitColor`]  composing [`AnsiColor`], [`EmbeddedRgb`], and
+/// [`GrayGradient`] to represent 8-bit terminal colors, all four support
+/// conversions from and to `u8`. In particular, this crate provides
+/// implementations of the infallible
+/// [`From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8),
+/// [`From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8),
+/// [`From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8),
+/// and
+/// [`From<EightBitColor>`](enum.EightBitColor.html#impl-From%3CEightBitColor%3E-for-u8),
+/// all for `u8`. In the other direction, it provides implementations of the
+/// fallible
+/// [`TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) for
+/// `AnsiColor`,
+/// [`TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
+/// for `EmbeddedRgb`, and
+/// [`TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
+/// for `GrayGradient`, as well as the infallible
+/// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
+/// for `EightBitColor`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum EightBitColor {
     Ansi(AnsiColor),
@@ -343,30 +352,6 @@ pub enum EightBitColor {
 }
 
 impl EightBitColor {
-    /// Instantiate an 8-bit color from its numerical representation.
-    pub fn from_u8(value: u8) -> Self {
-        use EightBitColor::*;
-
-        if value <= 15 {
-            Ansi(AnsiColor::from_u8(value).unwrap())
-        } else if value <= 231 {
-            Rgb(EmbeddedRgb::from_u8(value).unwrap())
-        } else {
-            Gray(GrayGradient::from_u8(value).unwrap())
-        }
-    }
-
-    /// Convert this 8-bit color to an unsigned byte.
-    pub fn to_u8(&self) -> u8 {
-        use EightBitColor::*;
-
-        match self {
-            Ansi(color) => color.to_u8(),
-            Rgb(color) => color.to_u8(),
-            Gray(color) => color.to_u8(),
-        }
-    }
-
     /// Determine whether this 8-bit color is an ANSI color.
     pub fn is_ansi(&self) -> bool {
         matches!(*self, Self::Ansi(_))
@@ -413,14 +398,26 @@ impl EightBitColor {
 impl From<u8> for EightBitColor {
     /// Convert an unsigned byte to an 8-bit color.
     fn from(value: u8) -> Self {
-        Self::from_u8(value)
+        use EightBitColor::*;
+
+        if value <= 15 {
+            Ansi(AnsiColor::try_from(value).unwrap())
+        } else if value <= 231 {
+            Rgb(EmbeddedRgb::try_from(value).unwrap())
+        } else {
+            Gray(GrayGradient::try_from(value).unwrap())
+        }
     }
 }
 
 impl From<EightBitColor> for u8 {
     /// Convert an 8-bit color to an unsigned byte.
     fn from(value: EightBitColor) -> u8 {
-        value.to_u8()
+        match value {
+            EightBitColor::Ansi(color) => color.into(),
+            EightBitColor::Rgb(color) => color.into(),
+            EightBitColor::Gray(color) => color.into(),
+        }
     }
 }
 
@@ -438,18 +435,6 @@ impl TrueColor {
         Self([r, g, b])
     }
 
-    /// Create a new true color from an embedded RGB value.
-    pub fn from_embedded_rgb(value: &EmbeddedRgb) -> Self {
-        let [r, g, b] = value.coordinates();
-        Self([55 + 40 * r, 55 + 40 * g, 55 + 40 * b])
-    }
-
-    /// Create a new true color from a gray gradient.
-    pub fn from_gray_gradient(value: &GrayGradient) -> Self {
-        let level = 8 + 10 * value.level();
-        Self([level, level, level])
-    }
-
     /// Access the coordinates.
     #[inline]
     pub const fn coordinates(&self) -> &[u8; 3] {
@@ -460,14 +445,16 @@ impl TrueColor {
 impl From<EmbeddedRgb> for TrueColor {
     /// Instantiate a true color from an embedded RGB value.
     fn from(value: EmbeddedRgb) -> Self {
-        Self::from_embedded_rgb(&value)
+        let [r, g, b] = value.coordinates();
+        Self([55 + 40 * r, 55 + 40 * g, 55 + 40 * b])
     }
 }
 
 impl From<GrayGradient> for TrueColor {
     /// Instantiate a true color from a gray gradient value.
     fn from(value: GrayGradient) -> Self {
-        Self::from_gray_gradient(&value)
+        let level = 8 + 10 * value.level();
+        Self([level, level, level])
     }
 }
 
@@ -557,7 +544,7 @@ mod test {
         let black_gray = GrayGradient::try_from(232)?;
         assert_eq!(black_gray.level(), 0);
         assert_eq!(u8::from(black_gray), 232);
-        let white_gray = GrayGradient::from_u8(255)?;
+        let white_gray = GrayGradient::try_from(255)?;
         assert_eq!(white_gray.level(), 23);
         assert_eq!(u8::from(white_gray), 255);
 
