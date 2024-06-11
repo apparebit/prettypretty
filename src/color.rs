@@ -213,6 +213,12 @@ impl Color {
 
     // ----------------------------------------------------------------------------------------------------------------
 
+    /// Determine whether this color is the default color, i.e., is the origin
+    /// of the XYZ color space.
+    pub fn is_default(&self) -> bool {
+        self.space == ColorSpace::Xyz && self.coordinates == [0.0, 0.0, 0.0]
+    }
+
     /// Access the color space.
     ///
     /// ```
