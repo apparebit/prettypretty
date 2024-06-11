@@ -445,8 +445,16 @@ impl TrueColor {
 impl From<EmbeddedRgb> for TrueColor {
     /// Instantiate a true color from an embedded RGB value.
     fn from(value: EmbeddedRgb) -> Self {
-        let [r, g, b] = value.coordinates();
-        Self([55 + 40 * r, 55 + 40 * g, 55 + 40 * b])
+        fn convert(value: u8) -> u8 {
+            if value == 0 {
+                0
+            } else {
+                55 + 40 * value
+            }
+        }
+
+        let [r, g, b] = *value.coordinates();
+        Self([convert(r), convert(g), convert(b)])
     }
 }
 
