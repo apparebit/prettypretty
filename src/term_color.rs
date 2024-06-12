@@ -144,6 +144,13 @@ impl From<AnsiColor> for u8 {
     }
 }
 
+/// The default colors.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum DefaultColor {
+    Foreground = 0,
+    Background = 10,
+}
+
 // ====================================================================================================================
 // The Embedded 6x6x6 RGB
 // ====================================================================================================================
