@@ -6,9 +6,11 @@ use std::error::Error;
 
 use crate::ColorSpace;
 
-/// An erroneous color format. Several variants include a coordinate index,
-/// which is zero-based. The description, however, shows a one-based index
-/// prefixed with a #.
+/// An erroneous color format.
+///
+/// Several variants include a coordinate index, which is zero-based. The
+/// formatted description, however, shows a one-based index prefixed with a `#`
+/// (for number).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ColorFormatError {
     /// A color format that does not start with a known prefix such as `#` or
