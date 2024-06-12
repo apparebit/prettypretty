@@ -329,8 +329,7 @@ impl From<GrayGradient> for u8 {
 // 8-bit Color
 // ====================================================================================================================
 
-/// 8-bit terminal colors combine ANSI colors, embedded RGB colors, and the gray
-/// gradient.
+/// 8-bit terminal colors.
 ///
 /// With [`EightBitColor`]  composing [`AnsiColor`], [`EmbeddedRgb`], and
 /// [`GrayGradient`] to represent 8-bit terminal colors, all four support
