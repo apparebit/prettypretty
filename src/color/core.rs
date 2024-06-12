@@ -70,7 +70,7 @@
 /// | Oklrab      | Lr        | a           | b           |
 /// | Oklrch      | Lr        | C           | hº          |
 ///
-/// For [`Color`] methods that can work with either Oklab/Oklch or
+/// For [`crate::Color`] methods that can work with either Oklab/Oklch or
 /// Oklrab/Oklrch, the [`OkVersion`] enumeration selects the version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ColorSpace {
