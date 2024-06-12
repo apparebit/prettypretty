@@ -1,11 +1,11 @@
 [project]
 name = "prettypretty"
-description = "Library support for awesome command line interfaces"
+description = "Applying 2020s color science to 1970s terminal user interfaces"
+keywords = ["awesome", "terminal", "color", "ANSI escape code", "terminal user interface"]
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "Apache 2.0"}
 authors = [{name = "Robert Grimm", email="rgrimm@alum.mit.edu"}]
-keywords= ["awesome terminals"]
 dynamic = ["version"]
 
 [project.optional-dependencies]
