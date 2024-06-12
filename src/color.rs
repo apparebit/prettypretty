@@ -2,10 +2,10 @@
 
 mod core;
 
-pub use self::core::ColorSpace;
+pub use self::core::{ColorSpace, OkVersion};
 use self::core::{
-    clip, convert, delta_e_ok, in_gamut, map_to_gamut, normalize, to_contrast,
-    to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
+    clip, convert, delta_e_ok, in_gamut, map_to_gamut, normalize,
+    to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
 };
 use super::serde::parse;
 pub use super::serde::ColorFormatError;
@@ -34,7 +34,7 @@ use super::util::Coordinate;
 ///     subpar stand-in for the original color;
 ///   * Use [`Color::map_to_gamut`] to more slowly search for a more accurate
 ///     stand-in;
-///   * Use [`Color::difference`] and [`Color::closest`] to implement custom
+///   * Use [`Color::distance`] and [`Color::closest`] to implement custom
 ///     search strategies.
 ///
 ///
@@ -394,32 +394,34 @@ impl Color {
     }
 
     /// Determine the difference between the two colors. This method computes
-    /// the Euclidian distance in the Oklrab color space, calculating the
-    /// equivalent of the Delta-E for Oklab.
+    /// the Euclidian distance in either the Oklab or Oklrab color space,
+    /// depending on the desired version.
     #[inline]
-    pub fn difference(&self, other: &Self) -> f64 {
+    pub fn distance(&self, other: &Self, version: OkVersion) -> f64 {
         delta_e_ok(
-            &self.to(ColorSpace::Oklrab).coordinates,
-            &other.to(ColorSpace::Oklrab).coordinates,
+            &self.to(version.cartesian_space()).coordinates,
+            &other.to(version.cartesian_space()).coordinates,
         )
     }
 
     /// Find the position of the candidate color closest to this color. This
-    /// method measures distance as the Euclidian distance in Oklrab. If there
-    /// are no candidates, the position of the closest color is `None`.
+    /// method measures distance as the Euclidian distance in the Oklab or
+    /// Oklrab color space, depending on the desired version. If there are no
+    /// candidates, the position of the closest color is `None`.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorSpace};
+    /// # use prettypretty::{Color, ColorSpace, OkVersion};
     /// let colors = [
     ///     &Color::srgb(1, 0, 0),
     ///     &Color::srgb(0, 1, 0),
     ///     &Color::srgb(0, 0, 1),
     /// ];
     /// let rose = Color::srgb(1, 0.5, 0.5);
-    /// let closest = rose.closest(colors);
+    /// let closest = rose.closest(colors, OkVersion::Revised);
     /// assert_eq!(closest, Some(0));
     ///
-    /// let closest = Color::srgb(0.5, 1, 0.6).closest(colors);
+    /// let green = Color::srgb(0.5, 1, 0.6);
+    /// let closest = green.closest(colors, OkVersion::Revised);
     /// assert_eq!(closest, Some(1))
     /// ```
     /// <div class=color-swatch>
@@ -430,22 +432,22 @@ impl Color {
     /// <div style="background-color: color(srgb 0.5 1 0.6);"></div>
     /// </div>
     ///
-    pub fn closest<'c, C>(&self, candidates: C) -> Option<usize>
+    pub fn closest<'c, C>(&self, candidates: C, version: OkVersion) -> Option<usize>
     where
         C: IntoIterator<Item = &'c Color>,
     {
-        let origin = self.to(ColorSpace::Oklrab);
-        let mut min_difference = f64::INFINITY;
+        let origin = self.to(version.cartesian_space());
+        let mut min_distance = f64::INFINITY;
         let mut min_index = None;
 
         for (index, candidate) in candidates.into_iter().enumerate() {
-            let difference = delta_e_ok(
+            let distance = delta_e_ok(
                 &origin.coordinates,
-                &candidate.to(ColorSpace::Oklrab).coordinates,
+                &candidate.to(version.cartesian_space()).coordinates,
             );
 
-            if difference < min_difference {
-                min_difference = difference;
+            if distance < min_distance {
+                min_distance = distance;
                 min_index = Some(index);
             }
         }

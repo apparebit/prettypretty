@@ -445,12 +445,12 @@
 //!
 //! ```
 //! # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorMatcher, DEFAULT_THEME};
-//! # use prettypretty::{EightBitColor, EmbeddedRgb, GrayGradient, TrueColor};
+//! # use prettypretty::{EightBitColor, EmbeddedRgb, GrayGradient, OkVersion, TrueColor};
 //! # use std::str::FromStr;
 //! let red = &DEFAULT_THEME[AnsiColor::BrightRed];
 //! assert_eq!(red, &Color::srgb(1, 0.333333333333333, 0.333333333333333));
 //!
-//! let matcher = ColorMatcher::new(&DEFAULT_THEME);
+//! let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
 //! let yellow = Color::from_str("#FFE06C")?;
 //! let bright_yellow = matcher.to_ansi(&yellow);
 //! assert_eq!(u8::from(bright_yellow), 11);
@@ -509,6 +509,7 @@ mod util;
 
 pub use color::Color;
 pub use color::ColorSpace;
+pub use color::OkVersion;
 pub use util::Coordinate;
 
 pub use term_color::AnsiColor;
@@ -525,12 +526,12 @@ pub use term_color::OutOfBoundsError;
 // Color Themes
 // ====================================================================================================================
 
-/// A color theme.
+/// A color theme with concrete color values.
 ///
-/// Each color theme provides color values for the foreground and background
-/// defaults as well as for the 16 extended ANSI colors. They are accessed (and
-/// also updated) through index expressions using [`DefaultColor`] and
-/// [`AnsiColor`].
+/// A color theme provides concrete color values for the foreground and
+/// background defaults as well as for the 16 extended ANSI colors. They are
+/// accessed (and also updated) through index expressions using [`DefaultColor`]
+/// and [`AnsiColor`].
 ///
 /// By itself, a theme enables the conversion of ANSI colors to high-resolution
 /// colors. Through a [`ColorMatcher`], a theme also enables the (lossy)
@@ -742,31 +743,33 @@ impl TrueColor {
 /// </style>
 #[derive(Debug)]
 pub struct ColorMatcher {
+    ok_version: OkVersion,
     ansi: Vec<Color>,
     eight_bit: Vec<Color>,
 }
 
 impl ColorMatcher {
     /// Create a new terminal color matcher. This method initializes the
-    /// internal state, which comprises 256 color objects, 16 for the ANSI
-    /// colors (based on the theme), 216 for the embedded RGB colors, and 24 for
-    /// the gray gradient colors.
-    pub fn new(theme: &Theme) -> Self {
+    /// matcher's internal state. It comprises 256 color objects, 16 for the
+    /// ANSI colors (based on the theme), 216 for the embedded RGB colors, and
+    /// 24 for the gray gradient colors. Matching uses either Oklab or Oklrab as
+    /// the comparison color space.
+    pub fn new(theme: &Theme, ok_version: OkVersion) -> Self {
         let ansi = (0..=15)
             .map(|n| {
-                theme[AnsiColor::try_from(n).unwrap()].to(ColorSpace::Oklrab)
+                theme[AnsiColor::try_from(n).unwrap()].to(ok_version.cartesian_space())
             })
             .collect();
 
         let eight_bit: Vec<Color> = (16..=231)
-            .map(|n| Color::from(EmbeddedRgb::try_from(n).unwrap()).to(ColorSpace::Oklrab))
+            .map(|n| Color::from(EmbeddedRgb::try_from(n).unwrap()).to(ok_version.cartesian_space()))
             .chain(
                 (232..=255)
-                    .map(|n| Color::from(GrayGradient::try_from(n).unwrap()).to(ColorSpace::Oklrab)),
+                    .map(|n| Color::from(GrayGradient::try_from(n).unwrap()).to(ok_version.cartesian_space())),
             )
             .collect();
 
-        Self { ansi, eight_bit }
+        Self { ok_version, ansi, eight_bit }
     }
 
     /// Find the ANSI color that comes closest to the given color.
@@ -783,9 +786,9 @@ impl ColorMatcher {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorFormatError, ColorMatcher, ColorSpace};
-    /// # use prettypretty::{DEFAULT_THEME};
+    /// # use prettypretty::{DEFAULT_THEME, OkVersion};
     /// # use std::str::FromStr;
-    /// let matcher = ColorMatcher::new(&DEFAULT_THEME);
+    /// let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
     ///
     /// let color = Color::from_str("#ffa563")?;
     /// let ansi = matcher.to_ansi(&color);
@@ -805,7 +808,7 @@ impl ColorMatcher {
     pub fn to_ansi(&self, color: &Color) -> AnsiColor {
         // SAFETY: self.ansi holds 16 elements, hence closest() returns index 0..=15.
         color
-            .closest(&self.ansi)
+            .closest(&self.ansi, self.ok_version)
             .map(|idx| AnsiColor::try_from(idx as u8))
             .unwrap()
             .unwrap()
@@ -826,9 +829,9 @@ impl ColorMatcher {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace, DEFAULT_THEME, EightBitColor};
-    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, ColorMatcher};
+    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, ColorMatcher, OkVersion};
     /// # use prettypretty::Coordinate::C1;
-    /// let matcher = ColorMatcher::new(&DEFAULT_THEME);
+    /// let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
     ///
     /// for r in 0..5 {
     ///     for g in 0..5 {
@@ -855,7 +858,7 @@ impl ColorMatcher {
         // SAFETY: self.eight_bit holds 240 elements, hence closest() returns
         // index 0..=239, which becomes 16..=255 after addition.
         color
-            .closest(&self.eight_bit)
+            .closest(&self.eight_bit, self.ok_version)
             .map(|idx| EightBitColor::from(idx as u8 + 16))
             .unwrap()
     }
@@ -865,11 +868,11 @@ impl ColorMatcher {
 
 #[cfg(test)]
 mod test {
-    use super::{AnsiColor, Color, DEFAULT_THEME, OutOfBoundsError, ColorMatcher};
+    use super::{AnsiColor, Color, ColorMatcher, DEFAULT_THEME, OkVersion, OutOfBoundsError};
 
     #[test]
     fn test_matcher() -> Result<(), OutOfBoundsError> {
-        let matcher = ColorMatcher::new(&DEFAULT_THEME);
+        let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
 
         let result = matcher.to_ansi(&Color::srgb(1.0, 1.0, 0.0));
         assert_eq!(result, AnsiColor::BrightYellow);

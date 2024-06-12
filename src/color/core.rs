@@ -31,7 +31,7 @@
 // Color Space Tags
 // ====================================================================================================================
 
-/// The enumeration of supported color spaces
+/// The enumeration of supported color spaces.
 ///
 ///
 /// # The Oklab Variations
@@ -46,21 +46,20 @@
 /// Oklab and Oklch reflect the original design. They improve on CIELAB by using
 /// the D65 standard illuminant (not the print-oriented D50), which is also used
 /// by sRGB and Display P3. They further improve on CIELAB by avoiding visible
-/// distortions around the blues. However, they also regress, since their
-/// lightness is heavily biased towards dark tones. Oklrab and Oklrch result
-/// from an update nine months later that changes lightness to closely resemble
-/// CIELAB's far better, perceptually uniform lightness.
-/// At the same time, Oklab's and Oklch's
+/// distortions around the blues. However, they also regress, as their lightness
+/// L is visibly biased towards dark tones. Oklrab and Oklrch, which were
+/// introduced nine months after Oklab/Oklch, feature a revised lightness Lr
+/// that closely resembles CIELAB's uniform lightness.
 ///
 /// Oklab/Oklrab use Cartesian coordinates a, b for colorness—with a varying
 /// red/green and b varying blue/yellow. That makes both color spaces
-/// well-suited to computing the relative distance of colors. In contrast,
+/// well-suited to computing the relative distance between colors. In contrast,
 /// Oklch/Oklrch use polar coordinates C, h—with C expressing chroma and h or hº
 /// expressing hue. That makes both color spaces well-suited to modifying
 /// colors.
 ///
 /// Compared to the conversion between XYZ and Oklab, conversions between the
-/// four variations are simpler mathematically and may not even change all
+/// four variations are mathematically simpler and may not even involve all
 /// coordinates. After all, there are four three-dimensional color spaces but
 /// only six distinct quantities:
 ///
@@ -71,6 +70,8 @@
 /// | Oklrab      | Lr        | a           | b           |
 /// | Oklrch      | Lr        | C           | hº          |
 ///
+/// For [`Color`] methods that can work with either Oklab/Oklch or
+/// Oklrab/Oklrch, the [`OkVersion`] enumeration selects the version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ColorSpace {
     /// [sRGB](https://en.wikipedia.org/wiki/SRGB) has long served as the
@@ -131,6 +132,35 @@ impl ColorSpace {
     pub const fn is_bounded(&self) -> bool {
         use ColorSpace::*;
         matches!(*self, Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3)
+    }
+}
+
+/// An enumeration of Oklab versions.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum OkVersion {
+    /// The original Oklab/Oklch color spaces.
+    Original,
+    /// The revised Oklrab/Oklrch color spaces.
+    Revised,
+}
+
+impl OkVersion {
+    /// Determine the Cartesion color space corresponding to this version of the
+    /// Oklab color spaces.
+    pub fn cartesian_space(&self) -> ColorSpace {
+        match *self {
+            Self::Original => ColorSpace::Oklab,
+            Self::Revised => ColorSpace::Oklrab,
+        }
+    }
+
+    /// Determine the polar color space corresponding to this version of the
+    /// Oklab color space.
+    pub fn polar_space(&self) -> ColorSpace {
+        match *self {
+            Self::Original => ColorSpace::Oklch,
+            Self::Revised => ColorSpace::Oklrch,
+        }
     }
 }
 
