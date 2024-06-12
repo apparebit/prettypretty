@@ -488,6 +488,20 @@ impl std::ops::IndexMut<Coordinate> for TrueColor {
     }
 }
 
+impl std::fmt::Display for TrueColor {
+    /// Display this true color using the hashed hexadecimal format.
+    ///
+    /// ```
+    /// # use prettypretty::TrueColor;
+    /// let tomato = TrueColor::new(0xff, 0x63, 0x47);
+    /// assert_eq!(format!("{}", tomato), "#ff6347");
+    /// ```
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let [r, g, b] = self.0;
+        write!(f, "#{:02x}{:02x}{:02x}", r, g, b)
+    }
+}
+
 // ====================================================================================================================
 // Fidelity
 // ====================================================================================================================
