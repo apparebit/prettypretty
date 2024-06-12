@@ -85,7 +85,7 @@
 //! [`AnsiColor`] represents the 16 extended ANSI colors. They are eight base
 //! colors—black, red, green, yellow, blue, magenta, cyan, and white—and their
 //! bright variations—including bright black and bright white. ANSI colors have
-//! names but no agreed-upon color values.
+//! names but no agreed-upon, intrinsic color values.
 //!
 //! [`EmbeddedRgb`] is a 6x6x6 RGB cube, i.e., every coordinate ranges from 0 to
 //! 5, inclusive. Xterm's formula for converting to 24-bit RGB colors is widely
@@ -377,7 +377,8 @@
 //! ```
 //! # use prettypretty::{AnsiColor, Coordinate::*, EightBitColor, EmbeddedRgb};
 //! # use prettypretty::{GrayGradient, TrueColor};
-//! assert_eq!(u8::from(AnsiColor::BrightRed), 9);
+//! let red = AnsiColor::BrightRed;
+//! assert_eq!(u8::from(red), 9);
 //! // Is TrueColor the equivalent of #f00, #f55, #e60000, #e74856, or what?
 //!
 //! let purple = EmbeddedRgb::new(3, 1, 4).unwrap();
@@ -402,8 +403,8 @@
 //! assert_eq!(TrueColor::from(green), TrueColor::new(95, 175, 95));
 //! ```
 //! <div class=color-swatch>
-//! <div style="background: repeating-linear-gradient(45deg, #fff, #fff 10px, #fcc 10px, #fcc 20px);">
-//! <span style="font-weight: bold; font-size: 2em;">?</span>
+//! <div style="background: repeating-linear-gradient(45deg, #fff, #fff 10px, #fdd 10px, #fdd 20px);">
+//! <span style="font-size: 2.5em;">?</span>
 //! </div>
 //! <div style="background-color: #af5fd7;"></div>
 //! <div style="background-color: #bcbcbc;"></div>
@@ -414,14 +415,52 @@
 //! ## 3. Integration of High-Resolution and Terminal Colors
 //!
 //! To apply 2020s color science to terminal colors, we need to be able to
-//! convert terminal to high-resolution colors and back again:
+//! convert them to high-resolution colors and back again:
 //!
 //!   * [`Theme`] provides high-resolution color values for the 16 extended ANSI
 //!     colors and terminal defaults.
-//!   * [`ThemeBuilder`] helps to incrementally fill in a theme.
 //!   * [`ColorMatcher`] stores high-resolution color values for all
 //!     8-bit terminal colors to find closest matching color.
 //!
+//! Terminal emulators address ANSI colors' lack of intrinsic color values by
+//! making colors configurable through [color
+//! themes](https://gogh-co.github.io/Gogh/). This crate takes the exact same
+//! approach. Though applications shouldn't require configuration and, as
+//! described in the next section, use ANSI escape codes to query the terminal
+//! for its current color theme instead. As the code example below illustrates,
+//! with such a color [`Theme`], converting ANSI colors to high-resolution
+//! colors becomes as simple as an index expression.
+//!
+//! Conversion in the other direction, from high-resolution colors to terminal
+//! colors, requires two different strategies, depending on the targeted
+//! terminal color format's resolution. When targeting 24-bit color, the
+//! conversion from floating point to integer representations does incur loss of
+//! resolution. But the important part is to convert and gamut-map the source
+//! color to sRGB first. When targeting 8-bit and ANSI colors, there are so few
+//! candidates that searching for the closest match becomes practical.
+//! [`ColorMatcher`] collects and stores the necessary color values.
+//!
+//! The example below illustrates the use of color theme and matcher for
+//! conversion between ANSI colors and high-resolution colors.
+//!
+//! ```
+//! # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorMatcher, DEFAULT_THEME};
+//! # use prettypretty::{EightBitColor, EmbeddedRgb, GrayGradient, TrueColor};
+//! # use std::str::FromStr;
+//! let red = &DEFAULT_THEME[AnsiColor::BrightRed];
+//! assert_eq!(red, &Color::srgb(1, 0.333333333333333, 0.333333333333333));
+//!
+//! let matcher = ColorMatcher::new(&DEFAULT_THEME);
+//! let yellow = Color::from_str("#FFE06C")?;
+//! let bright_yellow = matcher.to_ansi(&yellow);
+//! assert_eq!(u8::from(bright_yellow), 11);
+//! # Ok::<(), ColorFormatError>(())
+//! ```
+//! <div class=color-swatch>
+//! <div style="background-color: #f55;"></div>
+//! <div style="background-color: #ffe06c;"></div>
+//! <div style="background-color: #ffff55;"></div>
+//! </div>
 //!
 //!
 //! ## 4. BYOIO: Bring Your Own (Terminal) I/O
@@ -473,6 +512,7 @@ pub use color::ColorSpace;
 pub use util::Coordinate;
 
 pub use term_color::AnsiColor;
+pub use term_color::DefaultColor;
 pub use term_color::EightBitColor;
 pub use term_color::EmbeddedRgb;
 pub use term_color::GrayGradient;
@@ -487,12 +527,14 @@ pub use term_color::OutOfBoundsError;
 
 /// A color theme.
 ///
-/// ANSI colors do not have intrinsic color values. However, a color theme does
-/// have color values for the 16 extended ANSI colors as well as the foreground
-/// and background default colors. By itself, a theme enables the conversion of
-/// ANSI colors to high-resolution colors. Through a [`ColorMatcher`], a
-/// theme also enables conversion of high-resolution colors ANSI (and possibly
-/// 8-bit) colors.
+/// Each color theme provides color values for the foreground and background
+/// defaults as well as for the 16 extended ANSI colors. They are accessed (and
+/// also updated) through index expressions using [`DefaultColor`] and
+/// [`AnsiColor`].
+///
+/// By itself, a theme enables the conversion of ANSI colors to high-resolution
+/// colors. Through a [`ColorMatcher`], a theme also enables the (lossy)
+/// conversion of high-resolution colors to ANSI and 8-bit colors.
 #[derive(Clone, Debug, Default)]
 pub struct Theme {
     foreground: Color,
@@ -516,26 +558,43 @@ pub struct Theme {
 }
 
 impl Theme {
-    /// Instantiate a new theme builder for incrementally building a theme.
-    pub fn builder() -> ThemeBuilder {
-        ThemeBuilder::default()
+    /// Instantiate a new theme. The colors of the new theme are all the default
+    /// color.
+    pub fn new() -> Self {
+        Theme::default()
     }
+}
 
-    /// Access the theme's foreground color.
-    pub const fn foreground(&self) -> &Color {
-        &self.foreground
+impl std::ops::Index<DefaultColor> for Theme {
+    type Output = Color;
+
+    /// Access the color value for the default color.
+    fn index(&self, index: DefaultColor) -> &Self::Output {
+        match index {
+            DefaultColor::Foreground => &self.foreground,
+            DefaultColor::Background => &self.background,
+        }
     }
+}
 
-    /// Access the theme's background color.
-    pub const fn background(&self) -> &Color {
-        &self.background
+impl std::ops::IndexMut<DefaultColor> for Theme {
+    /// Mutably access the color value for the default color.
+    fn index_mut(&mut self, index: DefaultColor) -> &mut Self::Output {
+        match index {
+            DefaultColor::Foreground => &mut self.foreground,
+            DefaultColor::Background => &mut self.background,
+        }
     }
+}
 
-    // Access the theme's ANSI colors.
-    pub const fn ansi(&self, value: AnsiColor) -> &Color {
+impl std::ops::Index<AnsiColor> for Theme {
+    type Output = Color;
+
+    /// Access the color value for the ANSI color.
+    fn index(&self, index: AnsiColor) -> &Self::Output {
         use AnsiColor::*;
 
-        match value {
+        match index {
             Black => &self.black,
             Red => &self.red,
             Green => &self.green,
@@ -552,6 +611,32 @@ impl Theme {
             BrightMagenta => &self.bright_magenta,
             BrightCyan => &self.bright_cyan,
             BrightWhite => &self.bright_white,
+        }
+    }
+}
+
+impl std::ops::IndexMut<AnsiColor> for Theme {
+    /// Mutably access the color value for the ANSI color.
+    fn index_mut(&mut self, index: AnsiColor) -> &mut Self::Output {
+        use AnsiColor::*;
+
+        match index {
+            Black => &mut self.black,
+            Red => &mut self.red,
+            Green => &mut self.green,
+            Yellow => &mut self.yellow,
+            Blue => &mut self.blue,
+            Magenta => &mut self.magenta,
+            Cyan => &mut self.cyan,
+            White => &mut self.white,
+            BrightBlack => &mut self.bright_black,
+            BrightRed => &mut self.bright_red,
+            BrightGreen => &mut self.bright_green,
+            BrightYellow => &mut self.bright_yellow,
+            BrightBlue => &mut self.bright_blue,
+            BrightMagenta => &mut self.bright_magenta,
+            BrightCyan => &mut self.bright_cyan,
+            BrightWhite => &mut self.bright_white,
         }
     }
 }
@@ -582,88 +667,11 @@ pub const DEFAULT_THEME: Theme = Theme {
     bright_white: Color::new(ColorSpace::Srgb, 1.0, 1.0, 1.0),
 };
 
-/// An incremental theme builder.
-#[derive(Clone, Debug, Default)]
-pub struct ThemeBuilder {
-    theme: Theme,
-}
-
-impl ThemeBuilder {
-    /// Update the default foreground color.
-    pub fn foreground(&mut self, value: Color) -> &mut Self {
-        self.theme.foreground = value;
-        self
-    }
-
-    /// Update the default background color.
-    pub fn background(&mut self, value: Color) -> &mut Self {
-        self.theme.background = value;
-        self
-    }
-
-    /// Update the color value for an ANSI color.
-    pub fn with_ansi_color(&mut self, term: AnsiColor, value: Color) -> &mut Self {
-        use AnsiColor::*;
-
-        match term {
-            Black => self.theme.black = value,
-            Red => self.theme.red = value,
-            Green => self.theme.green = value,
-            Yellow => self.theme.yellow = value,
-            Blue => self.theme.blue = value,
-            Magenta => self.theme.magenta = value,
-            Cyan => self.theme.cyan = value,
-            White => self.theme.white = value,
-            BrightBlack => self.theme.bright_black = value,
-            BrightRed => self.theme.bright_red = value,
-            BrightGreen => self.theme.bright_green = value,
-            BrightYellow => self.theme.bright_yellow = value,
-            BrightBlue => self.theme.bright_blue = value,
-            BrightMagenta => self.theme.bright_magenta = value,
-            BrightCyan => self.theme.bright_cyan = value,
-            BrightWhite => self.theme.bright_white = value,
-        }
-
-        self
-    }
-
-    /// Determine whether this theme builder is ready, i.e., all fields have
-    /// some color value.
-    fn ready(&self) -> bool {
-        !self.theme.foreground.is_default()
-            && !self.theme.background.is_default()
-            // Skip black
-            && !self.theme.red.is_default()
-            && !self.theme.green.is_default()
-            && !self.theme.yellow.is_default()
-            && !self.theme.blue.is_default()
-            && !self.theme.magenta.is_default()
-            && !self.theme.cyan.is_default()
-            && !self.theme.white.is_default()
-            && !self.theme.bright_black.is_default()
-            && !self.theme.bright_red.is_default()
-            && !self.theme.bright_green.is_default()
-            && !self.theme.bright_yellow.is_default()
-            && !self.theme.bright_blue.is_default()
-            && !self.theme.bright_magenta.is_default()
-            && !self.theme.bright_cyan.is_default()
-            && !self.theme.bright_white.is_default()
-    }
-
-    /// Build the theme. If all colors of the theme but black have been updated,
-    /// this method returns a clone of the current theme.
-    pub fn build(self) -> Option<Theme> {
-        if !self.ready() {
-            None
-        } else {
-            Some(self.theme.clone())
-        }
-    }
-}
-
 // https://stackoverflow.com/questions/74085531/alternative-to-static-mut-and-unsafe-while-managing-global-application-state
 
-// --------------------------------------------------------------------------------------------------------------------
+// ====================================================================================================================
+// More Conversions
+// ====================================================================================================================
 
 impl From<TrueColor> for Color {
     /// Convert the "true" color object into a *true* color object... 🤪
@@ -684,6 +692,22 @@ impl From<GrayGradient> for Color {
     /// Instantiate a new color from the embedded RGB value.
     fn from(value: GrayGradient) -> Color {
         TrueColor::from(value).into()
+    }
+}
+
+impl TrueColor {
+    /// Create a new true color instance from the given high resolution color.
+    /// This constructor function converts and gamut-maps the given color to
+    /// sRGB before converting individual coordinates.
+    pub fn from_color(color: &Color) -> Self {
+        let color = color.to(ColorSpace::Srgb).map_to_gamut();
+        let [r, g, b] = color.coordinates();
+
+        TrueColor::new(
+            (r * 255.0).round() as u8,
+            (g * 255.0).round() as u8,
+            (b * 255.0).round() as u8
+        )
     }
 }
 
@@ -730,9 +754,7 @@ impl ColorMatcher {
     pub fn new(theme: &Theme) -> Self {
         let ansi = (0..=15)
             .map(|n| {
-                theme
-                    .ansi(AnsiColor::try_from(n).unwrap())
-                    .to(ColorSpace::Oklrab)
+                theme[AnsiColor::try_from(n).unwrap()].to(ColorSpace::Oklrab)
             })
             .collect();
 
