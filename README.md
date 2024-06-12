@@ -1,21 +1,21 @@
-# Pretty 🌸 pretty
+# Pretty 🌸 Pretty
 
 [![Run Tests](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml)
 [![Publish to GitHub Pages](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml)
 
-Prettypretty helps build awesome terminal user interfaces in Python. Notably, it
-incorporates a powerful and general color library. The resulting, near seemless
-integration of 1970s archaic but beloved ANSI escape codes for terminal styling
-with 2020s color science, notably via the [Oklab perceptual color
-space](https://bottosson.github.io/posts/oklab/), is unique to prettypretty and
-enables your application to easily adapt its visual styles to a user's current
-color theme, dark or light mode, and color preferences. So, what are you waiting
-for? Switch to prettypretty for all your terminal styling needs. Prettypretty is
-awesome!
+Prettypretty helps build awesome terminal user interfaces in Python and Rust.
+Notably, it incorporates a powerful and general color library. The resulting,
+near seemless integration of 1970s archaic but beloved ANSI escape codes for
+terminal styling with 2020s color science, notably via the [Oklab perceptual
+color space](https://bottosson.github.io/posts/oklab/), is unique to
+prettypretty and enables your application to easily adapt its visual styles to a
+user's current color theme, dark or light mode, and color preferences. So, what
+are you waiting for? Switch to prettypretty for all your terminal styling needs.
+Prettypretty is awesome!
 
 \[ [Repository](https://github.com/apparebit/prettypretty)
-| [Package](https://pypi.org/project/prettypretty/)
-| [Documentation](https://apparebit.github.io/prettypretty/)
+| [Python Package](https://pypi.org/project/prettypretty/)
+| [Python Documentation](https://apparebit.github.io/prettypretty/)
 \]
 
 ## A Drab Reality
