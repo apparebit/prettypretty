@@ -74,7 +74,7 @@
 //! ## 2. Terminal Colors
 //!
 //! In contrast to high-resolution colors, terminal color formats from the 1970s
-//! and 1980s may not even have coordinates, only an integer index. They are
+//! and 1980s may not even have coordinates, only integer index values. They are
 //! represented through the following abstractions:
 //!
 //!   * [`EightBitColor`] combines [`AnsiColor`], [`EmbeddedRgb`], and
@@ -326,7 +326,7 @@
 //!
 //! [`GrayGradient`] represents a 24-step gradient from almost black to almost
 //! white. As for the embedded RGB cube, Xterm's formula for converting to
-//! 24-bit RGB colors is widely accepted. The color swatch below illustrates the
+//! 24-bit RGB grays is widely accepted. The color swatch below illustrates the
 //! gray gradient.
 //!
 //! <figure>
@@ -359,8 +359,9 @@
 //! </figure>
 //!
 //! By combining ANSI, embedded RGB, and gray gradient colors, [`EightBitColor`]
-//! covers the entire 8-bit code space. As a result, conversion from `u8` is
-//! infallible, whereas it is fallible for the three component colors.
+//! covers the entire 8-bit code space. As a result, conversion from `u8` to
+//! `EightBitColor` is infallible, whereas it is fallible for the three
+//! component colors.
 //!
 //! [`TrueColor`] was a misnomer even when 24-bit video cards first came out.
 //! Nowadays, the ready availability of wide-gamut and high-dynamic-range (HDR)
@@ -745,7 +746,7 @@ impl ColorMatcher {
     /// Find the ANSI color that comes closest to the given color.
     ///
     ///
-    /// # Example
+    /// # Examples
     ///
     /// The example code below matches `#ffa563` and `#ff9600` to ANSI colors
     /// under the default theme and using Oklab as well as Oklrab for computing
@@ -791,6 +792,73 @@ impl ColorMatcher {
     /// <div style="background-color: #ff9600;"></div>
     /// <div style="background-color: #ff5555;"></div>
     /// </div>
+    /// <br>
+    ///
+    /// In fact, let's explore that idea a little further. We'll be comparing
+    /// colors in Oklrch. So, we prepare a list with the color values for the 16
+    /// extended ANSI colors in that color space. That, by the way, is pretty
+    /// much what [`ColorMatcher::new`] does as well.
+    /// ```
+    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, DEFAULT_THEME};
+    /// # use std::str::FromStr;
+    /// let ansi_colors: Vec<Color> = (0..=15)
+    ///     .map(|n| {
+    ///         DEFAULT_THEME[AnsiColor::try_from(n).unwrap()]
+    ///             .to(ColorSpace::Oklrch)
+    ///     })
+    ///     .collect();
+    /// ```
+    ///
+    /// Next, we need a function that calculates the distance between the
+    /// coordinates of two colors in Oklrch. Since we are doing exploratory
+    /// coding, we exclusively focus on hue and calculate the minimum degree of
+    /// separation. Degrees being circular, computing the remainder of the
+    /// difference is not enough. We need to consider both differences.
+    /// ```
+    /// fn minimum_degrees_of_separation(c1: &[f64; 3], c2: &[f64; 3]) -> f64 {
+    ///     (c1[2] - c2[2]).rem_euclid(360.0)
+    ///         .min((c2[2] - c1[2]).rem_euclid(360.0))
+    /// }
+    /// ```
+    ///
+    /// That's it. We have everything we need. All that's left to do is to
+    /// instantiate the same yellow again and find the closest matching color
+    /// on our list with our distance metric.
+    ///
+    /// ```
+    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, DEFAULT_THEME};
+    /// # use std::str::FromStr;
+    /// # let ansi_colors: Vec<Color> = (0..=15)
+    /// #     .map(|n| {
+    /// #         DEFAULT_THEME[AnsiColor::try_from(n).unwrap()]
+    /// #             .to(ColorSpace::Oklrch)
+    /// #     })
+    /// #     .collect();
+    /// # fn minimum_degrees_of_separation(c1: &[f64; 3], c2: &[f64; 3]) -> f64 {
+    /// #     (c1[2] - c2[2]).rem_euclid(360.0)
+    /// #         .min((c2[2] - c1[2]).rem_euclid(360.0))
+    /// # }
+    /// let yellow = Color::from_str("#ffa563")?;
+    /// let closest = yellow.find_closest(
+    ///     &ansi_colors,
+    ///     ColorSpace::Oklrch,
+    ///     minimum_degrees_of_separation,
+    /// ).unwrap();
+    /// assert_eq!(closest, 3);
+    /// # Ok::<(), ColorFormatError>(())
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #ffa563;"></div>
+    /// <div style="background-color: #a50;"></div>
+    /// </div>
+    /// <br>
+    ///
+    /// The hue-based comparison picks ANSI color 3, yellow, which looks great
+    /// on the color swatch. A [quick
+    /// check](https://en.wikipedia.org/wiki/ANSI_escape_code#3-bit_and_4-bit)
+    /// of VGA text mode colors validates that the brown tone is the closest
+    /// color indeed—even if it is much darker. That suggests that a hue-based
+    /// distance metric is both feasible and desirable.
     pub fn to_ansi(&self, color: &Color) -> AnsiColor {
         // SAFETY: self.ansi holds 16 elements, hence closest() returns index 0..=15.
         color
