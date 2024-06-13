@@ -714,10 +714,14 @@ impl TrueColor {
     /// ```
     /// # use prettypretty::{Color, ColorFormatError, TrueColor};
     /// # use std::str::FromStr;
-    /// let coral = Color::srgb(1, 114.0/255.0, 86.0/255.0);
+    /// let coral = Color::srgb(1, 127.0/255.0, 80.0/255.0);
     /// let still_coral = TrueColor::from_color(&coral);
-    /// assert_eq!(format!("{}", still_coral), "#ff7256");
+    /// assert_eq!(format!("{}", still_coral), "#ff7f50");
     /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #ff7f50;"></div>
+    /// </div>
+
     pub fn from_color(color: &Color) -> Self {
         let color = color.to(ColorSpace::Srgb).map_to_gamut();
         let [r, g, b] = color.coordinates();

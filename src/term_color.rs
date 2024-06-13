@@ -432,6 +432,20 @@ impl From<EightBitColor> for u8 {
 // ====================================================================================================================
 
 /// A true color, i.e., 24-bit color.
+///
+/// <style>
+/// .color-swatch {
+///     display: flex;
+/// }
+/// .color-swatch > div {
+///     height: 4em;
+///     width: 4em;
+///     border: black 0.5pt solid;
+///     display: flex;
+///     align-items: center;
+///     justify-content: center;
+/// }
+/// </style>
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TrueColor([u8; 3]);
 
@@ -493,9 +507,12 @@ impl std::fmt::Display for TrueColor {
     ///
     /// ```
     /// # use prettypretty::TrueColor;
-    /// let tomato = TrueColor::new(0xff, 0x63, 0x47);
-    /// assert_eq!(format!("{}", tomato), "#ff6347");
+    /// let maroon = TrueColor::new(0xb0, 0x30, 0x60);
+    /// assert_eq!(format!("{}", maroon), "#b03060");
     /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #b03060;"></div>
+    /// </div>
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let [r, g, b] = self.0;
         write!(f, "#{:02x}{:02x}{:02x}", r, g, b)

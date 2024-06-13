@@ -647,13 +647,14 @@ impl std::str::FromStr for Color {
     /// coordinate, e.g., `rgb:1/00/cafe`. Here, every coordinate is scaled,
     /// i.e., the red coordinate in the example is 0x1/0xf.
     ///
-    /// In addition to these hexadecimal notations, this method also recognizes
-    /// a subset of CSS color syntax. In particular, it only recognizes the
-    /// `color()`, `oklab()`, and `oklch` CSS functions (all lowercase). For
-    /// `color()`, the color space must be `srgb`, `linear-srgb`, `display-p3`,
+    /// This method also recognizes a subset of the *CSS color syntax*. In
+    /// particular, it recognizes the `color()`, `oklab()`, and `oklch` CSS
+    /// functions (all lowercase). For `color()`, the color space right after
+    /// the opening parenthesis must be `srgb`, `linear-srgb`, `display-p3`,
     /// `xyz`, `--linear-display-p3`, `--oklrab`, or `--oklrch`. As indicated by
-    /// the leading double-dash, the latter three color space names are
-    /// non-standard. Coordinates must be space-separated and unitless.
+    /// the leading double-dashes, the latter three color space names are
+    /// non-standard. Coordinates must be space-separated and unitless (i.e., no
+    /// percentages).
     ///
     /// By implementing the `FromStr` trait, `str::parse` works just the same
     /// for parsing color formats—that is, as long as type inference can
@@ -666,6 +667,7 @@ impl std::str::FromStr for Color {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, ColorFormatError};
     /// use std::str::FromStr;
+    ///
     /// let navy = Color::from_str("#011480")?;
     /// assert_eq!(navy, Color::srgb(
     ///     0.00392156862745098,
