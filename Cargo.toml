@@ -1,7 +1,7 @@
 [package]
 name = "prettypretty"
 description = "Applying 2020s color science to 1970s terminal user interfaces"
-keywords = ["awesome", "terminal", "color", "ANSI escape code", "terminal user interface"]
+keywords = ["awesome", "terminal", "color", "ANSI-escapes", "terminal-user-interface"]
 categories = ["command-line-interface", "gui", "graphics", "encoding"]
 authors = ["Robert Grimm <rgrimm@alum.mit.edu>"]
 version = "0.1.0"
