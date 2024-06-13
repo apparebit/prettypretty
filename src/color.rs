@@ -195,6 +195,9 @@ impl Color {
     /// Instantiate a new Oklrch color with the given revised lightness Lr,
     /// chroma C, and hue h coordinates.
     ///
+    ///
+    /// # Example
+    ///
     /// When you compare the example code below with that for [`Color::oklch`],
     /// the impact of revised lightness becomes plainly visible, with Oklrch
     /// producing a clearly lighter olive tone at the same magnitude of
@@ -423,6 +426,9 @@ impl Color {
     /// Euclidian distance in the Oklab color space, using either original or
     /// revised version.
     ///
+    ///
+    /// # Example
+    ///
     /// The example code computes the distance between two rather light colors,
     /// with lightness L(honeydew) = 0.94 and L(cantaloupe) = 0.87. Since the
     /// revised lightness Lr corrects the original's dark bias, we'd expect
@@ -458,9 +464,9 @@ impl Color {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, OkVersion};
     /// let colors = [
-    ///     &Color::srgb(1, 0, 0),
-    ///     &Color::srgb(0, 1, 0),
-    ///     &Color::srgb(0, 0, 1),
+    ///     &Color::from_24_bit(0xc4, 0x13, 0x31),
+    ///     &Color::from_24_bit(0, 0x80, 0x25),
+    ///     &Color::from_24_bit(0x30, 0x78, 0xea),
     /// ];
     /// let rose = Color::srgb(1, 0.5, 0.5);
     /// let closest = rose.find_closest_ok(colors, OkVersion::Revised);
@@ -471,9 +477,9 @@ impl Color {
     /// assert_eq!(closest, Some(1))
     /// ```
     /// <div class=color-swatch>
-    /// <div style="background-color: color(srgb 1 0 0);"></div>
-    /// <div style="background-color: color(srgb 0 1 0);"></div>
-    /// <div style="background-color: color(srgb 0 0 1);"></div>
+    /// <div style="background-color: #c41331;"></div>
+    /// <div style="background-color: #008025;"></div>
+    /// <div style="background-color: #3078ea;"></div>
     /// <div style="background-color: color(srgb 1 0.5 0.5);"></div>
     /// <div style="background-color: color(srgb 0.5 1 0.6);"></div>
     /// </div>
@@ -491,7 +497,12 @@ impl Color {
     /// the candidate with smallest distance. If there are no candidates, it
     /// returns `None`. The distance metric is declared `mut` to allow for
     /// stateful comparisons.
-    pub fn find_closest<'c, C, F>(&self, candidates: C, space: ColorSpace, mut compute_distance: F) -> Option<usize>
+    pub fn find_closest<'c, C, F>(
+        &self,
+        candidates: C,
+        space: ColorSpace,
+        mut compute_distance: F,
+    ) -> Option<usize>
     where
         C: IntoIterator<Item = &'c Color>,
         F: FnMut(&[f64; 3], &[f64; 3]) -> f64,
@@ -501,10 +512,7 @@ impl Color {
         let mut min_index = None;
 
         for (index, candidate) in candidates.into_iter().enumerate() {
-            let distance = compute_distance(
-                &origin.coordinates,
-                &candidate.to(space).coordinates,
-            );
+            let distance = compute_distance(&origin.coordinates, &candidate.to(space).coordinates);
 
             if distance < min_distance {
                 min_distance = distance;
@@ -825,6 +833,15 @@ impl std::fmt::Display for Color {
     /// orders of magnitude larger than other coordinates, this method uses a
     /// precision smaller by 2 for degrees.
     ///
+    ///
+    /// # Example
+    ///
+    /// The example code takes a color specified in hashed hexadecimal notation
+    /// and formats it as sRGB with 5 and 3 significant digits after the decimal
+    /// as well as Oklch with 5 digits for L and C as well as 3 digits for hº.
+    /// The color swatch repeats the four different notations (adjusted for CSS)
+    /// and hence should show the same color four times over.
+    ///
     /// ```
     /// # use prettypretty::{Color, ColorFormatError, ColorSpace::*};
     /// # use std::str::FromStr;
@@ -843,7 +860,7 @@ impl std::fmt::Display for Color {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let p = f.precision().unwrap_or(5);
         let p3 = if self.space.is_polar() {
-            (p - 2).max(0)  // Clamp to minimum of zero
+            (p - 2).max(0) // Clamp to minimum of zero
         } else {
             p
         };
