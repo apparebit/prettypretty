@@ -22,6 +22,18 @@ pub enum ColorFormatError {
     /// `#💩00` has the correct length but contains an unsuitable character.
     UnexpectedCharacters,
 
+    /// A parenthesized color format without the opening parenthesis. For
+    /// example, `color display-p3 0 0 0)` is missing the opening parenthesis.
+    NoOpeningParenthesis,
+
+    /// A parenthesized color format without the closing parenthesis. For
+    /// example, `oklab(1 2 3` is missing the closing parenthesis.
+    NoClosingParenthesis,
+
+    /// A color format that is using an unknown color space. For example,
+    /// `color(unknown 1 1 1)` uses an unknown color space.
+    UnknownColorSpace,
+
     /// A color format that is missing the coordinate with the given index. For
     /// example, `rgb:0` is missing the second and third coordinate, whereas
     /// `rgb:0//0` is missing the second coordinate only.
@@ -32,9 +44,15 @@ pub enum ColorFormatError {
     /// coordinate.
     OversizedCoordinate(usize),
 
-    /// A color format that has a malformed number as coordinate with the given
-    /// index. For example, `#efg` has a malformed third coordinate.
-    MalformedCoordinate(usize, std::num::ParseIntError),
+    /// A color format that has a malformed hexadecimal number as coordinate
+    /// with the given index. For example, `#efg` has a malformed third
+    /// coordinate.
+    MalformedHex(usize, std::num::ParseIntError),
+
+    /// A color format that has a malformed floating point number as coordinate
+    /// with the given index. For example, `color(srgb 1.0 0..1 0.0)` has a
+    /// malformed second coordinate.
+    MalformedFloat(usize, std::num::ParseFloatError),
 
     /// A color format with more than three coordinates. For example,
     /// `rgb:1/2/3/4` has one coordinate too many.
@@ -51,6 +69,9 @@ impl std::fmt::Display for ColorFormatError {
             UnexpectedCharacters => {
                 write!(f, "color format should contain only valid ASCII characters")
             }
+            NoOpeningParenthesis => write!(f, "color format should include an opening parenthesis but has none"),
+            NoClosingParenthesis => write!(f, "color format should include a closing parenthesis but has none"),
+            UnknownColorSpace => write!(f, "color format should have known color space but does not"),
             MissingCoordinate(c) => write!(
                 f,
                 "color format should have 3 coordinates but is missing #{}",
@@ -61,9 +82,14 @@ impl std::fmt::Display for ColorFormatError {
                 "color format coordinates should have 1-4 digits but #{} has more",
                 c + 1
             ),
-            MalformedCoordinate(c, _) => write!(
+            MalformedHex(c, _) => write!(
                 f,
-                "color format coordinates should be valid numbers but #{} is not",
+                "color format coordinates should be hexadecimal integers but #{} is not",
+                c + 1
+            ),
+            MalformedFloat(c, _) => write!(
+                f,
+                "color format coordinates should be floating point numbers but #{} is not",
                 c + 1
             ),
             TooManyCoordinates => write!(f, "color format should have 3 coordinates but has more"),
@@ -74,13 +100,17 @@ impl std::fmt::Display for ColorFormatError {
 impl Error for ColorFormatError {
     /// Access the cause for this color format error.
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        if let ColorFormatError::MalformedCoordinate(_, error) = self {
-            Some(error)
-        } else {
-            None
+        match self {
+            ColorFormatError::MalformedHex(_, error) => Some(error),
+            ColorFormatError::MalformedFloat(_, error) => Some(error),
+            _ => None,
         }
     }
 }
+
+// ====================================================================================================================
+// Parse Color Functions
+// ====================================================================================================================
 
 /// Parse a 24-bit color in hashed hexadecimal format. If successful, this
 /// function returns the three coordinates as unsigned bytes. It transparently
@@ -98,7 +128,7 @@ fn parse_hashed(s: &str) -> Result<[u8; 3], ColorFormatError> {
             .get(1 + factor * index..1 + factor * (index + 1))
             .ok_or(ColorFormatError::UnexpectedCharacters)?;
         let n = u8::from_str_radix(t, 16)
-            .map_err(|e| ColorFormatError::MalformedCoordinate(index, e))?;
+            .map_err(|e| ColorFormatError::MalformedHex(index, e))?;
 
         Ok(if factor == 1 { 16 * n + n } else { n })
     }
@@ -108,6 +138,8 @@ fn parse_hashed(s: &str) -> Result<[u8; 3], ColorFormatError> {
     let c3 = parse_coordinate(s, 2)?;
     Ok([c1, c2, c3])
 }
+
+// --------------------------------------------------------------------------------------------------------------------
 
 /// Parse a color in X Windows format. If successful, this function returns
 /// three pairs with the number of hexadecimal digits and the numeric value for
@@ -126,7 +158,7 @@ fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
         }
 
         let n = u16::from_str_radix(t, 16)
-            .map_err(|e| ColorFormatError::MalformedCoordinate(index, e))?;
+            .map_err(|e| ColorFormatError::MalformedHex(index, e))?;
 
         Ok((t.len() as u8, n))
     }
@@ -143,6 +175,61 @@ fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
     Ok([c1, c2, c3])
 }
 
+/// Parse a subset of valid CSS color formats. This function recognizes only the
+/// `oklab()`, `oklch()`, and `color()` functions. The color space for the
+/// latter must be `srgb`, `linear-srgb`, `display-p3`, `xyz`, or one of the
+/// non-standard color spaces `--linear-display-p3`, `--oklrab`, and `--oklrch`.
+/// Coordinates must not have units including `%`.
+fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
+    use ColorSpace::*;
+
+    // Munge CSS function name
+    let (space, rest) = s
+        .strip_prefix("oklab").map(|r| (Some(Oklab), r))
+        .or_else(|| s.strip_prefix("oklch").map(|r| (Some(Oklch), r)))
+        .or_else(|| s.strip_prefix("color").map(|r| (None, r)))
+        .ok_or(ColorFormatError::UnknownFormat)?;
+
+    // After trimming leading whitespace, munge parentheses
+    let rest = rest.trim_start().strip_prefix('(').ok_or(ColorFormatError::NoOpeningParenthesis)?;
+    let rest = rest.strip_suffix(')').ok_or(ColorFormatError::NoClosingParenthesis)?;
+    let rest = rest.trim(); // Removes whitespace before first and after last token
+
+    let (space, body) = if space.is_none() {
+        // Munge color space
+        let (s, r) = rest
+            .strip_prefix("srgb").map(|r| (Srgb, r))
+            .or_else(|| rest.strip_prefix("linear-srgb").map(|r| (LinearSrgb, r)))
+            .or_else(|| rest.strip_prefix("display-p3").map(|r| (DisplayP3, r)))
+            .or_else(|| rest.strip_prefix("--linear-display-p3").map(|r| (LinearDisplayP3, r)))
+            .or_else(|| rest.strip_prefix("--oklrab").map(|r| (Oklrab, r)))
+            .or_else(|| rest.strip_prefix("--oklrch").map(|r| (Oklrch, r)))
+            .or_else(|| rest.strip_prefix("xyz").map(|r| (Xyz, r)))
+            .ok_or(ColorFormatError::UnknownColorSpace)?;
+        (s, r.trim_start()) // Removes whitespace before first coordinate
+    } else {
+        (space.unwrap(), rest)
+    };
+
+    fn parse_coordinate(s: Option<&str>, index: usize) -> Result<f64, ColorFormatError> {
+        let t = s.ok_or(ColorFormatError::MissingCoordinate(index))?;
+        t.parse().map_err(|e| ColorFormatError::MalformedFloat(index, e))
+    }
+
+    // Munge coordinates
+    let mut iter = body.split_whitespace();
+    let c1 = parse_coordinate(iter.next(), 0)?;
+    let c2 = parse_coordinate(iter.next(), 1)?;
+    let c3 = parse_coordinate(iter.next(), 2)?;
+    if iter.next().is_some() {
+        return Err(ColorFormatError::TooManyCoordinates);
+    }
+
+    Ok((space, [c1, c2, c3]))
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 /// Parse the given string as a color in hashed hexadecimal or X Windows format.
 pub(crate) fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
     if s.starts_with('#') {
@@ -157,16 +244,18 @@ pub(crate) fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError>
         }
 
         let [c1, c2, c3] = parse_x(s)?;
-
         Ok((ColorSpace::Srgb, [scale(c1), scale(c2), scale(c3)]))
     } else {
-        Err(ColorFormatError::UnknownFormat)
+        parse_css(s)
     }
 }
 
+// ====================================================================================================================
+
 #[cfg(test)]
 mod test {
-    use super::{parse_hashed, parse_x, ColorFormatError};
+    use super::{parse_hashed, parse_x, parse_css, ColorFormatError};
+    use super::ColorSpace::*;
 
     #[test]
     fn test_parse_hashed() -> Result<(), ColorFormatError> {
@@ -185,13 +274,13 @@ mod test {
         let result = parse_hashed("#0g0");
         assert!(matches!(
             result,
-            Err(ColorFormatError::MalformedCoordinate(1, _))
+            Err(ColorFormatError::MalformedHex(1, _))
         ));
 
         let result = parse_hashed("#00g");
         assert!(matches!(
             result,
-            Err(ColorFormatError::MalformedCoordinate(2, _))
+            Err(ColorFormatError::MalformedHex(2, _))
         ));
 
         Ok(())
@@ -231,9 +320,58 @@ mod test {
         let result = parse_x("rgb:f/g/f");
         assert!(matches!(
             result,
-            Err(ColorFormatError::MalformedCoordinate(1, _))
+            Err(ColorFormatError::MalformedHex(1, _))
         ));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_parse_css() {
+        assert_eq!(
+            parse_css("oklab(0 0 0)"),
+            Ok((Oklab, [0.0, 0.0, 0.0]))
+        );
+        assert_eq!(
+            parse_css("color(xyz   1  1  1)"),
+            Ok((Xyz, [1.0, 1.0, 1.0]))
+        );
+        assert_eq!(
+            parse_css("color(  --oklrch   1  1  1)"),
+            Ok((Oklrch, [1.0, 1.0, 1.0]))
+        );
+        assert_eq!(
+            parse_css("color  (  --linear-display-p3   1  1.123  0.3333   )"),
+            Ok((LinearDisplayP3, [1.0, 1.123, 0.3333]))
+        );
+
+        assert_eq!(
+            parse_css("whatever(1 1 1)"),
+            Err(ColorFormatError::UnknownFormat)
+        );
+        assert_eq!(
+            parse_css("colorsrgb 1 1 1)"),
+            Err(ColorFormatError::NoOpeningParenthesis)
+        );
+        assert_eq!(
+            parse_css("color(srgb 1 1 1"),
+            Err(ColorFormatError::NoClosingParenthesis)
+        );
+        assert_eq!(
+            parse_css("color(nemo 1 1 1)"),
+            Err(ColorFormatError::UnknownColorSpace)
+        );
+        assert!(matches!(
+            parse_css("color(srgb abc 1 1)"),
+            Err(ColorFormatError::MalformedFloat(0, _))
+        ));
+        assert_eq!(
+            parse_css("color(srgb 1)"),
+            Err(ColorFormatError::MissingCoordinate(1))
+        );
+        assert_eq!(
+            parse_css("color(srgb 1 1 1 1)"),
+            Err(ColorFormatError::TooManyCoordinates)
+        );
     }
 }
