@@ -219,8 +219,10 @@ impl Color {
         }
     }
 
+    // ----------------------------------------------------------------------------------------------------------------
+
     /// Instantiate a new sRGB color with the given red, green, and blue
-    /// coordinates scaled by 255.0.
+    /// coordinates scaled by 1.0/255.0.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
@@ -234,6 +236,26 @@ impl Color {
         Color {
             space: ColorSpace::Srgb,
             coordinates: [r.into() / 255.0, g.into() / 255.0, b.into() / 255.0],
+        }
+    }
+
+    /// Convert this color to 24-bit representation.
+    ///
+    /// If this color is an in-gamut RGB color, this method returns the wrapped
+    /// result of scaling the coordinates by 255.0 and converting them to `u8`.
+    /// Otherwise, it returns `None`. In other words, an application should
+    /// convert a color to the desired target RGB color space (sRGB, Display P3,
+    /// or one of their linear variants) before invoking this method.
+    pub fn to_24_bit(&self) -> Option<[u8; 3]> {
+        if self.space.is_rgb() && self.in_gamut() {
+            let [r, g, b] = self.coordinates;
+            Some([
+                (r * 255.0).round() as u8,
+                (g * 255.0).round() as u8,
+                (b * 255.0).round() as u8,
+            ])
+        } else {
+            None
         }
     }
 
@@ -262,6 +284,12 @@ impl Color {
 
     /// Access the coordinates.
     ///
+    /// This method's intended use is for iterating over the three coordinates.
+    /// To read *and write* individual coordinates, this class also implements
+    /// [`Color::index`](struct.Color.html#method.index) and
+    /// [`Color::index_mut`](struct.Color.html#method.index_mut), which take a
+    /// symbolic [`Coordinate`] as argument.
+    ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
     /// let green = Color::p3(0, 1, 0);
@@ -273,6 +301,57 @@ impl Color {
     #[inline]
     pub fn coordinates(&self) -> &[f64; 3] {
         &self.coordinates
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+
+    /// Lighten this color by the given factor in Oklrch.
+    ///
+    /// This method converts this color to Oklrch, then multiplies its lightness
+    /// Lr by the given factor, and finally returns the result—which may or may
+    /// not be in-gamut for another color space. This method does not include an
+    /// option for selecting Oklch because of its non-uniform lightness L.
+    ///
+    ///
+    /// # Example
+    ///
+    /// The code example leverages the fact that lightening by a factor f is the
+    /// same as darkening by factor 1/f and vice versa. Note that the example
+    /// computes the colors out of order but then validates them in order. The
+    /// color swatch shows them in order, from darkest to lightest.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace::*};
+    /// let goldenrod1 = Color::from_24_bit(0x8b, 0x65, 0x08);
+    /// let goldenrod3 = goldenrod1.lighten(1.4).to(Srgb);
+    /// let goldenrod2 = goldenrod3.lighten(1.2/1.4).to(Srgb);
+    /// assert_eq!(goldenrod1.to_24_bit(), Some([0x8b_u8, 0x65, 0x08]));
+    /// assert_eq!(goldenrod2.to_24_bit(), Some([0xa4_u8, 0x7d, 0x2c]));
+    /// assert_eq!(goldenrod3.to_24_bit(), Some([0xbd_u8, 0x95, 0x47]));
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #8b6508;"></div>
+    /// <div style="background-color: #a47d2c;"></div>
+    /// <div style="background-color: #bd9547;"></div>
+    /// </div>
+    #[allow(non_snake_case)]
+    pub fn lighten(&self, factor: f64) -> Color {
+        let origin = self.to(ColorSpace::Oklrch);
+        let [Lr, C, h] = origin.coordinates;
+        Color {
+            space: origin.space,
+            coordinates: [factor * Lr, C, h],
+        }
+    }
+
+    /// Darken this color by the given factor in Oklrch.
+    ///
+    /// Since darkening by some factor is just lightening by the inverse, this
+    /// method delegates to [`Color::lighten`] with just that value.
+    /// # Example
+    #[inline]
+    pub fn darken(&self, factor: f64) -> Color {
+        self.lighten(factor.recip())
     }
 
     // ----------------------------------------------------------------------------------------------------------------
