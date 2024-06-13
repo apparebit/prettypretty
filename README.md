@@ -16,6 +16,8 @@ Prettypretty is awesome!
 \[ [Repository](https://github.com/apparebit/prettypretty)
 | [Python Package](https://pypi.org/project/prettypretty/)
 | [Python Documentation](https://apparebit.github.io/prettypretty/)
+| [Rust Package](https://crates.io/crates/prettypretty)
+| [Rust Documentation](https://docs.rs/prettypretty/latest/prettypretty/index.html)
 \]
 
 ## A Drab Reality
