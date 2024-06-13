@@ -239,7 +239,7 @@ pub struct GrayGradient(u8);
 
 impl GrayGradient {
     /// Instantiate a new gray gradient from the level value `0..=23`.
-    pub const fn new(value: u32) -> Result<Self, OutOfBoundsError> {
+    pub const fn new(value: usize) -> Result<Self, OutOfBoundsError> {
         if value >= 24 {
             Err(OutOfBoundsError {
                 value,
