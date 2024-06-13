@@ -302,6 +302,27 @@ impl From<GrayGradient> for u8 {
 /// for `GrayGradient`, as well as the infallible
 /// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
 /// for `EightBitColor`.
+///
+///
+/// # Black and White
+///
+/// The ANSI colors, the 6x6x6 RGB cube, and the gray gradient all include
+/// colors that are pretty close to black and white. They may even be called
+/// black or white. Which one should you use?
+///
+/// If the terminal only supports ANSI colors, then there is no choice. You have
+/// to use the ANSI black and bright white. But since ANSI colors are themeable
+/// in most terminal emulators, you cannot count on those colors actually
+/// rendering as black and white. Furthermore, even rather conservative color
+/// themes, such as the default light theme in macOS Terminal.app, may not use
+/// #000 and #fff for black and white.
+///
+/// If the terminal supports 8-bit colors, then use colors 16 and 231 from the
+/// embedded RGB cube. Since they correspond to 0, 0, 0 and 5, 5, 5, the two
+/// colors also mark the extremes of the code space. They retain that extremism
+/// after conversion to sRGB and become #000000 and #ffffff, just as required.
+/// Meanwhile, the darkest and lightest gray on the gradient are #121212 and
+/// #f8f8f8, respectively, and hence unsuitable.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum EightBitColor {
     Ansi(AnsiColor),
