@@ -657,8 +657,18 @@ pub const DEFAULT_THEME: Theme = Theme {
     blue: Color::new(ColorSpace::Srgb, 0.0, 0.0, 0.666666666666667),
     magenta: Color::new(ColorSpace::Srgb, 0.666666666666667, 0.0, 0.666666666666667),
     cyan: Color::new(ColorSpace::Srgb, 0.0, 0.666666666666667, 0.666666666666667),
-    white: Color::new(ColorSpace::Srgb, 0.666666666666667, 0.666666666666667, 0.666666666666667),
-    bright_black: Color::new(ColorSpace::Srgb, 0.333333333333333, 0.333333333333333, 0.333333333333333),
+    white: Color::new(
+        ColorSpace::Srgb,
+        0.666666666666667,
+        0.666666666666667,
+        0.666666666666667,
+    ),
+    bright_black: Color::new(
+        ColorSpace::Srgb,
+        0.333333333333333,
+        0.333333333333333,
+        0.333333333333333,
+    ),
     bright_red: Color::new(ColorSpace::Srgb, 1.0, 0.333333333333333, 0.333333333333333),
     bright_green: Color::new(ColorSpace::Srgb, 0.333333333333333, 1.0, 0.333333333333333),
     bright_yellow: Color::new(ColorSpace::Srgb, 1.0, 1.0, 0.333333333333333),
@@ -699,7 +709,15 @@ impl From<GrayGradient> for Color {
 impl TrueColor {
     /// Create a new true color instance from the given high resolution color.
     /// This constructor function converts and gamut-maps the given color to
-    /// sRGB before converting individual coordinates.
+    /// sRGB before converting the numerical representation of the coordinates.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorFormatError, TrueColor};
+    /// # use std::str::FromStr;
+    /// let coral = Color::srgb(1, 114.0/255.0, 86.0/255.0);
+    /// let still_coral = TrueColor::from_color(&coral);
+    /// assert_eq!(format!("{}", still_coral), "#ff7256");
+    /// ```
     pub fn from_color(color: &Color) -> Self {
         let color = color.to(ColorSpace::Srgb).map_to_gamut();
         let [r, g, b] = color.coordinates();
@@ -707,7 +725,7 @@ impl TrueColor {
         TrueColor::new(
             (r * 255.0).round() as u8,
             (g * 255.0).round() as u8,
-            (b * 255.0).round() as u8
+            (b * 255.0).round() as u8,
         )
     }
 }
@@ -756,20 +774,23 @@ impl ColorMatcher {
     /// the comparison color space.
     pub fn new(theme: &Theme, ok_version: OkVersion) -> Self {
         let ansi = (0..=15)
-            .map(|n| {
-                theme[AnsiColor::try_from(n).unwrap()].to(ok_version.cartesian_space())
-            })
+            .map(|n| theme[AnsiColor::try_from(n).unwrap()].to(ok_version.cartesian_space()))
             .collect();
 
         let eight_bit: Vec<Color> = (16..=231)
-            .map(|n| Color::from(EmbeddedRgb::try_from(n).unwrap()).to(ok_version.cartesian_space()))
-            .chain(
-                (232..=255)
-                    .map(|n| Color::from(GrayGradient::try_from(n).unwrap()).to(ok_version.cartesian_space())),
-            )
+            .map(|n| {
+                Color::from(EmbeddedRgb::try_from(n).unwrap()).to(ok_version.cartesian_space())
+            })
+            .chain((232..=255).map(|n| {
+                Color::from(GrayGradient::try_from(n).unwrap()).to(ok_version.cartesian_space())
+            }))
             .collect();
 
-        Self { ok_version, ansi, eight_bit }
+        Self {
+            ok_version,
+            ansi,
+            eight_bit,
+        }
     }
 
     /// Find the ANSI color that comes closest to the given color.
@@ -778,16 +799,28 @@ impl ColorMatcher {
     /// # Example
     ///
     /// The example code below matches `#ffa563` and `#ff9600` to ANSI colors
-    /// under the default theme. The first color matches ANSI cyan, which is a
-    /// very poor fit and demonstrates that even high-resolution, perceptually
-    /// uniform colors cannot make up for the extremely limited choices. It also
-    /// suggests that, maybe, finding matches in polar coordinates may be
-    /// preferable for ANSI colors, since it can prioritize hues over chroma.
+    /// under the default theme and using Oklab as well as Oklrab for computing
+    /// color distance. The first color consistently matches ANSI cyan, which is
+    /// a poor fit. This demonstrates that matching against high-resolution,
+    /// perceptually uniform colors cannot make up for an exceedingly limited
+    /// number of color choices. It also suggests that, just maybe, searching in
+    /// polar coordinate space and penalizing hue differences may be a better
+    /// strategy for ANSI colors.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorFormatError, ColorMatcher, ColorSpace};
     /// # use prettypretty::{DEFAULT_THEME, OkVersion};
     /// # use std::str::FromStr;
+    /// let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Original);
+    ///
+    /// let color = Color::from_str("#ffa563")?;
+    /// let ansi = matcher.to_ansi(&color);
+    /// assert_eq!(u8::from(ansi), 7);
+    ///
+    /// let color = Color::from_str("#ff9600")?;
+    /// let ansi = matcher.to_ansi(&color);
+    /// assert_eq!(u8::from(ansi), 9);
+    /// // ---------------------------------------------------------------------
     /// let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
     ///
     /// let color = Color::from_str("#ffa563")?;
@@ -804,11 +837,15 @@ impl ColorMatcher {
     /// <div style="background-color: #00aaaa;"></div>
     /// <div style="background-color: #ff9600;"></div>
     /// <div style="background-color: #ff5555;"></div>
+    /// <div style="background-color: #ffa563;"></div>
+    /// <div style="background-color: #00aaaa;"></div>
+    /// <div style="background-color: #ff9600;"></div>
+    /// <div style="background-color: #ff5555;"></div>
     /// </div>
     pub fn to_ansi(&self, color: &Color) -> AnsiColor {
         // SAFETY: self.ansi holds 16 elements, hence closest() returns index 0..=15.
         color
-            .closest(&self.ansi, self.ok_version)
+            .find_closest_ok(&self.ansi, self.ok_version)
             .map(|idx| AnsiColor::try_from(idx as u8))
             .unwrap()
             .unwrap()
@@ -858,7 +895,7 @@ impl ColorMatcher {
         // SAFETY: self.eight_bit holds 240 elements, hence closest() returns
         // index 0..=239, which becomes 16..=255 after addition.
         color
-            .closest(&self.eight_bit, self.ok_version)
+            .find_closest_ok(&self.eight_bit, self.ok_version)
             .map(|idx| EightBitColor::from(idx as u8 + 16))
             .unwrap()
     }
@@ -868,7 +905,7 @@ impl ColorMatcher {
 
 #[cfg(test)]
 mod test {
-    use super::{AnsiColor, Color, ColorMatcher, DEFAULT_THEME, OkVersion, OutOfBoundsError};
+    use super::{AnsiColor, Color, ColorMatcher, OkVersion, OutOfBoundsError, DEFAULT_THEME};
 
     #[test]
     fn test_matcher() -> Result<(), OutOfBoundsError> {

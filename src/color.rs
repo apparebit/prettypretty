@@ -2,11 +2,11 @@
 
 mod core;
 
-pub use self::core::{ColorSpace, OkVersion};
 use self::core::{
-    clip, convert, delta_e_ok, in_gamut, map_to_gamut, normalize,
-    to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
+    clip, convert, delta_e_ok, in_gamut, map_to_gamut, normalize, to_contrast,
+    to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
 };
+pub use self::core::{ColorSpace, OkVersion};
 use super::serde::parse;
 pub use super::serde::ColorFormatError;
 use super::util::Coordinate;
@@ -34,7 +34,7 @@ use super::util::Coordinate;
 ///     subpar stand-in for the original color;
 ///   * Use [`Color::map_to_gamut`] to more slowly search for a more accurate
 ///     stand-in;
-///   * Use [`Color::distance`] and [`Color::closest`] to implement custom
+///   * Use [`Color::distance`] and [`Color::find_closest`] to implement custom
 ///     search strategies.
 ///
 ///
@@ -139,8 +139,8 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let blueish = Color::oklab(0.78, -0.1, -0.1);
-    /// assert_eq!(blueish.space(), ColorSpace::Oklab);
+    /// let sky = Color::oklab(0.78, -0.1, -0.1);
+    /// assert_eq!(sky.space(), ColorSpace::Oklab);
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: oklab(0.78 -0.1 -0.1);"></div>
@@ -157,10 +157,10 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let blueish = Color::oklrab(0.48, -0.1, -0.1);
-    /// assert_eq!(blueish.space(), ColorSpace::Oklrab);
+    /// let turquoise = Color::oklrab(0.48, -0.1, -0.1);
+    /// assert_eq!(turquoise.space(), ColorSpace::Oklrab);
     /// assert!(
-    ///     (blueish.to(ColorSpace::Oklab).coordinates()[0] - 0.5514232757779728).abs()
+    ///     (turquoise.to(ColorSpace::Oklab).coordinates()[0] - 0.5514232757779728).abs()
     ///     < 1e-13
     /// );
     /// ```
@@ -179,11 +179,11 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let deep_purple = Color::oklch(0.5, 0.25, 308);
-    /// assert_eq!(deep_purple.space(), ColorSpace::Oklch);
+    /// let olive = Color::oklch(0.59, 0.1351, 126);
+    /// assert_eq!(olive.space(), ColorSpace::Oklch);
     /// ```
     /// <div class=color-swatch>
-    /// <div style="background-color: oklch(0.5 0.25 308);"></div>
+    /// <div style="background-color: oklch(0.59 0.1351 126);"></div>
     /// </div>
     pub fn oklch(l: impl Into<f64>, c: impl Into<f64>, h: impl Into<f64>) -> Self {
         Color {
@@ -195,19 +195,43 @@ impl Color {
     /// Instantiate a new Oklrch color with the given revised lightness Lr,
     /// chroma C, and hue h coordinates.
     ///
+    /// When you compare the example code below with that for [`Color::oklch`],
+    /// the impact of revised lightness becomes plainly visible, with Oklrch
+    /// producing a clearly lighter olive tone at the same magnitude of
+    /// lightness. In other words, Oklrab and Oklrch decompress lighter tones
+    /// while compressing darker ones.
+    ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let deep_purple = Color::oklrch(0.5, 0.25, 308);
-    /// let also_purple = deep_purple.to(ColorSpace::Oklch);
-    /// assert_eq!(also_purple, Color::oklch(0.568838198942395, 0.25, 308));
+    /// let olive = Color::oklrch(0.59, 0.1351, 126);
+    /// let same_olive = olive.to(ColorSpace::Oklch);
+    /// assert_eq!(same_olive, Color::oklch(0.6469389611084363, 0.1351, 126));
     /// ```
     /// <div class=color-swatch>
-    /// <div style="background-color: oklch(0.569 0.25 308);"></div>
+    /// <div style="background-color: oklch(0.647 0.1351 126);"></div>
     /// </div>
     pub fn oklrch(lr: impl Into<f64>, c: impl Into<f64>, h: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::Oklrch,
             coordinates: [lr.into(), c.into(), h.into()],
+        }
+    }
+
+    /// Instantiate a new sRGB color with the given red, green, and blue
+    /// coordinates scaled by 255.0.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let tangerine = Color::from_24_bit(0xff, 0x93, 0x00);
+    /// assert_eq!(tangerine, Color::srgb(1, 0.5764705882352941, 0));
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #ff9300;"></div>
+    /// </div>
+    pub fn from_24_bit(r: impl Into<f64>, g: impl Into<f64>, b: impl Into<f64>) -> Self {
+        Color {
+            space: ColorSpace::Srgb,
+            coordinates: [r.into() / 255.0, g.into() / 255.0, b.into() / 255.0],
         }
     }
 
@@ -223,11 +247,11 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let blue = Color::srgb(0, 0, 1);
-    /// assert_eq!(blue.space(), ColorSpace::Srgb);
+    /// let aqua = Color::oklch(0.66, 0.1867, 250);
+    /// assert_eq!(aqua.space(), ColorSpace::Oklch);
     /// ```
     /// <div class=color-swatch>
-    /// <div style="background-color: color(srgb 0 0 1);"></div>
+    /// <div style="background-color: oklch(0.66 0.1867 250);"></div>
     /// </div>
     #[inline]
     pub fn space(&self) -> ColorSpace {
@@ -393,9 +417,31 @@ impl Color {
         }
     }
 
-    /// Determine the difference between the two colors. This method computes
-    /// the Euclidian distance in either the Oklab or Oklrab color space,
-    /// depending on the desired version.
+    /// Compute the Euclidian distance between the two colors in Oklab.
+    ///
+    /// This method computes the color difference *Delta E OK*, which is the
+    /// Euclidian distance in the Oklab color space, using either original or
+    /// revised version.
+    ///
+    /// The example code computes the distance between two rather light colors,
+    /// with lightness L(honeydew) = 0.94 and L(cantaloupe) = 0.87. Since the
+    /// revised lightness Lr corrects the original's dark bias, we'd expect
+    /// light colors to be more spread out in Oklrab. That is indeed the case.
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace, OkVersion, ColorFormatError};
+    /// # use std::str::FromStr;
+    /// let honeydew = Color::from_str("#d4fb79")?;
+    /// let cantaloupe = Color::from_str("#ffd479")?;
+    /// let d1 = honeydew.distance(&cantaloupe, OkVersion::Original);
+    /// let d2 = honeydew.distance(&cantaloupe, OkVersion::Revised);
+    /// assert!((d1 - 0.11174969799958659).abs() < f64::EPSILON);
+    /// assert!((d2 - 0.11498895250174994).abs() < f64::EPSILON);
+    /// # Ok::<(), ColorFormatError>(())
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #d4fb79;"></div>
+    /// <div style="background-color: #ffd479;"></div>
+    /// </div>
     #[inline]
     pub fn distance(&self, other: &Self, version: OkVersion) -> f64 {
         delta_e_ok(
@@ -404,10 +450,10 @@ impl Color {
         )
     }
 
-    /// Find the position of the candidate color closest to this color. This
-    /// method measures distance as the Euclidian distance in the Oklab or
-    /// Oklrab color space, depending on the desired version. If there are no
-    /// candidates, the position of the closest color is `None`.
+    /// Find the index position of the candidate color closest to this color.
+    ///
+    /// This method delegates to [`Color::find_closest`] using the Delta E
+    /// metric for Oklab/Oklrab, which is the Euclidian distance.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace, OkVersion};
@@ -417,11 +463,11 @@ impl Color {
     ///     &Color::srgb(0, 0, 1),
     /// ];
     /// let rose = Color::srgb(1, 0.5, 0.5);
-    /// let closest = rose.closest(colors, OkVersion::Revised);
+    /// let closest = rose.find_closest_ok(colors, OkVersion::Revised);
     /// assert_eq!(closest, Some(0));
     ///
     /// let green = Color::srgb(0.5, 1, 0.6);
-    /// let closest = green.closest(colors, OkVersion::Revised);
+    /// let closest = green.find_closest_ok(colors, OkVersion::Revised);
     /// assert_eq!(closest, Some(1))
     /// ```
     /// <div class=color-swatch>
@@ -431,19 +477,33 @@ impl Color {
     /// <div style="background-color: color(srgb 1 0.5 0.5);"></div>
     /// <div style="background-color: color(srgb 0.5 1 0.6);"></div>
     /// </div>
-    ///
-    pub fn closest<'c, C>(&self, candidates: C, version: OkVersion) -> Option<usize>
+    pub fn find_closest_ok<'c, C>(&self, candidates: C, version: OkVersion) -> Option<usize>
     where
         C: IntoIterator<Item = &'c Color>,
     {
-        let origin = self.to(version.cartesian_space());
+        self.find_closest(candidates, version.cartesian_space(), delta_e_ok)
+    }
+
+    /// Find the index position of the candidate color closest to this color.
+    ///
+    /// This method compares this color to every candidate color by computing
+    /// the distance with the given function and returns the index position of
+    /// the candidate with smallest distance. If there are no candidates, it
+    /// returns `None`. The distance metric is declared `mut` to allow for
+    /// stateful comparisons.
+    pub fn find_closest<'c, C, F>(&self, candidates: C, space: ColorSpace, mut compute_distance: F) -> Option<usize>
+    where
+        C: IntoIterator<Item = &'c Color>,
+        F: FnMut(&[f64; 3], &[f64; 3]) -> f64,
+    {
+        let origin = self.to(space);
         let mut min_distance = f64::INFINITY;
         let mut min_index = None;
 
         for (index, candidate) in candidates.into_iter().enumerate() {
-            let distance = delta_e_ok(
+            let distance = compute_distance(
                 &origin.coordinates,
-                &candidate.to(version.cartesian_space()).coordinates,
+                &candidate.to(space).coordinates,
             );
 
             if distance < min_distance {
@@ -548,8 +608,18 @@ impl Color {
 // --------------------------------------------------------------------------------------------------------------------
 
 impl Default for Color {
-    /// Create an instance of the default color. The chosen default for this
-    /// crate is pitch black, i.e., the origin in XYZ.
+    /// Create an instance of the default color. The chosen default for
+    /// high-resolution colors is pitch black, i.e., the origin in XYZ.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let default = Color::default();
+    /// assert_eq!(default.space(), ColorSpace::Xyz);
+    /// assert_eq!(default.coordinates(), &[0.0_f64, 0.0, 0.0]);
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(xyz 0 0 0);"></div>
+    /// </div>
     fn default() -> Self {
         Color {
             space: ColorSpace::Xyz,
@@ -565,8 +635,8 @@ impl std::str::FromStr for Color {
     ///
     /// This method recognizes two hexadecimal notations for RGB colors, the
     /// hashed notation familiar from the web and an older notation used by X
-    /// Windows. Even though the latter is intended to represent *device RGB*,
-    /// this crate treats both as sRGB.
+    /// Windows. Even though the latter was originally just specifying *device
+    /// RGB*, this crate treats both as notations as sRGB.
     ///
     /// The *hashed notation* has three or six hexadecimal digits, e.g., `#123` or
     /// #`cafe00`. Note that the three digit version is a short form of the six
@@ -577,25 +647,39 @@ impl std::str::FromStr for Color {
     /// coordinate, e.g., `rgb:1/00/cafe`. Here, every coordinate is scaled,
     /// i.e., the red coordinate in the example is 0x1/0xf.
     ///
+    /// In addition to these hexadecimal notations, this method also recognizes
+    /// a subset of CSS color syntax. In particular, it only recognizes the
+    /// `color()`, `oklab()`, and `oklch` CSS functions (all lowercase). For
+    /// `color()`, the color space must be `srgb`, `linear-srgb`, `display-p3`,
+    /// `xyz`, `--linear-display-p3`, `--oklrab`, or `--oklrch`. As indicated by
+    /// the leading double-dash, the latter three color space names are
+    /// non-standard. Coordinates must be space-separated and unitless.
+    ///
     /// By implementing the `FromStr` trait, `str::parse` works just the same
     /// for parsing color formats—that is, as long as type inference can
     /// determine what type to parse. For that reason, the definition of
     /// `orange` below includes a type whereas the definition of `blue` does
     /// not.
     ///
+    /// Don't forget the `use` statement bringing `FromStr` into scope.
+    ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace, ColorFormatError};
-    /// # use std::str::FromStr;
-    /// let blue = Color::from_str("#35f")?;
-    /// assert_eq!(blue, Color::srgb(0.2, 0.3333333333333333, 1));
+    /// use std::str::FromStr;
+    /// let navy = Color::from_str("#011480")?;
+    /// assert_eq!(navy, Color::srgb(
+    ///     0.00392156862745098,
+    ///     0.0784313725490196,
+    ///     0.5019607843137255,
+    /// ));
     ///
-    /// let orange: Color = str::parse("rgb:ffff/9696/0000")?;
-    /// assert_eq!(orange, Color::srgb(1, 0.5882352941176471, 0));
+    /// let rose: Color = str::parse("rgb:ffff/dada/cccc")?;
+    /// assert_eq!(rose, Color::srgb(1, 0.8549019607843137, 0.8));
     /// # Ok::<(), ColorFormatError>(())
     /// ```
     /// <div class=color-swatch>
-    /// <div style="background-color: #35f;"></div>
-    /// <div style="background-color: #ff9600;"></div>
+    /// <div style="background-color: #011480;"></div>
+    /// <div style="background-color: #ffdacc;"></div>
     /// </div>
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         parse(s).map(|(space, coordinates)| Color { space, coordinates })
@@ -699,5 +783,80 @@ impl std::ops::IndexMut<Coordinate> for Color {
     #[inline]
     fn index_mut(&mut self, index: Coordinate) -> &mut Self::Output {
         &mut self.coordinates[index as usize]
+    }
+}
+
+impl ColorSpace {
+    /// Determine the prefix for serializing colors from this color space in CSS
+    /// format.
+    ///
+    /// The resulting string is either `color(<space> ...)`, `oklab(...)`, or
+    /// `oklch(...)`, with the ellipsis eliding three *space-separated*
+    /// coordinates. This method returns all characters up to and excluding the
+    /// first coordinate but including any necessary space. Since CSS does not
+    /// currently support linear Display P3, Oklrab, and Oklrch, the names for
+    /// the CSS `color()` function are written as a custom property name, i.e.,
+    /// with two leading dashes.
+    pub const fn css_prefix(&self) -> &str {
+        use ColorSpace::*;
+        match *self {
+            Srgb => "color(srgb ",
+            LinearSrgb => "color(linear-srgb ",
+            DisplayP3 => "color(display-p3 ",
+            LinearDisplayP3 => "color(--linear-display-p3 ",
+            Oklab => "oklab(",
+            Oklch => "oklch(",
+            Oklrab => "color(--oklrab ",
+            Oklrch => "color(--oklrch ",
+            Xyz => "color(xyz ",
+        }
+    }
+}
+
+impl std::fmt::Display for Color {
+    /// Format this color.
+    ///
+    /// This method formats the color in CSS format using either a `color()`,
+    /// `oklab()`, or `oklch()` CSS function and three space-separated
+    /// coordinates. It respects the formatter's precision, defaulting to 5
+    /// digits past the decimal. Since degrees for Oklch/Oklrch are up to two
+    /// orders of magnitude larger than other coordinates, this method uses a
+    /// precision smaller by 2 for degrees.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorFormatError, ColorSpace::*};
+    /// # use std::str::FromStr;
+    /// let lime = Color::from_str("#a1d2ae")?;
+    /// assert_eq!(format!("{}", lime), "color(srgb 0.63137 0.82353 0.68235)");
+    /// assert_eq!(format!("{:.3}", lime), "color(srgb 0.631 0.824 0.682)");
+    /// assert_eq!(format!("{}", lime.to(Oklch)), "oklch(0.81945 0.07179 152.812)");
+    /// # Ok::<(), ColorFormatError>(())
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #a1d2ae;"></div>
+    /// <div style="background-color: color(srgb 0.63137 0.82353 0.68235);"></div>
+    /// <div style="background-color: color(srgb 0.631 0.824 0.682);"></div>
+    /// <div style="background-color: oklch(0.81945 0.07179 152.812);"></div>
+    /// </div>
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let p = f.precision().unwrap_or(5);
+        let p3 = if self.space.is_polar() {
+            (p - 2).max(0)  // Clamp to minimum of zero
+        } else {
+            p
+        };
+
+        let [c1, c2, c3] = self.coordinates;
+        write!(
+            f,
+            "{}{:.*} {:.*} {:.*})",
+            self.space.css_prefix(),
+            p,
+            c1,
+            p,
+            c2,
+            p3,
+            c3
+        )
     }
 }
