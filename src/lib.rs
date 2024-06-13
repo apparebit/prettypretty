@@ -520,8 +520,8 @@ pub use term_color::GrayGradient;
 pub use term_color::TrueColor;
 
 pub use util::ColorFormatError;
-pub use util::OutOfBoundsError;
 pub use util::Error;
+pub use util::OutOfBoundsError;
 
 // ====================================================================================================================
 // Color Themes

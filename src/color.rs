@@ -529,7 +529,7 @@ impl Color {
     ///
     /// This method computes the asymmetric, perceptual contrast of text with
     /// this color against a background with the given color. It uses an
-    /// algorithm that is surprisingly similar to [Accessible Perceptual
+    /// algorithm that is surprisingly similar to the [Accessible Perceptual
     /// Contrast Algorithm](https://github.com/Myndex/apca-w3), version
     /// 0.0.98G-4g.
     pub fn contrast_against(&self, background: Self) -> f64 {

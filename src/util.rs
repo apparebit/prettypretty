@@ -133,7 +133,10 @@ impl std::fmt::Display for ColorFormatError {
         use ColorFormatError::*;
 
         match *self {
-            UnknownFormat => write!(f, "color format should start with '#' or 'rgb:'"),
+            UnknownFormat => write!(
+                f,
+                "color format should start with `#`, `color()`, `oklab()`, `oklch()`, or `rgb:`"
+            ),
             UnexpectedCharacters => {
                 write!(f, "color format should contain only valid ASCII characters")
             }
@@ -155,7 +158,7 @@ impl std::fmt::Display for ColorFormatError {
             ),
             OversizedCoordinate(c) => write!(
                 f,
-                "color format coordinates should have 1-4 digits but #{} has more",
+                "color format coordinates should have 1-4 hex digits but #{} has more",
                 c + 1
             ),
             MalformedHex(c, _) => write!(
@@ -186,10 +189,12 @@ impl std::error::Error for ColorFormatError {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// An error wrapper. This enumeration wraps this crate's two, more fundamental
-/// errors, one for out-of-bounds numbers and one for malformed strings. It also
-/// defines the corresponding `From` traits, so that code using this crate can
-/// just use this error.
+/// This crate's error wrapper.
+///
+/// This enumeration wraps this crate's two, more fundamental errors, one for
+/// out-of-bounds numbers and one for malformed strings. It also defines the
+/// corresponding `From` traits, so that code using this crate can just use this
+/// error.
 #[derive(Clone, Debug)]
 pub enum Error {
     Number(OutOfBoundsError),
