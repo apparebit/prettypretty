@@ -494,7 +494,7 @@
 //! backslash). Some terminals answer with `\x0b` (bell) instead of ST.
 //!
 //!
-//! ## Color Swatches
+//! ## PS: Color Swatches
 //!
 //! As already illustrated above, most code examples come with their own color
 //! swatches, which show the color values mentioned in the code. Where possible,
@@ -538,24 +538,7 @@ pub use term_color::OutOfBoundsError;
 /// conversion of high-resolution colors to ANSI and 8-bit colors.
 #[derive(Clone, Debug, Default)]
 pub struct Theme {
-    foreground: Color,
-    background: Color,
-    black: Color,
-    red: Color,
-    green: Color,
-    yellow: Color,
-    blue: Color,
-    magenta: Color,
-    cyan: Color,
-    white: Color,
-    bright_black: Color,
-    bright_red: Color,
-    bright_green: Color,
-    bright_yellow: Color,
-    bright_blue: Color,
-    bright_magenta: Color,
-    bright_cyan: Color,
-    bright_white: Color,
+    colors: [Color; 18],
 }
 
 impl Theme {
@@ -572,8 +555,8 @@ impl std::ops::Index<DefaultColor> for Theme {
     /// Access the color value for the default color.
     fn index(&self, index: DefaultColor) -> &Self::Output {
         match index {
-            DefaultColor::Foreground => &self.foreground,
-            DefaultColor::Background => &self.background,
+            DefaultColor::Foreground => &self.colors[0],
+            DefaultColor::Background => &self.colors[1],
         }
     }
 }
@@ -582,8 +565,8 @@ impl std::ops::IndexMut<DefaultColor> for Theme {
     /// Mutably access the color value for the default color.
     fn index_mut(&mut self, index: DefaultColor) -> &mut Self::Output {
         match index {
-            DefaultColor::Foreground => &mut self.foreground,
-            DefaultColor::Background => &mut self.background,
+            DefaultColor::Foreground => &mut self.colors[0],
+            DefaultColor::Background => &mut self.colors[1],
         }
     }
 }
@@ -593,52 +576,14 @@ impl std::ops::Index<AnsiColor> for Theme {
 
     /// Access the color value for the ANSI color.
     fn index(&self, index: AnsiColor) -> &Self::Output {
-        use AnsiColor::*;
-
-        match index {
-            Black => &self.black,
-            Red => &self.red,
-            Green => &self.green,
-            Yellow => &self.yellow,
-            Blue => &self.blue,
-            Magenta => &self.magenta,
-            Cyan => &self.cyan,
-            White => &self.white,
-            BrightBlack => &self.bright_black,
-            BrightRed => &self.bright_red,
-            BrightGreen => &self.bright_green,
-            BrightYellow => &self.bright_yellow,
-            BrightBlue => &self.bright_blue,
-            BrightMagenta => &self.bright_magenta,
-            BrightCyan => &self.bright_cyan,
-            BrightWhite => &self.bright_white,
-        }
+        &self.colors[2 + index as usize]
     }
 }
 
 impl std::ops::IndexMut<AnsiColor> for Theme {
     /// Mutably access the color value for the ANSI color.
     fn index_mut(&mut self, index: AnsiColor) -> &mut Self::Output {
-        use AnsiColor::*;
-
-        match index {
-            Black => &mut self.black,
-            Red => &mut self.red,
-            Green => &mut self.green,
-            Yellow => &mut self.yellow,
-            Blue => &mut self.blue,
-            Magenta => &mut self.magenta,
-            Cyan => &mut self.cyan,
-            White => &mut self.white,
-            BrightBlack => &mut self.bright_black,
-            BrightRed => &mut self.bright_red,
-            BrightGreen => &mut self.bright_green,
-            BrightYellow => &mut self.bright_yellow,
-            BrightBlue => &mut self.bright_blue,
-            BrightMagenta => &mut self.bright_magenta,
-            BrightCyan => &mut self.bright_cyan,
-            BrightWhite => &mut self.bright_white,
-        }
+        &mut self.colors[2 + index as usize]
     }
 }
 
@@ -648,37 +593,37 @@ impl std::ops::IndexMut<AnsiColor> for Theme {
 /// as for testing. It uses the colors of [VGA text
 /// mode](https://en.wikipedia.org/wiki/ANSI_escape_code#3-bit_and_4-bit).
 pub const DEFAULT_THEME: Theme = Theme {
-    foreground: Color::new(ColorSpace::Srgb, 0.0, 0.0, 0.0),
-    background: Color::new(ColorSpace::Srgb, 1.0, 1.0, 1.0),
-    black: Color::new(ColorSpace::Srgb, 0.0, 0.0, 0.0),
-    red: Color::new(ColorSpace::Srgb, 0.666666666666667, 0.0, 0.0),
-    green: Color::new(ColorSpace::Srgb, 0.0, 0.666666666666667, 0.0),
-    yellow: Color::new(ColorSpace::Srgb, 0.666666666666667, 0.333333333333333, 0.0),
-    blue: Color::new(ColorSpace::Srgb, 0.0, 0.0, 0.666666666666667),
-    magenta: Color::new(ColorSpace::Srgb, 0.666666666666667, 0.0, 0.666666666666667),
-    cyan: Color::new(ColorSpace::Srgb, 0.0, 0.666666666666667, 0.666666666666667),
-    white: Color::new(
-        ColorSpace::Srgb,
-        0.666666666666667,
-        0.666666666666667,
-        0.666666666666667,
-    ),
-    bright_black: Color::new(
-        ColorSpace::Srgb,
-        0.333333333333333,
-        0.333333333333333,
-        0.333333333333333,
-    ),
-    bright_red: Color::new(ColorSpace::Srgb, 1.0, 0.333333333333333, 0.333333333333333),
-    bright_green: Color::new(ColorSpace::Srgb, 0.333333333333333, 1.0, 0.333333333333333),
-    bright_yellow: Color::new(ColorSpace::Srgb, 1.0, 1.0, 0.333333333333333),
-    bright_blue: Color::new(ColorSpace::Srgb, 0.333333333333333, 0.333333333333333, 1.0),
-    bright_magenta: Color::new(ColorSpace::Srgb, 1.0, 0.333333333333333, 1.0),
-    bright_cyan: Color::new(ColorSpace::Srgb, 0.333333333333333, 1.0, 1.0),
-    bright_white: Color::new(ColorSpace::Srgb, 1.0, 1.0, 1.0),
+    colors: [
+        Color::new(ColorSpace::Srgb, 0.0, 0.0, 0.0),
+        Color::new(ColorSpace::Srgb, 1.0, 1.0, 1.0),
+        Color::new(ColorSpace::Srgb, 0.0, 0.0, 0.0),
+        Color::new(ColorSpace::Srgb, 0.666666666666667, 0.0, 0.0),
+        Color::new(ColorSpace::Srgb, 0.0, 0.666666666666667, 0.0),
+        Color::new(ColorSpace::Srgb, 0.666666666666667, 0.333333333333333, 0.0),
+        Color::new(ColorSpace::Srgb, 0.0, 0.0, 0.666666666666667),
+        Color::new(ColorSpace::Srgb, 0.666666666666667, 0.0, 0.666666666666667),
+        Color::new(ColorSpace::Srgb, 0.0, 0.666666666666667, 0.666666666666667),
+        Color::new(
+            ColorSpace::Srgb,
+            0.666666666666667,
+            0.666666666666667,
+            0.666666666666667,
+        ),
+        Color::new(
+            ColorSpace::Srgb,
+            0.333333333333333,
+            0.333333333333333,
+            0.333333333333333,
+        ),
+        Color::new(ColorSpace::Srgb, 1.0, 0.333333333333333, 0.333333333333333),
+        Color::new(ColorSpace::Srgb, 0.333333333333333, 1.0, 0.333333333333333),
+        Color::new(ColorSpace::Srgb, 1.0, 1.0, 0.333333333333333),
+        Color::new(ColorSpace::Srgb, 0.333333333333333, 0.333333333333333, 1.0),
+        Color::new(ColorSpace::Srgb, 1.0, 0.333333333333333, 1.0),
+        Color::new(ColorSpace::Srgb, 0.333333333333333, 1.0, 1.0),
+        Color::new(ColorSpace::Srgb, 1.0, 1.0, 1.0),
+    ],
 };
-
-// https://stackoverflow.com/questions/74085531/alternative-to-static-mut-and-unsafe-while-managing-global-application-state
 
 // ====================================================================================================================
 // More Conversions
@@ -721,7 +666,6 @@ impl TrueColor {
     /// <div class=color-swatch>
     /// <div style="background-color: #ff7f50;"></div>
     /// </div>
-
     pub fn from_color(color: &Color) -> Self {
         let color = color.to(ColorSpace::Srgb).map_to_gamut();
         let [r, g, b] = color.coordinates();
