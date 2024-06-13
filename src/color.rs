@@ -7,8 +7,8 @@ use self::core::{
     to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
 };
 pub use self::core::{ColorSpace, OkVersion};
-use super::serde::parse;
-pub use super::serde::ColorFormatError;
+use super::parser::parse;
+pub use super::parser::ColorFormatError;
 use super::util::Coordinate;
 
 /// A high-resolution color object.

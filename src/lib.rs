@@ -503,7 +503,7 @@
 //! comparable color space (Oklrab and Oklrch).
 
 mod color;
-mod serde;
+mod parser;
 mod term_color;
 mod util;
 
@@ -519,7 +519,7 @@ pub use term_color::EmbeddedRgb;
 pub use term_color::GrayGradient;
 pub use term_color::TrueColor;
 
-pub use serde::ColorFormatError;
+pub use parser::ColorFormatError;
 pub use term_color::OutOfBoundsError;
 
 // ====================================================================================================================
