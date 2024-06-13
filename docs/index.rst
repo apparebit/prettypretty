@@ -11,6 +11,11 @@ theme, dark or light mode, and color preferences. So, what are you waiting for?
 Switch to prettypretty for all your terminal styling needs. Prettypretty is
 awesome!
 
+The Rust version of prettypretty has its own package, uhm, `crate
+<https://crates.io/crates/prettypretty>`_ and its own `documentation
+<https://docs.rs/prettypretty/latest/prettypretty/index.html>`_. The latter even
+includes color swatches with the example code.
+
 .. image:: https://github.com/apparebit/prettypretty/actions/workflows/ci.yml/badge.svg
 
 .. image:: https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg
