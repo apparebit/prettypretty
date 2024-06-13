@@ -519,8 +519,9 @@ pub use term_color::EmbeddedRgb;
 pub use term_color::GrayGradient;
 pub use term_color::TrueColor;
 
-pub use parser::ColorFormatError;
-pub use term_color::OutOfBoundsError;
+pub use util::ColorFormatError;
+pub use util::OutOfBoundsError;
+pub use util::Error;
 
 // ====================================================================================================================
 // Color Themes

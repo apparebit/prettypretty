@@ -6,55 +6,7 @@
 //! three coordinates do not use floating point but integral numbers drawn from
 //! a specific range.
 
-// ====================================================================================================================
-// Errors
-// ====================================================================================================================
-
-use super::util::Coordinate;
-use std::ops::RangeInclusive;
-
-/// An out-of-bounds error.
-///
-/// Trying to convert an invalid byte value to a terminal color results in an
-/// out-of-bounds error. It combines the invalid value with the expected range
-/// of values. The following ranges occur in practice:
-///
-///   * `0..=5` for individual coordinates of the embedded RGB cube;
-///   * `0..=15` for the 16 extended ANSI colors;
-///   * `16..=215` for the 8-bit values of the embedded RGB cube;
-///   * `232..=255` for the 24-step gray gradient.
-#[derive(Clone, Debug)]
-pub struct OutOfBoundsError {
-    pub value: u32,
-    pub expected: RangeInclusive<u8>,
-}
-
-impl OutOfBoundsError {
-    /// Create a new out-of-bounds error from an unsigned byte value. This
-    /// constructor takes care of the common case where the value has the
-    /// smallest unsigned integer type.
-    pub const fn from_u8(value: u8, expected: RangeInclusive<u8>) -> Self {
-        Self {
-            value: value as u32,
-            expected,
-        }
-    }
-}
-
-impl std::fmt::Display for OutOfBoundsError {
-    /// Format this out-of-bounds error.
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "{} should fit into range {}..={}",
-            self.value,
-            self.expected.start(),
-            self.expected.end()
-        )
-    }
-}
-
-impl std::error::Error for OutOfBoundsError {}
+use super::util::{Coordinate, OutOfBoundsError};
 
 // ====================================================================================================================
 // Ansi Color

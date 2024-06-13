@@ -8,8 +8,7 @@ use self::core::{
 };
 pub use self::core::{ColorSpace, OkVersion};
 use super::parser::parse;
-pub use super::parser::ColorFormatError;
-use super::util::Coordinate;
+use super::util::{ColorFormatError, Coordinate};
 
 /// A high-resolution color object.
 ///
