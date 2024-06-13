@@ -1,11 +1,3 @@
-/// A safe, symbolic index for the three color coordinates.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Coordinate {
-    C1 = 0,
-    C2 = 1,
-    C3 = 2,
-}
-
 /// Determine whether the two floating point numbers are almost equal. This
 /// function returns `true` if both arguments are not-a-number, have the same
 /// value, or have the same value after rounding the 15th decimal. In other
@@ -41,7 +33,7 @@ pub(crate) fn almost_eq(n1: f64, n2: f64) -> bool {
 ///   * `232..=255` for the 24-step gray gradient.
 #[derive(Clone, Debug)]
 pub struct OutOfBoundsError {
-    pub value: u32,
+    pub value: usize,
     pub expected: std::ops::RangeInclusive<u8>,
 }
 
@@ -51,7 +43,7 @@ impl OutOfBoundsError {
     /// smallest unsigned integer type.
     pub const fn from_u8(value: u8, expected: std::ops::RangeInclusive<u8>) -> Self {
         Self {
-            value: value as u32,
+            value: value as usize,
             expected,
         }
     }
@@ -233,5 +225,32 @@ impl From<ColorFormatError> for Error {
     /// Wrap a color format error.
     fn from(err: ColorFormatError) -> Self {
         Self::String(err)
+    }
+}
+
+// ====================================================================================================================
+// Coordinates
+// ====================================================================================================================
+
+/// A safe, symbolic index for the three color coordinates.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Coordinate {
+    C1 = 0,
+    C2 = 1,
+    C3 = 2,
+}
+
+impl TryFrom<usize> for Coordinate {
+    type Error = OutOfBoundsError;
+
+    /// Convert a `usize` to a coordinate. Sorry, but the `unwrap()` panic
+    /// is on you...
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::C1),
+            1 => Ok(Self::C2),
+            2 => Ok(Self::C3),
+            _ => Err(OutOfBoundsError { value, expected: 0..=2 })
+        }
     }
 }
