@@ -62,11 +62,13 @@ fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
     Ok([c1, c2, c3])
 }
 
-const COLOR_SPACES: [(&str, ColorSpace); 8] = [
+const COLOR_SPACES: [(&str, ColorSpace); 10] = [
     ("srgb", ColorSpace::Srgb),
     ("linear-srgb", ColorSpace::LinearSrgb),
     ("display-p3", ColorSpace::DisplayP3),
     ("--linear-display-p3", ColorSpace::LinearDisplayP3),
+    ("rec2020", ColorSpace::Rec2020),
+    ("--linear-rec2020", ColorSpace::LinearRec2020),
     ("--oklrab", ColorSpace::Oklrab),
     ("--oklrch", ColorSpace::Oklrch),
     ("xyz", ColorSpace::Xyz),
@@ -75,9 +77,9 @@ const COLOR_SPACES: [(&str, ColorSpace); 8] = [
 
 /// Parse a subset of valid CSS color formats. This function recognizes only the
 /// `oklab()`, `oklch()`, and `color()` functions. The color space for the
-/// latter must be `srgb`, `linear-srgb`, `display-p3`, `xyz`, or one of the
-/// non-standard color spaces `--linear-display-p3`, `--oklrab`, and `--oklrch`.
-/// Coordinates must not have units including `%`.
+/// latter must be `srgb`, `linear-srgb`, `display-p3`, `rec2020`, `xyz`, or one
+/// of the non-standard color spaces `--linear-display-p3`, `--linear-rec2020`,
+/// `--oklrab`, and `--oklrch`. Coordinates must not have units including `%`.
 fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
     use ColorSpace::*;
 
@@ -99,11 +101,12 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
         .ok_or(ColorFormatError::NoClosingParenthesis)?;
 
     let (space, body) = if let Some(s) = space {
-        (s, rest)  // Pass through
+        (s, rest) // Pass through
     } else {
         // Munge color space
         let rest = rest.trim_start();
-        COLOR_SPACES.iter()
+        COLOR_SPACES
+            .iter()
             .filter_map(|(p, s)| rest.strip_prefix(p).map(|r| (*s, r)))
             .next()
             .ok_or(ColorFormatError::UnknownColorSpace)?
@@ -156,7 +159,7 @@ pub(crate) fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError>
 #[cfg(test)]
 mod test {
     use super::ColorSpace::*;
-    use super::{parse_css, parse_hashed, parse_x, parse, ColorFormatError};
+    use super::{parse, parse_css, parse_hashed, parse_x, ColorFormatError};
 
     #[test]
     fn test_parse_hashed() -> Result<(), ColorFormatError> {
