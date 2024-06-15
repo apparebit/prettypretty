@@ -250,7 +250,10 @@ impl TryFrom<usize> for Coordinate {
             0 => Ok(Self::C1),
             1 => Ok(Self::C2),
             2 => Ok(Self::C3),
-            _ => Err(OutOfBoundsError { value, expected: 0..=2 })
+            _ => Err(OutOfBoundsError {
+                value,
+                expected: 0..=2,
+            }),
         }
     }
 }
