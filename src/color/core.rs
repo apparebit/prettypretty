@@ -89,6 +89,14 @@ pub enum ColorSpace {
     /// The linear version of Display P3.
     LinearDisplayP3,
 
+    /// [Rec. 2020](https://en.wikipedia.org/wiki/Rec._2020) is the standard
+    /// color space for ultra-high-definition (UHD) video, including 4K UHD and
+    /// 8K UHD, and has an even wider gamut than Display P3.
+    Rec2020,
+
+    /// The linear version of Rec. 2020.
+    LinearRec2020,
+
     /// [Oklab](https://bottosson.github.io/posts/oklab/) is a perceptually
     /// uniform color space that improves upon CIELAB.
     Oklab,
@@ -124,14 +132,20 @@ impl ColorSpace {
     /// in unit range `0..=1`.
     pub const fn is_rgb(&self) -> bool {
         use ColorSpace::*;
-        matches!(*self, Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3)
+        matches!(
+            *self,
+            Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3 | Rec2020 | LinearRec2020
+        )
     }
 
     /// Determine whether this color space is bounded. XYZ and the Okl** color
     /// spaces are *unbounded*, whereas the RGB color spaces are *bounded*.
     pub const fn is_bounded(&self) -> bool {
         use ColorSpace::*;
-        matches!(*self, Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3)
+        matches!(
+            *self,
+            Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3 | Rec2020 | LinearRec2020
+        )
     }
 }
 
@@ -162,6 +176,34 @@ impl OkVersion {
             Self::Revised => ColorSpace::Oklrch,
         }
     }
+}
+
+// ====================================================================================================================
+// Representation
+// ====================================================================================================================
+
+/// Convert the given 24-bit coordinates to floating point coordinates. As part
+/// of conversion, this function scales coordinates by 1/255.0.
+pub(crate) fn from_24_bit(r: u8, g: u8, b: u8) -> [f64; 3] {
+    [r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0]
+}
+
+/// If the given color space is an RGB color space and the given coordinates are
+/// in-gamut, convert them to 24-bit representation. Otherwise, return `None`.
+pub(crate) fn to_24_bit(space: ColorSpace, coordinates: &[f64; 3]) -> Option<[u8; 3]> {
+    if space.is_rgb() {
+        let [r, g, b] = coordinates;
+
+        if (0.0..=1.0).contains(r) && (0.0..=1.0).contains(g) && (0.0..=1.0).contains(b) {
+            return Some([
+                (r * 255.0).round() as u8,
+                (g * 255.0).round() as u8,
+                (b * 255.0).round() as u8,
+            ]);
+        }
+    }
+
+    None
 }
 
 // ====================================================================================================================
@@ -369,6 +411,79 @@ fn xyz_to_linear_display_p3(value: &[f64; 3]) -> [f64; 3] {
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+// https://github.com/color-js/color.js/blob/main/src/spaces/rec2020.js
+
+mod rec2020 {
+    const ALPHA: f64 = 1.09929682680944;
+    const BETA: f64 = 0.018053968510807;
+
+    /// Convert coordinates for Rec. 2020 to linear Rec. 2020. This is a
+    /// one-hop, direct conversion.
+    #[inline]
+    pub(crate) fn rec2020_to_linear_rec2020(value: &[f64; 3]) -> [f64; 3] {
+        #[inline]
+        fn convert(value: f64) -> f64 {
+            if value < BETA * 4.5 {
+                value / 4.5
+            } else {
+                ((value + ALPHA - 1.0) / ALPHA).powf(0.45_f64.recip())
+            }
+        }
+
+        [convert(value[0]), convert(value[1]), convert(value[2])]
+    }
+
+    /// Convert coordinates for linear Rec. 2020 to Rec. 2020. This is a
+    /// one-hop, direct conversion.
+    #[inline]
+    pub(crate) fn linear_rec2020_to_rec2020(value: &[f64; 3]) -> [f64; 3] {
+        #[inline]
+        fn convert(value: f64) -> f64 {
+            if value < BETA {
+                value * 4.5
+            } else {
+                ALPHA * value.powf(0.45) - (ALPHA - 1.0)
+            }
+        }
+
+        [convert(value[0]), convert(value[1]), convert(value[2])]
+    }
+}
+
+use rec2020::{linear_rec2020_to_rec2020, rec2020_to_linear_rec2020};
+
+// --------------------------------------------------------------------------------------------------------------------
+// https://github.com/color-js/color.js/blob/main/src/spaces/rec2020-linear.js
+
+#[rustfmt::skip]
+const LINEAR_REC2020_TO_XYZ: [[f64; 3]; 3] = [
+	[ 0.6369580483012914, 0.14461690358620832,  0.1688809751641721  ],
+	[ 0.2627002120112671, 0.6779980715188708,   0.05930171646986196 ],
+	[ 0.000000000000000,  0.028072693049087428, 1.060985057710791   ],
+];
+
+/// Convert coordinates for linear Rec. 2020 to XYZ. This is a one-hop, direct
+/// conversion.
+#[inline]
+fn linear_rec2020_to_xyz(value: &[f64; 3]) -> [f64; 3] {
+    multiply(&LINEAR_REC2020_TO_XYZ, value)
+}
+
+#[rustfmt::skip]
+const XYZ_TO_LINEAR_REC2020: [[f64; 3]; 3] = [
+	[  1.716651187971268,  -0.355670783776392, -0.253366281373660  ],
+	[ -0.666684351832489,   1.616481236634939,  0.0157685458139111 ],
+	[  0.017639857445311,  -0.042770613257809,  0.942103121235474  ],
+];
+
+/// Convert coordinates for XYZ to linear Rec. 2020. This is a one-hop, direct
+/// conversion.
+#[inline]
+fn xyz_to_linear_rec2020(value: &[f64; 3]) -> [f64; 3] {
+    multiply(&XYZ_TO_LINEAR_REC2020, value)
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 
 /// Convert coordinates for Oklch to Oklab or for Oklrch to Oklrab. This is a
 /// one-hop, direct conversion.
@@ -522,6 +637,20 @@ fn xyz_to_display_p3(value: &[f64; 3]) -> [f64; 3] {
     linear_rgb_to_rgb(&linear_p3)
 }
 
+/// Convert coordinates for Rec. 2020 to XYZ. This is a two-hop conversion.
+#[inline]
+fn rec2020_to_xyz(value: &[f64; 3]) -> [f64; 3] {
+    let linear_rec2020 = rec2020_to_linear_rec2020(value);
+    linear_rec2020_to_xyz(&linear_rec2020)
+}
+
+/// Convert coordinates for XYZ to Rec. 2020. This is a two-hop conversion.
+#[inline]
+fn xyz_to_rec2020(value: &[f64; 3]) -> [f64; 3] {
+    let linear_rec2020 = xyz_to_linear_rec2020(value);
+    linear_rec2020_to_rec2020(&linear_rec2020)
+}
+
 /// Convert coordinates for Oklch to XYZ. This is a two-hop conversion.
 #[inline]
 fn oklch_to_xyz(value: &[f64; 3]) -> [f64; 3] {
@@ -609,17 +738,21 @@ pub(crate) fn convert(
 
     // 2. Handle single-branch conversions, ignoring root
     match (from_space, to_space) {
-        // Single-hop RGB conversions
+        // Single-hop sRGB and P3 conversions
         (Srgb, LinearSrgb) | (DisplayP3, LinearDisplayP3) => return rgb_to_linear_rgb(coordinates),
         (LinearSrgb, Srgb) | (LinearDisplayP3, DisplayP3) => return linear_rgb_to_rgb(coordinates),
 
-        // Single-hop Ok* conversions
+        // Single-hop Rec2020 conversions
+        (Rec2020, LinearRec2020) => return rec2020_to_linear_rec2020(coordinates),
+        (LinearRec2020, Rec2020) => return linear_rec2020_to_rec2020(coordinates),
+
+        // Single-hop Ok*** conversions
         (Oklch, Oklab) | (Oklrch, Oklrab) => return oklch_to_oklab(coordinates),
         (Oklab, Oklch) | (Oklrab, Oklrch) => return oklab_to_oklch(coordinates),
         (Oklab, Oklrab) | (Oklch, Oklrch) => return oklab_to_oklrab(coordinates),
         (Oklrab, Oklab) | (Oklrch, Oklch) => return oklrab_to_oklab(coordinates),
 
-        // Two-hop Ok* conversions
+        // Two-hop Ok*** conversions
         (Oklrch, Oklab) => return oklrch_to_oklab(coordinates),
         (Oklch, Oklrab) => return oklch_to_oklrab(coordinates),
         (Oklab, Oklrch) => return oklab_to_oklrch(coordinates),
@@ -633,6 +766,8 @@ pub(crate) fn convert(
         LinearSrgb => linear_srgb_to_xyz(coordinates),
         DisplayP3 => display_p3_to_xyz(coordinates),
         LinearDisplayP3 => linear_display_p3_to_xyz(coordinates),
+        Rec2020 => rec2020_to_xyz(coordinates),
+        LinearRec2020 => linear_rec2020_to_xyz(coordinates),
         Oklch => oklch_to_xyz(coordinates),
         Oklab => oklab_to_xyz(coordinates),
         Oklrch => oklrch_to_xyz(coordinates),
@@ -646,6 +781,8 @@ pub(crate) fn convert(
         LinearSrgb => xyz_to_linear_srgb(&intermediate),
         DisplayP3 => xyz_to_display_p3(&intermediate),
         LinearDisplayP3 => xyz_to_linear_display_p3(&intermediate),
+        Rec2020 => xyz_to_rec2020(&intermediate),
+        LinearRec2020 => xyz_to_linear_rec2020(&intermediate),
         Oklch => xyz_to_oklch(&intermediate),
         Oklab => xyz_to_oklab(&intermediate),
         Oklrch => xyz_to_oklrch(&intermediate),
@@ -660,26 +797,20 @@ pub(crate) fn convert(
 
 /// Determine whether the coordinates are in gamut for the color space.
 pub(crate) fn in_gamut(space: ColorSpace, coordinates: &[f64; 3]) -> bool {
-    use ColorSpace::*;
-
-    match space {
-        Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3 => {
-            coordinates.iter().all(|c| 0.0 <= *c && *c <= 1.0)
-        }
-        _ => true,
+    if space.is_rgb() {
+        coordinates.iter().all(|c| 0.0 <= *c && *c <= 1.0)
+    } else {
+        true
     }
 }
 
 /// Clip the coordinates to the gamut of the color space.
 pub(crate) fn clip(space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
-    use ColorSpace::*;
-
-    match space {
-        Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3 => {
-            let [r, g, b] = *coordinates;
-            [r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)]
-        }
-        _ => *coordinates,
+    if space.is_rgb() {
+        let [r, g, b] = *coordinates;
+        [r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)]
+    } else {
+        *coordinates
     }
 }
 
@@ -856,6 +987,23 @@ mod contrast {
 pub(crate) use contrast::{to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST};
 
 // ====================================================================================================================
+// Color Lightness
+// ====================================================================================================================
+
+/// After converting to Oklrch, scale the color's lightness by the given factor.
+#[inline]
+#[allow(non_snake_case)]
+pub(crate) fn scale_lightness(space: ColorSpace, coordinates: &[f64; 3], factor: f64) -> [f64; 3] {
+    let [Lr, C, h] = if space == ColorSpace::Oklrch {
+        *coordinates
+    } else {
+        convert(space, ColorSpace::Oklrch, coordinates)
+    };
+
+    [factor * Lr, C, h]
+}
+
+// ====================================================================================================================
 
 #[cfg(test)]
 mod test {
@@ -870,6 +1018,8 @@ mod test {
         linear_srgb: [f64; 3],
         p3: [f64; 3],
         linear_p3: [f64; 3],
+        rec2020: [f64; 3],
+        linear_rec2020: [f64; 3],
         oklch: [f64; 3],
         oklab: [f64; 3],
         oklrch: [f64; 3],
@@ -883,6 +1033,8 @@ mod test {
         linear_srgb: [0.0, 0.0, 0.0],
         p3: [0.0, 0.0, 0.0],
         linear_p3: [0.0, 0.0, 0.0],
+        rec2020: [0.0, 0.0, 0.0],
+        linear_rec2020: [0.0, 0.0, 0.0],
         oklch: [0.0, 0.0, f64::NAN],
         oklab: [0.0, 0.0, 0.0],
         oklrch: [0.0, 0.0, f64::NAN],
@@ -896,6 +1048,8 @@ mod test {
         linear_srgb: [1.0, 0.5906188409193369, 0.0],
         p3: [0.967346220711791, 0.8002244967941964, 0.27134084647161244],
         linear_p3: [0.9273192749713864, 0.6042079205196976, 0.059841923211596565],
+        rec2020: [0.9071245864481046, 0.7821891940186851, 0.22941491945066222],
+        linear_rec2020: [0.8218846623958427, 0.6121951716762088, 0.0683737567590739],
         oklch: [0.8613332073307732, 0.1760097742886813, 89.440876452466],
         oklab: [
             0.8613332073307732,
@@ -921,6 +1075,8 @@ mod test {
         ],
         p3: [0.26851535563550943, 0.4644576150842869, 0.8876966971452301],
         linear_p3: [0.058605969547446124, 0.18260572039525869, 0.763285235993837],
+        rec2020: [0.318905170074285, 0.4141244051667745, 0.8687817570254107],
+        linear_rec2020: [0.11675330225613656, 0.18417975425846383, 0.7539171810709095],
         oklch: [0.5909012953108558, 0.18665606306724153, 259.66681920272595],
         oklab: [
             0.5909012953108558,
@@ -942,6 +1098,8 @@ mod test {
         linear_srgb: [1.0, 1.0, 1.0],
         p3: [0.9999999999999999, 0.9999999999999997, 0.9999999999999999],
         linear_p3: [1.0, 0.9999999999999998, 1.0],
+        rec2020: [1.0000000000000002, 1.0, 1.0],
+        linear_rec2020: [1.0000000000000004, 1.0, 0.9999999999999999],
         oklch: [1.0000000000000002, 0.0, f64::NAN],
         oklab: [1.0000000000000002, -4.996003610813204e-16, 0.0],
         xyz: [0.9504559270516717, 1.0, 1.0890577507598784],
@@ -1025,6 +1183,26 @@ mod test {
                 &linear_p3
             ));
 
+            let linear_rec2020 = xyz_to_linear_rec2020(&xyz);
+            assert!(same_coordinates(
+                LinearRec2020,
+                &linear_rec2020,
+                &color.linear_rec2020
+            ));
+
+            let and_also_xyz = linear_rec2020_to_xyz(&linear_rec2020);
+            assert!(same_coordinates(Xyz, &and_also_xyz, &xyz));
+
+            let rec2020 = linear_rec2020_to_rec2020(&linear_rec2020);
+            assert!(same_coordinates(Rec2020, &rec2020, &color.rec2020));
+
+            let also_linear_rec2020 = rec2020_to_linear_rec2020(&rec2020);
+            assert!(same_coordinates(
+                LinearRec2020,
+                &also_linear_rec2020,
+                &linear_rec2020
+            ));
+
             let oklab = xyz_to_oklab(&xyz);
             assert!(same_coordinates(Oklab, &oklab, &color.oklab));
 
@@ -1038,7 +1216,6 @@ mod test {
             assert!(same_coordinates(Oklab, &also_oklab, &oklab));
 
             let oklrab = oklab_to_oklrab(&oklab);
-
             assert!(same_coordinates(Oklrab, &oklrab, &color.oklrab));
 
             let oklab_too = oklrab_to_oklab(&oklrab);
