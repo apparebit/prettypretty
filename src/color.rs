@@ -3,8 +3,8 @@
 mod core;
 
 use self::core::{
-    clip, convert, delta_e_ok, in_gamut, map_to_gamut, normalize, to_contrast,
-    to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
+    clip, convert, delta_e_ok, from_24_bit, in_gamut, map_to_gamut, normalize, scale_lightness,
+    to_24_bit, to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
 };
 pub use self::core::{ColorSpace, OkVersion};
 use super::parser::parse;
@@ -232,10 +232,10 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: #ff9300;"></div>
     /// </div>
-    pub fn from_24_bit(r: impl Into<f64>, g: impl Into<f64>, b: impl Into<f64>) -> Self {
+    pub fn from_24_bit(r: u8, g: u8, b: u8) -> Self {
         Color {
             space: ColorSpace::Srgb,
-            coordinates: [r.into() / 255.0, g.into() / 255.0, b.into() / 255.0],
+            coordinates: from_24_bit(r, g, b),
         }
     }
 
@@ -247,16 +247,7 @@ impl Color {
     /// convert a color to the desired target RGB color space (sRGB, Display P3,
     /// or one of their linear variants) before invoking this method.
     pub fn to_24_bit(&self) -> Option<[u8; 3]> {
-        if self.space.is_rgb() && self.in_gamut() {
-            let [r, g, b] = self.coordinates;
-            Some([
-                (r * 255.0).round() as u8,
-                (g * 255.0).round() as u8,
-                (b * 255.0).round() as u8,
-            ])
-        } else {
-            None
-        }
+        to_24_bit(self.space, &self.coordinates)
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -336,11 +327,9 @@ impl Color {
     /// </div>
     #[allow(non_snake_case)]
     pub fn lighten(&self, factor: f64) -> Color {
-        let origin = self.to(ColorSpace::Oklrch);
-        let [Lr, C, h] = origin.coordinates;
         Color {
-            space: origin.space,
-            coordinates: [factor * Lr, C, h],
+            space: ColorSpace::Oklrch,
+            coordinates: scale_lightness(self.space, &self.coordinates, factor),
         }
     }
 
@@ -351,7 +340,10 @@ impl Color {
     /// # Example
     #[inline]
     pub fn darken(&self, factor: f64) -> Color {
-        self.lighten(factor.recip())
+        Color {
+            space: ColorSpace::Oklrch,
+            coordinates: scale_lightness(self.space, &self.coordinates, factor.recip()),
+        }
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -737,10 +729,11 @@ impl std::str::FromStr for Color {
     /// particular, it recognizes the `color()`, `oklab()`, and `oklch` CSS
     /// functions (all lowercase). For `color()`, the color space right after
     /// the opening parenthesis must be `srgb`, `linear-srgb`, `display-p3`,
-    /// `xyz`, `--linear-display-p3`, `--oklrab`, or `--oklrch`. As indicated by
-    /// the leading double-dashes, the latter three color space names are
-    /// non-standard. Coordinates must be space-separated and unitless (i.e., no
-    /// percentages).
+    /// `--linear-display-p3`, `rec2020`, `--linear-rec2020`, `--oklrab`,
+    /// `--oklrch`, or `xyz`. As indicated by the leading double-dashes, the
+    /// linear versions of Display P3 and Rec. 2020 as well as OkLrab and Oklrch
+    /// are not included in CSS 4 Color. Coordinates must be space-separated and
+    /// unitless (i.e., no `%` or `deg`).
     ///
     /// By implementing the `FromStr` trait, `str::parse` works just the same
     /// for parsing color formats—that is, as long as type inference can
@@ -882,9 +875,9 @@ impl ColorSpace {
     /// `oklch(...)`, with the ellipsis eliding three *space-separated*
     /// coordinates. This method returns all characters up to and excluding the
     /// first coordinate but including any necessary space. Since CSS does not
-    /// currently support linear Display P3, Oklrab, and Oklrch, the names for
-    /// the CSS `color()` function are written as a custom property name, i.e.,
-    /// with two leading dashes.
+    /// currently support linear Display P3, linear Rec. 2020, Oklrab, and
+    /// Oklrch, the names for the CSS `color()` function are written as a custom
+    /// property name, i.e., with two leading dashes.
     pub const fn css_prefix(&self) -> &str {
         use ColorSpace::*;
         match *self {
@@ -892,6 +885,8 @@ impl ColorSpace {
             LinearSrgb => "color(linear-srgb ",
             DisplayP3 => "color(display-p3 ",
             LinearDisplayP3 => "color(--linear-display-p3 ",
+            Rec2020 => "color(rec2020 ",
+            LinearRec2020 => "color(--linear-rec2020 ",
             Oklab => "oklab(",
             Oklch => "oklch(",
             Oklrab => "color(--oklrab ",
