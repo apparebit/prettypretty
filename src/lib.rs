@@ -68,7 +68,7 @@
 //!
 //! Alas, it's back to sRGB for checking that thusly manipulated colors can
 //! actually be displayed in terminals. If we are targeting other platforms,
-//! such as the web, then Display P3 becomes an option, too.
+//! such as the web, then Display P3 or even Rec. 2020 become options, too.
 //!
 //!
 //! ## 2. Terminal Colors
