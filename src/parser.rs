@@ -62,6 +62,17 @@ fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
     Ok([c1, c2, c3])
 }
 
+const COLOR_SPACES: [(&str, ColorSpace); 8] = [
+    ("srgb", ColorSpace::Srgb),
+    ("linear-srgb", ColorSpace::LinearSrgb),
+    ("display-p3", ColorSpace::DisplayP3),
+    ("--linear-display-p3", ColorSpace::LinearDisplayP3),
+    ("--oklrab", ColorSpace::Oklrab),
+    ("--oklrch", ColorSpace::Oklrch),
+    ("xyz", ColorSpace::Xyz),
+    ("xyz-d65", ColorSpace::Xyz),
+];
+
 /// Parse a subset of valid CSS color formats. This function recognizes only the
 /// `oklab()`, `oklch()`, and `color()` functions. The color space for the
 /// latter must be `srgb`, `linear-srgb`, `display-p3`, `xyz`, or one of the
@@ -86,26 +97,16 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
     let rest = rest
         .strip_suffix(')')
         .ok_or(ColorFormatError::NoClosingParenthesis)?;
-    let rest = rest.trim(); // Remove whitespace from parenthesized text
 
     let (space, body) = if let Some(s) = space {
-        (s, rest)
+        (s, rest)  // Pass through
     } else {
         // Munge color space
-        let (s, r) = rest
-            .strip_prefix("srgb")
-            .map(|r| (Srgb, r))
-            .or_else(|| rest.strip_prefix("linear-srgb").map(|r| (LinearSrgb, r)))
-            .or_else(|| rest.strip_prefix("display-p3").map(|r| (DisplayP3, r)))
-            .or_else(|| {
-                rest.strip_prefix("--linear-display-p3")
-                    .map(|r| (LinearDisplayP3, r))
-            })
-            .or_else(|| rest.strip_prefix("--oklrab").map(|r| (Oklrab, r)))
-            .or_else(|| rest.strip_prefix("--oklrch").map(|r| (Oklrch, r)))
-            .or_else(|| rest.strip_prefix("xyz").map(|r| (Xyz, r)))
-            .ok_or(ColorFormatError::UnknownColorSpace)?;
-        (s, r.trim_start()) // Remove whitespace before first coordinate
+        let rest = rest.trim_start();
+        COLOR_SPACES.iter()
+            .filter_map(|(p, s)| rest.strip_prefix(p).map(|r| (*s, r)))
+            .next()
+            .ok_or(ColorFormatError::UnknownColorSpace)?
     };
 
     fn parse_coordinate(s: Option<&str>, index: usize) -> Result<f64, ColorFormatError> {
@@ -114,7 +115,7 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
             .map_err(|e| ColorFormatError::MalformedFloat(index, e))
     }
 
-    // Munge coordinates
+    // Munge coordinates. Iterator eats all leading or trailing white space.
     let mut iter = body.split_whitespace();
     let c1 = parse_coordinate(iter.next(), 0)?;
     let c2 = parse_coordinate(iter.next(), 1)?;
@@ -128,8 +129,10 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// Parse the given string as a color in hashed hexadecimal or X Windows format.
+/// Parse the given string as a color in hashed hexadecimal, X Windows, or CSS
+/// format.
 pub(crate) fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
+    let s = s.trim();
     if s.starts_with('#') {
         let [c1, c2, c3] = parse_hashed(s)?;
         Ok((
@@ -153,7 +156,7 @@ pub(crate) fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError>
 #[cfg(test)]
 mod test {
     use super::ColorSpace::*;
-    use super::{parse_css, parse_hashed, parse_x, ColorFormatError};
+    use super::{parse_css, parse_hashed, parse_x, parse, ColorFormatError};
 
     #[test]
     fn test_parse_hashed() -> Result<(), ColorFormatError> {
@@ -228,6 +231,10 @@ mod test {
         );
         assert_eq!(
             parse_css("color  (  --linear-display-p3   1  1.123  0.3333   )"),
+            Ok((LinearDisplayP3, [1.0, 1.123, 0.3333]))
+        );
+        assert_eq!(
+            parse("   color  (  --linear-display-p3   1  1.123  0.3333   )    "),
             Ok((LinearDisplayP3, [1.0, 1.123, 0.3333]))
         );
 
