@@ -446,7 +446,7 @@ mod rec2020 {
     /// Convert coordinates for Rec. 2020 to linear Rec. 2020. This is a
     /// one-hop, direct conversion.
     #[inline]
-    pub(crate) fn rec2020_to_linear_rec2020(value: &[f64; 3]) -> [f64; 3] {
+    pub(super) fn rec2020_to_linear_rec2020(value: &[f64; 3]) -> [f64; 3] {
         #[inline]
         fn convert(value: f64) -> f64 {
             if value < BETA * 4.5 {
@@ -462,7 +462,7 @@ mod rec2020 {
     /// Convert coordinates for linear Rec. 2020 to Rec. 2020. This is a
     /// one-hop, direct conversion.
     #[inline]
-    pub(crate) fn linear_rec2020_to_rec2020(value: &[f64; 3]) -> [f64; 3] {
+    pub(super) fn linear_rec2020_to_rec2020(value: &[f64; 3]) -> [f64; 3] {
         #[inline]
         fn convert(value: f64) -> f64 {
             if value < BETA {
@@ -553,7 +553,7 @@ mod oklr {
     /// This is a one-hop, direct conversion.
     #[inline]
     #[allow(non_snake_case)]
-    pub(crate) fn oklab_to_oklrab(value: &[f64; 3]) -> [f64; 3] {
+    pub(super) fn oklab_to_oklrab(value: &[f64; 3]) -> [f64; 3] {
         let k3 = (1.0 + K1) / (1.0 + K2);
         let [L, a, b] = *value;
         let k3L = k3 * L;
@@ -570,7 +570,7 @@ mod oklr {
     /// with the original lightness L. This is a one-hop, direct conversion.
     #[inline]
     #[allow(non_snake_case)]
-    pub(crate) fn oklrab_to_oklab(value: &[f64; 3]) -> [f64; 3] {
+    pub(super) fn oklrab_to_oklab(value: &[f64; 3]) -> [f64; 3] {
         let k3 = (1.0 + K1) / (1.0 + K2);
         let [Lr, a, b] = *value;
         [(Lr * (Lr + K1)) / (k3 * (Lr + K2)), a, b]
