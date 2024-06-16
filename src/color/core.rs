@@ -34,17 +34,18 @@
 /// The enumeration of supported color spaces.
 ///
 /// This crate supports several RGB color spaces representing corresponding to
-/// screen gamuts, with sRGB as easily achievable baseline, Display P3 for
-/// better quality displays, and Rec. 2020 as aspirational future possibility.
-/// Since all three are gamma-corrected, this crate also supports their linear
-/// versions.
+/// screen gamuts, with **sRGB** as easily achievable baseline, **Display P3**
+/// for better quality displays, and **Rec. 2020** as aspirational future
+/// possibility. Since all three are gamma-corrected, this crate also supports
+/// their linear versions.
 ///
 /// Next, as discussed in some detail below, it supports four variations of the
-/// Oklab perceptually uniform color space.
+/// *Oklab** perceptually uniform color space called Oklab, Oklch, Oklrab, and
+/// Oklrch.
 ///
-/// Finally, it supports the XYZ color space with a D65 standard illuminant (not
-/// D50), which serves as the common root color space when converting between
-/// the above color spaces.
+/// Finally, it supports the **XYZ** color space with a **D65** standard
+/// illuminant (not D50), which serves as the common root color space when
+/// converting between the above color spaces.
 ///
 ///
 /// # The Oklab Variations
@@ -174,7 +175,7 @@ pub enum OkVersion {
 impl OkVersion {
     /// Determine the Cartesion color space corresponding to this version of the
     /// Oklab color spaces.
-    pub fn cartesian_space(&self) -> ColorSpace {
+    pub const fn cartesian_space(&self) -> ColorSpace {
         match *self {
             Self::Original => ColorSpace::Oklab,
             Self::Revised => ColorSpace::Oklrab,
@@ -183,7 +184,7 @@ impl OkVersion {
 
     /// Determine the polar color space corresponding to this version of the
     /// Oklab color space.
-    pub fn polar_space(&self) -> ColorSpace {
+    pub const fn polar_space(&self) -> ColorSpace {
         match *self {
             Self::Original => ColorSpace::Oklch,
             Self::Revised => ColorSpace::Oklrch,
