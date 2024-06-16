@@ -396,12 +396,15 @@
 //! assert_eq!(TrueColor::from(gray), TrueColor::new(188, 188, 188));
 //!
 //! let green = EightBitColor::from(71);
-//! assert!(green.is_rgb());
-//! let green = green.rgb().unwrap();
-//! assert_eq!(green[0], 1);
-//! assert_eq!(green[1], 3);
-//! assert_eq!(green[2], 1);
-//! assert_eq!(TrueColor::from(green), TrueColor::new(95, 175, 95));
+//! assert!(matches!(green, EightBitColor::Rgb(_)));
+//! if let EightBitColor::Rgb(also_green) = green {
+//!     assert_eq!(also_green[0], 1);
+//!     assert_eq!(also_green[1], 3);
+//!     assert_eq!(also_green[2], 1);
+//!     assert_eq!(TrueColor::from(also_green), TrueColor::new(95, 175, 95));
+//! } else {
+//!     unreachable!("green is an embedded RGB color")
+//! }
 //! ```
 //! <div class=color-swatch>
 //! <div style="background: repeating-linear-gradient(45deg, #fff, #fff 10px, #fdd 10px, #fdd 20px);">

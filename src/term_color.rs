@@ -345,50 +345,6 @@ pub enum EightBitColor {
     Gray(GrayGradient),
 }
 
-impl EightBitColor {
-    /// Determine whether this 8-bit color is an ANSI color.
-    pub fn is_ansi(&self) -> bool {
-        matches!(*self, Self::Ansi(_))
-    }
-
-    /// Access this 8-bit color as an ANSI color.
-    pub fn ansi(&self) -> Option<AnsiColor> {
-        if let Self::Ansi(color) = *self {
-            Some(color)
-        } else {
-            None
-        }
-    }
-
-    /// Determine whether this 8-bit color is an embedded RGB color.
-    pub fn is_rgb(&self) -> bool {
-        matches!(*self, Self::Rgb(_))
-    }
-
-    /// Access this 8-bit color as an embedded RGB color.
-    pub fn rgb(&self) -> Option<EmbeddedRgb> {
-        if let Self::Rgb(color) = *self {
-            Some(color)
-        } else {
-            None
-        }
-    }
-
-    /// Determine whether this 8-bit color is a gray gradient.
-    pub fn is_gray(&self) -> bool {
-        matches!(self, Self::Gray(_))
-    }
-
-    /// Access this 8-bit color as a gray gradient.
-    pub fn gray(&self) -> Option<GrayGradient> {
-        if let Self::Gray(color) = *self {
-            Some(color)
-        } else {
-            None
-        }
-    }
-}
-
 impl From<u8> for EightBitColor {
     /// Convert an unsigned byte to an 8-bit color.
     fn from(value: u8) -> Self {
