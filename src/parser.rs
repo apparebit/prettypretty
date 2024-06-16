@@ -46,7 +46,6 @@ fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
         }
 
         let n = u16::from_str_radix(t, 16).map_err(|e| ColorFormatError::MalformedHex(index, e))?;
-
         Ok((t.len() as u8, n))
     }
 
@@ -95,10 +94,11 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
     let rest = rest
         .trim_start()
         .strip_prefix('(')
-        .ok_or(ColorFormatError::NoOpeningParenthesis)?;
-    let rest = rest
-        .strip_suffix(')')
-        .ok_or(ColorFormatError::NoClosingParenthesis)?;
+        .ok_or(ColorFormatError::NoOpeningParenthesis)
+        .and_then(|rest| {
+            rest.strip_suffix(')')
+                .ok_or(ColorFormatError::NoClosingParenthesis)
+        })?;
 
     let (space, body) = if let Some(s) = space {
         (s, rest) // Pass through
@@ -108,14 +108,17 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
         COLOR_SPACES
             .iter()
             .filter_map(|(p, s)| rest.strip_prefix(p).map(|r| (*s, r)))
-            .next()
+            .next() // Take first (and only) result
             .ok_or(ColorFormatError::UnknownColorSpace)?
     };
 
+    #[inline]
     fn parse_coordinate(s: Option<&str>, index: usize) -> Result<f64, ColorFormatError> {
-        let t = s.ok_or(ColorFormatError::MissingCoordinate(index))?;
-        t.parse()
-            .map_err(|e| ColorFormatError::MalformedFloat(index, e))
+        s.ok_or(ColorFormatError::MissingCoordinate(index))
+            .and_then(|t| {
+                t.parse()
+                    .map_err(|e| ColorFormatError::MalformedFloat(index, e))
+            })
     }
 
     // Munge coordinates. Iterator eats all leading or trailing white space.
@@ -143,8 +146,8 @@ pub(crate) fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError>
             [c1 as f64 / 255.0, c2 as f64 / 255.0, c3 as f64 / 255.0],
         ))
     } else if s.starts_with("rgb:") {
-        fn scale(coordinate: (u8, u16)) -> f64 {
-            coordinate.1 as f64 / (16_i32.pow(coordinate.0 as u32) - 1) as f64
+        fn scale(len_and_value: (u8, u16)) -> f64 {
+            len_and_value.1 as f64 / (16_i32.pow(len_and_value.0 as u32) - 1) as f64
         }
 
         let [c1, c2, c3] = parse_x(s)?;
