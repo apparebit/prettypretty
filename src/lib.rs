@@ -668,14 +668,12 @@ impl TrueColor {
     /// <div style="background-color: #ff7f50;"></div>
     /// </div>
     pub fn from_color(color: &Color) -> Self {
-        let color = color.to(ColorSpace::Srgb).map_to_gamut();
-        let [r, g, b] = color.coordinates();
-
-        TrueColor::new(
-            (r * 255.0).round() as u8,
-            (g * 255.0).round() as u8,
-            (b * 255.0).round() as u8,
-        )
+        let [r, g, b] = color
+            .to(ColorSpace::Srgb)
+            .map_to_gamut()
+            .to_24_bit()
+            .unwrap();
+        TrueColor::new(r, g, b)
     }
 }
 
@@ -683,17 +681,25 @@ impl TrueColor {
 // Color Matcher
 // ====================================================================================================================
 
-/// A state container for matching terminal colors.
+/// Conversion from high-resolution to terminal colors by exhaustive search
 ///
-/// A color matcher owns the 256 color objects necessary for high-quality
-/// conversion from arbitrary instances of [`Color`] to 8-bit or ANSI colors.
-/// Conversion to 8-bit colors does *not* consider the 16 extended ANSI colors
-/// as candidates because they become highly visible outliers when matching
-/// several graduated colors.
+/// A color matcher converts [`Color`] objects to [`EightBitColor`] or
+/// [`AnsiColor`] by comparing the original color to all 8-bit colors but the
+/// ANSI colors or all ANSI colors, respectively, and returning the closest
+/// matching color. Conversion to 8-bit colors does not consider the ANSI colors
+/// because they become highly visible outliers when converting several
+/// graduated colors.
 ///
-/// Every color matcher instance incorporates the colors from the theme passed
-/// to its constructor. Hence, if the theme changes, so should the color
-/// matcher.
+/// To be meaningful, the search for the closest color is performed in a
+/// perceptually uniform color space and uses high-resolution colors that are
+/// equivalent to the 8-bit terminal colors, including the ANSI color values
+/// provided by a [`Theme`]. This struct computes all necessary color
+/// coordinates upon creation and caches them for its lifetime, which maximizes
+/// the performance of conversion.
+///
+/// Since a color matcher incorporates the color values from a [`Theme`], an
+/// application should regenerate its color matcher if the current theme
+/// changes.
 ///
 /// <style>
 /// .color-swatch {
@@ -710,33 +716,41 @@ impl TrueColor {
 /// </style>
 #[derive(Debug)]
 pub struct ColorMatcher {
-    ok_version: OkVersion,
-    ansi: Vec<Color>,
-    eight_bit: Vec<Color>,
+    space: ColorSpace,
+    ansi: Vec<[f64; 3]>,
+    eight_bit: Vec<[f64; 3]>,
 }
 
 impl ColorMatcher {
     /// Create a new terminal color matcher. This method initializes the
-    /// matcher's internal state. It comprises 256 color objects, 16 for the
-    /// ANSI colors (based on the theme), 216 for the embedded RGB colors, and
-    /// 24 for the gray gradient colors. Matching uses either Oklab or Oklrab as
-    /// the comparison color space.
+    /// matcher's internal state, which comprises the coordinates for the 256
+    /// 8-bit colors, 16 for the ANSI colors based on the provided theme, 216
+    /// for the embedded RGB colors, and 24 for the gray gradient, all in the
+    /// requested color space.
     pub fn new(theme: &Theme, ok_version: OkVersion) -> Self {
+        let space = ok_version.cartesian_space();
         let ansi = (0..=15)
-            .map(|n| theme[AnsiColor::try_from(n).unwrap()].to(ok_version.cartesian_space()))
-            .collect();
-
-        let eight_bit: Vec<Color> = (16..=231)
             .map(|n| {
-                Color::from(EmbeddedRgb::try_from(n).unwrap()).to(ok_version.cartesian_space())
+                *theme[AnsiColor::try_from(n).unwrap()]
+                    .to(space)
+                    .coordinates()
+            })
+            .collect();
+        let eight_bit: Vec<[f64; 3]> = (16..=231)
+            .map(|n| {
+                *Color::from(EmbeddedRgb::try_from(n).unwrap())
+                    .to(space)
+                    .coordinates()
             })
             .chain((232..=255).map(|n| {
-                Color::from(GrayGradient::try_from(n).unwrap()).to(ok_version.cartesian_space())
+                *Color::from(GrayGradient::try_from(n).unwrap())
+                    .to(space)
+                    .coordinates()
             }))
             .collect();
 
         Self {
-            ok_version,
+            space,
             ansi,
             eight_bit,
         }
@@ -859,11 +873,11 @@ impl ColorMatcher {
     /// color indeed—even if it is much darker. That suggests that a hue-based
     /// distance metric is both feasible and desirable.
     pub fn to_ansi(&self, color: &Color) -> AnsiColor {
-        // SAFETY: self.ansi holds 16 elements, hence closest() returns index 0..=15.
-        color
-            .find_closest_ok(&self.ansi, self.ok_version)
-            .map(|idx| AnsiColor::try_from(idx as u8))
-            .unwrap()
+        use color::core::{delta_e_ok, find_closest};
+
+        let color = color.to(self.space);
+        find_closest(color.coordinates(), &self.ansi, delta_e_ok)
+            .map(|idx| AnsiColor::try_from(idx as u8).unwrap())
             .unwrap()
     }
 
@@ -907,10 +921,10 @@ impl ColorMatcher {
     /// # Ok::<(), OutOfBoundsError>(())
     /// ```
     pub fn to_eight_bit(&self, color: &Color) -> EightBitColor {
-        // SAFETY: self.eight_bit holds 240 elements, hence closest() returns
-        // index 0..=239, which becomes 16..=255 after addition.
-        color
-            .find_closest_ok(&self.eight_bit, self.ok_version)
+        use color::core::{delta_e_ok, find_closest};
+
+        let color = color.to(self.space);
+        find_closest(color.coordinates(), &self.eight_bit, delta_e_ok)
             .map(|idx| EightBitColor::from(idx as u8 + 16))
             .unwrap()
     }

@@ -1,6 +1,6 @@
 //! High-definition colors
 
-mod core;
+pub(crate) mod core;
 
 use self::core::{
     clip, convert, delta_e_ok, from_24_bit, in_gamut, map_to_gamut, normalize, scale_lightness,
@@ -577,6 +577,7 @@ impl Color {
         C: IntoIterator<Item = &'c Color>,
         F: FnMut(&[f64; 3], &[f64; 3]) -> f64,
     {
+        // FIXME: Update to work with new core function find_closest
         let origin = self.to(space);
         let mut min_distance = f64::INFINITY;
         let mut min_index = None;

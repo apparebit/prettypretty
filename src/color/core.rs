@@ -291,6 +291,32 @@ pub(crate) fn delta_e_ok(coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> f6
     ΔL.mul_add(ΔL, Δa.mul_add(Δa, Δb * Δb)).sqrt()
 }
 
+/// Find the candidate coordinates that are closest to the origin according to
+/// the given distance metric. All coordinates must be in the same color space,
+/// which also is the color space for the distance metric.
+pub(crate) fn find_closest<'c, C, F>(
+    origin: &[f64; 3],
+    candidates: C,
+    mut compute_distance: F,
+) -> Option<usize>
+where
+    C: IntoIterator<Item = &'c [f64; 3]>,
+    F: FnMut(&[f64; 3], &[f64; 3]) -> f64,
+{
+    let mut min_distance = f64::INFINITY;
+    let mut min_index = None;
+
+    for (index, candidate) in candidates.into_iter().enumerate() {
+        let distance = compute_distance(origin, candidate);
+        if distance < min_distance {
+            min_distance = distance;
+            min_index = Some(index);
+        }
+    }
+
+    min_index
+}
+
 // ====================================================================================================================
 // Conversions Between Color Spaces
 // ====================================================================================================================
