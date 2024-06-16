@@ -136,9 +136,13 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
 // --------------------------------------------------------------------------------------------------------------------
 
 /// Parse the given string as a color in hashed hexadecimal, X Windows, or CSS
-/// format.
+/// format. Before trying to parse the string, this function trims leading and
+/// trailing whitespace and converts ASCII characters to lower case. Note that a
+/// valid string may still contain Unicode white space characters.
 pub(crate) fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
-    let s = s.trim();
+    let lowercase = s.trim().to_ascii_lowercase(); // Keep around for fn scope
+    let s = lowercase.as_str();
+
     if s.starts_with('#') {
         let [c1, c2, c3] = parse_hashed(s)?;
         Ok((
@@ -221,6 +225,11 @@ mod test {
         let result = parse_x("rgb:f/g/f");
         assert!(matches!(result, Err(ColorFormatError::MalformedHex(1, _))));
 
+        assert_eq!(
+            parse("   RGB:00/55/aa   ")?,
+            (Srgb, [0.0_f64, 0.33333333333333333, 0.6666666666666666])
+        );
+
         Ok(())
     }
 
@@ -239,11 +248,6 @@ mod test {
             parse_css("color  (  --linear-display-p3   1  1.123  0.3333   )"),
             Ok((LinearDisplayP3, [1.0, 1.123, 0.3333]))
         );
-        assert_eq!(
-            parse("   color  (  --linear-display-p3   1  1.123  0.3333   )    "),
-            Ok((LinearDisplayP3, [1.0, 1.123, 0.3333]))
-        );
-
         assert_eq!(
             parse_css("whatever(1 1 1)"),
             Err(ColorFormatError::UnknownFormat)
@@ -271,6 +275,15 @@ mod test {
         assert_eq!(
             parse_css("color(srgb 1 1 1 1)"),
             Err(ColorFormatError::TooManyCoordinates)
+        );
+
+        assert_eq!(
+            parse("   COLOR(  --linear-display-p3   1  1.123  0.3333   )    "),
+            Ok((LinearDisplayP3, [1.0, 1.123, 0.3333]))
+        );
+        assert_eq!(
+            parse("  color( --Linear-Display-P3  1  1.123  0.3333 )  "),
+            Ok((LinearDisplayP3, [1.0, 1.123, 0.3333]))
         );
     }
 }
