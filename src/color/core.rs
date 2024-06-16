@@ -33,6 +33,19 @@
 
 /// The enumeration of supported color spaces.
 ///
+/// This crate supports several RGB color spaces representing corresponding to
+/// screen gamuts, with sRGB as easily achievable baseline, Display P3 for
+/// better quality displays, and Rec. 2020 as aspirational future possibility.
+/// Since all three are gamma-corrected, this crate also supports their linear
+/// versions.
+///
+/// Next, as discussed in some detail below, it supports four variations of the
+/// Oklab perceptually uniform color space.
+///
+/// Finally, it supports the XYZ color space with a D65 standard illuminant (not
+/// D50), which serves as the common root color space when converting between
+/// the above color spaces.
+///
 ///
 /// # The Oklab Variations
 ///

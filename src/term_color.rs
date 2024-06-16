@@ -96,7 +96,7 @@ impl From<AnsiColor> for u8 {
     }
 }
 
-/// The targeted layer.
+/// The display layer, i.e., foreground or background.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Layer {
     /// The foreground, i.e., text.
