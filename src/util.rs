@@ -227,33 +227,3 @@ impl From<ColorFormatError> for Error {
         Self::String(err)
     }
 }
-
-// ====================================================================================================================
-// Coordinates
-// ====================================================================================================================
-
-/// A safe, symbolic index for the three color coordinates.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Coordinate {
-    C1 = 0,
-    C2 = 1,
-    C3 = 2,
-}
-
-impl TryFrom<usize> for Coordinate {
-    type Error = OutOfBoundsError;
-
-    /// Convert a `usize` to a coordinate. Sorry, but the `unwrap()` panic
-    /// is on you...
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::C1),
-            1 => Ok(Self::C2),
-            2 => Ok(Self::C3),
-            _ => Err(OutOfBoundsError {
-                value,
-                expected: 0..=2,
-            }),
-        }
-    }
-}

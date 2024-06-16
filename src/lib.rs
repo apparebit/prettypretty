@@ -376,7 +376,7 @@
 //! true colors, but ANSI and therefore 8-bit colors do not.
 //!
 //! ```
-//! # use prettypretty::{AnsiColor, Coordinate::*, EightBitColor, EmbeddedRgb};
+//! # use prettypretty::{AnsiColor, EightBitColor, EmbeddedRgb};
 //! # use prettypretty::{GrayGradient, TrueColor};
 //! let red = AnsiColor::BrightRed;
 //! assert_eq!(u8::from(red), 9);
@@ -398,9 +398,9 @@
 //! let green = EightBitColor::from(71);
 //! assert!(green.is_rgb());
 //! let green = green.rgb().unwrap();
-//! assert_eq!(green[C1], 1);
-//! assert_eq!(green[C2], 3);
-//! assert_eq!(green[C3], 1);
+//! assert_eq!(green[0], 1);
+//! assert_eq!(green[1], 3);
+//! assert_eq!(green[2], 1);
 //! assert_eq!(TrueColor::from(green), TrueColor::new(95, 175, 95));
 //! ```
 //! <div class=color-swatch>
@@ -511,7 +511,6 @@ mod util;
 pub use color::Color;
 pub use color::ColorSpace;
 pub use color::OkVersion;
-pub use util::Coordinate;
 
 pub use term_color::AnsiColor;
 pub use term_color::DefaultColor;
@@ -884,7 +883,6 @@ impl ColorMatcher {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, DEFAULT_THEME, EightBitColor};
     /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, ColorMatcher, OkVersion};
-    /// # use prettypretty::Coordinate::C1;
     /// let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
     ///
     /// for r in 0..5 {
@@ -899,7 +897,7 @@ impl ColorMatcher {
     ///             } else {
     ///                 (55.0 + 40.0 * (r as f64)) / 255.0
     ///             };
-    ///             assert!((color[C1] - c1).abs() < f64::EPSILON);
+    ///             assert!((color[0] - c1).abs() < f64::EPSILON);
     ///
     ///             let result = matcher.to_eight_bit(&color);
     ///             assert_eq!(result, EightBitColor::Rgb(embedded));

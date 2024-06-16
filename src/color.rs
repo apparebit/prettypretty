@@ -8,7 +8,7 @@ use self::core::{
 };
 pub use self::core::{ColorSpace, OkVersion};
 use super::parser::parse;
-use super::util::{ColorFormatError, Coordinate};
+use super::util::ColorFormatError;
 
 /// A high-resolution color object.
 ///
@@ -279,7 +279,7 @@ impl Color {
     /// To read *and write* individual coordinates, this class also implements
     /// [`Color::index`](struct.Color.html#method.index) and
     /// [`Color::index_mut`](struct.Color.html#method.index_mut), which take a
-    /// symbolic [`Coordinate`] as argument.
+    /// `usize` as argument.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
@@ -825,45 +825,58 @@ impl Eq for Color {}
 
 // --------------------------------------------------------------------------------------------------------------------
 
-impl std::ops::Index<Coordinate> for Color {
+impl std::ops::Index<usize> for Color {
     type Output = f64;
 
-    /// Access the named coordinate.
+    /// Access the coordinate with the given index.
+    ///
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `index > 2`.
+    ///
+    ///
+    /// # Example
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// use prettypretty::Coordinate::*;
     ///
     /// let purple = Color::srgb(0.5, 0.4, 0.75);
-    /// assert_eq!(purple[C3], 0.75);
+    /// assert_eq!(purple[2], 0.75);
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: color(srgb 0.5 0.4 0.75);"></div>
     /// </div>
     #[inline]
-    fn index(&self, index: Coordinate) -> &Self::Output {
-        &self.coordinates[index as usize]
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.coordinates[index]
     }
 }
 
-impl std::ops::IndexMut<Coordinate> for Color {
-    /// Mutably access the named coordinate.
+impl std::ops::IndexMut<usize> for Color {
+    /// Mutably access the coordinate with the given index.
+    ///
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `index > 2`.
+    ///
+    ///
+    /// # Example
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// use prettypretty::Coordinate::*;
-    ///
     /// let mut magenta = Color::srgb(0, 0.3, 0.8);
     /// // Oops, we forgot to set the red coordinate. Let's fix that.
-    /// magenta[C1] = 0.9;
+    /// magenta[0] = 0.9;
     /// assert_eq!(magenta.coordinates(), &[0.9_f64, 0.3_f64, 0.8_f64]);
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: color(srgb 0.9 0.3 0.8);"></div>
     /// </div>
     #[inline]
-    fn index_mut(&mut self, index: Coordinate) -> &mut Self::Output {
-        &mut self.coordinates[index as usize]
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.coordinates[index]
     }
 }
 
@@ -907,7 +920,7 @@ impl std::fmt::Display for Color {
     /// precision smaller by 2 for degrees.
     ///
     ///
-    /// # Example
+    /// # Examples
     ///
     /// The example code takes a color specified in hashed hexadecimal notation
     /// and formats it as sRGB with 5 and 3 significant digits after the decimal

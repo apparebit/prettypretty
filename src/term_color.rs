@@ -6,7 +6,7 @@
 //! three coordinates do not use floating point but integral numbers drawn from
 //! a specific range.
 
-use super::util::{Coordinate, OutOfBoundsError};
+use super::util::OutOfBoundsError;
 
 // ====================================================================================================================
 // Ansi Color
@@ -159,15 +159,22 @@ impl EmbeddedRgb {
         &self.0
     }
 
-    /// Update the named coordinate to the given value. This struct implements
-    /// this method in lieu of `index_mut()`, which cannot enforce the invariant
-    /// that coordinates must be between 0 and 5, inclusive.
+    /// Update the named coordinate to the given value.
+    ///
+    /// This struct implements this method in lieu of `index_mut()`, which
+    /// cannot enforce the invariant that coordinates must be between 0 and 5,
+    /// inclusive.
+    ///
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `index > 2`.
     #[must_use = "method fails on out-of-bounds coordinates"]
-    pub fn update(&mut self, index: Coordinate, value: u8) -> Result<(), OutOfBoundsError> {
+    pub fn update(&mut self, index: usize, value: u8) -> Result<(), OutOfBoundsError> {
         if value > 5 {
             Err(OutOfBoundsError::from_u8(value, 0..=5))
         } else {
-            self.0[index as usize] = value;
+            self.0[index] = value;
             Ok(())
         }
     }
@@ -200,12 +207,17 @@ impl From<EmbeddedRgb> for u8 {
     }
 }
 
-impl std::ops::Index<Coordinate> for EmbeddedRgb {
+impl std::ops::Index<usize> for EmbeddedRgb {
     type Output = u8;
 
-    /// Access the named coordinate.
-    fn index(&self, index: Coordinate) -> &Self::Output {
-        &self.0[index as usize]
+    /// Access the coordinate with the given index.
+    ///
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `index > 2`.
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
     }
 }
 
@@ -459,19 +471,29 @@ impl From<GrayGradient> for TrueColor {
     }
 }
 
-impl std::ops::Index<Coordinate> for TrueColor {
+impl std::ops::Index<usize> for TrueColor {
     type Output = u8;
 
-    /// Access the named coordinate.
-    fn index(&self, index: Coordinate) -> &Self::Output {
-        &self.0[index as usize]
+    /// Access the coordinate with the given index.
+    ///
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `index > 2`.
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
     }
 }
 
-impl std::ops::IndexMut<Coordinate> for TrueColor {
+impl std::ops::IndexMut<usize> for TrueColor {
     /// Mutably access the named coordinate.
-    fn index_mut(&mut self, index: Coordinate) -> &mut Self::Output {
-        &mut self.0[index as usize]
+    ///
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `index > 2`.
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
     }
 }
 
