@@ -712,6 +712,10 @@ impl std::str::FromStr for Color {
 
     /// Instantiate a color from its string representation.
     ///
+    /// Before parsing the string slice, this method trims any leading and
+    /// trailing white space and converts to ASCII lower case. The latter makes
+    /// parsing effectively case-insensitive.
+    ///
     /// This method recognizes two hexadecimal notations for RGB colors, the
     /// hashed notation familiar from the web and an older notation used by X
     /// Windows. Even though the latter was originally just specifying *device
@@ -728,8 +732,8 @@ impl std::str::FromStr for Color {
     ///
     /// This method also recognizes a subset of the *CSS color syntax*. In
     /// particular, it recognizes the `color()`, `oklab()`, and `oklch` CSS
-    /// functions (all lowercase). For `color()`, the color space right after
-    /// the opening parenthesis must be `srgb`, `linear-srgb`, `display-p3`,
+    /// functions. For `color()`, the color space right after the opening
+    /// parenthesis must be `srgb`, `linear-srgb`, `display-p3`,
     /// `--linear-display-p3`, `rec2020`, `--linear-rec2020`, `--oklrab`,
     /// `--oklrch`, or `xyz`. As indicated by the leading double-dashes, the
     /// linear versions of Display P3 and Rec. 2020 as well as OkLrab and Oklrch
