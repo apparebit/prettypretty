@@ -96,10 +96,13 @@ impl From<AnsiColor> for u8 {
     }
 }
 
-/// The default colors.
+/// The targeted layer.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum DefaultColor {
+pub enum Layer {
+    /// The foreground, i.e., text.
     Foreground = 0,
+
+    /// The background.
     Background = 10,
 }
 
@@ -518,7 +521,11 @@ impl std::fmt::Display for TrueColor {
 // Fidelity
 // ====================================================================================================================
 
-/// Terminal fidelity.
+/// The fidelity level for rendering.
+///
+/// An application's effective fidelity when rendering its user interface should
+/// depend on the capabilities of the terminal, the preferences of the user, and
+/// the runtime environment.
 // #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 // pub enum Fidelity {
 //     /// The equivalent of true color.

@@ -513,7 +513,7 @@ pub use color::ColorSpace;
 pub use color::OkVersion;
 
 pub use term_color::AnsiColor;
-pub use term_color::DefaultColor;
+pub use term_color::Layer;
 pub use term_color::EightBitColor;
 pub use term_color::EmbeddedRgb;
 pub use term_color::GrayGradient;
@@ -531,8 +531,8 @@ pub use util::OutOfBoundsError;
 ///
 /// A color theme provides concrete color values for the foreground and
 /// background defaults as well as for the 16 extended ANSI colors. They are
-/// accessed (and also updated) through index expressions using [`DefaultColor`]
-/// and [`AnsiColor`].
+/// accessed (and also updated) through index expressions using [`Layer`] and
+/// [`AnsiColor`].
 ///
 /// By itself, a theme enables the conversion of ANSI colors to high-resolution
 /// colors. Through a [`ColorMatcher`], a theme also enables the (lossy)
@@ -550,24 +550,24 @@ impl Theme {
     }
 }
 
-impl std::ops::Index<DefaultColor> for Theme {
+impl std::ops::Index<Layer> for Theme {
     type Output = Color;
 
-    /// Access the color value for the default color.
-    fn index(&self, index: DefaultColor) -> &Self::Output {
+    /// Access the color value for the layer's default color.
+    fn index(&self, index: Layer) -> &Self::Output {
         match index {
-            DefaultColor::Foreground => &self.colors[0],
-            DefaultColor::Background => &self.colors[1],
+            Layer::Foreground => &self.colors[0],
+            Layer::Background => &self.colors[1],
         }
     }
 }
 
-impl std::ops::IndexMut<DefaultColor> for Theme {
-    /// Mutably access the color value for the default color.
-    fn index_mut(&mut self, index: DefaultColor) -> &mut Self::Output {
+impl std::ops::IndexMut<Layer> for Theme {
+    /// Mutably access the color value for the layer's default color.
+    fn index_mut(&mut self, index: Layer) -> &mut Self::Output {
         match index {
-            DefaultColor::Foreground => &mut self.colors[0],
-            DefaultColor::Background => &mut self.colors[1],
+            Layer::Foreground => &mut self.colors[0],
+            Layer::Background => &mut self.colors[1],
         }
     }
 }
