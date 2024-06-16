@@ -577,14 +577,18 @@ impl Color {
         C: IntoIterator<Item = &'c Color>,
         F: FnMut(&[f64; 3], &[f64; 3]) -> f64,
     {
-        // FIXME: Update to work with new core function find_closest
+        // Reimplement search loop for color objects (instead of coordinates):
+        // We need to convert candidates to comparison color space, which has a
+        // simple lifetime (the loop body) in this case, not so much when
+        // wrapping iterators.
+
         let origin = self.to(space);
         let mut min_distance = f64::INFINITY;
         let mut min_index = None;
 
         for (index, candidate) in candidates.into_iter().enumerate() {
-            let distance = compute_distance(&origin.coordinates, &candidate.to(space).coordinates);
-
+            let candidate = candidate.to(space);
+            let distance = compute_distance(&origin.coordinates, &candidate.coordinates);
             if distance < min_distance {
                 min_distance = distance;
                 min_index = Some(index);
