@@ -778,6 +778,34 @@ impl std::str::FromStr for Color {
 
 // --------------------------------------------------------------------------------------------------------------------
 
+mod from_term {
+    use crate::{EmbeddedRgb, GrayGradient, TrueColor};
+
+    impl From<TrueColor> for super::Color {
+        /// Convert the "true" color object into a *true* color object... 🤪
+        fn from(value: TrueColor) -> super::Color {
+            let [r, g, b] = *value.coordinates();
+            super::Color::srgb(r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0)
+        }
+    }
+
+    impl From<EmbeddedRgb> for super::Color {
+        /// Instantiate a new color from the embedded RGB value.
+        fn from(value: EmbeddedRgb) -> super::Color {
+            TrueColor::from(value).into()
+        }
+    }
+
+    impl From<GrayGradient> for super::Color {
+        /// Instantiate a new color from the embedded RGB value.
+        fn from(value: GrayGradient) -> super::Color {
+            TrueColor::from(value).into()
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 impl std::hash::Hash for Color {
     /// Hash this color.
     ///

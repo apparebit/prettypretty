@@ -399,6 +399,33 @@ impl TrueColor {
         Self([r, g, b])
     }
 
+    /// Create a new true color from the given high-resolution color.
+    ///
+    /// This constructor function converts and gamut-maps the given color to
+    /// sRGB before converting the numerical representation of the coordinates.
+    ///
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorFormatError, TrueColor};
+    /// # use std::str::FromStr;
+    /// let coral = Color::srgb(1, 127.0/255.0, 80.0/255.0);
+    /// let still_coral = TrueColor::from_color(&coral);
+    /// assert_eq!(format!("{}", still_coral), "#ff7f50");
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #ff7f50;"></div>
+    /// </div>
+    pub fn from_color(color: &crate::Color) -> Self {
+        let [r, g, b] = color
+            .to(crate::ColorSpace::Srgb)
+            .map_to_gamut()
+            .to_24_bit()
+            .unwrap();
+        TrueColor::new(r, g, b)
+    }
+
     /// Access the coordinates.
     #[inline]
     pub const fn coordinates(&self) -> &[u8; 3] {
