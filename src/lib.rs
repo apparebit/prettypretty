@@ -467,7 +467,28 @@
 //! </div>
 //!
 //!
-//! ## 4. BYOIO: Bring Your Own (Terminal) I/O
+//! ## 4. Features
+//!
+//! This crate has two features. While mutually exclusive use is not enforced,
+//! it probably is the meaningful use. After all, each feature enables a very
+//! different interface to the same functionality:
+//!
+//!   - **`color-object`** enables the high-level, nicely encapsulated interface
+//!     summarized so far. This feature is enabled by default and best serves
+//!     all users of this crate's functionality.
+//!   - **`core-functions`** enables a lower-level interface based on functions
+//!     that take color coordinates. Hence it is simple enough to be exposed
+//!     through a C-based FFI and can thereby be reused from other programming
+//!     languages. In other words, it is the right interface when implementing a
+//!     higher-level color abstraction for another programming language, such as
+//!     Python.
+//!
+//! In fact, that is just how prettypretty's Python implementation reuses the
+//! Rust core, which allowed me to get rid of the Python implementation of the
+//! same functionality.
+//!
+//!
+//! ## 5. BYOIO: Bring Your Own (Terminal) I/O
 //!
 //! Unlike the Python version, the Rust version of prettypretty does not (yet?)
 //! include its own facilities for styled text or terminal I/O. Instead, it is
@@ -512,7 +533,20 @@ mod parser;
 mod term_color;
 mod util;
 
+#[cfg(feature = "core-functions")]
+pub use color::core::{
+    clip, convert, delta_e_ok, find_closest, from_24_bit, in_gamut, map_to_gamut, normalize,
+    scale_lightness, to_24_bit, to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
+};
+
+#[cfg(feature = "core-functions")]
+pub use parser::parse;
+
+#[cfg(feature = "color-object")]
 pub use collect::{ColorMatcher, Theme, DEFAULT_THEME};
+#[cfg(feature = "color-object")]
 pub use color::{Color, ColorSpace, OkVersion};
+#[cfg(feature = "color-object")]
 pub use term_color::{AnsiColor, EightBitColor, EmbeddedRgb, GrayGradient, Layer, TrueColor};
+#[cfg(feature = "color-object")]
 pub use util::{ColorFormatError, Error, OutOfBoundsError};

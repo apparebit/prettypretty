@@ -139,7 +139,7 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
 /// format. Before trying to parse the string, this function trims leading and
 /// trailing whitespace and converts ASCII characters to lower case. Note that a
 /// valid string may still contain Unicode white space characters.
-pub(crate) fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
+pub fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
     let lowercase = s.trim().to_ascii_lowercase(); // Keep around for fn scope
     let s = lowercase.as_str();
 

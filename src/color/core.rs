@@ -198,13 +198,13 @@ impl OkVersion {
 
 /// Convert the given 24-bit coordinates to floating point coordinates. As part
 /// of conversion, this function scales coordinates by 1/255.0.
-pub(crate) fn from_24_bit(r: u8, g: u8, b: u8) -> [f64; 3] {
+pub fn from_24_bit(r: u8, g: u8, b: u8) -> [f64; 3] {
     [r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0]
 }
 
 /// If the given color space is an RGB color space and the given coordinates are
 /// in-gamut, convert them to 24-bit representation. Otherwise, return `None`.
-pub(crate) fn to_24_bit(space: ColorSpace, coordinates: &[f64; 3]) -> Option<[u8; 3]> {
+pub fn to_24_bit(space: ColorSpace, coordinates: &[f64; 3]) -> Option<[u8; 3]> {
     if space.is_rgb() {
         let [r, g, b] = coordinates;
 
@@ -238,7 +238,7 @@ pub(crate) fn to_24_bit(space: ColorSpace, coordinates: &[f64; 3]) -> Option<[u8
 /// Notably, chroma ranges from 0 to 0.5, and a/b range from -0.5 to 0.5. These
 /// bounds are generous; the current CSS 4 Color draft uses 0.4 as the magnitude
 /// for all non-zero bounds.
-pub(crate) fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> [u64; 3] {
+pub fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> [u64; 3] {
     let [mut c1, mut c2, mut c3] = *coordinates;
 
     // Ensure all coordinates are numbers
@@ -294,7 +294,7 @@ pub(crate) fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> [u64; 3] {
 /// in defining Delta E that way...
 #[inline]
 #[allow(non_snake_case)]
-pub(crate) fn delta_e_ok(coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> f64 {
+pub fn delta_e_ok(coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> f64 {
     let [L1, a1, b1] = coordinates1;
     let [L2, a2, b2] = coordinates2;
 
@@ -308,7 +308,7 @@ pub(crate) fn delta_e_ok(coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> f6
 /// Find the candidate coordinates that are closest to the origin according to
 /// the given distance metric. All coordinates must be in the same color space,
 /// which also is the color space for the distance metric.
-pub(crate) fn find_closest<'c, C, F>(
+pub fn find_closest<'c, C, F>(
     origin: &[f64; 3],
     candidates: C,
     mut compute_distance: F,
@@ -764,11 +764,7 @@ fn xyz_to_oklrch(value: &[f64; 3]) -> [f64; 3] {
 // --------------------------------------------------------------------------------------------------------------------
 
 /// Convert the coordinates from the `from_space` to the `to_space`.
-pub(crate) fn convert(
-    from_space: ColorSpace,
-    to_space: ColorSpace,
-    coordinates: &[f64; 3],
-) -> [f64; 3] {
+pub fn convert(from_space: ColorSpace, to_space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
     use ColorSpace::*;
 
     // 1. Handle identities
@@ -836,7 +832,7 @@ pub(crate) fn convert(
 // ====================================================================================================================
 
 /// Determine whether the coordinates are in gamut for the color space.
-pub(crate) fn in_gamut(space: ColorSpace, coordinates: &[f64; 3]) -> bool {
+pub fn in_gamut(space: ColorSpace, coordinates: &[f64; 3]) -> bool {
     if space.is_rgb() {
         coordinates.iter().all(|c| 0.0 <= *c && *c <= 1.0)
     } else {
@@ -845,7 +841,7 @@ pub(crate) fn in_gamut(space: ColorSpace, coordinates: &[f64; 3]) -> bool {
 }
 
 /// Clip the coordinates to the gamut of the color space.
-pub(crate) fn clip(space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
+pub fn clip(space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
     if space.is_rgb() {
         let [r, g, b] = *coordinates;
         [r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)]
@@ -856,7 +852,7 @@ pub(crate) fn clip(space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
 
 /// Map the color into gamut by using the [CSS Color 4
 /// algorithm](https://drafts.csswg.org/css-color/#css-gamut-mapping).
-pub(crate) fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
+pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
     use ColorSpace::*;
 
     const JND: f64 = 0.02;
@@ -939,16 +935,15 @@ pub(crate) fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 
 
 // Limit visibility of many contrast-specific constants
 mod contrast {
-    pub(crate) const SRGB_CONTRAST: [f64; 3] = [0.2126729, 0.7151522, 0.0721750];
+    pub const SRGB_CONTRAST: [f64; 3] = [0.2126729, 0.7151522, 0.0721750];
     #[allow(clippy::excessive_precision)]
-    pub(crate) const P3_CONTRAST: [f64; 3] =
-        [0.2289829594805780, 0.6917492625852380, 0.0792677779341829];
+    pub const P3_CONTRAST: [f64; 3] = [0.2289829594805780, 0.6917492625852380, 0.0792677779341829];
 
     /// Convert the given color coordinates to perceptual contrast luminance.
     /// The coefficients are [`SRGB_CONTRAST`] for sRGB coordinates and
     /// [`P3_CONTRAST`] for Display P3 coordinates. Though Display P3 should
     /// only be used for colors that are out of gamut for sRGB.
-    pub(crate) fn to_contrast_luminance(coefficients: &[f64; 3], coordinates: &[f64; 3]) -> f64 {
+    pub fn to_contrast_luminance(coefficients: &[f64; 3], coordinates: &[f64; 3]) -> f64 {
         fn linearize(value: f64) -> f64 {
             let magnitude = value.abs();
             magnitude.powf(2.4).copysign(value)
@@ -971,7 +966,7 @@ mod contrast {
     /// values. This function uses an algorithm that is surprisingly similar to
     /// the [Accessible Perceptual Contrast
     /// Algorithm](https://github.com/Myndex/apca-w3), version 0.0.98G-4g.
-    pub(crate) fn to_contrast(text_luminance: f64, background_luminance: f64) -> f64 {
+    pub fn to_contrast(text_luminance: f64, background_luminance: f64) -> f64 {
         // Also see https://github.com/w3c/silver/issues/645
 
         // Make sure the luminance values are legit
@@ -1024,7 +1019,7 @@ mod contrast {
     }
 }
 
-pub(crate) use contrast::{to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST};
+pub use contrast::{to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST};
 
 // ====================================================================================================================
 // Color Lightness
@@ -1033,7 +1028,7 @@ pub(crate) use contrast::{to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_
 /// After converting to Oklrch, scale the color's lightness by the given factor.
 #[inline]
 #[allow(non_snake_case)]
-pub(crate) fn scale_lightness(space: ColorSpace, coordinates: &[f64; 3], factor: f64) -> [f64; 3] {
+pub fn scale_lightness(space: ColorSpace, coordinates: &[f64; 3], factor: f64) -> [f64; 3] {
     let [Lr, C, h] = if space == ColorSpace::Oklrch {
         *coordinates
     } else {
