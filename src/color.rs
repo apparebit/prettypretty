@@ -3,12 +3,64 @@
 pub(crate) mod core;
 
 use self::core::{
-    clip, convert, delta_e_ok, from_24_bit, in_gamut, map_to_gamut, normalize, scale_lightness,
-    to_24_bit, to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
+    clip, convert, delta_e_ok, from_24_bit, in_gamut, interpolate, map_to_gamut, normalize,
+    normalize_eq, prepare_to_interpolate, scale_lightness, to_24_bit, to_contrast,
+    to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
 };
-pub use self::core::{ColorSpace, OkVersion};
+pub use self::core::{ColorSpace, InterpolationStrategy, OkVersion};
 use super::parser::parse;
 use super::util::ColorFormatError;
+
+/// A color interpolator.
+///
+/// An interpolator performs linear interpolation between the coordinates of two
+/// colors according to [CSS Color
+/// 4](https://www.w3.org/TR/css-color-4/#interpolation). While linear
+/// interpolation itself is rather simple, preparing color coordinates for
+/// interpolation is quite a bit more work. It requires converting the colors
+/// into the desired color space, carrying forward any missing components, and
+/// adjusting hues according to interpolation strategy. An interpolator performs
+/// this work only once to facilitate amortization across several
+/// interpolations. That makes no difference when mixing two colors, but is
+/// effective when computing a gradient.
+pub struct Interpolator {
+    space: ColorSpace,
+    coordinates1: [f64; 3],
+    coordinates2: [f64; 3],
+}
+
+impl Interpolator {
+    /// Create a new color interpolator.
+    pub fn new(
+        color1: &Color,
+        color2: &Color,
+        space: ColorSpace,
+        strategy: InterpolationStrategy,
+    ) -> Self {
+        let (coordinates1, coordinates2) = prepare_to_interpolate(
+            color1.space,
+            &color1.coordinates,
+            color2.space,
+            &color2.coordinates,
+            space,
+            strategy,
+        );
+
+        Self {
+            space,
+            coordinates1,
+            coordinates2,
+        }
+    }
+
+    /// Compute the interpolated color at the given fraction.
+    pub fn at(&self, fraction: f64) -> Color {
+        let [c1, c2, c3] = interpolate(fraction, &self.coordinates1, &self.coordinates2);
+        Color::new(self.space, c1, c2, c3)
+    }
+}
+
+// ====================================================================================================================
 
 /// A high-resolution color object.
 ///
@@ -296,6 +348,24 @@ impl Color {
 
     // ----------------------------------------------------------------------------------------------------------------
 
+    /// Normalize this color's coordinates.
+    ///
+    /// This method ensures that all coordinates are well-formed. To that end,
+    /// it replaces missing components, that is, not-a-number, with 0.0 and
+    /// clamps some Ok*** coordinates. In particular, it clamps (revised)
+    /// lightness to `0.0..=1.0`, chroma to `0.0..`, and hue in `0.0..=360.0`.
+    ///
+    /// This is a weaker form of normalization than that performed for equality
+    /// testing and hashing.
+    pub fn normalize(&self) -> Self {
+        Self {
+            space: self.space,
+            coordinates: normalize(self.space, &self.coordinates),
+        }
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+
     /// Lighten this color by the given factor in Oklrch.
     ///
     /// This method converts this color to Oklrch, then multiplies its lightness
@@ -389,6 +459,8 @@ impl Color {
             coordinates: convert(self.space, target, &self.coordinates),
         }
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
 
     /// Determine whether this color is in-gamut for its color space.
     ///
@@ -489,6 +561,8 @@ impl Color {
             coordinates: map_to_gamut(self.space, &self.coordinates),
         }
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
 
     /// Compute the Euclidian distance between the two colors in Oklab.
     ///
@@ -596,6 +670,44 @@ impl Color {
         }
 
         min_index
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+
+    /// Interpolate between two colors.
+    ///
+    /// This method creates a new interpolator for this and the given color.
+    /// [`Interpolator::at`] generates the actual, interpolated colors.
+    ///
+    /// # Example
+    ///
+    /// As illustrated below, [`Color::interpolate`] takes care of the mechanics
+    /// of interpolation. As also illustrated below, the resulting color may not
+    /// be displayable and hence require further processing, such as gamut
+    /// mapping.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace, InterpolationStrategy, DEFAULT_INTERPOLATION};
+    /// let red = Color::srgb(0.8, 0, 0);
+    /// let yellow = Color::from_24_bit(0xff, 0xca, 0);
+    /// let orange = red
+    ///     .interpolate(&yellow, ColorSpace::Oklch, DEFAULT_INTERPOLATION)
+    ///     .at(0.5);
+    /// assert_eq!(orange, Color::oklch(0.6960475282872609, 0.196904718808239, 59.33737836604695));
+    /// assert!(!orange.to(ColorSpace::Rec2020).in_gamut());
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(srgb 0.8 0 0);"></div>
+    /// <div style="background-color: #ffca00;"></div>
+    /// <div style="background-color: oklch(0.6960475282872609 0.196904718808239 59.33737836604695);"></div>
+    /// </div>
+    pub fn interpolate(
+        &self,
+        color: &Color,
+        interpolation_space: ColorSpace,
+        interpolation_strategy: InterpolationStrategy,
+    ) -> Interpolator {
+        Interpolator::new(self, color, interpolation_space, interpolation_strategy)
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -813,7 +925,7 @@ impl std::hash::Hash for Color {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.space.hash(state);
 
-        let [n1, n2, n3] = normalize(self.space, &self.coordinates);
+        let [n1, n2, n3] = normalize_eq(self.space, &self.coordinates);
         n1.hash(state);
         n2.hash(state);
         n3.hash(state);
@@ -852,8 +964,8 @@ impl PartialEq for Color {
             return true;
         }
 
-        let n1 = normalize(self.space, &self.coordinates);
-        let n2 = normalize(other.space, &other.coordinates);
+        let n1 = normalize_eq(self.space, &self.coordinates);
+        let n2 = normalize_eq(other.space, &other.coordinates);
         n1 == n2
     }
 }
@@ -980,25 +1092,54 @@ impl std::fmt::Display for Color {
     /// <div style="background-color: color(srgb 0.631 0.824 0.682);"></div>
     /// <div style="background-color: oklch(0.81945 0.07179 152.812);"></div>
     /// </div>
+    /// <br>
+    ///
+    /// In the above example, all coordinates have at least 5 non-zero decimals.
+    /// But that need not be the case. The following example formats a gray in
+    /// Oklch, which has no chroma and no hue. The lightness has only three
+    /// decimals and serializes with as many. The chroma has no non-zero
+    /// decimals and serializes as `0`. Finally, the hue is not-a-number and
+    /// serializes as `none`.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorFormatError, ColorSpace::*};
+    /// # use std::str::FromStr;
+    /// let gray = Color::oklch(0.665, 0.0, f64::NAN);
+    /// assert_eq!(format!("{}", gray), "oklch(0.665 0 none)");
+    /// # Ok::<(), ColorFormatError>(())
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklch(0.665 0 none);"></div>
+    /// </div>
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let p = f.precision().unwrap_or(5);
-        let p3 = if self.space.is_polar() {
-            (p - 2).max(0) // Clamp to minimum of zero
-        } else {
-            p
-        };
+        write!(f, "{}", self.space.css_prefix())?;
 
-        let [c1, c2, c3] = self.coordinates;
-        write!(
-            f,
-            "{}{:.*} {:.*} {:.*})",
-            self.space.css_prefix(),
-            p,
-            c1,
-            p,
-            c2,
-            p3,
-            c3
-        )
+        let mut factor = 10_f64.powi(f.precision().unwrap_or(5) as i32);
+        for (index, coordinate) in self.coordinates.iter().enumerate() {
+            if self.space.is_polar() && index == 2 {
+                factor /= 100.0;
+            }
+
+            if coordinate.is_nan() {
+                f.write_str("none")?;
+            } else {
+                // CSS mandates NO trailing zeros whatsoever. But formatting
+                // floats with a precision produces trailing zeros. Rounding
+                // avoids them, for the most part. If fractional part is zero,
+                // we do need an explicit precision---of zero!
+                let c = (coordinate * factor).round() / factor;
+                if c == c.trunc() {
+                    write!(f, "{:.0}", c)?;
+                } else {
+                    write!(f, "{}", c)?;
+                }
+            }
+
+            if index < 2 {
+                f.write_str(" ")?;
+            }
+        }
+
+        f.write_str(")")
     }
 }

@@ -11,6 +11,8 @@ spaces, Rec. 2020 and its linear variant.
 - `ColorSpace::Rec2020` and `ColorSpace::LinearRec2020`
 - `Color::lighten` and `Color::darken`
 - `Color::to_24_bit`
+- `Color::normalize`
+- `Color::interpolate` as well as `InterpolationStrategy` and `Interpolator`
 
 ### Changed
 

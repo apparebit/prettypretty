@@ -22,7 +22,7 @@
 //! Not-a-number *is* a valid coordinate value for hue in Oklch. It necessarily
 //! implies that the chroma is zero, i.e., the color is gray including black and
 //! white. To correctly implement equality testing and hashing, this module
-//! provides [`normalize`].
+//! provides [`normalize_eq`].
 //!
 //! Function arguments are ordered so that scalar arguments come before
 //! coordinates, which may be inline array literals.
@@ -152,6 +152,12 @@ impl ColorSpace {
         )
     }
 
+    /// Determine whether this color space is one of the Ok*** color spaces.
+    pub const fn is_ok(&self) -> bool {
+        use ColorSpace::*;
+        matches!(*self, Oklab | Oklch | Oklrab | Oklrch)
+    }
+
     /// Determine whether this color space is bounded. XYZ and the Okl** color
     /// spaces are *unbounded*, whereas the RGB color spaces are *bounded*.
     pub const fn is_bounded(&self) -> bool {
@@ -221,65 +227,87 @@ pub fn to_24_bit(space: ColorSpace, coordinates: &[f64; 3]) -> Option<[u8; 3]> {
 }
 
 // ====================================================================================================================
-// Equality and Difference
+// Normalization, Equality, and Difference
 // ====================================================================================================================
 
-/// Normalize the coordinates in preparation of hashing and equality testing.
-///
-/// Note: In-gamut RGB coordinates and the lightness for Oklab and Oklch have
-/// unit range already. No coordinate-specific normalization is required.
-///
-/// The implementation normalizes hues by computing the remainder of division by
-/// 360, which removes full rotations, and then dividing by 360 to scale down to
-/// unit range.
-///
-/// The implementation currently does not normalize chroma for Oklch as well as
-/// a and b for Oklab because all three have bounds similar to the unit range.
-/// Notably, chroma ranges from 0 to 0.5, and a/b range from -0.5 to 0.5. These
-/// bounds are generous; the current CSS 4 Color draft uses 0.4 as the magnitude
-/// for all non-zero bounds.
-pub fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> [u64; 3] {
-    let [mut c1, mut c2, mut c3] = *coordinates;
+/// Update not-a-number coordinates to their normalized representation.
+fn normalize_domain_mut(space: ColorSpace, coordinates: &mut [f64; 3]) {
+    let [c1, c2, c3] = coordinates;
 
     // Ensure all coordinates are numbers
     if c1.is_nan() {
-        c1 = 0.0;
+        *c1 = 0.0;
     }
 
     if c2.is_nan() {
-        c2 = 0.0;
+        *c2 = 0.0;
     }
 
     if c3.is_nan() {
-        c3 = 0.0;
+        *c3 = 0.0;
         if space.is_polar() {
-            c2 = 0.0;
+            *c2 = 0.0;
         }
     }
 
-    // Ensure only partial rotations and unit range
+    // Clamp lightness and chroma in Ok***
+    if space.is_ok() {
+        *c1 = c1.clamp(0.0, 1.0);
+
+        if space.is_polar() {
+            *c2 = c2.max(0.0);
+        }
+    }
+
+    // Clamp hue
     if space.is_polar() {
-        c3 = c3.rem_euclid(360.0) / 360.0
+        *c3 = c3.rem_euclid(360.0)
+    }
+}
+
+/// Update coordinates for equality testing and hashing.
+fn normalize_eq_mut(space: ColorSpace, coordinates: &mut [f64; 3]) {
+    let [c1, c2, c3] = coordinates;
+
+    // Scale to unit range.
+    if space.is_polar() {
+        *c3 /= 360.0
     }
 
-    // Ensure one less significant digit
+    // Drop one digit of precision.
     let factor = 10.0_f64.powi((f64::DIGITS as i32) - 1);
-    c1 = (factor * c1).round();
-    c2 = (factor * c2).round();
-    c3 = (factor * c3).round();
+    *c1 = (*c1 * factor).round();
+    *c2 = (*c2 * factor).round();
+    *c3 = (*c3 * factor).round();
 
-    // Ensure canonical zero
-    if c1 == -c1 {
-        c1 = 0.0;
+    // Ensure canonical zero.
+    if *c1 == -*c1 {
+        *c1 = 0.0;
     }
-    if c2 == -c2 {
-        c2 = 0.0
+    if *c2 == -*c2 {
+        *c2 = 0.0
     }
-    if c3 == -c3 {
-        c3 = 0.0
+    if *c3 == -*c3 {
+        *c3 = 0.0
     }
+}
 
-    // Et voilà!
+/// Normalize the coordinates.
+pub fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
+    let mut coordinates = *coordinates;
+    normalize_domain_mut(space, &mut coordinates);
+    coordinates
+}
+
+/// Normalize the coordinates for equality testing and hashing.
+///
+/// Note: In-gamut RGB coordinates and the lightness for Oklab and Oklch have
+/// unit range already. No coordinate-specific normalization is required.
+pub fn normalize_eq(space: ColorSpace, coordinates: &[f64; 3]) -> [u64; 3] {
+    let mut coordinates = *coordinates;
+    normalize_domain_mut(space, &mut coordinates);
+    normalize_eq_mut(space, &mut coordinates);
+    let [c1, c2, c3] = coordinates;
     [c1.to_bits(), c2.to_bits(), c3.to_bits()]
 }
 
@@ -1039,6 +1067,160 @@ pub fn scale_lightness(space: ColorSpace, coordinates: &[f64; 3], factor: f64) -
 }
 
 // ====================================================================================================================
+// Interpolation
+// ====================================================================================================================
+
+/// Determine how a coordinate carries forward.
+///
+/// This function determines how to [carry
+/// forward](https://www.w3.org/TR/css-color-4/#interpolation-missing) a missing
+/// coordinate, i.e., a coordinate that is not-a-number, from the source color
+/// space to the interpolation color space. The caller specifies the coordinate
+/// by its index (from 0 to 2) and, if the coordinate carries forward, the function
+/// returns the index of the forwarded coordinate.
+fn carry_forward(from_space: ColorSpace, to_space: ColorSpace, index: usize) -> Option<usize> {
+    use ColorSpace::*;
+
+    if !(0..=2).contains(&index) {
+        panic!("0..=2.contains({}) does not hold!", index)
+    }
+
+    match (from_space, to_space, index) {
+        // Analogous components are (r,x) -- (g,y) -- (b,z) -- (L) -- (Lr) -- (C) -- (h) -- (a) -- (b)
+        (
+            Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3 | Rec2020 | LinearRec2020 | Xyz,
+            Srgb | LinearSrgb | DisplayP3 | LinearDisplayP3 | Rec2020 | LinearRec2020 | Xyz,
+            _,
+        ) => Some(index),
+        (Oklab | Oklch, Oklab | Oklch, 0) => Some(0),
+        (Oklrab | Oklrch, Oklrab | Oklrch, 0) => Some(0),
+        (Oklab | Oklrab, Oklab | Oklrab, 1 | 2) => Some(index),
+        (Oklch | Oklrch, Oklch | Oklrch, 1 | 2) => Some(index),
+        _ => None,
+    }
+}
+
+/// Normalize and convert the coordinates, carrying forward any missing values.
+fn convert_with_nan(
+    from_space: ColorSpace,
+    to_space: ColorSpace,
+    coordinates: &[f64; 3],
+) -> [f64; 3] {
+    // Convert normalized coordinates
+    let mut converted = convert(from_space, to_space, &normalize(from_space, coordinates));
+
+    // Carry forward missing components
+    for (index, coordinate) in coordinates.iter().enumerate() {
+        if coordinate.is_nan() {
+            if let Some(index) = carry_forward(from_space, to_space, index) {
+                converted[index] = f64::NAN;
+            }
+        }
+    }
+
+    converted
+}
+
+/// A strategy for interpolating hues.
+///
+/// Since hues are expressed as angles, the same perceptual hue has an infinite
+/// number of representations modulo 360. Furthermore, there are two ways of
+/// interpolating between two hues, clockwise and counter-clockwise. Consistent
+/// with [CSS Color 4](https://www.w3.org/TR/css-color-4/#hue-interpolation),
+/// the interpolation strategy selects the way based either on the distance
+/// between hues, [`InterpolationStrategy::Shorter`] and
+/// [`InterpolationStrategy::Longer`], or on the direction,
+/// [`InterpolationStrategy::Increasing`] and
+/// [`InterpolationStrategy::Decreasing`].
+#[derive(Copy, Clone, Debug)]
+pub enum InterpolationStrategy {
+    /// Take the shorter arc between the two hue angles.
+    Shorter,
+    /// Take the longer arc between the two hue angles.
+    Longer,
+    /// Keep increasing hue angles.
+    Increasing,
+    /// Keep decreasing hue angles.
+    Decreasing,
+}
+
+impl InterpolationStrategy {
+    /// Adjust the pair of hues based on interpolation strategy.
+    pub fn apply(&self, h1: f64, h2: f64) -> (f64, f64) {
+        match self {
+            InterpolationStrategy::Shorter => {
+                if h2 - h1 > 180.0 {
+                    return (h1 + 360.0, h2);
+                } else if h2 - h1 < -180.0 {
+                    return (h1, h2 + 360.0);
+                }
+            }
+            InterpolationStrategy::Longer => {
+                if (0.0..=180.0).contains(&(h2 - h1)) {
+                    return (h1 + 360.0, h2);
+                } else if (-180.0..=0.0).contains(&(h2 - h1)) {
+                    return (h1, h2 + 360.0);
+                }
+            }
+            InterpolationStrategy::Increasing => {
+                if h2 < h1 {
+                    return (h1, h2 + 360.0);
+                }
+            }
+            InterpolationStrategy::Decreasing => {
+                if h1 < h2 {
+                    return (h1 + 360.0, h2);
+                }
+            }
+        }
+
+        (h1, h2)
+    }
+}
+
+/// The default interpolation, which is shorter.
+pub const DEFAULT_INTERPOLATION: InterpolationStrategy = InterpolationStrategy::Shorter;
+
+/// Prepare coordinates for interpolation.
+pub fn prepare_to_interpolate(
+    space1: ColorSpace,
+    coordinates1: &[f64; 3],
+    space2: ColorSpace,
+    coordinates2: &[f64; 3],
+    interpolation_space: ColorSpace,
+    strategy: InterpolationStrategy,
+) -> ([f64; 3], [f64; 3]) {
+    let mut coordinates1 = convert_with_nan(space1, interpolation_space, coordinates1);
+    let mut coordinates2 = convert_with_nan(space2, interpolation_space, coordinates2);
+
+    // Fill in missing components
+    for index in 0..=2 {
+        if coordinates1[index].is_nan() {
+            // Technically, only do this if coordinates2[index] is a number.
+            coordinates1[index] = coordinates2[index];
+        } else if coordinates2[index].is_nan() {
+            coordinates2[index] = coordinates1[index];
+        }
+    }
+
+    // Adjust hue based on interpolation strategy
+    if interpolation_space.is_polar() {
+        (coordinates1[2], coordinates2[2]) = strategy.apply(coordinates1[2], coordinates2[2])
+    }
+
+    (coordinates1, coordinates2)
+}
+
+/// Interpolate between the prepared coordinates.
+pub fn interpolate(fraction: f64, coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> [f64; 3] {
+    [
+        coordinates1[0] + fraction * (coordinates2[0] - coordinates1[0]),
+        coordinates1[1] + fraction * (coordinates2[1] - coordinates1[1]),
+        coordinates1[2] + fraction * (coordinates2[2] - coordinates1[2]),
+    ]
+}
+
+// ====================================================================================================================
 
 #[cfg(test)]
 mod test {
@@ -1147,8 +1329,8 @@ mod test {
         coordinates1: &[f64; 3],
         coordinates2: &[f64; 3],
     ) -> bool {
-        let n1 = dbg!(normalize(space, coordinates1));
-        let n2 = dbg!(normalize(space, coordinates2));
+        let n1 = dbg!(normalize_eq(space, coordinates1));
+        let n2 = dbg!(normalize_eq(space, coordinates2));
 
         n1 == n2
     }

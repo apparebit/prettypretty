@@ -533,10 +533,13 @@ mod parser;
 mod term_color;
 mod util;
 
+pub use color::core::{ColorSpace, InterpolationStrategy, DEFAULT_INTERPOLATION};
+
 #[cfg(feature = "core-functions")]
 pub use color::core::{
-    clip, convert, delta_e_ok, find_closest, from_24_bit, in_gamut, map_to_gamut, normalize,
-    scale_lightness, to_24_bit, to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
+    clip, convert, delta_e_ok, find_closest, from_24_bit, in_gamut, interpolate, map_to_gamut,
+    normalize, normalize_eq, prepare_to_interpolate, scale_lightness, to_24_bit, to_contrast,
+    to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
 };
 
 #[cfg(feature = "core-functions")]
@@ -545,7 +548,7 @@ pub use parser::parse;
 #[cfg(feature = "color-object")]
 pub use collect::{ColorMatcher, Theme, DEFAULT_THEME};
 #[cfg(feature = "color-object")]
-pub use color::{Color, ColorSpace, OkVersion};
+pub use color::{Color, Interpolator, OkVersion};
 #[cfg(feature = "color-object")]
 pub use term_color::{AnsiColor, EightBitColor, EmbeddedRgb, GrayGradient, Layer, TrueColor};
 #[cfg(feature = "color-object")]
