@@ -16,6 +16,7 @@ doc = [
     "sphinx-copybutton",
     "sphinx_design",
     "sphinx-rtd-theme",
+    "matplotlib",
 ]
 
 [project.urls]
