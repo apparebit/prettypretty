@@ -801,13 +801,13 @@ class Terminal:
         its name and version is far from universal, this method employs the
         following strategies:
 
-         1. Use CSI >q escape sequence to query terminal.
-         1. Inspect the ``TERMINAL_PROGRAM`` and ``TERMINAL_PROGRAM_VERSION``
-            environment variables.
-         2. On macOS only, get the bundle identifier from the
-            ``__CFBundleIdentifier`` environment variable and then use the
-            ``mdfind`` and ``mdls`` command line tools to extract the bundle's
-            version.
+        1. Use CSI >q escape sequence to query terminal.
+        2. Inspect the ``TERMINAL_PROGRAM`` and ``TERMINAL_PROGRAM_VERSION``
+           environment variables.
+        3. On macOS only, get the bundle identifier from the
+           ``__CFBundleIdentifier`` environment variable and then use the
+           ``mdfind`` and ``mdls`` command line tools to extract the bundle's
+           version.
 
         If any of these methods is successful, this method normalizes the
         terminal name based on a list of known aliases. That includes bundle
