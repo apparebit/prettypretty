@@ -182,7 +182,7 @@ class ColorPlotter:
             return f"{y:.2}"
 
     def create_figure(self, terminal_name: str) -> Any:
-        fig, axes = plt.subplots(figsize=(5, 5.5), subplot_kw={'projection': 'polar'})  #type: ignore
+        fig, axes = plt.subplots(figsize=(5, 5.2), subplot_kw={'projection': 'polar'})  #type: ignore
 
         # Since marker can only be set for all marks in a series, we use a new
         # series for every single color.
