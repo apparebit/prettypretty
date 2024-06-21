@@ -519,13 +519,21 @@
 //! backslash). Some terminals answer with `\x0b` (bell) instead of ST.
 //!
 //!
-//! ## PS: Color Swatches
+//! ## Postscript
 //!
 //! As already illustrated above, most code examples come with their own color
 //! swatches, which show the color values mentioned in the code. Where possible,
 //! swatches use the exact same color spaces as the code (sRGB, Display P3,
 //! Oklab, or Oklch). Otherwise, they fall back on an equivalent color in a
 //! comparable color space (Oklrab and Oklrch).
+//!
+//! Implementing this crate's color support was a breeze. In part, that was
+//! because I had built a prototype and a package in Python before and hence
+//! knew what I was going for. In part, that was because I copied many of the
+//! nitty-gritty color algorithms and conversion matrices from the most
+//! excellent [Color.js](https://colorjs.io) by [Lea
+//! Verou](http://lea.verou.me/) and [Chris Lilley](https://svgees.us/). Without
+//! their work, I could not have gotten as far as quickly. Thank you!
 
 mod collect;
 mod color;

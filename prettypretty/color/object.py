@@ -200,37 +200,38 @@ class Color(ColorSpec):
     # ----------------------------------------------------------------------------------
     # Distance from Other Colors
 
-    def distance(self, other: Self, *, version: Literal[1, 2] = 1) -> float:
+    def distance(self, other: ColorSpec, *, version: Literal[1, 2] = 1) -> float:
         """
         Determine the symmetric distance ΔE between this color and the given
         color.
         """
         return deltaE_oklab(
             *self.to('oklab').coordinates,
-            *other.to('oklab').coordinates,
+            *Color(other).to('oklab').coordinates,
             version=version,
         )
 
-    def closest(self, colors: Iterable[Self]) -> int:
+    def closest(self, colors: Iterable[ColorSpec]) -> int:
         """
         Find the color with the smallest symmetric distance from this color and
         return its index.
         """
         index, _ = closest_oklab(
             cast(FloatCoordinateSpec, self.to('oklab').coordinates),
-            (cast(FloatCoordinateSpec, c.to('oklab').coordinates) for c in colors),
+            (cast(FloatCoordinateSpec, Color(c).to('oklab').coordinates) for c in colors),
         )
         return index
 
     # ----------------------------------------------------------------------------------
     # Contrast Against Other Colors
 
-    def contrast_against(self, background: Self) -> float:
+    def contrast_against(self, background: ColorSpec) -> float:
         """
         Determine the perceptual contrast of text with this color against the
         given background.
         """
         fg = self.to('srgb')
+        background = Color(background)
         bg = background.to('srgb')
 
         if fg.in_gamut() and bg.in_gamut():

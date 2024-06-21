@@ -13,3 +13,8 @@ features:
 .. autoprogram:: prettypretty.progress:create_parser()
     :prog: python -m prettypretty.progress
     :groups:
+
+
+.. autoprogram:: prettypretty.plot:create_parser()
+    :prog: python -m prettypretty.plot
+    :groups:

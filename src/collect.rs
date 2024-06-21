@@ -189,14 +189,10 @@ impl ColorMatcher {
     ///
     /// # Examples
     ///
-    /// The example code below matches `#ffa563` and `#ff9600` to ANSI colors
-    /// under the default theme and using Oklab as well as Oklrab for computing
-    /// color distance. The first color consistently matches ANSI cyan, which is
-    /// a poor fit. This demonstrates that matching against high-resolution,
-    /// perceptually uniform colors cannot make up for an exceedingly limited
-    /// number of color choices. It also suggests that, just maybe, searching in
-    /// polar coordinate space and penalizing hue differences may be a better
-    /// strategy for ANSI colors.
+    /// The example code below matches shades of orange `#ffa563` and `#ff9600`
+    /// to ANSI colors under the default theme in both Oklab and Oklrab. In both
+    /// versions of the color space, the first orange consistently matches ANSI
+    /// white and the second orange bright red.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorFormatError, ColorMatcher, ColorSpace};
@@ -225,15 +221,30 @@ impl ColorMatcher {
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: #ffa563;"></div>
-    /// <div style="background-color: #00aaaa;"></div>
+    /// <div style="background-color: #aaaaaa;"></div>
     /// <div style="background-color: #ff9600;"></div>
     /// <div style="background-color: #ff5555;"></div>
     /// <div style="background-color: #ffa563;"></div>
-    /// <div style="background-color: #00aaaa;"></div>
+    /// <div style="background-color: #aaaaaa;"></div>
     /// <div style="background-color: #ff9600;"></div>
     /// <div style="background-color: #ff5555;"></div>
     /// </div>
     /// <br>
+    ///
+    /// That `#ffa563` has white's `#aaaaaa` as its closest match is more than a
+    /// little ironic: The color has almost the same hue and chroma as the
+    /// default theme's yellow, which really is a dark orange or brown. The
+    /// figure below illustrates just that, plotting all non-gray ANSI colors
+    /// (as circles) and the two orange tones (as narrow diamonds) in Oklab's
+    /// chroma hue plane (which really is the same as the a/b plane, i.e., they
+    /// both have the exact same colors in the exact same positions.
+    ///
+    /// ![The colors plotted on Oklab's chroma and hue plane](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/vga-colors.svg)
+    ///
+    /// Given the very limited repertoire of ANSI colors, changes in lightness,
+    /// chroma, and hue seem unavoidable when mapping arbitrary colors to ANSI
+    /// colors. But white still seems like a worse choice than that dark orange.
+    /// Let's explore if we can do better by prioritizing hue. We'll
     ///
     /// In fact, let's explore that idea a little further. We'll be comparing
     /// colors in Oklrch. So, we prepare a list with the color values for the 16
