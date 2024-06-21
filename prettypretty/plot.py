@@ -267,7 +267,7 @@ def main() -> None:
 
     fig = plotter.create_figure(terminal_name)
     status(f"Saving as `{file_name}`")
-    fig.savefig(file_name)  # type: ignore
+    fig.savefig(file_name, bbox_inches="tight")  # type: ignore
 
 
 if __name__ == "__main__":
