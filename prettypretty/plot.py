@@ -13,8 +13,6 @@ except ImportError:
     sys.exit(1)
 
 import argparse
-from collections.abc import Iterator
-from dataclasses import dataclass, field
 import math
 from typing import Any, cast
 
@@ -45,148 +43,133 @@ def create_parser() -> argparse.ArgumentParser:
         help="also plot color written as six hexadecimal digits"
     )
     parser.add_argument(
+        "--origin",
+        help="plot gray written as two hexadecimal digits at origin"
+    )
+    parser.add_argument(
         "-o", "--output",
         help="write color plot to named file instead of `<terminal>-colors.svg`"
     )
     return parser
 
 
-@dataclass
 class ColorPlotter:
-    state: str = "init"
-    silent: bool = False
-    kind: str = "ANSI Colors"
+    def __init__(
+        self,
+        silent: bool = False,
+        figure_label: None | str = None,
+        color_label: None | str = None,
+    ) -> None:
+        self._silent = silent
+        self._figure_label = figure_label
+        self._color_label = color_label
 
-    hues: list[float] = field(default_factory=list)
-    chromas: list[float] = field(default_factory=list)
-    max_chroma: float = 0
-    colors: list[str] = field(default_factory=list)
-    markers: list[str] = field(default_factory=list)
+        self._hues: list[float] = []
+        self._chromas: list[float] = []
+        self._colors: list[str] = []
+        self._markers: list[str] = []
 
-    duplicates = 0  # Duplicates are not plotted, only counted
-    grays = 0   # Grays are not plotted, only counted
-    base_count = 0  # Colors with default marker "o"
-    extra_count = None
+        self._grays: list[float] = []
+        self._gray_marker = None
+
+        self._duplicate_count = 0
+        self._base_count = 0
+        self._extra_count = 0
 
     def status(self, msg: str) -> None:
-        if not self.silent:
+        if not self._silent:
             print(msg)
 
     def start_adding(self) -> None:
-        if self.state != "init":
-            raise ValueError(
-                "color plotter is not in initial state anymore; create new instance first"
-            )
-        self.state = "adding"
-
         self.status("                Color    L        Chroma   Hue")
         self.status("------------------------------------------------")
 
     def add(self, name: str, color: ColorSpec, marker: str = "o") -> None:
-        if self.state != "adding":
-            raise ValueError(
-                "color plotter is not in adding state; call start_adding() first"
-            )
-
         color = Color(color)
 
         # Matplotlib is sRGB only
         srgb = color.to("srgb")
         if not srgb.in_gamut():
             srgb = srgb.to_gamut()
-        hex_label = f'{srgb.to("rgb256"):h}'
+        hex_color = f'{srgb.to("rgb256"):h}'
 
         # Convert to Oklch
         oklch = color.to("oklch")
         l, c, h = cast(FloatCoordinateSpec, oklch.coordinates)
-        l = round(l, 5)
-        c = round(c, 5)
-        h = round(h, 1)
+        c = round(c, 14)  # Chop off one digit of precision.
 
         # Update status
         light = f'{l:.5}'
         chroma = f'{c:.5}'
-        hue = f'{h}'
-        self.status(f"{name:14}  {hex_label}  {light:<7}  {chroma:<7}  {hue:>5}")
+        hue = f'{h:.1f}'
+        self.status(f"{name:14}  {hex_color}  {light:<7}  {chroma:<7}  {hue:>5}")
 
-        # Skip grays and duplicates
-        if c == 0 or math.isnan(h):
-            self.grays += 1
+        # Handle grays
+        if c < 1e-9 or math.isnan(h):
+            self._grays.append(l)
+            if self._gray_marker is None:
+                self._gray_marker = marker
+            elif marker != self._gray_marker:
+                raise ValueError(
+                    f"inconsistent markers for gray: {marker} vs {self._gray_marker}"
+                )
             return
 
-        if hex_label in self.colors:
-            self.duplicates += 1
+        # Skip duplicates
+        if hex_color in self._colors:
+            self._duplicate_count += 1
             return
 
         # Record hue, chroma, color, marker
         h = h * math.pi / 180
-        self.hues.append(h)
-        self.chromas.append(c)
-        self.max_chroma = max(c, self.max_chroma)
-        self.colors.append(hex_label)
-        self.markers.append(marker)
+        self._hues.append(h)
+        self._chromas.append(c)
+        self._colors.append(hex_color)
+        self._markers.append(marker)
         if marker == "o":
-            self.base_count += 1
+            self._base_count += 1
+        else:
+            self._extra_count += 1
 
-    def stop_adding(self) -> tuple[int, int]:
-        if self.state != "adding":
-            raise ValueError(
-                "color plotter is not in adding state; call start_adding(),"
-                " then add() several times, only then stop_adding()"
-            )
-        self.state = "plotting"
-
-        self.extra_count = len(self.colors) - self.base_count
+    def stop_adding(self) -> None:
         self.status(
-            f"\nAltogether {self.base_count}+{self.extra_count} colors "
-            f"without {self.grays} grays and {self.duplicates} duplicates"
+            f"\nAltogether {self.format_counts()} colors, "
+            f" {len(self._grays)} grays, and {self._duplicate_count} duplicates"
         )
-
-        return self.base_count, self.extra_count
 
     def format_counts(self) -> str:
-        if self.state != "plotting":
-            raise ValueError(
-                "color plotter is not in plotting state; call stop_adding() first"
-            )
-        return (
-            f"{self.base_count}" if self.extra_count == 0
-            else f"{self.base_count}+{self.extra_count}"
-        )
+        counts = f"{self._base_count}+{len(self._grays)}"
+        if self._extra_count > 0:
+            counts += f"+{self._extra_count}"
+        return counts
 
     def effective_max_chroma(self) -> float:
-        if self.state != "plotting":
-            raise ValueError(
-                "color plotter is not in plotting state; call stop_adding() first"
-            )
-        if self.max_chroma < 0.3:
+        if all(c < 0.3 for c in self._chromas):
             return 0.3
         else:
             return 0.4
 
-    def __iter__(self) -> Iterator[tuple[float, float, str, str]]:
-        if self.state != "plotting":
-            raise ValueError(
-                "color plotter is not in plotting state; call stop_adding() first"
-            )
-
-        for hue, chroma, color, marker in zip(
-            self.hues, self.chromas, self.colors, self.markers
-        ):
-            yield hue, chroma, color, marker
-
     def format_ytick_label(self, y: float, _: int) -> str:
-        if y % 0.1 > 0.01 or abs(y - self.effective_max_chroma()) < 0.01:
+        if y % 0.1 < 1e-9 or math.isclose(y, self.effective_max_chroma()):
             return ""
         else:
             return f"{y:.2}"
 
-    def create_figure(self, terminal_name: str) -> Any:
-        fig, axes = plt.subplots(figsize=(5, 5), subplot_kw={'projection': 'polar'})  #type: ignore
+    def create_figure(
+        self,
+        figure_label: None | str = None,
+        color_label: None | str = None,
+    ) -> Any:
+        fig, axes = plt.subplots(  # type: ignore
+            figsize=(5, 5),
+            subplot_kw={'projection': 'polar'},
+        )
 
         # Since marker can only be set for all marks in a series, we use a new
         # series for every single color.
-        for hue, chroma, color, marker in self:
+        for hue, chroma, color, marker in zip(
+            self._hues, self._chromas, self._colors, self._markers
+        ):
             size = 80 if marker == "o" else 60
             axes.scatter(
                 [hue],
@@ -194,6 +177,21 @@ class ColorPlotter:
                 c=[color],
                 s=[size],
                 marker=marker,
+                edgecolors='#000',
+            )
+
+        if self._grays:
+            gray = Color("oklab", sum(self._grays) / len(self._grays), 0, 0).to("srgb")
+            if not gray.in_gamut():
+                gray = gray.to_gamut()
+            hex_color = f'{gray.to("rgb256"):h}'
+
+            axes.scatter(
+                [0],
+                [0],
+                c=[hex_color],
+                s=[80],
+                marker=self._gray_marker,
                 edgecolors='#000',
             )
 
@@ -211,15 +209,13 @@ class ColorPlotter:
         # Make grid appear below points
         axes.set_axisbelow(True)
 
-        axes.set_title(  # type: ignore
-            f"{terminal_name}: Hue & Chroma for {self.format_counts()} ANSI Colors in Oklab",
-            pad=15,
-            weight="bold",
-        )
+        figure_label = figure_label or self._figure_label
+        color_label = color_label or self._color_label or "Colors"
+        title = f"{figure_label}: " if figure_label else ""
+        title += f"Hue & Chroma for {self.format_counts()} {color_label} in Oklab"
+        axes.set_title(title, pad=15, weight="bold")  # type: ignore
 
         return fig
-
-
 
 
 def main() -> None:
@@ -230,8 +226,10 @@ def main() -> None:
         if not options.silent:
             print(msg)
 
-    plotter = ColorPlotter()
-    plotter.silent = options.silent
+    plotter = ColorPlotter(
+        silent=options.silent,
+        color_label="ANSI Colors",
+    )
 
     terminal_id = None
 
