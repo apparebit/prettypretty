@@ -16,3 +16,6 @@ include = ["/README.md", "/LICENSE", "/src"]
 default = ["color-object"]
 core = []
 color-object = []
+
+[package.metadata.docs.rs]
+all-features = true
