@@ -87,6 +87,7 @@
 /// For [`crate::Color`] methods that can work with either Oklab/Oklch or
 /// Oklrab/Oklrch, the [`OkVersion`] enumeration selects the version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[repr(C)]
 pub enum ColorSpace {
     /// [sRGB](https://en.wikipedia.org/wiki/SRGB) has long served as the
     /// default color space for the web.
@@ -120,6 +121,9 @@ pub enum ColorSpace {
 
     /// Oklrab is Oklab but with an [improved lightness
     /// Lr](https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab).
+    /// There may or may not be another, still outstanding issue with Oklrab,
+    /// namely that a and b need [to be scaled by a factor of around
+    /// 2.1](https://github.com/w3c/csswg-drafts/issues/6642#issuecomment-945714988).
     Oklrab,
 
     /// Oklrch is Oklch, i.e., the polar version of Oklab, but with an [improved
@@ -137,14 +141,16 @@ pub enum ColorSpace {
 impl ColorSpace {
     /// Determine whether this color space is polar. Oklch and Oklrch currently
     /// are the only polar color spaces.
-    pub const fn is_polar(&self) -> bool {
+    #[no_mangle]
+    pub const extern "C" fn is_polar(&self) -> bool {
         matches!(*self, Self::Oklch | Self::Oklrch)
     }
 
     /// Determine whether this color space is RGB, that is, has red, green, and
     /// blue coordinates. In-gamut colors for RGB color spaces have coordinates
     /// in unit range `0..=1`.
-    pub const fn is_rgb(&self) -> bool {
+    #[no_mangle]
+    pub const extern "C" fn is_rgb(&self) -> bool {
         use ColorSpace::*;
         matches!(
             *self,
@@ -153,14 +159,16 @@ impl ColorSpace {
     }
 
     /// Determine whether this color space is one of the Ok*** color spaces.
-    pub const fn is_ok(&self) -> bool {
+    #[no_mangle]
+    pub const extern "C" fn is_ok(&self) -> bool {
         use ColorSpace::*;
         matches!(*self, Oklab | Oklch | Oklrab | Oklrch)
     }
 
     /// Determine whether this color space is bounded. XYZ and the Okl** color
     /// spaces are *unbounded*, whereas the RGB color spaces are *bounded*.
-    pub const fn is_bounded(&self) -> bool {
+    #[no_mangle]
+    pub const extern "C" fn is_bounded(&self) -> bool {
         use ColorSpace::*;
         matches!(
             *self,
@@ -202,28 +210,62 @@ impl OkVersion {
 // Representation
 // ====================================================================================================================
 
-/// Convert the given 24-bit coordinates to floating point coordinates. As part
-/// of conversion, this function scales coordinates by 1/255.0.
-pub fn from_24_bit(r: u8, g: u8, b: u8) -> [f64; 3] {
-    [r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0]
+/// Representation of an n-element array (*core-only*).
+///
+/// C calling conventions do not support passing arrays by value into or out of
+/// functions. They do support pointers to arrays, which suffices for passing
+/// arguments to this crate's core functions. Furthermore, they do support
+/// returning structures by value. Hence this `struct`  wraps an array to serve
+/// as FFI-safe container.
+#[derive(Copy, Clone, Debug)]
+#[repr(C)]
+pub struct ArrayData<C: Copy, const N: usize> {
+    pub data: [C; N],
 }
 
-/// If the given color space is an RGB color space and the given coordinates are
-/// in-gamut, convert them to 24-bit representation. Otherwise, return `None`.
-pub fn to_24_bit(space: ColorSpace, coordinates: &[f64; 3]) -> Option<[u8; 3]> {
-    if space.is_rgb() {
-        let [r, g, b] = coordinates;
-
-        if (0.0..=1.0).contains(r) && (0.0..=1.0).contains(g) && (0.0..=1.0).contains(b) {
-            return Some([
-                (r * 255.0).round() as u8,
-                (g * 255.0).round() as u8,
-                (b * 255.0).round() as u8,
-            ]);
-        }
+impl<C: Copy, const N: usize> From<[C; N]> for ArrayData<C, N> {
+    /// Create a new array data instance wrapping an array.
+    fn from(value: [C; N]) -> Self {
+        Self { data: value }
     }
+}
 
-    None
+impl<C: Copy, const N: usize> AsRef<[C; N]> for ArrayData<C, N> {
+    /// Access the underlying array data.
+    fn as_ref(&self) -> &[C; N] {
+        &self.data
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+/// Convert the given 24-bit coordinates to floating point coordinates
+/// (*core-only*).
+///
+/// As part of conversion, this function scales coordinates by 1/255.0.
+#[no_mangle]
+pub extern "C" fn from_24_bit(r: u8, g: u8, b: u8) -> ArrayData<f64, 3> {
+    [r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0].into()
+}
+
+/// Convert a color's coordinates to 24-bit representation (*core-only*).
+///
+/// # Panics
+///
+/// This function panics if the coordinates are not in unit range. In-gamut RGB
+/// colors always are in unit range. However, Oklab et al may very well have
+/// coordinates that are *not* in unit range. While (revised) lightness has unit
+/// range and chroma is contained by `0.0..0.4` for practical purposes, both a
+/// and b are contained by `-0.4..0.4` and hue ranges `0..360`.
+#[no_mangle]
+pub extern "C" fn to_24_bit(coordinates: &[f64; 3]) -> ArrayData<u8, 3> {
+    let [r, g, b] = coordinates;
+    [
+        (r * 255.0).round() as u8,
+        (g * 255.0).round() as u8,
+        (b * 255.0).round() as u8,
+    ]
+    .into()
 }
 
 // ====================================================================================================================
@@ -292,37 +334,38 @@ fn normalize_eq_mut(space: ColorSpace, coordinates: &mut [f64; 3]) {
     }
 }
 
-/// Normalize the coordinates.
-pub fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
+/// Normalize the coordinates (*core-only*).
+///
+/// This function replaces not-a-number by zero and forces Oklab's (revised)
+/// lightness, chroma, and hue to respect their limits.
+#[no_mangle]
+pub extern "C" fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<f64, 3> {
     let mut coordinates = *coordinates;
     normalize_domain_mut(space, &mut coordinates);
-    coordinates
+    coordinates.into()
 }
 
-/// Normalize the coordinates for equality testing and hashing.
+/// Normalize the coordinates for equality testing and hashing (*core-only*).
 ///
 /// Note: In-gamut RGB coordinates and the lightness for Oklab and Oklch have
 /// unit range already. No coordinate-specific normalization is required.
-pub fn normalize_eq(space: ColorSpace, coordinates: &[f64; 3]) -> [u64; 3] {
+#[no_mangle]
+pub extern "C" fn normalize_eq(space: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<u64, 3> {
     let mut coordinates = *coordinates;
     normalize_domain_mut(space, &mut coordinates);
     normalize_eq_mut(space, &mut coordinates);
     let [c1, c2, c3] = coordinates;
-    [c1.to_bits(), c2.to_bits(), c3.to_bits()]
+    [c1.to_bits(), c2.to_bits(), c3.to_bits()].into()
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// Compute the *Delta E* for the two coordinates in Oklab. Delta E is a generic
-/// difference or distance metric for colors and multiple algorithms exist. THe
-/// one for Oklab has the benefit of being fairly accurate and incredibly
-/// simple, just the Euclidian distances between the two coordinates. However,
-/// it appears that Ottosson [was a bit too
-/// fast](https://github.com/w3c/csswg-drafts/issues/6642#issuecomment-945714988)
-/// in defining Delta E that way...
+/// Compute Delta-E for Oklab or Oklrab. This is the crate-internal version
+/// using Rust calling convention. Hence it is suitable as a callback for
+/// `FnMut`.
 #[inline]
 #[allow(non_snake_case)]
-pub fn delta_e_ok(coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> f64 {
+pub(crate) fn delta_e_ok_internal(coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> f64 {
     let [L1, a1, b1] = coordinates1;
     let [L2, a2, b2] = coordinates2;
 
@@ -331,6 +374,14 @@ pub fn delta_e_ok(coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> f64 {
     let Δb = b1 - b2;
 
     ΔL.mul_add(ΔL, Δa.mul_add(Δa, Δb * Δb)).sqrt()
+}
+
+/// Compute Delta-E for Oklab or Oklrab (*core-only*).
+///
+/// The coordinates must all be in Oklab or Oklrab.
+#[no_mangle]
+pub extern "C" fn delta_e_ok(coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> f64 {
+    delta_e_ok_internal(coordinates1, coordinates2)
 }
 
 /// Find the candidate coordinates that are closest to the origin according to
@@ -791,36 +842,50 @@ fn xyz_to_oklrch(value: &[f64; 3]) -> [f64; 3] {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// Convert the coordinates from the `from_space` to the `to_space`.
-pub fn convert(from_space: ColorSpace, to_space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
+/// Convert the coordinates from one color space to another (*core-only*).
+///
+/// This function converts from any color space to any other color space,
+/// including itself. Alas, the result may very well be out-of-gamut in either
+/// color space. It is the caller's responsibility to ensure that the
+/// coordinates are usable for their intended purpose.
+#[no_mangle]
+pub extern "C" fn convert(
+    from_space: ColorSpace,
+    to_space: ColorSpace,
+    coordinates: &[f64; 3],
+) -> ArrayData<f64, 3> {
     use ColorSpace::*;
 
     // 1. Handle identities
     if from_space == to_space {
-        return *coordinates;
+        return (*coordinates).into();
     }
 
     // 2. Handle single-branch conversions, ignoring root
     match (from_space, to_space) {
         // Single-hop sRGB and P3 conversions
-        (Srgb, LinearSrgb) | (DisplayP3, LinearDisplayP3) => return rgb_to_linear_rgb(coordinates),
-        (LinearSrgb, Srgb) | (LinearDisplayP3, DisplayP3) => return linear_rgb_to_rgb(coordinates),
+        (Srgb, LinearSrgb) | (DisplayP3, LinearDisplayP3) => {
+            return rgb_to_linear_rgb(coordinates).into();
+        }
+        (LinearSrgb, Srgb) | (LinearDisplayP3, DisplayP3) => {
+            return linear_rgb_to_rgb(coordinates).into();
+        }
 
         // Single-hop Rec2020 conversions
-        (Rec2020, LinearRec2020) => return rec2020_to_linear_rec2020(coordinates),
-        (LinearRec2020, Rec2020) => return linear_rec2020_to_rec2020(coordinates),
+        (Rec2020, LinearRec2020) => return rec2020_to_linear_rec2020(coordinates).into(),
+        (LinearRec2020, Rec2020) => return linear_rec2020_to_rec2020(coordinates).into(),
 
         // Single-hop Ok*** conversions
-        (Oklch, Oklab) | (Oklrch, Oklrab) => return oklch_to_oklab(coordinates),
-        (Oklab, Oklch) | (Oklrab, Oklrch) => return oklab_to_oklch(coordinates),
-        (Oklab, Oklrab) | (Oklch, Oklrch) => return oklab_to_oklrab(coordinates),
-        (Oklrab, Oklab) | (Oklrch, Oklch) => return oklrab_to_oklab(coordinates),
+        (Oklch, Oklab) | (Oklrch, Oklrab) => return oklch_to_oklab(coordinates).into(),
+        (Oklab, Oklch) | (Oklrab, Oklrch) => return oklab_to_oklch(coordinates).into(),
+        (Oklab, Oklrab) | (Oklch, Oklrch) => return oklab_to_oklrab(coordinates).into(),
+        (Oklrab, Oklab) | (Oklrch, Oklch) => return oklrab_to_oklab(coordinates).into(),
 
         // Two-hop Ok*** conversions
-        (Oklrch, Oklab) => return oklrch_to_oklab(coordinates),
-        (Oklch, Oklrab) => return oklch_to_oklrab(coordinates),
-        (Oklab, Oklrch) => return oklab_to_oklrch(coordinates),
-        (Oklrab, Oklch) => return oklrab_to_oklch(coordinates),
+        (Oklrch, Oklab) => return oklrch_to_oklab(coordinates).into(),
+        (Oklch, Oklrab) => return oklch_to_oklrab(coordinates).into(),
+        (Oklab, Oklrch) => return oklab_to_oklrch(coordinates).into(),
+        (Oklrab, Oklch) => return oklrab_to_oklch(coordinates).into(),
         _ => (),
     };
 
@@ -840,7 +905,7 @@ pub fn convert(from_space: ColorSpace, to_space: ColorSpace, coordinates: &[f64;
     };
 
     // 3b. Convert from XYZ to target on different branch
-    match to_space {
+    let data = match to_space {
         Srgb => xyz_to_srgb(&intermediate),
         LinearSrgb => xyz_to_linear_srgb(&intermediate),
         DisplayP3 => xyz_to_display_p3(&intermediate),
@@ -852,15 +917,19 @@ pub fn convert(from_space: ColorSpace, to_space: ColorSpace, coordinates: &[f64;
         Oklrch => xyz_to_oklrch(&intermediate),
         Oklrab => xyz_to_oklrab(&intermediate),
         Xyz => intermediate,
-    }
+    };
+
+    data.into()
 }
 
 // ====================================================================================================================
 // Gamut
 // ====================================================================================================================
 
-/// Determine whether the coordinates are in gamut for the color space.
-pub fn in_gamut(space: ColorSpace, coordinates: &[f64; 3]) -> bool {
+/// Determine whether the coordinates are in gamut for their color space
+/// (*core-only*).
+#[no_mangle]
+pub extern "C" fn in_gamut(space: ColorSpace, coordinates: &[f64; 3]) -> bool {
     if space.is_rgb() {
         coordinates.iter().all(|c| 0.0 <= *c && *c <= 1.0)
     } else {
@@ -868,19 +937,29 @@ pub fn in_gamut(space: ColorSpace, coordinates: &[f64; 3]) -> bool {
     }
 }
 
-/// Clip the coordinates to the gamut of the color space.
-pub fn clip(space: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
+/// Clip the coordinates to the gamut of the color space (*core-only*).
+#[no_mangle]
+pub extern "C" fn clip(space: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<f64, 3> {
     if space.is_rgb() {
         let [r, g, b] = *coordinates;
-        [r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)]
+        [r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)].into()
     } else {
-        *coordinates
+        (*coordinates).into()
     }
 }
 
-/// Map the color into gamut by using the [CSS Color 4
-/// algorithm](https://drafts.csswg.org/css-color/#css-gamut-mapping).
-pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
+/// Map the given color coordinates into gamut (*core-only*).
+///
+/// This function uses the CSS Color 4 [gamut mapping
+/// algorithm](https://drafts.csswg.org/css-color/#css-gamut-mapping). It
+/// performs a binary search in Oklch for a color with less chroma than the
+/// original, whose clipped version is within the *just noticeable difference*
+/// and in-gamut for the current color space. That clipped color is the result.
+///
+/// The given coordinates must have been converted to the target color space
+/// already.
+#[no_mangle]
+pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<f64, 3> {
     use ColorSpace::*;
 
     const JND: f64 = 0.02;
@@ -888,11 +967,11 @@ pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
 
     // If the color space is unbounded, there is nothing to map to
     if !target.is_bounded() {
-        return *coordinates;
+        return (*coordinates).into();
     }
 
     // Preliminary 1/2: Clamp Lightness
-    let origin_as_oklch = convert(target, Oklch, coordinates);
+    let origin_as_oklch = convert(target, Oklch, coordinates).data;
     let l = origin_as_oklch[0];
     if l >= 1.0 {
         return convert(Oklch, target, &[1.0, 0.0, 0.0]);
@@ -903,21 +982,21 @@ pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
 
     // Preliminary 2/2: Check gamut
     if in_gamut(target, coordinates) {
-        return *coordinates;
+        return (*coordinates).into();
     }
 
     // Goal: Minimize just noticeable difference between current and clipped
     // colors
     let mut current_as_oklch = origin_as_oklch;
-    let mut clipped_as_target = clip(target, &convert(Oklch, target, &current_as_oklch));
+    let mut clipped_as_target = clip(target, &convert(Oklch, target, &current_as_oklch).data).data;
 
     let difference = delta_e_ok(
-        &convert(target, Oklab, &clipped_as_target),
+        &convert(target, Oklab, &clipped_as_target).data,
         &oklch_to_oklab(&current_as_oklch),
     );
 
     if difference < JND {
-        return clipped_as_target;
+        return clipped_as_target.into();
     }
 
     // Strategy: Binary search by adjusting chroma in Oklch
@@ -929,23 +1008,23 @@ pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
         let chroma = (min + max) / 2.0;
         current_as_oklch = [current_as_oklch[0], chroma, current_as_oklch[2]];
 
-        let current_as_target = convert(Oklch, target, &current_as_oklch);
+        let current_as_target = convert(Oklch, target, &current_as_oklch).data;
 
         if min_in_gamut && in_gamut(target, &current_as_target) {
             min = chroma;
             continue;
         }
 
-        clipped_as_target = clip(target, &current_as_target);
+        clipped_as_target = clip(target, &current_as_target).data;
 
         let difference = delta_e_ok(
-            &convert(target, Oklab, &clipped_as_target),
+            &convert(target, Oklab, &clipped_as_target).data,
             &oklch_to_oklab(&current_as_oklch),
         );
 
         if difference < JND {
             if JND - difference < EPSILON {
-                return clipped_as_target;
+                return clipped_as_target.into();
             }
             min_in_gamut = false;
             min = chroma;
@@ -954,7 +1033,7 @@ pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
         }
     }
 
-    clipped_as_target
+    clipped_as_target.into()
 }
 
 // ====================================================================================================================
@@ -963,15 +1042,34 @@ pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> [f64; 3] {
 
 // Limit visibility of many contrast-specific constants
 mod contrast {
-    pub const SRGB_CONTRAST: [f64; 3] = [0.2126729, 0.7151522, 0.0721750];
-    #[allow(clippy::excessive_precision)]
-    pub const P3_CONTRAST: [f64; 3] = [0.2289829594805780, 0.6917492625852380, 0.0792677779341829];
+    /// The coefficients for computing the contrast luminance for sRGB
+    /// coordinates (*core-only*).
+    pub const SRGB_CONTRAST: &[f64; 3] = &[0.2126729, 0.7151522, 0.0721750];
 
-    /// Convert the given color coordinates to perceptual contrast luminance.
-    /// The coefficients are [`SRGB_CONTRAST`] for sRGB coordinates and
-    /// [`P3_CONTRAST`] for Display P3 coordinates. Though Display P3 should
-    /// only be used for colors that are out of gamut for sRGB.
-    pub fn to_contrast_luminance(coefficients: &[f64; 3], coordinates: &[f64; 3]) -> f64 {
+    /// The coefficients for computing the contrast luminance for Display P3
+    /// coordinates (*core-only*).
+    #[allow(clippy::excessive_precision)]
+    pub const P3_CONTRAST: &[f64; 3] =
+        &[0.2289829594805780, 0.6917492625852380, 0.0792677779341829];
+
+    /// Convert the given color coordinates to perceptual contrast luminance
+    /// (*core-only*).
+    ///
+    /// Contrast luminance is a non-standard quantity (i.e., *not* the Y in XYZ)
+    /// and must be computed with this function and suitable coefficients. If
+    /// both colors are in-gamut for sRGB, their contrast luminance should be
+    /// computed based on the sRGB coordinates and [`SRGB_CONTRAST`]
+    /// coefficients. Display P3 coordinates and [`P3_CONTRAST`] coefficients
+    /// should be treated strictly as fallback for out-of-sRGB-gamut colors.
+    ///
+    /// # Also See
+    ///
+    /// [`to_contrast`], [`P3_CONTRAST`], [`SRGB_CONTRAST`]
+    #[no_mangle]
+    pub extern "C" fn to_contrast_luminance(
+        coefficients: &[f64; 3],
+        coordinates: &[f64; 3],
+    ) -> f64 {
         fn linearize(value: f64) -> f64 {
             let magnitude = value.abs();
             magnitude.powf(2.4).copysign(value)
@@ -990,11 +1088,31 @@ mod contrast {
     const OFFSET: f64 = 0.027;
     const OUTPUT_CLAMP: f64 = 0.1;
 
-    /// Compute the perceptual contrast for the text and background luminance
-    /// values. This function uses an algorithm that is surprisingly similar to
-    /// the [Accessible Perceptual Contrast
-    /// Algorithm](https://github.com/Myndex/apca-w3), version 0.0.98G-4g.
-    pub fn to_contrast(text_luminance: f64, background_luminance: f64) -> f64 {
+    /// Compute the perceptual contrast between text and background
+    /// (*core-only*).
+    ///
+    /// Using an algorithm that is surprisingly similar to the [Accessible
+    /// Perceptual Contrast Algorithm](https://github.com/Myndex/apca-w3),
+    /// version 0.0.98G-4g, this function computes the perceptual contrast
+    /// between the given contrast luminance for foreground and background.
+    ///
+    /// The arguments to this function are *not* interchangeable. The first
+    /// argument must be the contrast luminance for the foreground, i.e., text,
+    /// and the second argument must be the contrast luminance for the
+    /// background.
+    ///
+    /// Said contrast luminance is a non-standard quantity (i.e., *not* the Y in
+    /// XYZ) to be computed with [`to_contrast_luminance`]. That computation
+    /// also is more robust for sRGB than Display P3. In practice, that means
+    /// computing contrast luminance off sRGB coordinates, using
+    /// [`SRGB_CONTRAST`] as coefficients, if both colors are in-gamut for sRGB
+    /// and using Display P3 and the [`P3_CONTRAST`] coefficients as fallback.
+    ///
+    /// # Also See
+    ///
+    /// [`to_contrast_luminance`], [`P3_CONTRAST`], [`SRGB_CONTRAST`]
+    #[no_mangle]
+    pub extern "C" fn to_contrast(text_luminance: f64, background_luminance: f64) -> f64 {
         // Also see https://github.com/w3c/silver/issues/645
 
         // Make sure the luminance values are legit
@@ -1053,17 +1171,27 @@ pub use contrast::{to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAS
 // Color Lightness
 // ====================================================================================================================
 
-/// After converting to Oklrch, scale the color's lightness by the given factor.
+/// Lighten a color by the given factor in Oklrch (*core-only*).
+///
+/// If the given coordinates are not in Oklrch already, this function first
+/// converts them to Oklrch. In any case, it next multiplies the revised
+/// lightness by the given factor. Darkening a color is as simple as invoking
+/// this function with the inverse factor.
 #[inline]
 #[allow(non_snake_case)]
-pub fn scale_lightness(space: ColorSpace, coordinates: &[f64; 3], factor: f64) -> [f64; 3] {
+#[no_mangle]
+pub fn scale_lightness(
+    space: ColorSpace,
+    coordinates: &[f64; 3],
+    factor: f64,
+) -> ArrayData<f64, 3> {
     let [Lr, C, h] = if space == ColorSpace::Oklrch {
         *coordinates
     } else {
-        convert(space, ColorSpace::Oklrch, coordinates)
+        convert(space, ColorSpace::Oklrch, coordinates).data
     };
 
-    [factor * Lr, C, h]
+    [factor * Lr, C, h].into()
 }
 
 // ====================================================================================================================
@@ -1107,7 +1235,12 @@ fn convert_with_nan(
     coordinates: &[f64; 3],
 ) -> [f64; 3] {
     // Convert normalized coordinates
-    let mut converted = convert(from_space, to_space, &normalize(from_space, coordinates));
+    let mut converted = convert(
+        from_space,
+        to_space,
+        &normalize(from_space, coordinates).data,
+    )
+    .data;
 
     // Carry forward missing components
     for (index, coordinate) in coordinates.iter().enumerate() {
@@ -1133,6 +1266,7 @@ fn convert_with_nan(
 /// [`InterpolationStrategy::Increasing`] and
 /// [`InterpolationStrategy::Decreasing`].
 #[derive(Copy, Clone, Debug)]
+#[repr(C)]
 pub enum InterpolationStrategy {
     /// Take the shorter arc between the two hue angles.
     Shorter,
@@ -1146,42 +1280,60 @@ pub enum InterpolationStrategy {
 
 impl InterpolationStrategy {
     /// Adjust the pair of hues based on interpolation strategy.
-    pub fn apply(&self, h1: f64, h2: f64) -> (f64, f64) {
+    #[no_mangle]
+    pub fn apply(&self, h1: f64, h2: f64) -> ArrayData<f64, 2> {
         match self {
             InterpolationStrategy::Shorter => {
                 if h2 - h1 > 180.0 {
-                    return (h1 + 360.0, h2);
+                    return [h1 + 360.0, h2].into();
                 } else if h2 - h1 < -180.0 {
-                    return (h1, h2 + 360.0);
+                    return [h1, h2 + 360.0].into();
                 }
             }
             InterpolationStrategy::Longer => {
                 if (0.0..=180.0).contains(&(h2 - h1)) {
-                    return (h1 + 360.0, h2);
+                    return [h1 + 360.0, h2].into();
                 } else if (-180.0..=0.0).contains(&(h2 - h1)) {
-                    return (h1, h2 + 360.0);
+                    return [h1, h2 + 360.0].into();
                 }
             }
             InterpolationStrategy::Increasing => {
                 if h2 < h1 {
-                    return (h1, h2 + 360.0);
+                    return [h1, h2 + 360.0].into();
                 }
             }
             InterpolationStrategy::Decreasing => {
                 if h1 < h2 {
-                    return (h1 + 360.0, h2);
+                    return [h1 + 360.0, h2].into();
                 }
             }
         }
 
-        (h1, h2)
+        [h1, h2].into()
     }
 }
 
-/// The default interpolation, which is shorter.
+/// The default interpolation, which is [`InterpolationStrategy::Shorter`].
 pub const DEFAULT_INTERPOLATION: InterpolationStrategy = InterpolationStrategy::Shorter;
 
-/// Prepare coordinates for interpolation.
+/// Prepare coordinates for interpolation (*core-only*)
+///
+/// This function prepares a pair of coordinates for interpolation in another
+/// color space, usually some version of Oklab, accorrding to [CSS Color
+/// 4](https://www.w3.org/TR/css-color-4/#interpolation). While linear
+/// interpolation itself is rather simple, preparing the coordinates is quite a
+/// bit more work. In particular, this function converts coordinates to the
+/// interpolation color space while carrying forward any missing components. It
+/// then tries to fill in missing components in the shared interpolation color
+/// space. For color spaces with polar coordinates, this function also adjusts
+/// hues according to interpolation strategy. Providing separate functions for
+/// preparation and actual interpolation makes it possible to amortize the cost
+/// of preparation over several interpolations, e.g., when computing a gradient.
+///
+/// # Also See
+///
+/// [`interpolate`]
+#[no_mangle]
 pub fn prepare_to_interpolate(
     space1: ColorSpace,
     coordinates1: &[f64; 3],
@@ -1189,7 +1341,7 @@ pub fn prepare_to_interpolate(
     coordinates2: &[f64; 3],
     interpolation_space: ColorSpace,
     strategy: InterpolationStrategy,
-) -> ([f64; 3], [f64; 3]) {
+) -> ArrayData<ArrayData<f64, 3>, 2> {
     let mut coordinates1 = convert_with_nan(space1, interpolation_space, coordinates1);
     let mut coordinates2 = convert_with_nan(space2, interpolation_space, coordinates2);
 
@@ -1205,19 +1357,33 @@ pub fn prepare_to_interpolate(
 
     // Adjust hue based on interpolation strategy
     if interpolation_space.is_polar() {
-        (coordinates1[2], coordinates2[2]) = strategy.apply(coordinates1[2], coordinates2[2])
+        [coordinates1[2], coordinates2[2]] = strategy.apply(coordinates1[2], coordinates2[2]).data
     }
 
-    (coordinates1, coordinates2)
+    [coordinates1.into(), coordinates2.into()].into()
 }
 
-/// Interpolate between the prepared coordinates.
-pub fn interpolate(fraction: f64, coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -> [f64; 3] {
+/// Interpolate between the prepared coordinates (*core-only*).
+///
+/// This function interpolates by the given factor between the two color
+/// coordinates. It is critical that coordinates are correctly prepared with
+/// [`prepare_to_interpolate`] first, which does most of the heavy lifting.
+///
+/// # Also See
+///
+/// [`prepare_to_interpolate`]
+#[no_mangle]
+pub fn interpolate(
+    fraction: f64,
+    coordinates1: &[f64; 3],
+    coordinates2: &[f64; 3],
+) -> ArrayData<f64, 3> {
     [
         coordinates1[0] + fraction * (coordinates2[0] - coordinates1[0]),
         coordinates1[1] + fraction * (coordinates2[1] - coordinates1[1]),
         coordinates1[2] + fraction * (coordinates2[2] - coordinates1[2]),
     ]
+    .into()
 }
 
 // ====================================================================================================================
@@ -1329,8 +1495,8 @@ mod test {
         coordinates1: &[f64; 3],
         coordinates2: &[f64; 3],
     ) -> bool {
-        let n1 = dbg!(normalize_eq(space, coordinates1));
-        let n2 = dbg!(normalize_eq(space, coordinates2));
+        let n1 = dbg!(normalize_eq(space, coordinates1).data);
+        let n2 = dbg!(normalize_eq(space, coordinates2).data);
 
         n1 == n2
     }
@@ -1450,14 +1616,14 @@ mod test {
     fn test_gamut_mapping() {
         // A very green green.
         let p3 = [0.0, 1.0, 0.0];
-        let srgb = convert(DisplayP3, Srgb, &p3);
+        let srgb = convert(DisplayP3, Srgb, &p3).data;
         assert!(same_coordinates(
             Srgb,
             &srgb,
             &[-0.5116049825853448, 1.0182656579378029, -0.3106746212905826]
         ));
 
-        let srgb_mapped = map_to_gamut(Srgb, &srgb);
+        let srgb_mapped = map_to_gamut(Srgb, &srgb).data;
         assert!(same_coordinates(
             Srgb,
             &srgb_mapped,
@@ -1466,21 +1632,21 @@ mod test {
 
         // A very yellow yellow.
         let p3 = [1.0, 1.0, 0.0];
-        let srgb = convert(DisplayP3, Srgb, &p3);
+        let srgb = convert(DisplayP3, Srgb, &p3).data;
         assert!(same_coordinates(
             Srgb,
             &srgb,
             &[0.9999999999999999, 0.9999999999999999, -0.3462679629331063]
         ));
 
-        let linear_srgb = convert(DisplayP3, LinearSrgb, &p3);
+        let linear_srgb = convert(DisplayP3, LinearSrgb, &p3).data;
         assert!(same_coordinates(
             LinearSrgb,
             &linear_srgb,
             &[1.0, 1.0000000000000002, -0.09827360014096621]
         ));
 
-        let linear_srgb_mapped = map_to_gamut(LinearSrgb, &linear_srgb);
+        let linear_srgb_mapped = map_to_gamut(LinearSrgb, &linear_srgb).data;
         assert!(same_coordinates(
             LinearSrgb,
             &linear_srgb_mapped,
