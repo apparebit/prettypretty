@@ -469,23 +469,27 @@
 //!
 //! ## 4. Features
 //!
-//! This crate has two features. While mutually exclusive use is not enforced,
-//! it probably is the meaningful use. After all, each feature enables a very
-//! different interface to the same functionality:
+//! This crate has two features:
 //!
 //!   - **`color-object`** enables the high-level, nicely encapsulated interface
-//!     summarized so far. This feature is enabled by default and best serves
-//!     all users of this crate's functionality.
-//!   - **`core-functions`** enables a lower-level interface based on functions
-//!     that take color coordinates. Hence it is simple enough to be exposed
-//!     through a C-based FFI and can thereby be reused from other programming
-//!     languages. In other words, it is the right interface when implementing a
-//!     higher-level color abstraction for another programming language, such as
-//!     Python.
+//!     summarized in this crate summary. This feature is enabled by default and
+//!     best serves Rust libraries and applications.
+//!   - **`core`** enables a lower-level interface based on functions that take
+//!     color coordinates. It is simple enough to be accessed through a C-based
+//!     FFI and hence best serves as implementation substrate for higher-level
+//!     color abstractions in Rust as well as other programming languages.
 //!
-//! In fact, that is just how prettypretty's Python implementation reuses the
-//! Rust core, which allowed me to get rid of the Python implementation of the
-//! same functionality.
+//! This crate's high-level color interface is, of course, implemented through
+//! the lower-level interface and the crate's repository also includes a
+//! [Python-based implementation](https://github.com/apparebit/prettypretty).
+//!
+//! To put it differently, every build of prettypretty includes all the
+//! functionality of `core`, even if the `core` feature is disabled. The
+//! difference is that, when the `core` feature is disabled, the corresponding
+//! functions are not visible outside the crate. They are labeled as
+//! "*core-only*" in the documentation. At the same time, if the `color-object`
+//! feature is disabled, the high-level interface is entirely omitted from the
+//! build.
 //!
 //!
 //! ## 5. BYOIO: Bring Your Own (Terminal) I/O
@@ -519,13 +523,13 @@
 //! backslash). Some terminals answer with `\x0b` (bell) instead of ST.
 //!
 //!
-//! ## Postscript
+//! ## 6. Et Cetera
 //!
-//! As already illustrated above, most code examples come with their own color
-//! swatches, which show the color values mentioned in the code. Where possible,
-//! swatches use the exact same color spaces as the code (sRGB, Display P3,
-//! Oklab, or Oklch). Otherwise, they fall back on an equivalent color in a
-//! comparable color space (Oklrab and Oklrch).
+//! Just like the above examples, most code blocks in the documentation come
+//! with color swatches, which show the color values mentioned in the code.
+//! Where possible, swatches use the exact same color spaces as the code (sRGB,
+//! Display P3, Rec. 2020, Oklab, or Oklch). Otherwise, they fall back on an
+//! equivalent color in a comparable color space (Oklrab and Oklrch).
 //!
 //! Implementing this crate's color support was a breeze. In part, that was
 //! because I had built a prototype and a package in Python before and hence
@@ -533,7 +537,7 @@
 //! nitty-gritty color algorithms and conversion matrices from the most
 //! excellent [Color.js](https://colorjs.io) by [Lea
 //! Verou](http://lea.verou.me/) and [Chris Lilley](https://svgees.us/). Without
-//! their work, I could not have gotten as far as quickly. Thank you!
+//! their work, I could not have gotten as far as quickly. Thank you! 🌸
 
 mod collect;
 mod color;
@@ -543,15 +547,15 @@ mod util;
 
 pub use color::core::{ColorSpace, InterpolationStrategy, DEFAULT_INTERPOLATION};
 
-#[cfg(feature = "core-functions")]
+#[cfg(feature = "core")]
 pub use color::core::{
     clip, convert, delta_e_ok, find_closest, from_24_bit, in_gamut, interpolate, map_to_gamut,
     normalize, normalize_eq, prepare_to_interpolate, scale_lightness, to_24_bit, to_contrast,
-    to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
+    to_contrast_luminance, ArrayData, P3_CONTRAST, SRGB_CONTRAST,
 };
 
-#[cfg(feature = "core-functions")]
-pub use parser::parse;
+#[cfg(feature = "core")]
+pub use parser::{format, parse};
 
 #[cfg(feature = "color-object")]
 pub use collect::{ColorMatcher, Theme, DEFAULT_THEME};
