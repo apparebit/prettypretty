@@ -135,10 +135,17 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// Parse the given string as a color in hashed hexadecimal, X Windows, or CSS
-/// format. Before trying to parse the string, this function trims leading and
-/// trailing whitespace and converts ASCII characters to lower case. Note that a
-/// valid string may still contain Unicode white space characters.
+/// Parse the string into a color (*core-only*).
+///
+/// This function recognizes hashed hexadecimal, XParseColor, and CSS formats
+/// for colors. In particular, it recognizes the three and six digit hashed
+/// hexadecimal format, the XParseColor format with `rgb:` prefix, and the
+/// modern syntax for the `color()`, `oklab()`, and `oklch()` CSS functions with
+/// space-separated arguments. Before trying to parse either of these formats,
+/// this function trims leading and trailing white space and converts ASCII
+/// letters to lowercase. However, a valid color string may still contain
+/// Unicode white space characters and hence needn't be all ASCII.
+#[no_mangle]
 pub fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
     let lowercase = s.trim().to_ascii_lowercase(); // Keep around for fn scope
     let s = lowercase.as_str();
@@ -159,6 +166,85 @@ pub fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
     } else {
         parse_css(s)
     }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+impl ColorSpace {
+    /// Determine the prefix for serializing colors from this color space in CSS
+    /// format.
+    ///
+    /// The resulting string is either `color(<space> ...)`, `oklab(...)`, or
+    /// `oklch(...)`, with the ellipsis eliding three *space-separated*
+    /// coordinates. This method returns all characters up to and excluding the
+    /// first coordinate but including any necessary space. Since CSS does not
+    /// currently support linear Display P3, linear Rec. 2020, Oklrab, and
+    /// Oklrch, the names for the CSS `color()` function are written as a custom
+    /// property name, i.e., with two leading dashes.
+    pub const fn css_prefix(&self) -> &str {
+        use ColorSpace::*;
+        match *self {
+            Srgb => "color(srgb ",
+            LinearSrgb => "color(linear-srgb ",
+            DisplayP3 => "color(display-p3 ",
+            LinearDisplayP3 => "color(--linear-display-p3 ",
+            Rec2020 => "color(rec2020 ",
+            LinearRec2020 => "color(--linear-rec2020 ",
+            Oklab => "oklab(",
+            Oklch => "oklch(",
+            Oklrab => "color(--oklrab ",
+            Oklrch => "color(--oklrch ",
+            Xyz => "color(xyz ",
+        }
+    }
+}
+
+/// Format the color as a string (*core-only*).
+///
+/// This function formats the given cooordinates for the given color space as a
+/// CSS color with the `color()`, `oklab()`, or `oklch()` function and
+/// space-separated arguments. It respects the formatter's precision, defaulting
+/// to 5 digits past the decimal. Since degrees for Oklch/Oklrch are up to two
+/// orders of magnitude larger than other coordinates, this method uses a
+/// precision smaller by 2 for degrees. CSS currently does not support the
+/// `--linear-display-p3`, `--linear-rec2020`, `--oklrab`, and `--oklrch` color
+/// spaces, which is why this function formats them, as shown, with two leading
+/// dashes, just like custom properties.
+#[no_mangle]
+pub fn format(
+    space: ColorSpace,
+    coordinates: &[f64; 3],
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    write!(f, "{}", space.css_prefix())?;
+
+    let mut factor = 10_f64.powi(f.precision().unwrap_or(5) as i32);
+    for (index, coordinate) in coordinates.iter().enumerate() {
+        if space.is_polar() && index == 2 {
+            factor /= 100.0;
+        }
+
+        if coordinate.is_nan() {
+            f.write_str("none")?;
+        } else {
+            // CSS mandates NO trailing zeros whatsoever. But formatting
+            // floats with a precision produces trailing zeros. Rounding
+            // avoids them, for the most part. If fractional part is zero,
+            // we do need an explicit precision---of zero!
+            let c = (coordinate * factor).round() / factor;
+            if c == c.trunc() {
+                write!(f, "{:.0}", c)?;
+            } else {
+                write!(f, "{}", c)?;
+            }
+        }
+
+        if index < 2 {
+            f.write_str(" ")?;
+        }
+    }
+
+    f.write_str(")")
 }
 
 // ====================================================================================================================
