@@ -405,7 +405,7 @@ impl TrueColor {
     /// sRGB before converting the numerical representation of the coordinates.
     ///
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```
     /// # use prettypretty::{Color, ColorFormatError, TrueColor};
@@ -418,11 +418,7 @@ impl TrueColor {
     /// <div style="background-color: #ff7f50;"></div>
     /// </div>
     pub fn from_color(color: &crate::Color) -> Self {
-        let [r, g, b] = color
-            .to(crate::ColorSpace::Srgb)
-            .map_to_gamut()
-            .to_24_bit()
-            .unwrap();
+        let [r, g, b] = color.to(crate::ColorSpace::Srgb).map_to_gamut().to_24_bit();
         TrueColor::new(r, g, b)
     }
 
