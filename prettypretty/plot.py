@@ -14,6 +14,7 @@ except ImportError:
 
 import argparse
 import math
+from pathlib import Path
 from typing import Any, cast
 
 from .terminal import Terminal
@@ -23,7 +24,18 @@ from .color.theme import current_theme, VGA
 
 
 def create_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="""
+            Plot colors on the chroma/hue plane of Oklab while ignoring their
+            lightness. If the -i/--input option is specified, this script reads
+            newline-separated colors from the named file. If the --vga option is
+            specified, it uses the VGA colors. Otherwise, it uses the terminal's
+            current ANSI theme colors. This script correctly plots colors
+            irrespective of their color space and the current display gamut.
+            However, since its visualization library (matplotlib) is limited to
+            sRGB, each mark's color is gamut-mapped to sRGB.
+        """
+    )
     parser.add_argument(
         "--silent",
         action="store_true",
@@ -43,12 +55,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="also plot color written as six hexadecimal digits"
     )
     parser.add_argument(
-        "--origin",
-        help="plot gray written as two hexadecimal digits at origin"
+        "-i", "--input",
+        help="read newline-separated colors from the named file"
     )
     parser.add_argument(
         "-o", "--output",
-        help="write color plot to named file instead of `<terminal>-colors.svg`"
+        help="write color plot to the named file"
     )
     return parser
 
@@ -84,7 +96,7 @@ class ColorPlotter:
         self.status("                Color    L        Chroma   Hue")
         self.status("------------------------------------------------")
 
-    def add(self, name: str, color: ColorSpec, marker: str = "o") -> None:
+    def add(self, name: str, color: str | ColorSpec, marker: str = "o") -> None:
         color = Color(color)
 
         # Matplotlib is sRGB only
@@ -100,7 +112,11 @@ class ColorPlotter:
 
         # Update status
         light = f'{l:.5}'
+        if len(light) > 7:
+            light = f'{l:.5f}'
         chroma = f'{c:.5}'
+        if len(chroma) > 7:
+            chroma = f'{c:.5f}'
         hue = f'{h:.1f}'
         self.status(f"{name:14}  {hex_color}  {light:<7}  {chroma:<7}  {hue:>5}")
 
@@ -138,7 +154,11 @@ class ColorPlotter:
         )
 
     def format_counts(self) -> str:
-        counts = f"{self._base_count}+{len(self._grays)}"
+        gray_count = len(self._grays)
+        if gray_count == 0 and self._extra_count == 0:
+            return f"{self._base_count}"
+
+        counts = f"{self._base_count}+{gray_count}"
         if self._extra_count > 0:
             counts += f"+{self._extra_count}"
         return counts
@@ -220,51 +240,63 @@ class ColorPlotter:
 
 def main() -> None:
     options = create_parser().parse_args()
-    extra_colors: list[str] = ["#" + c for c in cast(list[str], options.colors) or []]
-
-    def status(msg: str) -> None:
-        if not options.silent:
-            print(msg)
-
-    plotter = ColorPlotter(
-        silent=options.silent,
-        color_label="ANSI Colors",
-    )
-
+    plotter = ColorPlotter(silent=options.silent)
     terminal_id = None
 
     # ----------------------------------------------------------------------------------
     # Prepare Colors for Plotting
 
     plotter.start_adding()
-    with Terminal().cbreak_mode().terminal_theme(options.theme) as term:
-        if options.theme:
-            terminal_id = "VGA", ""
-        else:
-            terminal_id = term.request_terminal_identity()
 
-        for name, color in current_theme().colors():
-            if name in ("text", "background"):
-                continue
-            plotter.add(name, color)
+    if options.input is not None:
+        with open(options.input, mode="r", encoding="utf8") as file:
+            for color in [Color(l) for l in file.readlines() if l.strip()]:
+                plotter.add("", color)
+    else:
+        with Terminal().cbreak_mode().terminal_theme(options.theme) as term:
+            if not options.theme:
+                terminal_id = term.request_terminal_identity()
 
-    for color in extra_colors:
-        plotter.add("<extra>", Color(color), marker="d")
+            for name, color in current_theme().colors():
+                if name in ("text", "background"):
+                    continue
+                plotter.add(name, color)
+
+    for color in ["#" + c for c in cast(list[str], options.colors) or []]:
+        plotter.add("<extra>", color, marker="d")
+
     plotter.stop_adding()
 
     # ----------------------------------------------------------------------------------
-    # Terminal and file names
+    # Labels and file names
 
-    if terminal_id is None:
-        terminal_id = "Unknown Terminal", ""
-    terminal_name, _ = terminal_id
-    file_name = options.output or f'{terminal_name.replace(" ", "-").lower()}-colors.svg'
+    if options.theme:
+        label = "VGA"
+    elif options.input:
+        label = None
+    elif terminal_id:
+        label = terminal_id[0]
+    else:
+        label = "Unknown Terminal"
+
+    if options.input:
+        color_label = "Colors"
+    else:
+        color_label = "ANSI Colors"
+
+    if options.output is not None:
+        file_name = options.output
+    elif options.input is not None:
+        file_name = Path(options.input).with_suffix(".svg")
+    else:
+        assert label is not None
+        file_name = f'{label.replace(" ", "-").lower()}-colors.svg'
 
     # ----------------------------------------------------------------------------------
     # Create and save plot
 
-    fig = plotter.create_figure(terminal_name)
-    status(f"Saving as `{file_name}`")
+    fig = plotter.create_figure(figure_label=label, color_label=color_label)
+    plotter.status(f"Saving plot to `{file_name}`")
     fig.savefig(file_name, bbox_inches="tight")  # type: ignore
 
 
