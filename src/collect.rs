@@ -186,36 +186,37 @@ impl ColorMatcher {
 
     /// Find the ANSI color that comes closest to the given color.
     ///
-    ///
     /// # Examples
     ///
-    /// The example code below matches shades of orange `#ffa563` and `#ff9600`
-    /// to ANSI colors under the default theme in both Oklab and Oklrab. In both
-    /// versions of the color space, the first orange consistently matches ANSI
-    /// white and the second orange bright red.
+    /// The example code below matches the shades of orange `#ffa563` and
+    /// `#ff9600` to ANSI colors under the default VGA theme in both Oklab and
+    /// Oklrab. In both versions of the color space, the first orange
+    /// consistently matches ANSI white and the second orange consistently
+    /// matches bright red. Visually, the second match seems reasonable given
+    /// that there are at most 12 colors and 4 grays to pick from. But the first
+    /// match seems off. Gray simply isn't a satisfactory replacement for a
+    /// (more or less) saturated color.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorFormatError, ColorMatcher, ColorSpace};
     /// # use prettypretty::{DEFAULT_THEME, OkVersion};
     /// # use std::str::FromStr;
-    /// let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Original);
+    /// let original_matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Original);
     ///
-    /// let color = Color::from_str("#ffa563")?;
-    /// let ansi = matcher.to_ansi(&color);
+    /// let orange1 = Color::from_str("#ffa563")?;
+    /// let ansi = original_matcher.to_ansi(&orange1);
     /// assert_eq!(u8::from(ansi), 7);
     ///
-    /// let color = Color::from_str("#ff9600")?;
-    /// let ansi = matcher.to_ansi(&color);
+    /// let orange2 = Color::from_str("#ff9600")?;
+    /// let ansi = original_matcher.to_ansi(&orange2);
     /// assert_eq!(u8::from(ansi), 9);
     /// // ---------------------------------------------------------------------
-    /// let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
+    /// let revised_matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
     ///
-    /// let color = Color::from_str("#ffa563")?;
-    /// let ansi = matcher.to_ansi(&color);
+    /// let ansi = revised_matcher.to_ansi(&orange1);
     /// assert_eq!(u8::from(ansi), 7);
     ///
-    /// let color = Color::from_str("#ff9600")?;
-    /// let ansi = matcher.to_ansi(&color);
+    /// let ansi = revised_matcher.to_ansi(&orange2);
     /// assert_eq!(u8::from(ansi), 9);
     /// # Ok::<(), ColorFormatError>(())
     /// ```
@@ -231,25 +232,35 @@ impl ColorMatcher {
     /// </div>
     /// <br>
     ///
-    /// That `#ffa563` has white's `#aaaaaa` as its closest match is more than a
-    /// little ironic: The color has almost the same hue and chroma as the
-    /// default theme's yellow, which really is a dark orange or brown. The
-    /// figure below illustrates just that, plotting all non-gray ANSI colors
-    /// (as circles) and the two orange tones (as narrow diamonds) in Oklab's
-    /// chroma hue plane (which really is the same as the a/b plane, i.e., they
-    /// both have the exact same colors in the exact same positions.
+    /// That isn't just my subjective judgement, but human color perception is
+    /// more sensitive to changes in hue than chroma or lightness. By that
+    /// standard, the match actually is pretty poor. To see that, consider the
+    /// figure below showing the chroma/hue plane. It plots the 12 ANSI colors
+    /// (as circles), the 4 ANSI grays (as one circle with averaged lightness),
+    /// and the 2 orange tones (as narrow diamonds) on that plane (hence the
+    /// 12+4+2 in the title). As it turns out, `#ffa563` is located right next
+    /// to the default theme's ANSI yellow, which really is a dark orange or
+    /// brown. The primary difference between the two colors are neither chroma
+    /// (0.13452 vs 0.1359) nor hue (55.6 vs 54.1) but lightness only (0.79885
+    /// vs 0.54211). Depending on the use case, the theme's yellow may be an
+    /// acceptable match. Otherwise the bright red probably is a better match
+    /// than a chromaless gray tone.
     ///
     /// ![The colors plotted on Oklab's chroma and hue plane](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/vga-colors.svg)
     ///
-    /// Given the very limited repertoire of ANSI colors, changes in lightness,
-    /// chroma, and hue seem unavoidable when mapping arbitrary colors to ANSI
-    /// colors. But white still seems like a worse choice than that dark orange.
-    /// Let's explore if we can do better by prioritizing hue. We'll
+    /// Reflecting that same observation about color perception, the [CSS Color
+    /// 4](https://www.w3.org/TR/css-color-4/#gamut-mapping) gamut-mapping
+    /// algorithm improves on MINDE algorithms (Minimum Delta-E) such as this
+    /// method's closest match in Oklab by systematically reducing chroma and
+    /// tolerating small lightness and hue variations (caused by clipping).
+    /// Given the extremely limited color repertoire, we can't use a similar,
+    /// directed search. But we should do better than brute-force search.
     ///
-    /// In fact, let's explore that idea a little further. We'll be comparing
-    /// colors in Oklrch. So, we prepare a list with the color values for the 16
-    /// extended ANSI colors in that color space. That, by the way, is pretty
-    /// much what [`ColorMatcher::new`] does as well.
+    /// Let's explore that idea a little further. Since the revised lightness is
+    /// more accurate, we'll be comparing colors in Oklrch. We start by
+    /// preparing a list with the color values for the 16 extended ANSI colors
+    /// in that color space. That, by the way, is pretty much what
+    /// [`ColorMatcher::new`] does as well.
     /// ```
     /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, DEFAULT_THEME};
     /// # use std::str::FromStr;
@@ -262,10 +273,10 @@ impl ColorMatcher {
     /// ```
     ///
     /// Next, we need a function that calculates the distance between the
-    /// coordinates of two colors in Oklrch. Since we are doing exploratory
-    /// coding, we exclusively focus on hue and calculate the minimum degree of
-    /// separation. Degrees being circular, computing the remainder of the
-    /// difference is not enough. We need to consider both differences.
+    /// coordinates of two colors in Oklrch. Since we are exploring non-MINDE
+    /// approaches, we focus on hue alone and use the minimum degree of
+    /// separation as a metric. Degrees being circular, computing the remainder
+    /// of the difference is not enough. We need to consider both differences.
     /// ```
     /// fn minimum_degrees_of_separation(c1: &[f64; 3], c2: &[f64; 3]) -> f64 {
     ///     (c1[2] - c2[2]).rem_euclid(360.0)
@@ -274,8 +285,8 @@ impl ColorMatcher {
     /// ```
     ///
     /// That's it. We have everything we need. All that's left to do is to
-    /// instantiate the same yellow again and find the closest matching color
-    /// on our list with our distance metric.
+    /// instantiate the same orange again and find the closest matching color on
+    /// our list with the new distance metric.
     ///
     /// ```
     /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, DEFAULT_THEME};
@@ -290,8 +301,8 @@ impl ColorMatcher {
     /// #     (c1[2] - c2[2]).rem_euclid(360.0)
     /// #         .min((c2[2] - c1[2]).rem_euclid(360.0))
     /// # }
-    /// let yellow = Color::from_str("#ffa563")?;
-    /// let closest = yellow.find_closest(
+    /// let orange = Color::from_str("#ffa563")?;
+    /// let closest = orange.find_closest(
     ///     &ansi_colors,
     ///     ColorSpace::Oklrch,
     ///     minimum_degrees_of_separation,
@@ -305,25 +316,22 @@ impl ColorMatcher {
     /// </div>
     /// <br>
     ///
-    /// The hue-based comparison picks ANSI color 3, yellow, which looks great
-    /// on the color swatch. A [quick
-    /// check](https://en.wikipedia.org/wiki/ANSI_escape_code#3-bit_and_4-bit)
-    /// of VGA text mode colors validates that the brown tone is the closest
-    /// color indeed—even if it is much darker. That suggests that a hue-based
-    /// distance metric is both feasible and desirable.
+    /// The hue-based comparison picks ANSI color 3, VGA's orange yellow, just
+    /// as expected. It appears that our hue-based proof-of-concept works.
+    /// However, a production-ready version does need to account for lightness,
+    /// too.
     pub fn to_ansi(&self, color: &Color) -> AnsiColor {
-        use crate::color::core::{delta_e_ok, find_closest};
+        use crate::color::core::{delta_e_ok_internal, find_closest};
 
         let color = color.to(self.space);
-        find_closest(color.coordinates(), &self.ansi, delta_e_ok)
+        find_closest(color.coordinates(), &self.ansi, delta_e_ok_internal)
             .map(|idx| AnsiColor::try_from(idx as u8).unwrap())
             .unwrap()
     }
 
     /// Find the 8-bit color that comes closest to the given color.
     ///
-    ///
-    /// # Example
+    /// # Examples
     ///
     /// The example below converts every color of the RGB cube embedded in 8-bit
     /// colors to a high-resolution color in sRGB, which is validated by the
@@ -360,10 +368,10 @@ impl ColorMatcher {
     /// # Ok::<(), OutOfBoundsError>(())
     /// ```
     pub fn to_eight_bit(&self, color: &Color) -> EightBitColor {
-        use crate::color::core::{delta_e_ok, find_closest};
+        use crate::color::core::{delta_e_ok_internal, find_closest};
 
         let color = color.to(self.space);
-        find_closest(color.coordinates(), &self.eight_bit, delta_e_ok)
+        find_closest(color.coordinates(), &self.eight_bit, delta_e_ok_internal)
             .map(|idx| EightBitColor::from(idx as u8 + 16))
             .unwrap()
     }
