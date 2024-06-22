@@ -9,6 +9,7 @@
         "oklch",
         "Oklrab",
         "Oklrch",
+        "repr",
         "srgb"
     ],
     "python.testing.unittestArgs": [
