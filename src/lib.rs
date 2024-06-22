@@ -545,12 +545,12 @@ mod parser;
 mod term_color;
 mod util;
 
-pub use color::core::{ColorSpace, InterpolationStrategy, DEFAULT_INTERPOLATION};
+pub use color::core::{ColorSpace, HueInterpolation};
 
 #[cfg(feature = "core")]
 pub use color::core::{
-    clip, convert, delta_e_ok, find_closest, from_24_bit, in_gamut, interpolate, map_to_gamut,
-    normalize, normalize_eq, prepare_to_interpolate, scale_lightness, to_24_bit, to_contrast,
+    clip, convert, delta_e_ok, from_24_bit, in_gamut, interpolate, map_to_gamut, normalize,
+    normalize_eq, prepare_to_interpolate, scale_lightness, to_24_bit, to_contrast,
     to_contrast_luminance, ArrayData, P3_CONTRAST, SRGB_CONTRAST,
 };
 
