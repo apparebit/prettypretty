@@ -104,6 +104,7 @@ class Color(ColorSpec):
         if isinstance(tag, ColorSpec):
             tag, coordinates = tag.tag, tag.coordinates
         elif isinstance(tag, str) and coordinates is None:
+            tag = tag.strip()
             if tag.startswith('#'):
                 tag, coordinates = parse_hex(tag)
             elif tag.startswith('rgb:'):
