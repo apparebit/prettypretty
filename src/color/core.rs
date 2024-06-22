@@ -210,13 +210,19 @@ impl OkVersion {
 // Representation
 // ====================================================================================================================
 
-/// Representation of an n-element array (*core-only*).
+/// FFI-safe wrapper of an n-element array [*core-only*].
 ///
-/// C calling conventions do not support passing arrays by value into or out of
-/// functions. They do support pointers to arrays, which suffices for passing
-/// arguments to this crate's core functions. Furthermore, they do support
-/// returning structures by value. Hence this `struct`  wraps an array to serve
-/// as FFI-safe container.
+/// C calling conventions do *not* support passing arrays by value into or out
+/// of functions. However, they *do* support passing structures that contain
+/// arrays by value. That enables a minimally invasive strategy for making the
+/// core functions FFI-safe:
+///
+///  1. Pass coordinate arrays *into* functions by reference;
+///  2. Return structures wrapping coordinate arrays *from* functions by value.
+///
+/// This structure is the maximally generic version of just that wrapper, as it
+/// supports arrays of arbitrary copyable types and (thanks to const generics)
+/// arbitrary length.
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub struct ArrayData<C: Copy, const N: usize> {
@@ -240,7 +246,7 @@ impl<C: Copy, const N: usize> AsRef<[C; N]> for ArrayData<C, N> {
 // --------------------------------------------------------------------------------------------------------------------
 
 /// Convert the given 24-bit coordinates to floating point coordinates
-/// (*core-only*).
+/// [*core-only*].
 ///
 /// As part of conversion, this function scales coordinates by 1/255.0.
 #[no_mangle]
@@ -248,7 +254,7 @@ pub extern "C" fn from_24_bit(r: u8, g: u8, b: u8) -> ArrayData<f64, 3> {
     [r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0].into()
 }
 
-/// Convert a color's coordinates to 24-bit representation (*core-only*).
+/// Convert a color's coordinates to 24-bit representation [*core-only*].
 ///
 /// # Panics
 ///
@@ -334,7 +340,7 @@ fn normalize_eq_mut(space: ColorSpace, coordinates: &mut [f64; 3]) {
     }
 }
 
-/// Normalize the coordinates (*core-only*).
+/// Normalize the coordinates [*core-only*].
 ///
 /// This function replaces not-a-number by zero and forces Oklab's (revised)
 /// lightness, chroma, and hue to respect their limits.
@@ -345,7 +351,7 @@ pub extern "C" fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> ArrayD
     coordinates.into()
 }
 
-/// Normalize the coordinates for equality testing and hashing (*core-only*).
+/// Normalize the coordinates for equality testing and hashing [*core-only*].
 ///
 /// Note: In-gamut RGB coordinates and the lightness for Oklab and Oklch have
 /// unit range already. No coordinate-specific normalization is required.
@@ -376,7 +382,7 @@ pub(crate) fn delta_e_ok_internal(coordinates1: &[f64; 3], coordinates2: &[f64; 
     ΔL.mul_add(ΔL, Δa.mul_add(Δa, Δb * Δb)).sqrt()
 }
 
-/// Compute Delta-E for Oklab or Oklrab (*core-only*).
+/// Compute Delta-E for Oklab or Oklrab [*core-only*].
 ///
 /// The coordinates must all be in Oklab or Oklrab.
 #[no_mangle]
@@ -387,7 +393,7 @@ pub extern "C" fn delta_e_ok(coordinates1: &[f64; 3], coordinates2: &[f64; 3]) -
 /// Find the candidate coordinates that are closest to the origin according to
 /// the given distance metric. All coordinates must be in the same color space,
 /// which also is the color space for the distance metric.
-pub fn find_closest<'c, C, F>(
+pub(crate) fn find_closest<'c, C, F>(
     origin: &[f64; 3],
     candidates: C,
     mut compute_distance: F,
@@ -842,7 +848,7 @@ fn xyz_to_oklrch(value: &[f64; 3]) -> [f64; 3] {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// Convert the coordinates from one color space to another (*core-only*).
+/// Convert the coordinates from one color space to another [*core-only*].
 ///
 /// This function converts from any color space to any other color space,
 /// including itself. Alas, the result may very well be out-of-gamut in either
@@ -927,7 +933,7 @@ pub extern "C" fn convert(
 // ====================================================================================================================
 
 /// Determine whether the coordinates are in gamut for their color space
-/// (*core-only*).
+/// [*core-only*].
 #[no_mangle]
 pub extern "C" fn in_gamut(space: ColorSpace, coordinates: &[f64; 3]) -> bool {
     if space.is_rgb() {
@@ -937,7 +943,7 @@ pub extern "C" fn in_gamut(space: ColorSpace, coordinates: &[f64; 3]) -> bool {
     }
 }
 
-/// Clip the coordinates to the gamut of the color space (*core-only*).
+/// Clip the coordinates to the gamut of the color space [*core-only*].
 #[no_mangle]
 pub extern "C" fn clip(space: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<f64, 3> {
     if space.is_rgb() {
@@ -948,7 +954,7 @@ pub extern "C" fn clip(space: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<f
     }
 }
 
-/// Map the given color coordinates into gamut (*core-only*).
+/// Map the given color coordinates into gamut [*core-only*].
 ///
 /// This function uses the CSS Color 4 [gamut mapping
 /// algorithm](https://drafts.csswg.org/css-color/#css-gamut-mapping). It
@@ -1043,17 +1049,17 @@ pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<f64
 // Limit visibility of many contrast-specific constants
 mod contrast {
     /// The coefficients for computing the contrast luminance for sRGB
-    /// coordinates (*core-only*).
+    /// coordinates [*core-only*].
     pub const SRGB_CONTRAST: &[f64; 3] = &[0.2126729, 0.7151522, 0.0721750];
 
     /// The coefficients for computing the contrast luminance for Display P3
-    /// coordinates (*core-only*).
+    /// coordinates [*core-only*].
     #[allow(clippy::excessive_precision)]
     pub const P3_CONTRAST: &[f64; 3] =
         &[0.2289829594805780, 0.6917492625852380, 0.0792677779341829];
 
     /// Convert the given color coordinates to perceptual contrast luminance
-    /// (*core-only*).
+    /// [*core-only*].
     ///
     /// Contrast luminance is a non-standard quantity (i.e., *not* the Y in XYZ)
     /// and must be computed with this function and suitable coefficients. If
@@ -1089,7 +1095,7 @@ mod contrast {
     const OUTPUT_CLAMP: f64 = 0.1;
 
     /// Compute the perceptual contrast between text and background
-    /// (*core-only*).
+    /// [*core-only*].
     ///
     /// Using an algorithm that is surprisingly similar to the [Accessible
     /// Perceptual Contrast Algorithm](https://github.com/Myndex/apca-w3),
@@ -1171,7 +1177,7 @@ pub use contrast::{to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAS
 // Color Lightness
 // ====================================================================================================================
 
-/// Lighten a color by the given factor in Oklrch (*core-only*).
+/// Lighten a color by the given factor in Oklrch [*core-only*].
 ///
 /// If the given coordinates are not in Oklrch already, this function first
 /// converts them to Oklrch. In any case, it next multiplies the revised
@@ -1261,13 +1267,12 @@ fn convert_with_nan(
 /// interpolating between two hues, clockwise and counter-clockwise. Consistent
 /// with [CSS Color 4](https://www.w3.org/TR/css-color-4/#hue-interpolation),
 /// the interpolation strategy selects the way based either on the distance
-/// between hues, [`InterpolationStrategy::Shorter`] and
-/// [`InterpolationStrategy::Longer`], or on the direction,
-/// [`InterpolationStrategy::Increasing`] and
-/// [`InterpolationStrategy::Decreasing`].
+/// between hues, [`HueInterpolation::Shorter`] and
+/// [`HueInterpolation::Longer`], or on the direction,
+/// [`HueInterpolation::Increasing`] and [`HueInterpolation::Decreasing`].
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
-pub enum InterpolationStrategy {
+pub enum HueInterpolation {
     /// Take the shorter arc between the two hue angles.
     Shorter,
     /// Take the longer arc between the two hue angles.
@@ -1278,57 +1283,55 @@ pub enum InterpolationStrategy {
     Decreasing,
 }
 
-impl InterpolationStrategy {
-    /// Adjust the pair of hues based on interpolation strategy.
-    #[no_mangle]
-    pub fn apply(&self, h1: f64, h2: f64) -> ArrayData<f64, 2> {
-        match self {
-            InterpolationStrategy::Shorter => {
-                if h2 - h1 > 180.0 {
-                    return [h1 + 360.0, h2].into();
-                } else if h2 - h1 < -180.0 {
-                    return [h1, h2 + 360.0].into();
-                }
-            }
-            InterpolationStrategy::Longer => {
-                if (0.0..=180.0).contains(&(h2 - h1)) {
-                    return [h1 + 360.0, h2].into();
-                } else if (-180.0..=0.0).contains(&(h2 - h1)) {
-                    return [h1, h2 + 360.0].into();
-                }
-            }
-            InterpolationStrategy::Increasing => {
-                if h2 < h1 {
-                    return [h1, h2 + 360.0].into();
-                }
-            }
-            InterpolationStrategy::Decreasing => {
-                if h1 < h2 {
-                    return [h1 + 360.0, h2].into();
-                }
+/// Adjust the pair of hues based on interpolation strategy.
+fn prepare_hue_interpolation(strategy: HueInterpolation, h1: f64, h2: f64) -> [f64; 2] {
+    match strategy {
+        HueInterpolation::Shorter => {
+            if h2 - h1 > 180.0 {
+                return [h1 + 360.0, h2];
+            } else if h2 - h1 < -180.0 {
+                return [h1, h2 + 360.0];
             }
         }
-
-        [h1, h2].into()
+        HueInterpolation::Longer => {
+            if (0.0..=180.0).contains(&(h2 - h1)) {
+                return [h1 + 360.0, h2];
+            } else if (-180.0..=0.0).contains(&(h2 - h1)) {
+                return [h1, h2 + 360.0];
+            }
+        }
+        HueInterpolation::Increasing => {
+            if h2 < h1 {
+                return [h1, h2 + 360.0];
+            }
+        }
+        HueInterpolation::Decreasing => {
+            if h1 < h2 {
+                return [h1 + 360.0, h2];
+            }
+        }
     }
+
+    [h1, h2]
 }
 
-/// The default interpolation, which is [`InterpolationStrategy::Shorter`].
-pub const DEFAULT_INTERPOLATION: InterpolationStrategy = InterpolationStrategy::Shorter;
-
-/// Prepare coordinates for interpolation (*core-only*)
+/// Prepare coordinates for interpolation [*core-only*]
 ///
 /// This function prepares a pair of coordinates for interpolation in another
-/// color space, usually some version of Oklab, accorrding to [CSS Color
-/// 4](https://www.w3.org/TR/css-color-4/#interpolation). While linear
-/// interpolation itself is rather simple, preparing the coordinates is quite a
-/// bit more work. In particular, this function converts coordinates to the
-/// interpolation color space while carrying forward any missing components. It
-/// then tries to fill in missing components in the shared interpolation color
-/// space. For color spaces with polar coordinates, this function also adjusts
-/// hues according to interpolation strategy. Providing separate functions for
-/// preparation and actual interpolation makes it possible to amortize the cost
-/// of preparation over several interpolations, e.g., when computing a gradient.
+/// color space, usually some version of Oklab, accorrding to the rules of [CSS
+/// Color 4](https://www.w3.org/TR/css-color-4/#interpolation). Those rules are
+/// surprisingly complex thanks to the specification's support for missing
+/// components and hue interpolation strategies.
+///
+/// As required by the specification, this function carries missing components
+/// forward when converting to the interpolation color space and then tries to
+/// fill them with the other color's component. It also implements all four
+/// interpolation strategies for hues, which select one of the two available
+/// arcs between the two colors.
+///
+/// By separating preparation from actual interpolation, it becomes possible to
+/// amortize the overhead of the former when generating several interpolated
+/// colors, e.g., when computing a gradient.
 ///
 /// # Also See
 ///
@@ -1340,7 +1343,7 @@ pub fn prepare_to_interpolate(
     space2: ColorSpace,
     coordinates2: &[f64; 3],
     interpolation_space: ColorSpace,
-    strategy: InterpolationStrategy,
+    strategy: HueInterpolation,
 ) -> ArrayData<ArrayData<f64, 3>, 2> {
     let mut coordinates1 = convert_with_nan(space1, interpolation_space, coordinates1);
     let mut coordinates2 = convert_with_nan(space2, interpolation_space, coordinates2);
@@ -1357,13 +1360,14 @@ pub fn prepare_to_interpolate(
 
     // Adjust hue based on interpolation strategy
     if interpolation_space.is_polar() {
-        [coordinates1[2], coordinates2[2]] = strategy.apply(coordinates1[2], coordinates2[2]).data
+        [coordinates1[2], coordinates2[2]] =
+            prepare_hue_interpolation(strategy, coordinates1[2], coordinates2[2])
     }
 
     [coordinates1.into(), coordinates2.into()].into()
 }
 
-/// Interpolate between the prepared coordinates (*core-only*).
+/// Interpolate between the prepared coordinates [*core-only*].
 ///
 /// This function interpolates by the given factor between the two color
 /// coordinates. It is critical that coordinates are correctly prepared with
