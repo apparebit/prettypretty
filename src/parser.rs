@@ -135,7 +135,7 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// Parse the string into a color (*core-only*).
+/// Parse the string into a color [*core-only*].
 ///
 /// This function recognizes hashed hexadecimal, XParseColor, and CSS formats
 /// for colors. In particular, it recognizes the three and six digit hashed
@@ -199,7 +199,7 @@ impl ColorSpace {
     }
 }
 
-/// Format the color as a string (*core-only*).
+/// Format the color as a string [*core-only*].
 ///
 /// This function formats the given cooordinates for the given color space as a
 /// CSS color with the `color()`, `oklab()`, or `oklch()` function and
