@@ -14,5 +14,5 @@ include = ["/README.md", "/LICENSE", "/src"]
 
 [features]
 default = ["color-object"]
-core-functions = []
+core = []
 color-object = []
