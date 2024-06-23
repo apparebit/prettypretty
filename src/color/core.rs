@@ -971,7 +971,7 @@ pub extern "C" fn clip(space: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<f
 /// The given coordinates must have been converted to the target color space
 /// already.
 #[no_mangle]
-pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<f64, 3> {
+pub extern "C" fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<f64, 3> {
     use ColorSpace::*;
 
     const JND: f64 = 0.02;
@@ -1055,17 +1055,15 @@ pub fn map_to_gamut(target: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<f64
 // Limit visibility of many contrast-specific constants
 mod contrast {
     /// The coefficients for computing the contrast luminance for sRGB
-    /// coordinates [*core-only*].
-    pub const SRGB_CONTRAST: &[f64; 3] = &[0.2126729, 0.7151522, 0.0721750];
+    /// coordinates.
+    const SRGB_CONTRAST: &[f64; 3] = &[0.2126729, 0.7151522, 0.0721750];
 
     /// The coefficients for computing the contrast luminance for Display P3
-    /// coordinates [*core-only*].
+    /// coordinates.
     #[allow(clippy::excessive_precision)]
-    pub const P3_CONTRAST: &[f64; 3] =
-        &[0.2289829594805780, 0.6917492625852380, 0.0792677779341829];
+    const P3_CONTRAST: &[f64; 3] = &[0.2289829594805780, 0.6917492625852380, 0.0792677779341829];
 
-    /// Convert the given color coordinates to perceptual contrast luminance
-    /// [*core-only*].
+    /// Convert the given color coordinates to perceptual contrast luminance.
     ///
     /// Contrast luminance is a non-standard quantity (i.e., *not* the Y in XYZ)
     /// and must be computed with this function and suitable coefficients. If
@@ -1077,11 +1075,7 @@ mod contrast {
     /// # Also See
     ///
     /// [`to_contrast`], [`P3_CONTRAST`], [`SRGB_CONTRAST`]
-    #[no_mangle]
-    pub extern "C" fn to_contrast_luminance(
-        coefficients: &[f64; 3],
-        coordinates: &[f64; 3],
-    ) -> f64 {
+    fn to_contrast_luminance(coefficients: &[f64; 3], coordinates: &[f64; 3]) -> f64 {
         fn linearize(value: f64) -> f64 {
             let magnitude = value.abs();
             magnitude.powf(2.4).copysign(value)
@@ -1091,6 +1085,20 @@ mod contrast {
         let [r, g, b] = *coordinates;
 
         c1 * linearize(r) + c2 * linearize(g) + c3 * linearize(b)
+    }
+
+    /// Compute the contrast luminance for the given sRGB coordinates
+    /// [*core-only*].
+    #[no_mangle]
+    pub extern "C" fn to_contrast_luminance_srgb(coordinates: &[f64; 3]) -> f64 {
+        to_contrast_luminance(SRGB_CONTRAST, coordinates)
+    }
+
+    /// Compute the contrast luminance for the given Display P3 coordinates
+    /// [*core-only*].
+    #[no_mangle]
+    pub extern "C" fn to_contrast_luminance_p3(coordinates: &[f64; 3]) -> f64 {
+        to_contrast_luminance(P3_CONTRAST, coordinates)
     }
 
     const BLACK_THRESHOLD: f64 = 0.022;
@@ -1114,15 +1122,13 @@ mod contrast {
     /// background.
     ///
     /// Said contrast luminance is a non-standard quantity (i.e., *not* the Y in
-    /// XYZ) to be computed with [`to_contrast_luminance`]. That computation
-    /// also is more robust for sRGB than Display P3. In practice, that means
-    /// computing contrast luminance off sRGB coordinates, using
-    /// [`SRGB_CONTRAST`] as coefficients, if both colors are in-gamut for sRGB
-    /// and using Display P3 and the [`P3_CONTRAST`] coefficients as fallback.
+    /// XYZ). If both colors are in-gamut for sRGB, the contrast luminance
+    /// should be computed with [`to_contrast_luminance_srgb`], falling back on
+    /// [`to_contrast_luminance_p3`] otherwise.
     ///
     /// # Also See
     ///
-    /// [`to_contrast_luminance`], [`P3_CONTRAST`], [`SRGB_CONTRAST`]
+    /// [`to_contrast_luminance_p3`], [`to_contrast_luminance_srgb`]
     #[no_mangle]
     pub extern "C" fn to_contrast(text_luminance: f64, background_luminance: f64) -> f64 {
         // Also see https://github.com/w3c/silver/issues/645
@@ -1177,7 +1183,7 @@ mod contrast {
     }
 }
 
-pub use contrast::{to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST};
+pub use contrast::{to_contrast, to_contrast_luminance_p3, to_contrast_luminance_srgb};
 
 // ====================================================================================================================
 // Color Lightness
@@ -1192,7 +1198,7 @@ pub use contrast::{to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAS
 #[inline]
 #[allow(non_snake_case)]
 #[no_mangle]
-pub fn scale_lightness(
+pub extern "C" fn scale_lightness(
     space: ColorSpace,
     coordinates: &[f64; 3],
     factor: f64,
@@ -1341,7 +1347,7 @@ fn prepare_hue_interpolation(strategy: HueInterpolation, h1: f64, h2: f64) -> [f
 ///
 /// [`interpolate`]
 #[no_mangle]
-pub fn prepare_to_interpolate(
+pub extern "C" fn prepare_to_interpolate(
     space1: ColorSpace,
     coordinates1: &[f64; 3],
     space2: ColorSpace,
@@ -1381,7 +1387,7 @@ pub fn prepare_to_interpolate(
 ///
 /// [`prepare_to_interpolate`]
 #[no_mangle]
-pub fn interpolate(
+pub extern "C" fn interpolate(
     fraction: f64,
     coordinates1: &[f64; 3],
     coordinates2: &[f64; 3],
@@ -1664,7 +1670,7 @@ mod test {
 
     #[test]
     fn test_contrast() {
-        let blue = to_contrast_luminance(&SRGB_CONTRAST, &[104.0 / 255.0, 114.0 / 255.0, 1.0]);
+        let blue = to_contrast_luminance_srgb(&[104.0 / 255.0, 114.0 / 255.0, 1.0]);
 
         // Compare contrast of black vs white against a medium blue tone:
         assert!(almost_eq(dbg!(to_contrast(0.0, blue)), 0.38390416110716424));

@@ -5,7 +5,7 @@ pub(crate) mod core;
 use self::core::{
     clip, convert, delta_e_ok_internal, from_24_bit, in_gamut, interpolate, map_to_gamut,
     normalize_eq, normalize_nan_mut, normalize_range_mut, prepare_to_interpolate, scale_lightness,
-    to_24_bit, to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
+    to_24_bit, to_contrast, to_contrast_luminance_p3, to_contrast_luminance_srgb,
 };
 pub use self::core::{ColorSpace, HueInterpolation, OkVersion};
 use super::parser::{format, parse};
@@ -69,45 +69,34 @@ impl Interpolator {
 ///
 /// # Color Coordinates
 ///
-/// For RGB color spaces, the coordinates of in-gamut colors have unit range.
-///
-/// So does the (revised) lightness for Oklab et al. Meanwhile, a/b may be
-/// negative or positive, have no a-priori limits, but are contained by
-/// `-0.4..=0.4` for all practical purposes. Chroma is non-negative, with no
-/// a-priori upper limit, but is contained by `0.0..=0.4` for all practical
-/// purposes. Finally, hue ranges `0..=360`.
-///
-/// A coordinate may be not-a-number indicating either a [powerless
-/// component](https://www.w3.org/TR/css-color-4/#powerless), i.e., a component
-/// that does not contribute towards the color such as the hue for Oklch colors
-/// with zero chroma, or a [missing
+/// A coordinate may be not-a-number either because it is a [powerless
+/// component](https://www.w3.org/TR/css-color-4/#powerless), such as hue when
+/// chroma is zero, or a [missing
 /// component](https://www.w3.org/TR/css-color-4/#missing), i.e., a component
 /// intentionally omitted by the user, notably for interpolation.
 ///
+/// For RGB color spaces, the coordinates of in-gamut colors have unit range.
 ///
-/// # Managing Gamut
+/// For Oklab et al., the (revised) lightness must be `0.0..=1.0`, chroma must
+/// be `0.0..`, and hue must be `0..360`. There are no a-priori limits on a/b or
+/// upper limit on chroma. However, in practice, a/b are `-0.4..=0.4` and chroma
+/// is `0.0..=0.4`.
 ///
-/// Color objects have a uniform representation for all supported color spaces,
-/// combining a color space tag with a three-element array of coordinates. That
-/// does get in the way of color objects enforcing invariants specific to color
-/// spaces, notably that coordinates always fall within gamut limits. For
-/// example, in-gamut red, green, and blue coordinates for the RGB color spaces
-/// sRGB, linear sRGB, Display P3, and linear Display P3 have unit range
-/// `0..=1`. But such automatic enforcement of gamut limits might also lead to
-/// information loss (by converting from a larger to a smaller space).
+/// Color objects do not enforce any of these invariants automatically because
+/// doing so may entail some information loss, notably due to reduced numerical
+/// range or resolution. At the same time, color objects provide the methods
+/// necessary for more constrained representations. Notably, it includes:
 ///
-/// That's why this crate preserves computed coordinates, even if they are out
-/// of gamut. Instead, code using this library needs to make sure colors are in
-/// gamut before trying to display them:
-///
-///   * Use [`Color::in_gamut`] to test whether a color is in gamut;
-///   * Use [`Color::clip`] to quickly calculate an in-gamut color that may be a
-///     subpar stand-in for the original color;
-///   * Use [`Color::map_to_gamut`] to more slowly search for a more accurate
-///     stand-in;
-///   * Use [`Color::distance`] and [`Color::find_closest`] to implement custom
-///     search strategies.
-///
+///   * [`Color::normalize_nan`] zeros out not-a-number components, so they do
+///     not interfere with conversion and other operations;
+///   * [`Color::normalize_range`] clamps Oklab component values so they are
+///     minimally defined;
+///   * [`Color::in_gamut`] tests whether color is in gamut;
+///   * [`Color::clip`] quickly calculates an in-gamut color that may not be a
+///     good match for the original color.
+///   * [`Color::map_to_gamut`] maps an out-of-gamut color to an in-gamut color
+///     by searching along the chroma axis until it finds an out-of-gamut color
+///     whose clipped version is close-by and in-gamut.
 ///
 /// # Equality Testing and Hashing
 ///
@@ -764,20 +753,27 @@ impl Color {
     /// <br>
     ///
     /// It may help to locate the five colors on Oklab's a/b or chroma/hue plane
-    /// (i.e., without accounting for their lightness). As the figure below
-    /// illustrates, the first, salmon color lies midway on the line connecting
-    /// purple and orange, i.e., just where we would expect it to be for linear
-    /// interpolation in a Cartesian coordinate system. Meanwhile, the second,
-    /// pink color lies on the shorter arc between the two source colors,
-    /// whereas the third, cyan color lies on the longer arc, again just where
-    /// we would expect them to be for linear interpolation in a polar
-    /// coordinate system.
+    /// (i.e., without accounting for their lightness).
     ///
     /// ![The colors plotted on Oklab's chroma and hue plane](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/interpolate.svg)
     ///
-    /// Note that the arcs between the purple and orange are not strictly
-    /// circular because they need to make up for the difference in chroma,
-    /// 0.18546 vs 0.15466, in addition to the difference in hue,
+    /// As shown in the figure above:
+    ///
+    ///  1. Since Oklab uses Cartesian coordinates, the first interpolated
+    ///     color, a salmon tone, sits midway on the line connecting the two
+    ///     source colors.
+    ///  2. With Oklch using polar coordinates, the second interpolated color, a
+    ///     pink, sits midway on the shorter arc connecting the two source
+    ///     colors. That arc is not a circle segment because the two source
+    ///     colors have different chroma values, 0.18546 and 0.15466, in
+    ///     addition to different hues, 317.8 and 73.1.
+    ///  3. The third interpolated color, a cyan, sits midway on the longer arc
+    ///     connecting the two source colors. Its hue is exactly 180º apart from
+    ///     that of the second interpolated color.
+    ///
+    /// Interestingly, all three interpolated colors have similar lightness
+    /// values, 0.77761, 0.77742, and 0.77761. That speaks for Oklab perceptual
+    /// uniformity, even if Oklab/Oklch are biased towards dark tones.
     pub fn interpolate(
         &self,
         color: &Self,
@@ -804,8 +800,8 @@ impl Color {
         // Try sRGB
         if fg.in_gamut() && bg.in_gamut() {
             return to_contrast(
-                to_contrast_luminance(SRGB_CONTRAST, &fg.coordinates),
-                to_contrast_luminance(SRGB_CONTRAST, &bg.coordinates),
+                to_contrast_luminance_srgb(&fg.coordinates),
+                to_contrast_luminance_srgb(&bg.coordinates),
             );
         };
 
@@ -813,8 +809,8 @@ impl Color {
         let fg = self.to(ColorSpace::DisplayP3);
         let bg = background.to(ColorSpace::DisplayP3);
         to_contrast(
-            to_contrast_luminance(P3_CONTRAST, &fg.coordinates),
-            to_contrast_luminance(P3_CONTRAST, &bg.coordinates),
+            to_contrast_luminance_p3(&fg.coordinates),
+            to_contrast_luminance_p3(&bg.coordinates),
         )
     }
 
@@ -839,9 +835,9 @@ impl Color {
     pub fn use_black_text(&self) -> bool {
         let background = self.to(ColorSpace::Srgb);
         let luminance = if background.in_gamut() {
-            to_contrast_luminance(SRGB_CONTRAST, &background.coordinates)
+            to_contrast_luminance_srgb(&background.coordinates)
         } else {
-            to_contrast_luminance(P3_CONTRAST, &self.to(ColorSpace::DisplayP3).coordinates)
+            to_contrast_luminance_p3(&self.to(ColorSpace::DisplayP3).coordinates)
         };
 
         to_contrast(0.0, luminance) >= -to_contrast(1.0, luminance)
@@ -868,9 +864,9 @@ impl Color {
     pub fn use_black_background(&self) -> bool {
         let text = self.to(ColorSpace::Srgb);
         let luminance = if text.in_gamut() {
-            to_contrast_luminance(SRGB_CONTRAST, &text.coordinates)
+            to_contrast_luminance_srgb(&text.coordinates)
         } else {
-            to_contrast_luminance(P3_CONTRAST, &self.to(ColorSpace::DisplayP3).coordinates)
+            to_contrast_luminance_p3(&self.to(ColorSpace::DisplayP3).coordinates)
         };
 
         to_contrast(luminance, 0.0) <= -to_contrast(luminance, 1.0)
@@ -1050,6 +1046,20 @@ impl PartialEq for Color {
 impl Eq for Color {}
 
 // --------------------------------------------------------------------------------------------------------------------
+
+impl AsRef<[f64; 3]> for Color {
+    /// Treat the color as a reference to its coordinate array.
+    fn as_ref(&self) -> &[f64; 3] {
+        &self.coordinates
+    }
+}
+
+impl AsMut<[f64; 3]> for Color {
+    /// Treat the color as a mutable reference to its coordinate array.
+    fn as_mut(&mut self) -> &mut [f64; 3] {
+        &mut self.coordinates
+    }
+}
 
 impl std::ops::Index<usize> for Color {
     type Output = f64;

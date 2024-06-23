@@ -551,7 +551,7 @@ pub use color::core::{ColorSpace, HueInterpolation};
 pub use color::core::{
     clip, convert, delta_e_ok, from_24_bit, in_gamut, interpolate, map_to_gamut, normalize_eq,
     normalize_nan_mut, normalize_range_mut, prepare_to_interpolate, scale_lightness, to_24_bit,
-    to_contrast, to_contrast_luminance, ArrayData, P3_CONTRAST, SRGB_CONTRAST,
+    to_contrast, to_contrast_luminance_p3, to_contrast_luminance_srgb, ArrayData,
 };
 
 #[cfg(feature = "core")]
