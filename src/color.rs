@@ -772,8 +772,9 @@ impl Color {
     ///     that of the second interpolated color.
     ///
     /// Interestingly, all three interpolated colors have similar lightness
-    /// values, 0.77761, 0.77742, and 0.77761. That speaks for Oklab perceptual
-    /// uniformity, even if Oklab/Oklch are biased towards dark tones.
+    /// values, 0.77761, 0.77742, and 0.77761. That speaks for Oklab's
+    /// perceptual uniformity, even if Oklab/Oklch are biased towards dark
+    /// tones.
     pub fn interpolate(
         &self,
         color: &Self,
