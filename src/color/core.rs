@@ -278,8 +278,12 @@ pub extern "C" fn to_24_bit(coordinates: &[f64; 3]) -> ArrayData<u8, 3> {
 // Normalization, Equality, and Difference
 // ====================================================================================================================
 
-/// Update not-a-number coordinates to their normalized representation.
-fn normalize_domain_mut(space: ColorSpace, coordinates: &mut [f64; 3]) {
+/// Normalize not-a-numbers [*core-only*].
+///
+/// This function zeros non-a-number coordinates. If the hue for Oklch/Oklrch is
+/// not-a-number, it also zeros out chroma.
+#[no_mangle]
+pub extern "C" fn normalize_nan_mut(space: ColorSpace, coordinates: &mut [f64; 3]) {
     let [c1, c2, c3] = coordinates;
 
     // Ensure all coordinates are numbers
@@ -297,8 +301,17 @@ fn normalize_domain_mut(space: ColorSpace, coordinates: &mut [f64; 3]) {
             *c2 = 0.0;
         }
     }
+}
 
-    // Clamp lightness and chroma in Ok***
+/// Normalize the range of coordinates [*core-only*].
+///
+/// This function ensures that (revised) lightness, chroma, and hue have valid
+/// coordinates.
+#[no_mangle]
+pub extern "C" fn normalize_range_mut(space: ColorSpace, coordinates: &mut [f64; 3]) {
+    let [c1, c2, c3] = coordinates;
+
+    // Clamp lightness and chroma in Oklab et al
     if space.is_ok() {
         *c1 = c1.clamp(0.0, 1.0);
 
@@ -313,7 +326,10 @@ fn normalize_domain_mut(space: ColorSpace, coordinates: &mut [f64; 3]) {
     }
 }
 
-/// Update coordinates for equality testing and hashing.
+/// Normalize coordinates for equality testing and hashing.
+///
+/// When combined with normalization of not-a-numbers and ranges, this function
+/// produces floating point values that, if converted to bits,
 fn normalize_eq_mut(space: ColorSpace, coordinates: &mut [f64; 3]) {
     let [c1, c2, c3] = coordinates;
 
@@ -340,17 +356,6 @@ fn normalize_eq_mut(space: ColorSpace, coordinates: &mut [f64; 3]) {
     }
 }
 
-/// Normalize the coordinates [*core-only*].
-///
-/// This function replaces not-a-number by zero and forces Oklab's (revised)
-/// lightness, chroma, and hue to respect their limits.
-#[no_mangle]
-pub extern "C" fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<f64, 3> {
-    let mut coordinates = *coordinates;
-    normalize_domain_mut(space, &mut coordinates);
-    coordinates.into()
-}
-
 /// Normalize the coordinates for equality testing and hashing [*core-only*].
 ///
 /// Note: In-gamut RGB coordinates and the lightness for Oklab and Oklch have
@@ -358,7 +363,8 @@ pub extern "C" fn normalize(space: ColorSpace, coordinates: &[f64; 3]) -> ArrayD
 #[no_mangle]
 pub extern "C" fn normalize_eq(space: ColorSpace, coordinates: &[f64; 3]) -> ArrayData<u64, 3> {
     let mut coordinates = *coordinates;
-    normalize_domain_mut(space, &mut coordinates);
+    normalize_nan_mut(space, &mut coordinates);
+    normalize_range_mut(space, &mut coordinates);
     normalize_eq_mut(space, &mut coordinates);
     let [c1, c2, c3] = coordinates;
     [c1.to_bits(), c2.to_bits(), c3.to_bits()].into()
@@ -1240,24 +1246,22 @@ fn convert_with_nan(
     to_space: ColorSpace,
     coordinates: &[f64; 3],
 ) -> [f64; 3] {
-    // Convert normalized coordinates
-    let mut converted = convert(
-        from_space,
-        to_space,
-        &normalize(from_space, coordinates).data,
-    )
-    .data;
+    // Normalize coordinates and convert to interpolation space
+    let mut intermediate = *coordinates;
+    normalize_nan_mut(from_space, &mut intermediate);
+    normalize_range_mut(from_space, &mut intermediate);
+    let mut intermediate = convert(from_space, to_space, &intermediate).data;
 
     // Carry forward missing components
     for (index, coordinate) in coordinates.iter().enumerate() {
         if coordinate.is_nan() {
             if let Some(index) = carry_forward(from_space, to_space, index) {
-                converted[index] = f64::NAN;
+                intermediate[index] = f64::NAN;
             }
         }
     }
 
-    converted
+    intermediate
 }
 
 /// A strategy for interpolating hues.

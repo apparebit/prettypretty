@@ -4,8 +4,8 @@ pub(crate) mod core;
 
 use self::core::{
     clip, convert, delta_e_ok_internal, from_24_bit, in_gamut, interpolate, map_to_gamut,
-    normalize, normalize_eq, prepare_to_interpolate, scale_lightness, to_24_bit, to_contrast,
-    to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
+    normalize_eq, normalize_nan_mut, normalize_range_mut, prepare_to_interpolate, scale_lightness,
+    to_24_bit, to_contrast, to_contrast_luminance, P3_CONTRAST, SRGB_CONTRAST,
 };
 pub use self::core::{ColorSpace, HueInterpolation, OkVersion};
 use super::parser::{format, parse};
@@ -64,6 +64,26 @@ impl Interpolator {
 // ====================================================================================================================
 
 /// A high-resolution color object.
+///
+/// Every color object has a color space and three coordinates.
+///
+/// # Color Coordinates
+///
+/// For RGB color spaces, the coordinates of in-gamut colors have unit range.
+///
+/// So does the (revised) lightness for Oklab et al. Meanwhile, a/b may be
+/// negative or positive, have no a-priori limits, but are contained by
+/// `-0.4..=0.4` for all practical purposes. Chroma is non-negative, with no
+/// a-priori upper limit, but is contained by `0.0..=0.4` for all practical
+/// purposes. Finally, hue ranges `0..=360`.
+///
+/// A coordinate may be not-a-number indicating either a [powerless
+/// component](https://www.w3.org/TR/css-color-4/#powerless), i.e., a component
+/// that does not contribute towards the color such as the hue for Oklch colors
+/// with zero chroma, or a [missing
+/// component](https://www.w3.org/TR/css-color-4/#missing), i.e., a component
+/// intentionally omitted by the user, notably for interpolation.
+///
 ///
 /// # Managing Gamut
 ///
@@ -350,20 +370,27 @@ impl Color {
 
     // ----------------------------------------------------------------------------------------------------------------
 
-    /// Normalize this color's coordinates.
+    /// Normalize not-a-number coordinates by zeroing them.
     ///
-    /// This method ensures that all coordinates are well-formed. To that end,
-    /// it replaces missing components, that is, not-a-number, with 0.0 and
-    /// clamps some Ok*** coordinates. In particular, it clamps (revised)
-    /// lightness to `0.0..=1.0`, chroma to `0.0..`, and hue in `0.0..=360.0`.
+    /// If the hue for Oklch/Oklrch is not-a-number, this method also zeros out
+    /// the chroma.
+    #[inline]
+    #[must_use = "method returns owned color and does not mutate original value"]
+    pub fn normalize_nan(mut self) -> Self {
+        normalize_nan_mut(self.space, &mut self.coordinates);
+        self
+    }
+
+    /// Normalize coordinate ranges.
     ///
-    /// This is a weaker form of normalization than that performed for equality
-    /// testing and hashing.
-    pub fn normalize(&self) -> Self {
-        Self {
-            space: self.space,
-            coordinates: normalize(self.space, &self.coordinates).data,
-        }
+    /// This method clamps (revised) lightness and chroma to the ranges
+    /// `0.0..=1.0` and `0.0..`, respectively. It also folds hue to the range
+    /// `0..360`.
+    #[inline]
+    #[must_use = "method returns owned color and does not mutate original value"]
+    pub fn normalize_range(mut self) -> Self {
+        normalize_range_mut(self.space, &mut self.coordinates);
+        self
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -397,6 +424,8 @@ impl Color {
     /// <div style="background-color: #bd9547;"></div>
     /// </div>
     #[allow(non_snake_case)]
+    #[inline]
+    #[must_use = "method returns new color and does not mutate original value"]
     pub fn lighten(&self, factor: f64) -> Color {
         Color {
             space: ColorSpace::Oklrch,
@@ -409,6 +438,7 @@ impl Color {
     /// Since darkening by some factor is just lightening by the inverse, this
     /// method delegates to [`Color::lighten`] with just that value.
     #[inline]
+    #[must_use = "method returns new color and does not mutate original value"]
     pub fn darken(&self, factor: f64) -> Color {
         Color {
             space: ColorSpace::Oklrch,
@@ -624,7 +654,7 @@ impl Color {
     /// </div>
     pub fn find_closest_ok<'c, C>(&self, candidates: C, version: OkVersion) -> Option<usize>
     where
-        C: IntoIterator<Item = &'c Color>,
+        C: IntoIterator<Item = &'c Self>,
     {
         self.find_closest(candidates, version.cartesian_space(), delta_e_ok_internal)
     }
@@ -747,10 +777,10 @@ impl Color {
     ///
     /// Note that the arcs between the purple and orange are not strictly
     /// circular because they need to make up for the difference in chroma,
-    /// i.e., 0.18546 vs 0.15466.
+    /// 0.18546 vs 0.15466, in addition to the difference in hue,
     pub fn interpolate(
         &self,
-        color: &Color,
+        color: &Self,
         interpolation_space: ColorSpace,
         interpolation_strategy: HueInterpolation,
     ) -> Interpolator {
@@ -767,7 +797,7 @@ impl Color {
     /// algorithm that is surprisingly similar to the [Accessible Perceptual
     /// Contrast Algorithm](https://github.com/Myndex/apca-w3), version
     /// 0.0.98G-4g.
-    pub fn contrast_against(&self, background: Self) -> f64 {
+    pub fn contrast_against(&self, background: &Self) -> f64 {
         let fg = self.to(ColorSpace::Srgb);
         let bg = background.to(ColorSpace::Srgb);
 
