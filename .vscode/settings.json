@@ -1,15 +1,22 @@
 {
     "cSpell.words": [
         "APCA",
+        "cbrt",
         "CIELAB",
         "configurability",
         "Hifi",
         "Munge",
         "OKLAB",
         "oklch",
+        "OKLMS",
+        "oklr",
         "Oklrab",
         "Oklrch",
+        "powf",
+        "powi",
+        "recip",
         "repr",
+        "rustfmt",
         "srgb"
     ],
     "python.testing.unittestArgs": [

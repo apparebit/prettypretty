@@ -13,9 +13,8 @@ license = "Apache-2.0"
 include = ["/README.md", "/LICENSE", "/src"]
 
 [features]
-default = ["color-object"]
-core = []
-color-object = []
+default = []
+f32 = []
 
 [package.metadata.docs.rs]
 all-features = true
