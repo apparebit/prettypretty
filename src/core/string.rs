@@ -1,5 +1,119 @@
-use super::color::ColorSpace;
-use super::util::ColorFormatError;
+use crate::{ColorSpace, Float};
+
+/// An erroneous color format.
+///
+/// Several variants include a coordinate index, which is zero-based. The
+/// formatted description, however, shows a one-based index prefixed with a `#`
+/// (for number).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ColorFormatError {
+    /// A color format that does not start with a known prefix such as `#` or
+    /// `rgb:`.
+    UnknownFormat,
+
+    /// A color format with unexpected characters or an unexpected number of
+    /// characters. For example, `#00` is missing a hexadecimal digit, whereas
+    /// `#💩00` has the correct length but contains an unsuitable character.
+    UnexpectedCharacters,
+
+    /// A parenthesized color format without the opening parenthesis. For
+    /// example, `color display-p3 0 0 0)` is missing the opening parenthesis.
+    NoOpeningParenthesis,
+
+    /// A parenthesized color format without the closing parenthesis. For
+    /// example, `oklab(1 2 3` is missing the closing parenthesis.
+    NoClosingParenthesis,
+
+    /// A color format that is using an unknown color space. For example,
+    /// `color(unknown 1 1 1)` uses an unknown color space.
+    UnknownColorSpace,
+
+    /// A color format that is missing the coordinate with the given index. For
+    /// example, `rgb:0` is missing the second and third coordinate, whereas
+    /// `rgb:0//0` is missing the second coordinate only.
+    MissingCoordinate(usize),
+
+    /// A color format that has too many digits in the coordinate with the given
+    /// index. For example, `rgb:12345/1/22` has too many digits in the first
+    /// coordinate.
+    OversizedCoordinate(usize),
+
+    /// A color format that has a malformed hexadecimal number as coordinate
+    /// with the given index. For example, `#efg` has a malformed third
+    /// coordinate.
+    MalformedHex(usize, std::num::ParseIntError),
+
+    /// A color format that has a malformed floating point number as coordinate
+    /// with the given index. For example, `color(srgb 1.0 0..1 0.0)` has a
+    /// malformed second coordinate.
+    MalformedFloat(usize, std::num::ParseFloatError),
+
+    /// A color format with more than three coordinates. For example,
+    /// `rgb:1/2/3/4` has one coordinate too many.
+    TooManyCoordinates,
+}
+
+impl std::fmt::Display for ColorFormatError {
+    /// Format a description of this color format error.
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use ColorFormatError::*;
+
+        match *self {
+            UnknownFormat => write!(
+                f,
+                "color format should start with `#`, `color()`, `oklab()`, `oklch()`, or `rgb:`"
+            ),
+            UnexpectedCharacters => {
+                write!(f, "color format should contain only valid ASCII characters")
+            }
+            NoOpeningParenthesis => write!(
+                f,
+                "color format should include an opening parenthesis but has none"
+            ),
+            NoClosingParenthesis => write!(
+                f,
+                "color format should include a closing parenthesis but has none"
+            ),
+            UnknownColorSpace => {
+                write!(f, "color format should have known color space but does not")
+            }
+            MissingCoordinate(c) => write!(
+                f,
+                "color format should have 3 coordinates but is missing #{}",
+                c + 1
+            ),
+            OversizedCoordinate(c) => write!(
+                f,
+                "color format coordinates should have 1-4 hex digits but #{} has more",
+                c + 1
+            ),
+            MalformedHex(c, _) => write!(
+                f,
+                "color format coordinates should be hexadecimal integers but #{} is not",
+                c + 1
+            ),
+            MalformedFloat(c, _) => write!(
+                f,
+                "color format coordinates should be floating point numbers but #{} is not",
+                c + 1
+            ),
+            TooManyCoordinates => write!(f, "color format should have 3 coordinates but has more"),
+        }
+    }
+}
+
+impl std::error::Error for ColorFormatError {
+    /// Access the cause for this color format error.
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ColorFormatError::MalformedHex(_, error) => Some(error),
+            ColorFormatError::MalformedFloat(_, error) => Some(error),
+            _ => None,
+        }
+    }
+}
+
+// ====================================================================================================================
 
 /// Parse a 24-bit color in hashed hexadecimal format. If successful, this
 /// function returns the three coordinates as unsigned bytes. It transparently
@@ -79,7 +193,7 @@ const COLOR_SPACES: [(&str, ColorSpace); 10] = [
 /// latter must be `srgb`, `linear-srgb`, `display-p3`, `rec2020`, `xyz`, or one
 /// of the non-standard color spaces `--linear-display-p3`, `--linear-rec2020`,
 /// `--oklrab`, and `--oklrch`. Coordinates must not have units including `%`.
-fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
+fn parse_css(s: &str) -> Result<(ColorSpace, [Float; 3]), ColorFormatError> {
     use ColorSpace::*;
 
     // Munge CSS function name
@@ -113,7 +227,7 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
     };
 
     #[inline]
-    fn parse_coordinate(s: Option<&str>, index: usize) -> Result<f64, ColorFormatError> {
+    fn parse_coordinate(s: Option<&str>, index: usize) -> Result<Float, ColorFormatError> {
         s.ok_or(ColorFormatError::MissingCoordinate(index))
             .and_then(|t| {
                 t.parse()
@@ -135,7 +249,7 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// Parse the string into a color [*core-only*].
+/// Parse the string into a color.
 ///
 /// This function recognizes hashed hexadecimal, XParseColor, and CSS formats
 /// for colors. In particular, it recognizes the three and six digit hashed
@@ -145,8 +259,7 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
 /// this function trims leading and trailing white space and converts ASCII
 /// letters to lowercase. However, a valid color string may still contain
 /// Unicode white space characters and hence needn't be all ASCII.
-#[no_mangle]
-pub fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
+pub(crate) fn parse(s: &str) -> Result<(ColorSpace, [Float; 3]), ColorFormatError> {
     let lowercase = s.trim().to_ascii_lowercase(); // Keep around for fn scope
     let s = lowercase.as_str();
 
@@ -154,11 +267,15 @@ pub fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
         let [c1, c2, c3] = parse_hashed(s)?;
         Ok((
             ColorSpace::Srgb,
-            [c1 as f64 / 255.0, c2 as f64 / 255.0, c3 as f64 / 255.0],
+            [
+                c1 as Float / 255.0,
+                c2 as Float / 255.0,
+                c3 as Float / 255.0,
+            ],
         ))
     } else if s.starts_with("rgb:") {
-        fn scale(len_and_value: (u8, u16)) -> f64 {
-            len_and_value.1 as f64 / (16_i32.pow(len_and_value.0 as u32) - 1) as f64
+        fn scale(len_and_value: (u8, u16)) -> Float {
+            len_and_value.1 as Float / (16_i32.pow(len_and_value.0 as u32) - 1) as Float
         }
 
         let [c1, c2, c3] = parse_x(s)?;
@@ -170,36 +287,24 @@ pub fn parse(s: &str) -> Result<(ColorSpace, [f64; 3]), ColorFormatError> {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-impl ColorSpace {
-    /// Determine the prefix for serializing colors from this color space in CSS
-    /// format.
-    ///
-    /// The resulting string is either `color(<space> ...)`, `oklab(...)`, or
-    /// `oklch(...)`, with the ellipsis eliding three *space-separated*
-    /// coordinates. This method returns all characters up to and excluding the
-    /// first coordinate but including any necessary space. Since CSS does not
-    /// currently support linear Display P3, linear Rec. 2020, Oklrab, and
-    /// Oklrch, the names for the CSS `color()` function are written as a custom
-    /// property name, i.e., with two leading dashes.
-    pub const fn css_prefix(&self) -> &str {
-        use ColorSpace::*;
-        match *self {
-            Srgb => "color(srgb ",
-            LinearSrgb => "color(linear-srgb ",
-            DisplayP3 => "color(display-p3 ",
-            LinearDisplayP3 => "color(--linear-display-p3 ",
-            Rec2020 => "color(rec2020 ",
-            LinearRec2020 => "color(--linear-rec2020 ",
-            Oklab => "oklab(",
-            Oklch => "oklch(",
-            Oklrab => "color(--oklrab ",
-            Oklrch => "color(--oklrch ",
-            Xyz => "color(xyz ",
-        }
+fn css_prefix(space: ColorSpace) -> &'static str {
+    use ColorSpace::*;
+    match space {
+        Srgb => "color(srgb ",
+        LinearSrgb => "color(linear-srgb ",
+        DisplayP3 => "color(display-p3 ",
+        LinearDisplayP3 => "color(--linear-display-p3 ",
+        Rec2020 => "color(rec2020 ",
+        LinearRec2020 => "color(--linear-rec2020 ",
+        Oklab => "oklab(",
+        Oklch => "oklch(",
+        Oklrab => "color(--oklrab ",
+        Oklrch => "color(--oklrch ",
+        Xyz => "color(xyz ",
     }
 }
 
-/// Format the color as a string [*core-only*].
+/// Format the color as a string.
 ///
 /// This function formats the given cooordinates for the given color space as a
 /// CSS color with the `color()`, `oklab()`, or `oklch()` function and
@@ -210,15 +315,14 @@ impl ColorSpace {
 /// `--linear-display-p3`, `--linear-rec2020`, `--oklrab`, and `--oklrch` color
 /// spaces, which is why this function formats them, as shown, with two leading
 /// dashes, just like custom properties.
-#[no_mangle]
-pub fn format(
+pub(crate) fn format(
     space: ColorSpace,
-    coordinates: &[f64; 3],
+    coordinates: &[Float; 3],
     f: &mut std::fmt::Formatter<'_>,
 ) -> std::fmt::Result {
-    write!(f, "{}", space.css_prefix())?;
+    write!(f, "{}", css_prefix(space))?;
 
-    let mut factor = 10_f64.powi(f.precision().unwrap_or(5) as i32);
+    let mut factor = (10.0 as Float).powi(f.precision().unwrap_or(5) as i32);
     for (index, coordinate) in coordinates.iter().enumerate() {
         if space.is_polar() && index == 2 {
             factor /= 100.0;
@@ -251,8 +355,9 @@ pub fn format(
 
 #[cfg(test)]
 mod test {
-    use super::ColorSpace::*;
     use super::{parse, parse_css, parse_hashed, parse_x, ColorFormatError};
+    use crate::ColorSpace::*;
+    use crate::Float;
 
     #[test]
     fn test_parse_hashed() -> Result<(), ColorFormatError> {
@@ -313,7 +418,10 @@ mod test {
 
         assert_eq!(
             parse("   RGB:00/55/aa   ")?,
-            (Srgb, [0.0_f64, 0.33333333333333333, 0.6666666666666666])
+            (
+                Srgb,
+                [0.0 as Float, 0.33333333333333333, 0.6666666666666666]
+            )
         );
 
         Ok(())

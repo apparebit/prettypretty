@@ -31,7 +31,7 @@
 //! let not_srgb = oklch.to(ColorSpace::Srgb);
 //! assert!(!not_srgb.in_gamut());
 //!
-//! let srgb = not_srgb.map_to_gamut();
+//! let srgb = not_srgb.to_gamut();
 //! assert_eq!(srgb, Color::srgb(1, 0.15942348587138203, 0.9222706101768445));
 //! ```
 //! <style>
@@ -466,31 +466,14 @@
 //! <div style="background-color: #ffff55;"></div>
 //! </div>
 //!
-//!
 //! ## 4. Features
 //!
-//! This crate has two features:
+//! This crate has one feature:
 //!
-//!   - **`color-object`** enables the high-level, nicely encapsulated interface
-//!     summarized in this crate summary. This feature is enabled by default and
-//!     best serves Rust libraries and applications.
-//!   - **`core`** enables a lower-level interface based on functions that take
-//!     color coordinates. It is simple enough to be accessed through a C-based
-//!     FFI and hence best serves as implementation substrate for higher-level
-//!     color abstractions in Rust as well as other programming languages.
-//!
-//! This crate's high-level color interface is, of course, implemented through
-//! the lower-level interface and the crate's repository also includes a
-//! [Python-based implementation](https://github.com/apparebit/prettypretty).
-//!
-//! To put it differently, every build of prettypretty includes all the
-//! functionality of `core`, even if the `core` feature is disabled. The
-//! difference is that, when the `core` feature is disabled, the corresponding
-//! functions are not visible outside the crate. They are labeled as
-//! "*core-only*" in the documentation. At the same time, if the `color-object`
-//! feature is disabled, the high-level interface is entirely omitted from the
-//! build.
-//!
+//!   - **`f32`**: When this feature is enabled, the entire crate uses `f32`
+//!     instead of `f64`. In either case, the currently active floating point
+//!     type is [`Float`] and its corresponding unsigned integer bits are
+//!     [`Bits`].
 //!
 //! ## 5. BYOIO: Bring Your Own (Terminal) I/O
 //!
@@ -539,29 +522,28 @@
 //! Verou](http://lea.verou.me/) and [Chris Lilley](https://svgees.us/). Without
 //! their work, I could not have gotten as far as quickly. Thank you! 🌸
 
-mod collect;
+/// The floating point type in use.
+#[cfg(not(feature = "f32"))]
+pub type Float = f64;
+/// The floating point type in use.
+#[cfg(feature = "f32")]
+pub type Float = f32;
+
+/// [`Float`]'s bits.
+#[cfg(not(feature = "f32"))]
+pub type Bits = u64;
+/// [`Float`]'s bits.
+#[cfg(feature = "f32")]
+pub type Bits = u32;
+
+mod collection;
 mod color;
-mod parser;
+mod core;
 mod term_color;
-mod util;
 
-pub use color::core::{ColorSpace, HueInterpolation};
-
-#[cfg(feature = "core")]
-pub use color::core::{
-    clip, convert, delta_e_ok, from_24_bit, in_gamut, interpolate, map_to_gamut, normalize_eq,
-    normalize_nan_mut, normalize_range_mut, prepare_to_interpolate, scale_lightness, to_24_bit,
-    to_contrast, to_contrast_luminance_p3, to_contrast_luminance_srgb, ArrayData,
-};
-
-#[cfg(feature = "core")]
-pub use parser::{format, parse};
-
-#[cfg(feature = "color-object")]
-pub use collect::{ColorMatcher, Theme, DEFAULT_THEME};
-#[cfg(feature = "color-object")]
+pub use collection::{ColorMatcher, DEFAULT_THEME, Layer, Theme};
 pub use color::{Color, Interpolator, OkVersion};
-#[cfg(feature = "color-object")]
-pub use term_color::{AnsiColor, EightBitColor, EmbeddedRgb, GrayGradient, Layer, TrueColor};
-#[cfg(feature = "color-object")]
-pub use util::{ColorFormatError, Error, OutOfBoundsError};
+pub use core::{ColorFormatError, ColorSpace, HueInterpolation};
+pub use term_color::{
+    AnsiColor, EightBitColor, EmbeddedRgb, GrayGradient, OutOfBoundsError, TrueColor,
+};

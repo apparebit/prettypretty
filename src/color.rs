@@ -1,117 +1,40 @@
-//! High-definition colors
-
-pub(crate) mod core;
-
-use self::core::{
-    clip, convert, delta_e_ok_internal, from_24_bit, in_gamut, interpolate, map_to_gamut,
-    normalize_eq, normalize_nan_mut, normalize_range_mut, prepare_to_interpolate, scale_lightness,
-    to_24_bit, to_contrast, to_contrast_luminance_p3, to_contrast_luminance_srgb,
+use crate::core::{
+    clip, convert, delta_e_ok, format, from_24bit_rgb, in_gamut, interpolate, normalize, parse,
+    prepare_to_interpolate, scale_lightness, to_24bit_rgb, to_contrast, to_contrast_luminance_p3,
+    to_contrast_luminance_srgb, to_eq_bits, to_gamut, ColorSpace, HueInterpolation,
 };
-pub use self::core::{ColorSpace, HueInterpolation, OkVersion};
-use super::parser::{format, parse};
-use super::util::ColorFormatError;
-
-/// A color interpolator.
-///
-/// An interpolator performs linear interpolation between the coordinates of two
-/// colors according to [CSS Color
-/// 4](https://www.w3.org/TR/css-color-4/#interpolation). While linear
-/// interpolation itself is rather simple, preparing color coordinates for
-/// interpolation is quite a bit more work. It requires converting the colors
-/// into the desired color space, carrying forward any missing components, and
-/// adjusting hues according to interpolation strategy. An interpolator performs
-/// this work only once to facilitate amortization across several
-/// interpolations. That makes no difference when mixing two colors, but is
-/// effective when computing a gradient.
-pub struct Interpolator {
-    space: ColorSpace,
-    coordinates1: [f64; 3],
-    coordinates2: [f64; 3],
-}
-
-impl Interpolator {
-    /// Create a new color interpolator.
-    pub fn new(
-        color1: &Color,
-        color2: &Color,
-        space: ColorSpace,
-        strategy: HueInterpolation,
-    ) -> Self {
-        let [coordinates1, coordinates2] = prepare_to_interpolate(
-            color1.space,
-            &color1.coordinates,
-            color2.space,
-            &color2.coordinates,
-            space,
-            strategy,
-        )
-        .data;
-
-        Self {
-            space,
-            coordinates1: coordinates1.data,
-            coordinates2: coordinates2.data,
-        }
-    }
-
-    /// Compute the interpolated color at the given fraction.
-    pub fn at(&self, fraction: f64) -> Color {
-        let [c1, c2, c3] = interpolate(fraction, &self.coordinates1, &self.coordinates2).data;
-        Color::new(self.space, c1, c2, c3)
-    }
-}
-
-// ====================================================================================================================
+use crate::Float;
 
 /// A high-resolution color object.
 ///
-/// Every color object has a color space and three coordinates.
+/// Every color object has a [color space](ColorSpace) and three coordinates.
 ///
 /// # Color Coordinates
 ///
-/// A coordinate may be not-a-number either because it is a [powerless
-/// component](https://www.w3.org/TR/css-color-4/#powerless), such as hue when
-/// chroma is zero, or a [missing
-/// component](https://www.w3.org/TR/css-color-4/#missing), i.e., a component
-/// intentionally omitted by the user, notably for interpolation.
-///
 /// For RGB color spaces, the coordinates of in-gamut colors have unit range.
+/// For the other color spaces, there are no gamut bounds.
 ///
-/// For Oklab et al., the (revised) lightness must be `0.0..=1.0`, chroma must
-/// be `0.0..`, and hue must be `0..360`. There are no a-priori limits on a/b or
-/// upper limit on chroma. However, in practice, a/b are `-0.4..=0.4` and chroma
-/// is `0.0..=0.4`.
+/// However, the coordinates of colors in Oklab et al. still need to meet the
+/// following constraints to be well-formed. The (revised) lightness must be
+/// `0.0..=1.0` and chroma must be `0.0..`. There are no a-priori limits on a/b
+/// or upper limit on chroma. However, in practice, a/b are `-0.4..=0.4` and
+/// chroma is `0.0..=0.4`. The hue may have any magnitude, though `0..360` are
+/// preferred.
 ///
-/// Color objects do not enforce any of these invariants automatically because
-/// doing so may entail some information loss, notably due to reduced numerical
-/// range or resolution. At the same time, color objects provide the methods
-/// necessary for more constrained representations. Notably, it includes:
+/// A coordinate may be not-a-number either because it is a [powerless
+/// component](https://www.w3.org/TR/css-color-4/#powerless), such as the hue in
+/// Oklch/Oklrch when chroma is zero, or a [missing
+/// component](https://www.w3.org/TR/css-color-4/#missing), i.e., a component
+/// intentionally set to not-a-number, notably for interpolation.
 ///
-///   * [`Color::normalize_nan`] zeros out not-a-number components, so they do
-///     not interfere with conversion and other operations;
-///   * [`Color::normalize_range`] clamps Oklab component values so they are
-///     minimally defined;
-///   * [`Color::in_gamut`] tests whether color is in gamut;
-///   * [`Color::clip`] quickly calculates an in-gamut color that may not be a
-///     good match for the original color.
-///   * [`Color::map_to_gamut`] maps an out-of-gamut color to an in-gamut color
-///     by searching along the chroma axis until it finds an out-of-gamut color
-///     whose clipped version is close-by and in-gamut.
 ///
-/// # Equality Testing and Hashing
-///
-/// The key requirement for equality testing and hashing is that colors that
-/// compare [`Self::eq`] also have the same
-/// [`Self::hash`](struct.Color.html#method.hash). To maintain this invariant,
-/// the implementation of the two methods normalizes coordinates:
-///
-///   * To make coordinates comparable, replace not-a-numbers with positive
-///     zero;
+///   * To turn coordinates into comparable entities, replace not-a-numbers with
+///     positive zero;
 ///   * To preserve not-a-number semantics for hues, also zero out chroma for
 ///     not-a-number hues in Oklch;
 ///   * To preserve rotation semantics for hues, remove all full rotations;
 ///   * To prepare for rounding, scale down hues to unit range;
-///   * To allow for floating point error, multiply by 1e14 and then round,
+///   * To allow for floating point error, multiply by 1e5/1e14 and then round,
 ///     which drops the least significant digit;
 ///   * To make zeros comparable, replace negative zero with positive zero (but
 ///     only after rounding, which may produce zeros);
@@ -137,7 +60,7 @@ impl Interpolator {
 #[derive(Clone, Debug)]
 pub struct Color {
     space: ColorSpace,
-    coordinates: [f64; 3],
+    coordinates: [Float; 3],
 }
 
 impl Color {
@@ -146,13 +69,14 @@ impl Color {
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
     /// let pink = Color::new(ColorSpace::Oklch, 0.7, 0.22, 3.0);
-    /// assert_eq!(pink.coordinates(), &[0.7_f64, 0.22_f64, 3.0_f64]);
+    /// assert_eq!(pink.as_ref(), &[0.7_f64, 0.22_f64, 3.0_f64]);
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: oklch(0.7 0.22 3.0);"></div>
     /// </div>
-    pub const fn new(space: ColorSpace, c1: f64, c2: f64, c3: f64) -> Self {
-        Color {
+    #[inline]
+    pub const fn new(space: ColorSpace, c1: Float, c2: Float, c3: Float) -> Self {
+        Self {
             space,
             coordinates: [c1, c2, c3],
         }
@@ -160,6 +84,8 @@ impl Color {
 
     /// Instantiate a new sRGB color with the given red, green, and blue
     /// coordinates.
+    ///
+    /// # Examples
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
@@ -169,6 +95,7 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: rgb(177 31 36);"></div>
     /// </div>
+    #[inline]
     pub fn srgb(r: impl Into<f64>, g: impl Into<f64>, b: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::Srgb,
@@ -187,6 +114,7 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: color(display-p3 0 0.87 0.85);"></div>
     /// </div>
+    #[inline]
     pub fn p3(r: impl Into<f64>, g: impl Into<f64>, b: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::DisplayP3,
@@ -205,6 +133,7 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklab(0.78 -0.1 -0.1);"></div>
     /// </div>
+    #[inline]
     pub fn oklab(l: impl Into<f64>, a: impl Into<f64>, b: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::Oklab,
@@ -220,13 +149,14 @@ impl Color {
     /// let turquoise = Color::oklrab(0.48, -0.1, -0.1);
     /// assert_eq!(turquoise.space(), ColorSpace::Oklrab);
     /// assert!(
-    ///     (turquoise.to(ColorSpace::Oklab).coordinates()[0] - 0.5514232757779728).abs()
+    ///     (turquoise.to(ColorSpace::Oklab).as_ref()[0] - 0.5514232757779728).abs()
     ///     < 1e-13
     /// );
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: oklab(0.5514232757779728 -0.1 -0.1);"></div>
     /// </div>
+    #[inline]
     pub fn oklrab(lr: impl Into<f64>, a: impl Into<f64>, b: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::Oklrab,
@@ -245,6 +175,7 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklch(0.59 0.1351 126);"></div>
     /// </div>
+    #[inline]
     pub fn oklch(l: impl Into<f64>, c: impl Into<f64>, h: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::Oklch,
@@ -272,6 +203,7 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklch(0.647 0.1351 126);"></div>
     /// </div>
+    #[inline]
     pub fn oklrch(lr: impl Into<f64>, c: impl Into<f64>, h: impl Into<f64>) -> Self {
         Color {
             space: ColorSpace::Oklrch,
@@ -279,44 +211,45 @@ impl Color {
         }
     }
 
-    // ----------------------------------------------------------------------------------------------------------------
-
-    /// Instantiate a new sRGB color with the given red, green, and blue
-    /// coordinates scaled by 1.0/255.0.
+    /// Instantiate a new sRGB color from its 24-bit representation.
+    ///
+    /// This function returns a new sRGB color with the given red, green, and
+    /// blue coordinates scaled by 1/255.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// let tangerine = Color::from_24_bit(0xff, 0x93, 0x00);
+    /// let tangerine = Color::from_24bit(0xff, 0x93, 0x00);
     /// assert_eq!(tangerine, Color::srgb(1, 0.5764705882352941, 0));
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: #ff9300;"></div>
     /// </div>
-    pub fn from_24_bit(r: u8, g: u8, b: u8) -> Self {
-        Color {
+    #[inline]
+    pub fn from_24bit(r: u8, g: u8, b: u8) -> Self {
+        Self {
             space: ColorSpace::Srgb,
-            coordinates: from_24_bit(r, g, b).data,
+            coordinates: from_24bit_rgb(r, g, b),
         }
     }
 
-    /// Convert this color to 24-bit representation.
+    /// Convert this RGB color to 24-bit representation.
     ///
-    /// This function returns the coordinates converted to unsigned bytes.
-    ///
-    /// # Panics
-    ///
-    /// This function assumes that coordinate values range `0.0..=1.0` and
-    /// panics if that is not the case. The assumption holds for in-gamut RGB
-    /// colors, e.g., for colors in sRGB, Display P3, Rec. 2020, and their
-    /// linear versions. However, it does *not* hold for Oklab et al.
-    pub fn to_24_bit(&self) -> [u8; 3] {
-        to_24_bit(&self.coordinates).data
+    /// If the color is an RGB color, this function returns the coordinates
+    /// converted to unsigned bytes. Out-of-gamut colors are implicitly clipped,
+    /// i.e., end up with coordinates that are either `0x00` or `0xff`. This
+    /// function returns `None` for non-RGB colors.
+    #[inline]
+    pub fn to_24bit(&self) -> Option<[u8; 3]> {
+        if self.space.is_rgb() {
+            Some(to_24bit_rgb(&self.coordinates))
+        } else {
+            None
+        }
     }
-
-    // ----------------------------------------------------------------------------------------------------------------
 
     /// Determine whether this color is the default color, i.e., is the origin
     /// of the XYZ color space.
+    #[inline]
     pub fn is_default(&self) -> bool {
         self.space == ColorSpace::Xyz && self.coordinates == [0.0, 0.0, 0.0]
     }
@@ -336,106 +269,15 @@ impl Color {
         self.space
     }
 
-    /// Access the coordinates.
-    ///
-    /// This method's intended use is for iterating over the three coordinates.
-    /// To read *and write* individual coordinates, this class also implements
-    /// [`Color::index`](struct.Color.html#method.index) and
-    /// [`Color::index_mut`](struct.Color.html#method.index_mut), which take a
-    /// `usize` as argument.
-    ///
-    /// ```
-    /// # use prettypretty::{Color, ColorSpace};
-    /// let green = Color::p3(0, 1, 0);
-    /// assert_eq!(green.coordinates(), &[0.0, 1.0, 0.0]);
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: color(display-p3 0 1 0);"></div>
-    /// </div>
+    /// Normalize this color by zeroing out not-a-number and enforcing valid
+    /// coordinate ranges.
     #[inline]
-    pub fn coordinates(&self) -> &[f64; 3] {
-        &self.coordinates
-    }
-
-    // ----------------------------------------------------------------------------------------------------------------
-
-    /// Normalize not-a-number coordinates by zeroing them.
-    ///
-    /// If the hue for Oklch/Oklrch is not-a-number, this method also zeros out
-    /// the chroma.
-    #[inline]
-    #[must_use = "method returns owned color and does not mutate original value"]
-    pub fn normalize_nan(mut self) -> Self {
-        normalize_nan_mut(self.space, &mut self.coordinates);
-        self
-    }
-
-    /// Normalize coordinate ranges.
-    ///
-    /// This method clamps (revised) lightness and chroma to the ranges
-    /// `0.0..=1.0` and `0.0..`, respectively. It also folds hue to the range
-    /// `0..360`.
-    #[inline]
-    #[must_use = "method returns owned color and does not mutate original value"]
-    pub fn normalize_range(mut self) -> Self {
-        normalize_range_mut(self.space, &mut self.coordinates);
-        self
-    }
-
-    // ----------------------------------------------------------------------------------------------------------------
-
-    /// Lighten this color by the given factor in Oklrch.
-    ///
-    /// This method converts this color to Oklrch, then multiplies its lightness
-    /// Lr by the given factor, and finally returns the result—which may or may
-    /// not be in-gamut for another color space. This method does not include an
-    /// option for selecting Oklch because of its non-uniform lightness L.
-    ///
-    /// # Examples
-    ///
-    /// The code example leverages the fact that lightening by a factor f is the
-    /// same as darkening by factor 1/f and vice versa. Note that the example
-    /// computes the colors out of order but then validates them in order. The
-    /// color swatch shows them in order, from darkest to lightest.
-    ///
-    /// ```
-    /// # use prettypretty::{Color, ColorSpace::*};
-    /// let goldenrod1 = Color::from_24_bit(0x8b, 0x65, 0x08);
-    /// let goldenrod3 = goldenrod1.lighten(1.4).to(Srgb);
-    /// let goldenrod2 = goldenrod3.lighten(1.2/1.4).to(Srgb);
-    /// assert_eq!(goldenrod1.to_24_bit(), [0x8b_u8, 0x65, 0x08]);
-    /// assert_eq!(goldenrod2.to_24_bit(), [0xa4_u8, 0x7d, 0x2c]);
-    /// assert_eq!(goldenrod3.to_24_bit(), [0xbd_u8, 0x95, 0x47]);
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: #8b6508;"></div>
-    /// <div style="background-color: #a47d2c;"></div>
-    /// <div style="background-color: #bd9547;"></div>
-    /// </div>
-    #[allow(non_snake_case)]
-    #[inline]
-    #[must_use = "method returns new color and does not mutate original value"]
-    pub fn lighten(&self, factor: f64) -> Color {
-        Color {
-            space: ColorSpace::Oklrch,
-            coordinates: scale_lightness(self.space, &self.coordinates, factor).data,
+    pub fn normalize(&self) -> Self {
+        Self {
+            space: self.space,
+            coordinates: normalize(self.space, &self.coordinates),
         }
     }
-
-    /// Darken this color by the given factor in Oklrch.
-    ///
-    /// Since darkening by some factor is just lightening by the inverse, this
-    /// method delegates to [`Color::lighten`] with just that value.
-    #[inline]
-    #[must_use = "method returns new color and does not mutate original value"]
-    pub fn darken(&self, factor: f64) -> Color {
-        Color {
-            space: ColorSpace::Oklrch,
-            coordinates: scale_lightness(self.space, &self.coordinates, factor.recip()).data,
-        }
-    }
-
-    // ----------------------------------------------------------------------------------------------------------------
 
     /// Convert this color to the target color space.
     ///
@@ -474,11 +316,9 @@ impl Color {
     pub fn to(&self, target: ColorSpace) -> Self {
         Self {
             space: target,
-            coordinates: convert(self.space, target, &self.coordinates).data,
+            coordinates: convert(self.space, target, &self.coordinates),
         }
     }
-
-    // ----------------------------------------------------------------------------------------------------------------
 
     /// Determine whether this color is in-gamut for its color space.
     ///
@@ -524,11 +364,11 @@ impl Color {
     pub fn clip(&self) -> Self {
         Self {
             space: self.space,
-            coordinates: clip(self.space, &self.coordinates).data,
+            coordinates: clip(self.space, &self.coordinates),
         }
     }
 
-    /// Map this color into the gamut of its color space and return the result.
+    /// Map this color into the gamut of its color space.
     ///
     /// # Algorithm
     ///
@@ -561,7 +401,7 @@ impl Color {
     ///     .to(ColorSpace::Srgb);
     /// assert!(!too_green.in_gamut());
     ///
-    /// let green = too_green.map_to_gamut();
+    /// let green = too_green.to_gamut();
     /// assert!(green.in_gamut());
     /// ```
     /// <div class=color-swatch>
@@ -570,14 +410,12 @@ impl Color {
     /// </div>
     #[inline]
     #[must_use = "method returns a new color and does not mutate original value"]
-    pub fn map_to_gamut(&self) -> Self {
+    pub fn to_gamut(&self) -> Self {
         Self {
             space: self.space,
-            coordinates: map_to_gamut(self.space, &self.coordinates).data,
+            coordinates: to_gamut(self.space, &self.coordinates),
         }
     }
-
-    // ----------------------------------------------------------------------------------------------------------------
 
     /// Compute the Euclidian distance between the two colors in Oklab.
     ///
@@ -608,7 +446,7 @@ impl Color {
     /// </div>
     #[inline]
     pub fn distance(&self, other: &Self, version: OkVersion) -> f64 {
-        delta_e_ok_internal(
+        delta_e_ok(
             &self.to(version.cartesian_space()).coordinates,
             &other.to(version.cartesian_space()).coordinates,
         )
@@ -622,9 +460,9 @@ impl Color {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, OkVersion};
     /// let colors = [
-    ///     &Color::from_24_bit(0xc4, 0x13, 0x31),
-    ///     &Color::from_24_bit(0, 0x80, 0x25),
-    ///     &Color::from_24_bit(0x30, 0x78, 0xea),
+    ///     &Color::from_24bit(0xc4, 0x13, 0x31),
+    ///     &Color::from_24bit(0, 0x80, 0x25),
+    ///     &Color::from_24bit(0x30, 0x78, 0xea),
     /// ];
     /// let rose = Color::srgb(1, 0.5, 0.5);
     /// let closest = rose.find_closest_ok(colors, OkVersion::Revised);
@@ -641,11 +479,12 @@ impl Color {
     /// <div style="background-color: color(srgb 1 0.5 0.5);"></div>
     /// <div style="background-color: color(srgb 0.5 1 0.6);"></div>
     /// </div>
+    #[inline]
     pub fn find_closest_ok<'c, C>(&self, candidates: C, version: OkVersion) -> Option<usize>
     where
         C: IntoIterator<Item = &'c Self>,
     {
-        self.find_closest(candidates, version.cartesian_space(), delta_e_ok_internal)
+        self.find_closest(candidates, version.cartesian_space(), delta_e_ok)
     }
 
     /// Find the index position of the candidate color closest to this color.
@@ -665,11 +504,6 @@ impl Color {
         C: IntoIterator<Item = &'c Color>,
         F: FnMut(&[f64; 3], &[f64; 3]) -> f64,
     {
-        // Reimplement search loop for color objects (instead of coordinates):
-        // We need to convert candidates to comparison color space, which has a
-        // simple lifetime (the loop body) in this case, not so much when
-        // wrapping iterators.
-
         let origin = self.to(space);
         let mut min_distance = f64::INFINITY;
         let mut min_index = None;
@@ -686,8 +520,6 @@ impl Color {
         min_index
     }
 
-    // ----------------------------------------------------------------------------------------------------------------
-
     /// Interpolate the two colors.
     ///
     /// This method creates a new interpolator for this and the given color.
@@ -702,7 +534,7 @@ impl Color {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, HueInterpolation};
     /// let red = Color::srgb(0.8, 0, 0);
-    /// let yellow = Color::from_24_bit(0xff, 0xca, 0);
+    /// let yellow = Color::from_24bit(0xff, 0xca, 0);
     /// let orange = red
     ///     .interpolate(&yellow, ColorSpace::Oklch, HueInterpolation::Shorter)
     ///     .at(0.5);
@@ -722,23 +554,23 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace, HueInterpolation};
-    /// let purple = Color::from_24_bit(0xe1, 0x87, 0xfd);
-    /// let orange = Color::from_24_bit(0xf7, 0xaa, 0x31);
+    /// let purple = Color::from_24bit(0xe1, 0x87, 0xfd);
+    /// let orange = Color::from_24bit(0xf7, 0xaa, 0x31);
     /// let salmon = purple
     ///     .interpolate(&orange, ColorSpace::Oklab, HueInterpolation::Shorter)
     ///     .at(0.5)
     ///     .to(ColorSpace::DisplayP3)
-    ///     .map_to_gamut();
+    ///     .to_gamut();
     /// let pink = purple
     ///     .interpolate(&orange, ColorSpace::Oklch, HueInterpolation::Shorter)
     ///     .at(0.5)
     ///     .to(ColorSpace::DisplayP3)
-    ///     .map_to_gamut();
+    ///     .to_gamut();
     /// let cyan = purple
     ///     .interpolate(&orange, ColorSpace::Oklch, HueInterpolation::Longer)
     ///     .at(0.5)
     ///     .to(ColorSpace::DisplayP3)
-    ///     .map_to_gamut();
+    ///     .to_gamut();
     /// assert_eq!(salmon, Color::p3(0.8741728617760183, 0.6327954633247381, 0.6763509691329291));
     /// assert_eq!(pink, Color::p3(1.0, 0.5471696596453801, 0.583554480600142));
     /// assert_eq!(cyan, Color::p3(0.14993363501776769, 0.82564322454698, 0.841871415351839));
@@ -775,6 +607,8 @@ impl Color {
     /// values, 0.77761, 0.77742, and 0.77761. That speaks for Oklab's
     /// perceptual uniformity, even if Oklab/Oklch are biased towards dark
     /// tones.
+    #[inline]
+    #[must_use = "method returns interpolator and does not mutate original values"]
     pub fn interpolate(
         &self,
         color: &Self,
@@ -784,7 +618,55 @@ impl Color {
         Interpolator::new(self, color, interpolation_space, interpolation_strategy)
     }
 
-    // ----------------------------------------------------------------------------------------------------------------
+    /// Lighten this color by the given factor in Oklrch.
+    ///
+    /// This method converts this color to Oklrch, then multiplies its lightness
+    /// Lr by the given factor, and finally returns the result—which may or may
+    /// not be in-gamut for another color space. This method does not include an
+    /// option for selecting Oklch because of its non-uniform lightness L.
+    ///
+    /// # Examples
+    ///
+    /// The code example leverages the fact that lightening by a factor f is the
+    /// same as darkening by factor 1/f and vice versa. Note that the example
+    /// computes the colors out of order but then validates them in order. The
+    /// color swatch shows them in order, from darkest to lightest.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace::*};
+    /// let goldenrod1 = Color::from_24bit(0x8b, 0x65, 0x08);
+    /// let goldenrod3 = goldenrod1.lighten(1.4).to(Srgb);
+    /// let goldenrod2 = goldenrod3.lighten(1.2/1.4).to(Srgb);
+    /// assert_eq!(goldenrod1.to_24bit(), Some([0x8b_u8, 0x65, 0x08]));
+    /// assert_eq!(goldenrod2.to_24bit(), Some([0xa4_u8, 0x7d, 0x2c]));
+    /// assert_eq!(goldenrod3.to_24bit(), Some([0xbd_u8, 0x95, 0x47]));
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #8b6508;"></div>
+    /// <div style="background-color: #a47d2c;"></div>
+    /// <div style="background-color: #bd9547;"></div>
+    /// </div>
+    #[inline]
+    #[must_use = "method returns a new color and does not mutate original value"]
+    pub fn lighten(&self, factor: Float) -> Self {
+        Self {
+            space: ColorSpace::Oklrch,
+            coordinates: scale_lightness(self.space, &self.coordinates, factor),
+        }
+    }
+
+    /// Darken this color by the given factor.
+    ///
+    /// Darkening is the same as lightening, except that it is using the inverse
+    /// factor. Also see [`Color::lighten`].
+    #[inline]
+    #[must_use = "method returns a new color and does not mutate original value"]
+    pub fn darken(&self, factor: Float) -> Self {
+        Self {
+            space: ColorSpace::Oklrch,
+            coordinates: scale_lightness(self.space, &self.coordinates, factor.recip()),
+        }
+    }
 
     /// Determine the perceptual contrast of text against a solidly colored
     /// background.
@@ -874,8 +756,6 @@ impl Color {
     }
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-
 impl Default for Color {
     /// Create an instance of the default color. The chosen default for
     /// high-resolution colors is pitch black, i.e., the origin in XYZ.
@@ -884,11 +764,12 @@ impl Default for Color {
     /// # use prettypretty::{Color, ColorSpace};
     /// let default = Color::default();
     /// assert_eq!(default.space(), ColorSpace::Xyz);
-    /// assert_eq!(default.coordinates(), &[0.0_f64, 0.0, 0.0]);
+    /// assert_eq!(default.as_ref(), &[0.0_f64, 0.0, 0.0]);
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: color(xyz 0 0 0);"></div>
     /// </div>
+    #[inline]
     fn default() -> Self {
         Color {
             space: ColorSpace::Xyz,
@@ -898,37 +779,38 @@ impl Default for Color {
 }
 
 impl std::str::FromStr for Color {
-    type Err = ColorFormatError;
+    type Err = crate::ColorFormatError;
 
     /// Instantiate a color from its string representation.
     ///
     /// Before parsing the string slice, this method trims any leading and
-    /// trailing white space and converts to ASCII lower case. The latter makes
-    /// parsing effectively case-insensitive.
+    /// trailing white space while also converting ASCII letters to lower case.
+    /// That makes parsing effectively case-insensitive.
     ///
     /// This method recognizes two hexadecimal notations for RGB colors, the
-    /// hashed notation familiar from the web and an older notation used by X
-    /// Windows. Even though the latter was originally just specifying *device
-    /// RGB*, this crate treats both as notations as sRGB.
+    /// hashed notation familiar from the web and the XParseColor notation
+    /// familiar from X Windows. While the latter originally specified *device
+    /// RGB*, this crate treats `rgb:` strings as specifying sRGB colors.
     ///
     /// The *hashed notation* has three or six hexadecimal digits, e.g., `#123` or
     /// #`cafe00`. Note that the three digit version is a short form of the six
     /// digit version with every digit repeated. In other words, the red
     /// coordinate in `#123` is not 0x1/0xf but 0x11/0xff.
     ///
-    /// The *X Windows notation* has between one and four hexadecimal digits per
-    /// coordinate, e.g., `rgb:1/00/cafe`. Here, every coordinate is scaled,
+    /// The *XParseColor notation* has between one and four hexadecimal digits
+    /// per coordinate, e.g., `rgb:1/00/cafe`. Here, every coordinate is scaled,
     /// i.e., the red coordinate in the example is 0x1/0xf.
     ///
     /// This method also recognizes a subset of the *CSS color syntax*. In
     /// particular, it recognizes the `color()`, `oklab()`, and `oklch` CSS
     /// functions. For `color()`, the color space right after the opening
-    /// parenthesis must be `srgb`, `linear-srgb`, `display-p3`,
+    /// parenthesis may be `srgb`, `linear-srgb`, `display-p3`,
     /// `--linear-display-p3`, `rec2020`, `--linear-rec2020`, `--oklrab`,
     /// `--oklrch`, or `xyz`. As indicated by the leading double-dashes, the
     /// linear versions of Display P3 and Rec. 2020 as well as OkLrab and Oklrch
-    /// are not included in CSS 4 Color. Coordinates must be space-separated and
-    /// unitless (i.e., no `%` or `deg`).
+    /// are not included in [CSS 4 Color](https://www.w3.org/TR/css-color-4/).
+    /// Coordinates must be space-separated and unitless (i.e., no `%` or
+    /// `deg`).
     ///
     /// By implementing the `FromStr` trait, `str::parse` works just the same
     /// for parsing color formats—that is, as long as type inference can
@@ -937,6 +819,8 @@ impl std::str::FromStr for Color {
     /// not.
     ///
     /// Don't forget the `use` statement bringing `FromStr` into scope.
+    ///
+    /// # Examples
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace, ColorFormatError};
@@ -957,107 +841,24 @@ impl std::str::FromStr for Color {
     /// <div style="background-color: #011480;"></div>
     /// <div style="background-color: #ffdacc;"></div>
     /// </div>
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         parse(s).map(|(space, coordinates)| Color { space, coordinates })
     }
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-
-mod from_term {
-    use crate::{EmbeddedRgb, GrayGradient, TrueColor};
-
-    impl From<TrueColor> for super::Color {
-        /// Convert the "true" color object into a *true* color object... 🤪
-        fn from(value: TrueColor) -> super::Color {
-            let [r, g, b] = *value.coordinates();
-            super::Color::srgb(r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0)
-        }
-    }
-
-    impl From<EmbeddedRgb> for super::Color {
-        /// Instantiate a new color from the embedded RGB value.
-        fn from(value: EmbeddedRgb) -> super::Color {
-            TrueColor::from(value).into()
-        }
-    }
-
-    impl From<GrayGradient> for super::Color {
-        /// Instantiate a new color from the embedded RGB value.
-        fn from(value: GrayGradient) -> super::Color {
-            TrueColor::from(value).into()
-        }
-    }
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
-impl std::hash::Hash for Color {
-    /// Hash this color.
-    ///
-    /// See [`Color`] for an overview of equality testing and hashing.
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.space.hash(state);
-
-        let [n1, n2, n3] = normalize_eq(self.space, &self.coordinates).data;
-        n1.hash(state);
-        n2.hash(state);
-        n3.hash(state);
-    }
-}
-
-impl PartialEq for Color {
-    /// Determine whether this color equals the other color.
-    ///
-    /// As discussed in the overview for [`Color`], [`Self::eq`] and
-    /// [`Self::hash`](struct.Color.html#method.hash) normalize color
-    /// coordinates before testing/hashing them. The following *equalities*
-    /// illustrate how normalization handles not-a-numbers, very small numbers,
-    /// and polar coordinates:
-    ///
-    /// ```
-    /// # use prettypretty::{Color, ColorSpace};
-    /// assert_eq!(
-    ///     Color::srgb(f64::NAN, 3e-15, 8e-15),
-    ///     Color::srgb(0,        0,     1e-14)
-    /// );
-    ///
-    /// assert_eq!(
-    ///     Color::oklch(0.5, 0.1, 665),
-    ///     Color::oklch(0.5, 0.1, 305)
-    /// );
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: color(srgb 0 0 0.00000000000001);"></div>
-    /// <div style="background-color: oklch(0.5 0.1 305);"></div>
-    /// </div>
-    fn eq(&self, other: &Self) -> bool {
-        if self.space != other.space {
-            return false;
-        } else if self.coordinates == other.coordinates {
-            return true;
-        }
-
-        let n1 = normalize_eq(self.space, &self.coordinates).data;
-        let n2 = normalize_eq(other.space, &other.coordinates).data;
-        n1 == n2
-    }
-}
-
-impl Eq for Color {}
-
-// --------------------------------------------------------------------------------------------------------------------
-
-impl AsRef<[f64; 3]> for Color {
-    /// Treat the color as a reference to its coordinate array.
-    fn as_ref(&self) -> &[f64; 3] {
+impl AsRef<[Float; 3]> for Color {
+    /// Access this color's coordinates by reference.
+    #[inline]
+    fn as_ref(&self) -> &[Float; 3] {
         &self.coordinates
     }
 }
 
-impl AsMut<[f64; 3]> for Color {
-    /// Treat the color as a mutable reference to its coordinate array.
-    fn as_mut(&mut self) -> &mut [f64; 3] {
+impl AsMut<[Float; 3]> for Color {
+    /// Access this color's coordinates by mutable reference.
+    #[inline]
+    fn as_mut(&mut self) -> &mut [Float; 3] {
         &mut self.coordinates
     }
 }
@@ -1102,7 +903,7 @@ impl std::ops::IndexMut<usize> for Color {
     /// let mut magenta = Color::srgb(0, 0.3, 0.8);
     /// // Oops, we forgot to set the red coordinate. Let's fix that.
     /// magenta[0] = 0.9;
-    /// assert_eq!(magenta.coordinates(), &[0.9_f64, 0.3_f64, 0.8_f64]);
+    /// assert_eq!(magenta.as_ref(), &[0.9_f64, 0.3_f64, 0.8_f64]);
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: color(srgb 0.9 0.3 0.8);"></div>
@@ -1112,6 +913,84 @@ impl std::ops::IndexMut<usize> for Color {
         &mut self.coordinates[index]
     }
 }
+
+impl std::hash::Hash for Color {
+    /// Hash this color.
+    ///
+    /// See the discussion for [`Color::eq`].
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.space.hash(state);
+
+        let [n1, n2, n3] = to_eq_bits(self.space, &self.coordinates);
+        n1.hash(state);
+        n2.hash(state);
+        n3.hash(state);
+    }
+}
+
+impl PartialEq for Color {
+    /// Determine whether this color equals the other color.
+    ///
+    /// A key requirement for data structures that implement the `Eq` and `Hash`
+    /// traits is that [`Self::hash`](struct.Color.html#method.hash)  produces
+    /// the same results for colors that are [`Color::eq`]. [`Color`] enforces
+    /// that invariant by normalizing coordinates and turning them into bit
+    /// strings before equality testing or hashing. In particular, both methods
+    /// perform the following steps:
+    ///
+    ///   * To turn coordinates into comparable entities, replace not-a-numbers with
+    ///     positive zero;
+    ///   * To preserve not-a-number semantics for hues, also zero out chroma for
+    ///     not-a-number hues in Oklch;
+    ///   * To preserve rotation semantics for hues, remove all full rotations;
+    ///   * To prepare for rounding, scale down hues to unit range;
+    ///   * To allow for floating point error, multiply by 1e5/1e14 (depending
+    ///     on `Float`'s type) and then round to drop least significant digit;
+    ///   * To make zeros comparable, replace negative zero with positive zero
+    ///     (but only after rounding, as it may produce zeros);
+    ///   * To convince Rust that coordinates are comparable, convert them to
+    ///     bits.
+    ///
+    /// While rounding isn't strictly necessary for correctness, it makes for a
+    /// more robust comparison without meaningfully reducing precision, at least
+    /// for the default representation using `f64`.
+    ///
+    /// # Examples
+    ///
+    /// The following example code illustrates how equality testing handles
+    /// not-a-numbers, numbers with very small differences, and hues:
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace, Float};
+    /// let delta = 2.0 * (10.0 as Float).powi(-(Float::DIGITS as i32));
+    /// assert_eq!(
+    ///     Color::srgb(Float::NAN, 4.0 * delta, 0.12 + delta),
+    ///     Color::srgb(0,          5.0 * delta, 0.12        )
+    /// );
+    ///
+    /// assert_eq!(
+    ///     Color::oklch(0.5, 0.1, 665),
+    ///     Color::oklch(0.5, 0.1, 305)
+    /// );
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(srgb 0 0.00000000000001 0.12);"></div>
+    /// <div style="background-color: oklch(0.5 0.1 305);"></div>
+    /// </div>
+    fn eq(&self, other: &Self) -> bool {
+        if self.space != other.space {
+            return false;
+        } else if self.coordinates == other.coordinates {
+            return true;
+        }
+
+        let n1 = to_eq_bits(self.space, &self.coordinates);
+        let n2 = to_eq_bits(other.space, &other.coordinates);
+        n1 == n2
+    }
+}
+
+impl Eq for Color {}
 
 impl std::fmt::Display for Color {
     /// Format this color.
@@ -1165,7 +1044,98 @@ impl std::fmt::Display for Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklch(0.665 0 none);"></div>
     /// </div>
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         format(self.space, &self.coordinates, f)
+    }
+}
+
+// ====================================================================================================================
+
+/// A choice of Oklab versions.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum OkVersion {
+    /// The original Oklab/Oklch color spaces.
+    Original,
+    /// The revised Oklrab/Oklrch color spaces.
+    Revised,
+}
+
+impl OkVersion {
+    /// Determine the Cartesion color space corresponding to this version of the
+    /// Oklab color spaces.
+    pub const fn cartesian_space(&self) -> ColorSpace {
+        match *self {
+            Self::Original => ColorSpace::Oklab,
+            Self::Revised => ColorSpace::Oklrab,
+        }
+    }
+
+    /// Determine the polar color space corresponding to this version of the
+    /// Oklab color space.
+    pub const fn polar_space(&self) -> ColorSpace {
+        match *self {
+            Self::Original => ColorSpace::Oklch,
+            Self::Revised => ColorSpace::Oklrch,
+        }
+    }
+}
+
+// ====================================================================================================================
+
+/// A color interpolator.
+///
+/// An interpolator performs linear interpolation between the coordinates of two
+/// colors according to [CSS Color
+/// 4](https://www.w3.org/TR/css-color-4/#interpolation). While the linear
+/// interpolation itself is straight-forward, preparing color coordinates in
+/// accordance with the specification is surprisingly complicated because it
+/// requires carrying forward missing components and adjusting hue according to
+/// interpolation strategy.  However, instead of performing this preparatory
+/// work for every interpolation, this struct can perform an arbitrary number of
+/// interpolations for the its two source colors and thus potentially amortize
+/// the cost of preparation.
+///
+/// See [`Color::interpolate`] for detailed examples.
+pub struct Interpolator {
+    space: ColorSpace,
+    coordinates1: [Float; 3],
+    coordinates2: [Float; 3],
+}
+
+impl Interpolator {
+    /// Create a new color interpolator.
+    ///
+    /// See [`Color::interpolate`] for detailed examples.
+    #[inline]
+    pub fn new(
+        color1: &Color,
+        color2: &Color,
+        space: ColorSpace,
+        strategy: HueInterpolation,
+    ) -> Self {
+        let (coordinates1, coordinates2) = prepare_to_interpolate(
+            color1.space,
+            &color1.coordinates,
+            color2.space,
+            &color2.coordinates,
+            space,
+            strategy,
+        );
+
+        Self {
+            space,
+            coordinates1,
+            coordinates2,
+        }
+    }
+
+    /// Compute the interpolated color for the given fraction.
+    ///
+    /// See [`Color::interpolate`] for detailed examples.
+    #[inline]
+    pub fn at(&self, fraction: f64) -> Color {
+        let [c1, c2, c3] = interpolate(fraction, &self.coordinates1, &self.coordinates2);
+        Color::new(self.space, c1, c2, c3)
     }
 }

@@ -1,10 +1,17 @@
-use crate::{
-    AnsiColor, Color, ColorSpace, EightBitColor, EmbeddedRgb, GrayGradient, Layer, OkVersion,
-};
+use crate::{AnsiColor, Color, ColorSpace, EightBitColor, EmbeddedRgb, Float, GrayGradient, OkVersion};
 
 // ====================================================================================================================
 // Color Themes
 // ====================================================================================================================
+
+/// The layer for rendering to the terminal.
+#[derive(Clone, Debug)]
+pub enum Layer {
+    /// The foreground or text layer.
+    Foreground,
+    /// The background layer.
+    Background,
+}
 
 /// A color theme with concrete color values.
 ///
@@ -145,8 +152,8 @@ pub const DEFAULT_THEME: Theme = Theme {
 #[derive(Debug)]
 pub struct ColorMatcher {
     space: ColorSpace,
-    ansi: Vec<[f64; 3]>,
-    eight_bit: Vec<[f64; 3]>,
+    ansi: Vec<[Float; 3]>,
+    eight_bit: Vec<[Float; 3]>,
 }
 
 impl ColorMatcher {
@@ -161,19 +168,19 @@ impl ColorMatcher {
             .map(|n| {
                 *theme[AnsiColor::try_from(n).unwrap()]
                     .to(space)
-                    .coordinates()
+                    .as_ref()
             })
             .collect();
-        let eight_bit: Vec<[f64; 3]> = (16..=231)
+        let eight_bit: Vec<[Float; 3]> = (16..=231)
             .map(|n| {
                 *Color::from(EmbeddedRgb::try_from(n).unwrap())
                     .to(space)
-                    .coordinates()
+                    .as_ref()
             })
             .chain((232..=255).map(|n| {
                 *Color::from(GrayGradient::try_from(n).unwrap())
                     .to(space)
-                    .coordinates()
+                    .as_ref()
             }))
             .collect();
 
@@ -277,8 +284,13 @@ impl ColorMatcher {
     /// approaches, we focus on hue alone and use the minimum degree of
     /// separation as a metric. Degrees being circular, computing the remainder
     /// of the difference is not enough. We need to consider both differences.
+    ///
+    /// The function uses prettypretty's [`Float`], which serves as alias to
+    /// either `f64` (the default) or `f32` (when the `f32` feature is enabled).
+    ///
     /// ```
-    /// fn minimum_degrees_of_separation(c1: &[f64; 3], c2: &[f64; 3]) -> f64 {
+    /// use prettypretty::Float;
+    /// fn minimum_degrees_of_separation(c1: &[Float; 3], c2: &[Float; 3]) -> Float {
     ///     (c1[2] - c2[2]).rem_euclid(360.0)
     ///         .min((c2[2] - c1[2]).rem_euclid(360.0))
     /// }
@@ -289,7 +301,7 @@ impl ColorMatcher {
     /// our list with the new distance metric.
     ///
     /// ```
-    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, DEFAULT_THEME};
+    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, DEFAULT_THEME, Float};
     /// # use std::str::FromStr;
     /// # let ansi_colors: Vec<Color> = (0..=15)
     /// #     .map(|n| {
@@ -297,7 +309,7 @@ impl ColorMatcher {
     /// #             .to(ColorSpace::Oklrch)
     /// #     })
     /// #     .collect();
-    /// # fn minimum_degrees_of_separation(c1: &[f64; 3], c2: &[f64; 3]) -> f64 {
+    /// # fn minimum_degrees_of_separation(c1: &[Float; 3], c2: &[Float; 3]) -> Float {
     /// #     (c1[2] - c2[2]).rem_euclid(360.0)
     /// #         .min((c2[2] - c1[2]).rem_euclid(360.0))
     /// # }
@@ -321,10 +333,10 @@ impl ColorMatcher {
     /// However, a production-ready version does need to account for lightness,
     /// too.
     pub fn to_ansi(&self, color: &Color) -> AnsiColor {
-        use crate::color::core::{delta_e_ok_internal, find_closest};
+        use crate::core::{delta_e_ok, find_closest};
 
         let color = color.to(self.space);
-        find_closest(color.coordinates(), &self.ansi, delta_e_ok_internal)
+        find_closest(color.as_ref(), &self.ansi, delta_e_ok)
             .map(|idx| AnsiColor::try_from(idx as u8).unwrap())
             .unwrap()
     }
@@ -342,7 +354,7 @@ impl ColorMatcher {
     /// RGB cube still are closest to themselves after conversion to Oklrch.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, DEFAULT_THEME, EightBitColor};
+    /// # use prettypretty::{Color, ColorSpace, DEFAULT_THEME, EightBitColor, Float};
     /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, ColorMatcher, OkVersion};
     /// let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
     ///
@@ -356,9 +368,9 @@ impl ColorMatcher {
     ///             let c1 = if r == 0 {
     ///                 0.0
     ///             } else {
-    ///                 (55.0 + 40.0 * (r as f64)) / 255.0
+    ///                 (55.0 + 40.0 * (r as Float)) / 255.0
     ///             };
-    ///             assert!((color[0] - c1).abs() < f64::EPSILON);
+    ///             assert!((color[0] - c1).abs() < Float::EPSILON);
     ///
     ///             let result = matcher.to_eight_bit(&color);
     ///             assert_eq!(result, EightBitColor::Rgb(embedded));
@@ -368,10 +380,10 @@ impl ColorMatcher {
     /// # Ok::<(), OutOfBoundsError>(())
     /// ```
     pub fn to_eight_bit(&self, color: &Color) -> EightBitColor {
-        use crate::color::core::{delta_e_ok_internal, find_closest};
+        use crate::core::{delta_e_ok, find_closest};
 
         let color = color.to(self.space);
-        find_closest(color.coordinates(), &self.eight_bit, delta_e_ok_internal)
+        find_closest(color.as_ref(), &self.eight_bit, delta_e_ok)
             .map(|idx| EightBitColor::from(idx as u8 + 16))
             .unwrap()
     }
@@ -381,7 +393,8 @@ impl ColorMatcher {
 
 #[cfg(test)]
 mod test {
-    use crate::{AnsiColor, Color, ColorMatcher, OkVersion, OutOfBoundsError, DEFAULT_THEME};
+    use super::{ColorMatcher, DEFAULT_THEME};
+    use crate::{AnsiColor, Color, OkVersion, OutOfBoundsError};
 
     #[test]
     fn test_matcher() -> Result<(), OutOfBoundsError> {

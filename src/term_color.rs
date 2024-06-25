@@ -6,7 +6,51 @@
 //! three coordinates do not use floating point but integral numbers drawn from
 //! a specific range.
 
-use super::util::OutOfBoundsError;
+use crate::{Color, ColorSpace};
+
+/// An out-of-bounds error.
+///
+/// This error indicates an index value that is out of bounds for some subrange
+/// of an unsigned byte. Typically, it results from trying to instantiate
+/// [`AnsiColor`], [`EmbeddedRgb`], or [`GrayGradient`] from an index invalid
+/// for that particular terminal color. Ranges include:
+///
+///   * `0..=5` for coordinates of [`EmbeddedRgb`];
+///   * `0..=15` for index values of the 16 extended [`AnsiColor`]s;
+///   * `0..=23` for the levels of the [`GrayGradient`];
+///   * `16..=231` for index values of the [`EmbeddedRgb`];
+///   * `232..=255` for index values of the [`GrayGradient`].
+///
+#[derive(Clone, Debug)]
+pub struct OutOfBoundsError {
+    pub value: usize,
+    pub expected: std::ops::RangeInclusive<u8>,
+}
+
+impl OutOfBoundsError {
+    /// Create a new out-of-bounds error from an unsigned byte value. This
+    /// constructor takes care of the common case where the value has the
+    /// smallest unsigned integer type.
+    pub const fn from_u8(value: u8, expected: std::ops::RangeInclusive<u8>) -> Self {
+        Self {
+            value: value as usize,
+            expected,
+        }
+    }
+}
+
+impl std::fmt::Display for OutOfBoundsError {
+    /// Format this out-of-bounds error.
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "{} should fit into range {}..={}",
+            self.value,
+            self.expected.start(),
+            self.expected.end()
+        )
+    }
+}
 
 // ====================================================================================================================
 // Ansi Color
@@ -96,28 +140,17 @@ impl From<AnsiColor> for u8 {
     }
 }
 
-/// The display layer, i.e., foreground or background.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Layer {
-    /// The foreground, i.e., text.
-    Foreground = 0,
-
-    /// The background.
-    Background = 10,
-}
-
 // ====================================================================================================================
 // The Embedded 6x6x6 RGB
 // ====================================================================================================================
 
 /// The 6x6x6 RGB cube embedded in 8-bit terminal colors.
 ///
-/// Unlike [`TrueColor`] and [`super::Color`], this struct only implements
-/// [`EmbeddedRgb.index`] but not `index_mut()`. The latter cannot ensure the
-/// critical invariant that coordinates have range `0..=5`. While that could be
-/// addressed with a newtype wrapping u8, the resulting notational overhead also
-/// seems incommensurate with the benefits. Instead, this struct implements
-/// [`EmbeddedRgb.update`] as setter. It may not be as quite as elegant, but it
+/// Unlike [`Color`] and [`TrueColor`], this color does not implement
+/// `as_mut()`, since it can't guarantee the invariant that coordinates are
+/// `0..=5`. Technically, a newtype wrapping `u8` would work but seems
+/// exceedingly awkward. Instead, this struct implements [`EmbeddedRgb::update`]
+/// as setter. It may not be as quite as elegant as direct array access, but it
 /// sure works.
 ///
 /// With [`EightBitColor`]  composing [`AnsiColor`], [`EmbeddedRgb`], and
@@ -202,11 +235,10 @@ impl TryFrom<u8> for EmbeddedRgb {
     }
 }
 
-impl From<EmbeddedRgb> for u8 {
-    /// Convert an embedded RGB color to an unsigned byte.
-    fn from(value: EmbeddedRgb) -> u8 {
-        let [r, g, b] = value.0;
-        16 + 36 * r + 6 * g + b
+impl AsRef<[u8; 3]> for EmbeddedRgb {
+    /// Access this color's coordinates by reference.
+    fn as_ref(&self) -> &[u8; 3] {
+        &self.0
     }
 }
 
@@ -215,12 +247,20 @@ impl std::ops::Index<usize> for EmbeddedRgb {
 
     /// Access the coordinate with the given index.
     ///
-    ///
     /// # Panics
     ///
     /// This method panics if `index > 2`.
+    #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
+    }
+}
+
+impl From<EmbeddedRgb> for u8 {
+    /// Convert an embedded RGB color to an unsigned byte.
+    fn from(value: EmbeddedRgb) -> u8 {
+        let [r, g, b] = value.0;
+        16 + 36 * r + 6 * g + b
     }
 }
 
@@ -318,26 +358,47 @@ impl From<GrayGradient> for u8 {
 /// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
 /// for `EightBitColor`.
 ///
+/// <style>
+/// .color-swatch {
+///     display: flex;
+/// }
+/// .color-swatch > div {
+///     height: 4em;
+///     width: 4em;
+///     border: black 0.5pt solid;
+///     display: flex;
+///     align-items: center;
+///     justify-content: center;
+/// }
+/// </style>
 ///
 /// # Black and White
 ///
 /// The ANSI colors, the 6x6x6 RGB cube, and the gray gradient all include
 /// colors that are pretty close to black and white. They may even be called
-/// black or white. Which one should you use?
+/// black or white. Which one should we use?
 ///
-/// If the terminal only supports ANSI colors, then there is no choice. You have
+/// If the terminal only supports ANSI colors, then there is no choice. We have
 /// to use the ANSI black and bright white. But since ANSI colors are themeable
-/// in most terminal emulators, you cannot count on those colors actually
+/// in most terminal emulators, we cannot count on those colors actually
 /// rendering as black and white. Furthermore, even rather conservative color
 /// themes, such as the default light theme in macOS Terminal.app, may not use
-/// #000 and #fff for black and white.
+/// `#000` and `#fff` for black and white.
 ///
-/// If the terminal supports 8-bit colors, then use colors 16 and 231 from the
-/// embedded RGB cube. Since they correspond to 0, 0, 0 and 5, 5, 5, the two
-/// colors also mark the extremes of the code space. They retain that extremism
-/// after conversion to sRGB and become #000000 and #ffffff, just as required.
-/// Meanwhile, the darkest and lightest gray on the gradient are #121212 and
-/// #f8f8f8, respectively, and hence unsuitable.
+/// Instead, if the terminal supports 8-bit colors, we should use the first and
+/// last color belonging to the embedded RGB cube, i.e., 16 and 231. Within that
+/// low-resolution RGB cube, they correspond to the extrema 0, 0, 0 and 5, 5, 5,
+/// i.e., black and white. Even better, they retain their extremism under
+/// conversion to sRGB, turning into `#000` and `#fff`, respectively. By
+/// comparison, the darkest and lightest color of the gray gradient are
+/// `#121212` and `#f8f8f8`, respectively.
+///
+/// <div class=color-swatch>
+/// <div style="background-color: #000;"></div>
+/// <div style="background-color: #fff;"></div>
+/// <div style="background-color: #121212;"></div>
+/// <div style="background-color: #f8f8f8;"></div>
+/// </div>
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum EightBitColor {
     Ansi(AnsiColor),
@@ -377,6 +438,15 @@ impl From<EightBitColor> for u8 {
 
 /// A true color, i.e., 24-bit color.
 ///
+/// It is somewhat ironic that 24-bit colors aren't true colors. But then again,
+/// they never really were. Even in the early 1990s, when 24-bit graphic cards
+/// were being introduced, products using a wider gamut, such as Kodak's [Photo
+/// CD](https://en.wikipedia.org/wiki/Photo_CD), were readily available. Still,
+/// it is the historically accurate term and continues to be used by terminal
+/// emulators that advertise support for 16 million colors by setting the
+/// `COLORTERM` environment variable to `truecolor`. Hence this crate uses the
+/// term, too.
+///
 /// <style>
 /// .color-swatch {
 ///     display: flex;
@@ -397,35 +467,6 @@ impl TrueColor {
     /// Create a new true color from its coordinates.
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self([r, g, b])
-    }
-
-    /// Create a new true color from the given high-resolution color.
-    ///
-    /// This constructor function converts and gamut-maps the given color to
-    /// sRGB before converting the numerical representation of the coordinates.
-    ///
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use prettypretty::{Color, ColorFormatError, TrueColor};
-    /// # use std::str::FromStr;
-    /// let coral = Color::srgb(1, 127.0/255.0, 80.0/255.0);
-    /// let still_coral = TrueColor::from_color(&coral);
-    /// assert_eq!(format!("{}", still_coral), "#ff7f50");
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: #ff7f50;"></div>
-    /// </div>
-    pub fn from_color(color: &crate::Color) -> Self {
-        let [r, g, b] = color.to(crate::ColorSpace::Srgb).map_to_gamut().to_24_bit();
-        TrueColor::new(r, g, b)
-    }
-
-    /// Access the coordinates.
-    #[inline]
-    pub const fn coordinates(&self) -> &[u8; 3] {
-        &self.0
     }
 }
 
@@ -453,34 +494,99 @@ impl From<GrayGradient> for TrueColor {
     }
 }
 
+impl From<Color> for TrueColor {
+    /// Instantiate a true color from an arbitrary high-resolution color.
+    ///
+    /// This method converts the given color to sRGB before changing
+    /// representations. If the color ends up with coordinates out of unit
+    /// range, i.e., is out of gamut for sRGB, those coordinates are clamped to
+    /// unit range, i.e., become either `0x00` or `0xff`.
+    fn from(value: Color) -> Self {
+        TrueColor(value.to(ColorSpace::Srgb).to_24bit().unwrap())
+    }
+}
+
+impl From<&Color> for TrueColor {
+    /// Instantiate a true color from a reference to an arbitrary
+    /// high-resolution color.
+    ///
+    /// This method converts the given color to sRGB before changing
+    /// representations. If the color ends up with coordinates out of unit
+    /// range, i.e., is out of gamut for sRGB, those coordinates are clamped to
+    /// unit range, i.e., become either `0x00` or `0xff`.
+    fn from(value: &Color) -> Self {
+        TrueColor(value.to(ColorSpace::Srgb).to_24bit().unwrap())
+    }
+}
+
+impl AsRef<[u8; 3]> for TrueColor {
+    /// Access the true color's coordinates by reference.
+    fn as_ref(&self) -> &[u8; 3] {
+        &self.0
+    }
+}
+
+impl AsMut<[u8; 3]> for TrueColor {
+    /// Access the true color's coordinates by mutable reference.
+    fn as_mut(&mut self) -> &mut [u8; 3] {
+        &mut self.0
+    }
+}
+
 impl std::ops::Index<usize> for TrueColor {
     type Output = u8;
 
     /// Access the coordinate with the given index.
     ///
-    ///
     /// # Panics
     ///
     /// This method panics if `index > 2`.
+    #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
     }
 }
 
 impl std::ops::IndexMut<usize> for TrueColor {
-    /// Mutably access the named coordinate.
-    ///
+    /// Access the coordinate with the given index.
     ///
     /// # Panics
     ///
     /// This method panics if `index > 2`.
+    #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.0[index]
     }
 }
 
+impl From<EmbeddedRgb> for Color {
+    /// Instantiate a high-resolution color from an embedded RGB value.
+    fn from(value: EmbeddedRgb) -> Self {
+        let [r, g, b] = *TrueColor::from(value).as_ref();
+        Color::from_24bit(r, g, b)
+    }
+}
+
+impl From<GrayGradient> for Color {
+    /// Instantiate a high-resolution color from an embedded RGB value.
+    fn from(value: GrayGradient) -> Self {
+        let [r, g, b] = *TrueColor::from(value).as_ref();
+        Color::from_24bit(r, g, b)
+    }
+}
+
+impl From<TrueColor> for Color {
+    /// Instantiate a new color from the true color.
+    fn from(value: TrueColor) -> Self {
+        let [r, g, b] = *value.as_ref();
+        Color::from_24bit(r, g, b)
+    }
+}
+
 impl std::fmt::Display for TrueColor {
     /// Display this true color using the hashed hexadecimal format.
+    ///
+    /// # Examples
     ///
     /// ```
     /// # use prettypretty::TrueColor;
@@ -495,29 +601,6 @@ impl std::fmt::Display for TrueColor {
         write!(f, "#{:02x}{:02x}{:02x}", r, g, b)
     }
 }
-
-// ====================================================================================================================
-// Fidelity
-// ====================================================================================================================
-
-/// The fidelity level for rendering.
-///
-/// An application's effective fidelity when rendering its user interface should
-/// depend on the capabilities of the terminal, the preferences of the user, and
-/// the runtime environment.
-// #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-// pub enum Fidelity {
-//     /// The equivalent of true color.
-//     FullColor,
-//     /// The equivalent of 8-bit color.
-//     ReducedColor,
-//     /// The equivalent of ANSI colors.
-//     MinimalColor,
-//     /// No colors, but ANSI escape codes are fine.
-//     NoColor,
-//     /// No colors, no ANSI escape codes.
-//     None,
-// }
 
 // ====================================================================================================================
 
