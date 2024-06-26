@@ -12,9 +12,18 @@ homepage = "https://crates.io/crates/prettypretty"
 license = "Apache-2.0"
 include = ["/README.md", "/LICENSE", "/src"]
 
+[dependencies]
+pyo3 = { features = ["extension-module"], optional = true }
+
 [features]
 default = []
 f32 = []
+pyffi = ["pyo3"]
+
+# [lib]
+# name = "_native_color"
+# crate-type = ["cdylib"]
+
 
 [package.metadata.docs.rs]
-all-features = true
+all-features = false
