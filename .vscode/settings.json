@@ -16,6 +16,7 @@
         "powi",
         "pyclass",
         "pyffi",
+        "pymodule",
         "recip",
         "repr",
         "rustfmt",

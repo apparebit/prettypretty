@@ -20,9 +20,9 @@ default = []
 f32 = []
 pyffi = ["pyo3"]
 
-# [lib]
-# name = "_native_color"
-# crate-type = ["cdylib"]
+[lib]
+name = "prettypretty"
+crate-type = ["lib", "cdylib"]
 
 
 [package.metadata.docs.rs]

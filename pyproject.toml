@@ -12,10 +12,6 @@ license = {text = "Apache 2.0"}
 authors = [{name = "Robert Grimm", email="rgrimm@alum.mit.edu"}]
 dynamic = ["version"]
 
-# dependencies = [
-#     "cffi",
-# ]
-
 [project.optional-dependencies]
 dev = ["flit", "ipython", "pyright"]
 doc = [
@@ -33,10 +29,12 @@ package = "https://pypi.org/project/prettypretty/"
 documentation= "https://apparebit.github.io/prettypretty/"
 
 [tool.maturin]
-#python-source = "python"
-module-name = "prettypretty._core_color"
-bindings = "cffi"
-#features = ["pyo3/extension-module"]
+python-source = "prettypretty"
+# Use a nested module for the native extension. src/lib.rs configures a module
+# of the same name, core_color.
+module-name = "prettypretty.core_color"
+bindings = "pyo3"
+features = ["pyffi", "pyo3/extension-module"]
 
 [tool.pyright]
 include = ["prettypretty/**/*.py", "test/*.py", "runtest.py"]
