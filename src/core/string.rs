@@ -1,10 +1,14 @@
+#[cfg(feature = "pyffi")]
+use pyo3::{exceptions::PyValueError, prelude::*};
+
 use crate::{ColorSpace, Float};
 
 /// An erroneous color format.
 ///
-/// Several variants include a coordinate index, which is zero-based. The
-/// formatted description, however, shows a one-based index prefixed with a `#`
-/// (for number).
+/// The enumeration started out with additional information but PyO3 only
+/// supports unit variants without associated state. Thankfully, the attendant
+/// loss of information is rather limited.
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int))]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ColorFormatError {
     /// A color format that does not start with a known prefix such as `#` or
@@ -31,22 +35,22 @@ pub enum ColorFormatError {
     /// A color format that is missing the coordinate with the given index. For
     /// example, `rgb:0` is missing the second and third coordinate, whereas
     /// `rgb:0//0` is missing the second coordinate only.
-    MissingCoordinate(usize),
+    MissingCoordinate,
 
     /// A color format that has too many digits in the coordinate with the given
     /// index. For example, `rgb:12345/1/22` has too many digits in the first
     /// coordinate.
-    OversizedCoordinate(usize),
+    OversizedCoordinate,
 
     /// A color format that has a malformed hexadecimal number as coordinate
     /// with the given index. For example, `#efg` has a malformed third
     /// coordinate.
-    MalformedHex(usize, std::num::ParseIntError),
+    MalformedHex,
 
     /// A color format that has a malformed floating point number as coordinate
     /// with the given index. For example, `color(srgb 1.0 0..1 0.0)` has a
     /// malformed second coordinate.
-    MalformedFloat(usize, std::num::ParseFloatError),
+    MalformedFloat,
 
     /// A color format with more than three coordinates. For example,
     /// `rgb:1/2/3/4` has one coordinate too many.
@@ -77,39 +81,34 @@ impl std::fmt::Display for ColorFormatError {
             UnknownColorSpace => {
                 write!(f, "color format should have known color space but does not")
             }
-            MissingCoordinate(c) => write!(
+            MissingCoordinate => write!(
                 f,
-                "color format should have 3 coordinates but is missing #{}",
-                c + 1
+                "color format should have 3 coordinates but is missing one",
             ),
-            OversizedCoordinate(c) => write!(
+            OversizedCoordinate => write!(
                 f,
-                "color format coordinates should have 1-4 hex digits but #{} has more",
-                c + 1
+                "color format coordinates should have 1-4 hex digits but one has more",
             ),
-            MalformedHex(c, _) => write!(
+            MalformedHex => write!(
                 f,
-                "color format coordinates should be hexadecimal integers but #{} is not",
-                c + 1
+                "color format coordinates should be hexadecimal integers but are not",
             ),
-            MalformedFloat(c, _) => write!(
+            MalformedFloat => write!(
                 f,
-                "color format coordinates should be floating point numbers but #{} is not",
-                c + 1
+                "color format coordinates should be floating point numbers but are not",
             ),
             TooManyCoordinates => write!(f, "color format should have 3 coordinates but has more"),
         }
     }
 }
 
-impl std::error::Error for ColorFormatError {
-    /// Access the cause for this color format error.
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            ColorFormatError::MalformedHex(_, error) => Some(error),
-            ColorFormatError::MalformedFloat(_, error) => Some(error),
-            _ => None,
-        }
+impl std::error::Error for ColorFormatError {}
+
+#[cfg(feature = "pyffi")]
+impl From<ColorFormatError> for PyErr {
+    /// Convert a color format error to a Python exception.
+    fn from(value: ColorFormatError) -> Self {
+        PyValueError::new_err(value.to_string())
     }
 }
 
@@ -130,7 +129,7 @@ fn parse_hashed(s: &str) -> Result<[u8; 3], ColorFormatError> {
         let t = s
             .get(1 + factor * index..1 + factor * (index + 1))
             .ok_or(ColorFormatError::UnexpectedCharacters)?;
-        let n = u8::from_str_radix(t, 16).map_err(|e| ColorFormatError::MalformedHex(index, e))?;
+        let n = u8::from_str_radix(t, 16).map_err(|_| ColorFormatError::MalformedHex)?;
 
         Ok(if factor == 1 { 16 * n + n } else { n })
     }
@@ -151,15 +150,15 @@ fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
         return Err(ColorFormatError::UnknownFormat);
     }
 
-    fn parse_coordinate(s: Option<&str>, index: usize) -> Result<(u8, u16), ColorFormatError> {
-        let t = s.ok_or(ColorFormatError::MissingCoordinate(index))?;
+    fn parse_coordinate(s: Option<&str>, _: usize) -> Result<(u8, u16), ColorFormatError> {
+        let t = s.ok_or(ColorFormatError::MissingCoordinate)?;
         if t.is_empty() {
-            return Err(ColorFormatError::MissingCoordinate(index));
+            return Err(ColorFormatError::MissingCoordinate);
         } else if t.len() > 4 {
-            return Err(ColorFormatError::OversizedCoordinate(index));
+            return Err(ColorFormatError::OversizedCoordinate);
         }
 
-        let n = u16::from_str_radix(t, 16).map_err(|e| ColorFormatError::MalformedHex(index, e))?;
+        let n = u16::from_str_radix(t, 16).map_err(|_| ColorFormatError::MalformedHex)?;
         Ok((t.len() as u8, n))
     }
 
@@ -227,12 +226,9 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [Float; 3]), ColorFormatError> {
     };
 
     #[inline]
-    fn parse_coordinate(s: Option<&str>, index: usize) -> Result<Float, ColorFormatError> {
-        s.ok_or(ColorFormatError::MissingCoordinate(index))
-            .and_then(|t| {
-                t.parse()
-                    .map_err(|e| ColorFormatError::MalformedFloat(index, e))
-            })
+    fn parse_coordinate(s: Option<&str>, _: usize) -> Result<Float, ColorFormatError> {
+        s.ok_or(ColorFormatError::MissingCoordinate)
+            .and_then(|t| t.parse().map_err(|_| ColorFormatError::MalformedFloat))
     }
 
     // Munge coordinates. Iterator eats all leading or trailing white space.
@@ -374,10 +370,10 @@ mod test {
         );
 
         let result = parse_hashed("#0g0");
-        assert!(matches!(result, Err(ColorFormatError::MalformedHex(1, _))));
+        assert!(matches!(result, Err(ColorFormatError::MalformedHex)));
 
         let result = parse_hashed("#00g");
-        assert!(matches!(result, Err(ColorFormatError::MalformedHex(2, _))));
+        assert!(matches!(result, Err(ColorFormatError::MalformedHex)));
 
         Ok(())
     }
@@ -396,17 +392,14 @@ mod test {
             parse_x("rgbi:0.1/0.1/0.1"),
             Err(ColorFormatError::UnknownFormat)
         );
-        assert_eq!(
-            parse_x("rgb:0"),
-            Err(ColorFormatError::MissingCoordinate(1))
-        );
+        assert_eq!(parse_x("rgb:0"), Err(ColorFormatError::MissingCoordinate));
         assert_eq!(
             parse_x("rgb:0//2"),
-            Err(ColorFormatError::MissingCoordinate(1))
+            Err(ColorFormatError::MissingCoordinate)
         );
         assert_eq!(
             parse_x("rgb:1/12345/1"),
-            Err(ColorFormatError::OversizedCoordinate(1))
+            Err(ColorFormatError::OversizedCoordinate)
         );
         assert_eq!(
             parse_x("rgb:1/2/3/4"),
@@ -414,7 +407,7 @@ mod test {
         );
 
         let result = parse_x("rgb:f/g/f");
-        assert!(matches!(result, Err(ColorFormatError::MalformedHex(1, _))));
+        assert!(matches!(result, Err(ColorFormatError::MalformedHex)));
 
         assert_eq!(
             parse("   RGB:00/55/aa   ")?,
@@ -460,11 +453,11 @@ mod test {
         );
         assert!(matches!(
             parse_css("color(srgb abc 1 1)"),
-            Err(ColorFormatError::MalformedFloat(0, _))
+            Err(ColorFormatError::MalformedFloat)
         ));
         assert_eq!(
             parse_css("color(srgb 1)"),
-            Err(ColorFormatError::MissingCoordinate(1))
+            Err(ColorFormatError::MissingCoordinate)
         );
         assert_eq!(
             parse_css("color(srgb 1 1 1 1)"),
