@@ -24,7 +24,7 @@
 //!
 //! ```
 //! # use prettypretty::{Color, ColorSpace};
-//! let oklch = Color::oklch(0.716, 0.349, 335);
+//! let oklch = Color::oklch(0.716, 0.349, 335.0);
 //! let p3 = oklch.to(ColorSpace::DisplayP3);
 //! assert!(p3.in_gamut());
 //!
@@ -32,7 +32,7 @@
 //! assert!(!not_srgb.in_gamut());
 //!
 //! let srgb = not_srgb.to_gamut();
-//! assert_eq!(srgb, Color::srgb(1, 0.15942348587138203, 0.9222706101768445));
+//! assert_eq!(srgb, Color::srgb(1.0, 0.15942348587138203, 0.9222706101768445));
 //! ```
 //! <style>
 //! .color-swatch {
@@ -452,7 +452,7 @@
 //! # use prettypretty::{EightBitColor, EmbeddedRgb, GrayGradient, OkVersion, TrueColor};
 //! # use std::str::FromStr;
 //! let red = &DEFAULT_THEME[AnsiColor::BrightRed];
-//! assert_eq!(red, &Color::srgb(1, 0.333333333333333, 0.333333333333333));
+//! assert_eq!(red, &Color::srgb(1.0, 0.333333333333333, 0.333333333333333));
 //!
 //! let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
 //! let yellow = Color::from_str("#FFE06C")?;
@@ -466,14 +466,26 @@
 //! <div style="background-color: #ffff55;"></div>
 //! </div>
 //!
+//!
 //! ## 4. Features
 //!
-//! This crate has one feature:
+//! This crate has two features:
 //!
 //!   - **`f32`**: When this feature is enabled, the entire crate uses `f32`
 //!     instead of `f64`. In either case, the currently active floating point
 //!     type is [`Float`] and its corresponding unsigned integer bits are
 //!     [`Bits`].
+//!   - **`pyffi`**: When this feature is enabled, this crate uses
+//!     [PyO3](https://pyo3.rs/) to export an extension module for Python that
+//!     makes this crate's Rust-based colors available in Python.
+//!
+//! The latter neatly solves the problem posed by separate Python and Rust
+//! implementations of the same functionality. They at least double the
+//! maintenance effort and are bound to drift apart over time. In fact, they
+//! already did so during the few weeks I focused on getting the Rust
+//! implementation off the ground, with only the Rust version ever gaining
+//! support for Oklrab, Oklrch, Rec. 2020, and linear Rec. 2020.
+//!
 //!
 //! ## 5. BYOIO: Bring Your Own (Terminal) I/O
 //!
@@ -541,7 +553,7 @@ mod color;
 mod core;
 mod term_color;
 
-pub use collection::{ColorMatcher, DEFAULT_THEME, Layer, Theme};
+pub use collection::{ColorMatcher, Layer, Theme, DEFAULT_THEME};
 pub use color::{Color, Interpolator, OkVersion};
 pub use core::{ColorFormatError, ColorSpace, HueInterpolation};
 pub use term_color::{

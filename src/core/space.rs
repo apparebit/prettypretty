@@ -1,3 +1,6 @@
+#[cfg(feature = "pyffi")]
+use pyo3::prelude::*;
+
 /// The enumeration of supported color spaces.
 ///
 /// # RGB
@@ -67,6 +70,7 @@
 /// foundational color space. Notably, all conversions between unrelated color
 /// spaces go through XYZ. This crate uses XYZ with the [D65 standard
 /// illuminant](https://en.wikipedia.org/wiki/Standard_illuminant), *not* D50.
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ColorSpace {
     Srgb,
@@ -82,6 +86,7 @@ pub enum ColorSpace {
     Xyz,
 }
 
+#[cfg_attr(feature = "pyffi", pymethods)]
 impl ColorSpace {
     /// Determine whether this color space is polar. Oklch and Oklrch currently
     /// are the only polar color spaces.

@@ -1,11 +1,17 @@
-use crate::{AnsiColor, Color, ColorSpace, EightBitColor, EmbeddedRgb, Float, GrayGradient, OkVersion};
+#[cfg(feature = "pyffi")]
+use pyo3::prelude::*;
+
+use crate::{
+    AnsiColor, Color, ColorSpace, EightBitColor, EmbeddedRgb, Float, GrayGradient, OkVersion,
+};
 
 // ====================================================================================================================
 // Color Themes
 // ====================================================================================================================
 
 /// The layer for rendering to the terminal.
-#[derive(Clone, Debug)]
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int))]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Layer {
     /// The foreground or text layer.
     Foreground,
@@ -23,14 +29,34 @@ pub enum Layer {
 /// By itself, a theme enables the conversion of ANSI colors to high-resolution
 /// colors. Through a [`ColorMatcher`], a theme also enables the (lossy)
 /// conversion of high-resolution colors to ANSI and 8-bit colors.
+#[cfg_attr(feature = "pyffi", pyclass)]
 #[derive(Clone, Debug, Default)]
 pub struct Theme {
     colors: [Color; 18],
 }
 
+#[cfg(feature = "pyffi")]
+#[pymethods]
 impl Theme {
     /// Instantiate a new theme. The colors of the new theme are all the default
     /// color.
+    #[new]
+    #[inline]
+    pub fn new() -> Self {
+        Theme::default()
+    }
+
+    #[cfg(feature = "pyffi")]
+    pub fn __getitem__(&self, index: AnsiColor) -> Color {
+        self.colors[(index as usize) + 2].clone()
+    }
+}
+
+#[cfg(not(feature = "pyffi"))]
+impl Theme {
+    /// Instantiate a new theme. The colors of the new theme are all the default
+    /// color.
+    #[inline]
     pub fn new() -> Self {
         Theme::default()
     }
@@ -165,11 +191,7 @@ impl ColorMatcher {
     pub fn new(theme: &Theme, ok_version: OkVersion) -> Self {
         let space = ok_version.cartesian_space();
         let ansi = (0..=15)
-            .map(|n| {
-                *theme[AnsiColor::try_from(n).unwrap()]
-                    .to(space)
-                    .as_ref()
-            })
+            .map(|n| *theme[AnsiColor::try_from(n).unwrap()].to(space).as_ref())
             .collect();
         let eight_bit: Vec<[Float; 3]> = (16..=231)
             .map(|n| {

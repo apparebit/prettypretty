@@ -6,6 +6,9 @@
 //! three coordinates do not use floating point but integral numbers drawn from
 //! a specific range.
 
+#[cfg(feature = "pyffi")]
+use pyo3::prelude::*;
+
 use crate::{Color, ColorSpace};
 
 /// An out-of-bounds error.
@@ -84,6 +87,7 @@ impl std::fmt::Display for OutOfBoundsError {
 /// for `GrayGradient`, as well as the infallible
 /// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
 /// for `EightBitColor`.
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum AnsiColor {
     Black,

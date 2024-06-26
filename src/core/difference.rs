@@ -1,3 +1,6 @@
+#[cfg(feature = "pyffi")]
+use pyo3::prelude::*;
+
 use crate::core::{convert, ColorSpace};
 use crate::{Bits, Float};
 
@@ -211,6 +214,7 @@ fn prepare_coordinate_interpolation(
 /// between hues, [`HueInterpolation::Shorter`] and
 /// [`HueInterpolation::Longer`], or on the direction,
 /// [`HueInterpolation::Increasing`] and [`HueInterpolation::Decreasing`].
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum HueInterpolation {
     /// Take the shorter arc between the two hue angles.

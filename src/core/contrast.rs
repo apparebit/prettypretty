@@ -3,7 +3,11 @@ use crate::Float;
 
 /// Scale the lightness of the given color in Oklrch by the given factor.
 #[inline]
-pub(crate) fn scale_lightness(space: ColorSpace, coordinates: &[Float; 3], factor: Float) -> [Float; 3] {
+pub(crate) fn scale_lightness(
+    space: ColorSpace,
+    coordinates: &[Float; 3],
+    factor: Float,
+) -> [Float; 3] {
     let [lr, c, h] = if space == ColorSpace::Oklrch {
         *coordinates
     } else {
