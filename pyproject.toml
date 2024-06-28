@@ -29,10 +29,10 @@ package = "https://pypi.org/project/prettypretty/"
 documentation= "https://apparebit.github.io/prettypretty/"
 
 [tool.maturin]
-python-source = "prettypretty"
+python-source = "."
 # Use a nested module for the native extension. src/lib.rs configures a module
 # of the same name, core_color.
-module-name = "prettypretty.core_color"
+module-name = "prettypretty.color"
 bindings = "pyo3"
 features = ["pyffi", "pyo3/extension-module"]
 
