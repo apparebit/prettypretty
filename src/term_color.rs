@@ -9,7 +9,7 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use crate::{Color, ColorSpace};
+use crate::Color;
 
 /// An out-of-bounds error.
 ///
@@ -31,14 +31,16 @@ pub struct OutOfBoundsError {
 }
 
 impl OutOfBoundsError {
+    /// Create a new out-of-bounds error.
+    pub const fn new(value: usize, expected: std::ops::RangeInclusive<u8>) -> Self {
+        Self { value, expected }
+    }
+
     /// Create a new out-of-bounds error from an unsigned byte value. This
     /// constructor takes care of the common case where the value has the
     /// smallest unsigned integer type.
     pub const fn from_u8(value: u8, expected: std::ops::RangeInclusive<u8>) -> Self {
-        Self {
-            value: value as usize,
-            expected,
-        }
+        OutOfBoundsError::new(value as usize, expected)
     }
 }
 
@@ -52,6 +54,14 @@ impl std::fmt::Display for OutOfBoundsError {
             self.expected.start(),
             self.expected.end()
         )
+    }
+}
+
+#[cfg(feature = "pyffi")]
+impl From<OutOfBoundsError> for PyErr {
+    /// Convert a color format error to a Python exception.
+    fn from(value: OutOfBoundsError) -> Self {
+        pyo3::exceptions::PyValueError::new_err(value.to_string())
     }
 }
 
@@ -87,7 +97,7 @@ impl std::fmt::Display for OutOfBoundsError {
 /// for `GrayGradient`, as well as the infallible
 /// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
 /// for `EightBitColor`.
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int))]
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum AnsiColor {
     Black,
@@ -106,6 +116,27 @@ pub enum AnsiColor {
     BrightMagenta,
     BrightCyan,
     BrightWhite,
+}
+
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl AnsiColor {
+    /// Instantiate an ANSI color from its 8-bit code.
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
+        Self::try_from(value)
+    }
+
+    /// Instantiate an ANSI color from its 8-bit code.
+    #[cfg(not(feature = "pyffi"))]
+    pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
+        Self::try_from(value)
+    }
+
+    /// Get the 8-bit code for this ANSI color.
+    pub fn to_8bit(&self) -> u8 {
+        *self as u8
+    }
 }
 
 impl TryFrom<u8> for AnsiColor {
@@ -150,13 +181,6 @@ impl From<AnsiColor> for u8 {
 
 /// The 6x6x6 RGB cube embedded in 8-bit terminal colors.
 ///
-/// Unlike [`Color`] and [`TrueColor`], this color does not implement
-/// `as_mut()`, since it can't guarantee the invariant that coordinates are
-/// `0..=5`. Technically, a newtype wrapping `u8` would work but seems
-/// exceedingly awkward. Instead, this struct implements [`EmbeddedRgb::update`]
-/// as setter. It may not be as quite as elegant as direct array access, but it
-/// sure works.
-///
 /// With [`EightBitColor`]  composing [`AnsiColor`], [`EmbeddedRgb`], and
 /// [`GrayGradient`] to represent 8-bit terminal colors, all four support
 /// conversions from and to `u8`. In particular, this crate provides
@@ -176,46 +200,83 @@ impl From<AnsiColor> for u8 {
 /// for `GrayGradient`, as well as the infallible
 /// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
 /// for `EightBitColor`.
+#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EmbeddedRgb([u8; 3]);
 
+#[cfg_attr(feature = "pyffi", pymethods)]
 impl EmbeddedRgb {
     /// Create a new embedded RGB value from its coordinates.
-    pub const fn new(r: u8, g: u8, b: u8) -> Result<Self, OutOfBoundsError> {
-        if r >= 6 {
-            Err(OutOfBoundsError::from_u8(r, 0..=5))
-        } else if g >= 6 {
-            Err(OutOfBoundsError::from_u8(g, 0..=5))
-        } else if b >= 6 {
-            Err(OutOfBoundsError::from_u8(b, 0..=5))
-        } else {
-            Ok(Self([r, g, b]))
+    ///
+    /// # Panics
+    ///
+    /// This constructor panics if any coordinate is greater than 5.
+    #[cfg(feature = "pyffi")]
+    #[new]
+    pub const fn new(r: u8, g: u8, b: u8) -> Self {
+        if r >= 6 || g >= 6 || b >= 6 {
+            panic!("embedded RGB coordinates are out of bounds");
         }
+
+        Self([r, g, b])
+    }
+
+    /// Create a new embedded RGB value from its coordinates.
+    ///
+    /// # Panics
+    ///
+    /// This constructor panics if any coordinate is greater than 5.
+    #[cfg(not( feature = "pyffi"))]
+    pub const fn new(r: u8, g: u8, b: u8) -> Self {
+        if r >= 6 || g >= 6 || b >= 6 {
+            panic!("embedded RGB coordinates are out of bounds");
+        }
+
+        Self([r, g, b])
+    }
+
+    /// Instantiate an embedded RGB color from its 8-bit code.
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
+        Self::try_from(value)
+    }
+
+    /// Instantiate an embedded RGB color from its 8-bit code.
+    #[cfg(not(feature = "pyffi"))]
+    pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
+        Self::try_from(value)
+    }
+
+    /// Get the 8-bit code for this ANSI color.
+    pub fn to_8bit(&self) -> u8 {
+        u8::from(*self)
     }
 
     /// Access the coordinates of the embedded RGB color.
+    #[cfg(not(feature = "pyffi"))]
     #[inline]
     pub const fn coordinates(&self) -> &[u8; 3] {
         &self.0
     }
 
-    /// Update the named coordinate to the given value.
+    /// Get the color's length.
     ///
-    /// This struct implements this method in lieu of `index_mut()`, which
-    /// cannot enforce the invariant that coordinates must be between 0 and 5,
-    /// inclusive.
-    ///
-    ///
-    /// # Panics
-    ///
-    /// This method panics if `index > 2`.
-    #[must_use = "method fails on out-of-bounds coordinates"]
-    pub fn update(&mut self, index: usize, value: u8) -> Result<(), OutOfBoundsError> {
-        if value > 5 {
-            Err(OutOfBoundsError::from_u8(value, 0..=5))
-        } else {
-            self.0[index] = value;
-            Ok(())
+    /// This method returns 3.
+    #[cfg(feature = "pyffi")]
+    pub fn __len__(&self) -> usize {
+        3
+    }
+
+    /// Read coordinates by index.
+    #[cfg(feature = "pyffi")]
+    pub fn __getitem__(&self, index: isize) -> PyResult<u8> {
+        match index {
+            -3..=-1 => Ok(self.0[(3 + index) as usize]),
+            0..=2 => Ok(self.0[index as usize]),
+            _ => Err(pyo3::exceptions::PyIndexError::new_err(
+                "Invalid coordinate index",
+            )),
         }
     }
 }
@@ -234,7 +295,7 @@ impl TryFrom<u8> for EmbeddedRgb {
             let g = b / 6;
             b -= g * 6;
 
-            Ok(Self([r, g, b]))
+            Ok(Self::new(r, g, b))
         }
     }
 }
@@ -268,6 +329,22 @@ impl From<EmbeddedRgb> for u8 {
     }
 }
 
+impl From<EmbeddedRgb> for Color {
+    /// Instantiate a high-resolution color from an embedded RGB value.
+    fn from(value: EmbeddedRgb) -> Self {
+        fn convert(value: u8) -> u8 {
+            if value == 0 {
+                0
+            } else {
+                55 + 40 * value
+            }
+        }
+
+        let [r, g, b] = *value.as_ref();
+        Color::from_24bit(convert(r), convert(g), convert(b))
+    }
+}
+
 // ====================================================================================================================
 // Gray Gradient
 // ====================================================================================================================
@@ -293,20 +370,57 @@ impl From<EmbeddedRgb> for u8 {
 /// for `GrayGradient`, as well as the infallible
 /// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
 /// for `EightBitColor`.
+#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, ord))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GrayGradient(u8);
 
+#[cfg_attr(feature = "pyffi", pymethods)]
 impl GrayGradient {
-    /// Instantiate a new gray gradient from the level value `0..=23`.
-    pub const fn new(value: usize) -> Result<Self, OutOfBoundsError> {
+    /// Instantiate a new gray gradient from its level `0..=23`.
+    ///
+    /// # Panics
+    ///
+    /// This constructor panics if the level value is larger than 23.
+    #[cfg(feature = "pyffi")]
+    #[new]
+    pub const fn new(value: usize) -> Self {
         if value >= 24 {
-            Err(OutOfBoundsError {
-                value,
-                expected: 0..=23,
-            })
+            panic!("gray gradient value is out of bounds");
         } else {
-            Ok(Self(value as u8))
+            Self(value as u8)
         }
+    }
+
+    /// Instantiate a new gray gradient from its level `0..=23`.
+    ///
+    /// # Panics
+    ///
+    /// This constructor panics if the level value is larger than 23.
+    #[cfg(not(feature = "pyffi"))]
+    pub const fn new(value: usize) -> Self {
+        if value >= 24 {
+            panic!("gray gradient value is out of bounds");
+        } else {
+            Self(value as u8)
+        }
+    }
+
+    /// Instantiate a gray gradient from its 8-bit code.
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
+        Self::try_from(value)
+    }
+
+    /// Instantiate a gray gradient from its 8-bit code.
+    #[cfg(not(feature = "pyffi"))]
+    pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
+        Self::try_from(value)
+    }
+
+    /// Get the 8-bit code for this gray gradient color.
+    pub fn to_8bit(&self) -> u8 {
+        u8::from(*self)
     }
 
     /// Access the gray level `0..=23`.
@@ -333,6 +447,14 @@ impl From<GrayGradient> for u8 {
     /// Convert the gray gradient to an unsigned byte.
     fn from(value: GrayGradient) -> u8 {
         232 + value.0
+    }
+}
+
+impl From<GrayGradient> for Color {
+    /// Instantiate a high-resolution color from an embedded RGB value.
+    fn from(value: GrayGradient) -> Self {
+        let level = 8 + 10 * value.level();
+        Color::from_24bit(level, level, level)
     }
 }
 
@@ -403,11 +525,33 @@ impl From<GrayGradient> for u8 {
 /// <div style="background-color: #121212;"></div>
 /// <div style="background-color: #f8f8f8;"></div>
 /// </div>
+#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum EightBitColor {
     Ansi(AnsiColor),
     Rgb(EmbeddedRgb),
     Gray(GrayGradient),
+}
+
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl EightBitColor {
+    /// Instantiate an 8-bit color from its numeric code.
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn from_8bit(value: u8) -> Self {
+        Self::from(value)
+    }
+
+    /// Instantiate an 8-bit color from its numeric code.
+    #[cfg(not(feature = "pyffi"))]
+    pub fn from_8bit(value: u8) -> Self {
+        Self::from(value)
+    }
+
+    /// Get the numeric code for this 8-bit color.
+    pub fn to_8bit(&self) -> u8 {
+        u8::from(*self)
+    }
 }
 
 impl From<u8> for EightBitColor {
@@ -437,176 +581,6 @@ impl From<EightBitColor> for u8 {
 }
 
 // ====================================================================================================================
-// True Color (24-bit RGB)
-// ====================================================================================================================
-
-/// A true color, i.e., 24-bit color.
-///
-/// It is somewhat ironic that 24-bit colors aren't true colors. But then again,
-/// they never really were. Even in the early 1990s, when 24-bit graphic cards
-/// were being introduced, products using a wider gamut, such as Kodak's [Photo
-/// CD](https://en.wikipedia.org/wiki/Photo_CD), were readily available. Still,
-/// it is the historically accurate term and continues to be used by terminal
-/// emulators that advertise support for 16 million colors by setting the
-/// `COLORTERM` environment variable to `truecolor`. Hence this crate uses the
-/// term, too.
-///
-/// <style>
-/// .color-swatch {
-///     display: flex;
-/// }
-/// .color-swatch > div {
-///     height: 4em;
-///     width: 4em;
-///     border: black 0.5pt solid;
-///     display: flex;
-///     align-items: center;
-///     justify-content: center;
-/// }
-/// </style>
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct TrueColor([u8; 3]);
-
-impl TrueColor {
-    /// Create a new true color from its coordinates.
-    pub const fn new(r: u8, g: u8, b: u8) -> Self {
-        Self([r, g, b])
-    }
-}
-
-impl From<EmbeddedRgb> for TrueColor {
-    /// Instantiate a true color from an embedded RGB value.
-    fn from(value: EmbeddedRgb) -> Self {
-        fn convert(value: u8) -> u8 {
-            if value == 0 {
-                0
-            } else {
-                55 + 40 * value
-            }
-        }
-
-        let [r, g, b] = *value.coordinates();
-        Self([convert(r), convert(g), convert(b)])
-    }
-}
-
-impl From<GrayGradient> for TrueColor {
-    /// Instantiate a true color from a gray gradient value.
-    fn from(value: GrayGradient) -> Self {
-        let level = 8 + 10 * value.level();
-        Self([level, level, level])
-    }
-}
-
-impl From<Color> for TrueColor {
-    /// Instantiate a true color from an arbitrary high-resolution color.
-    ///
-    /// This method converts the given color to sRGB before changing
-    /// representations. If the color ends up with coordinates out of unit
-    /// range, i.e., is out of gamut for sRGB, those coordinates are clamped to
-    /// unit range, i.e., become either `0x00` or `0xff`.
-    fn from(value: Color) -> Self {
-        TrueColor(value.to(ColorSpace::Srgb).to_24bit().unwrap())
-    }
-}
-
-impl From<&Color> for TrueColor {
-    /// Instantiate a true color from a reference to an arbitrary
-    /// high-resolution color.
-    ///
-    /// This method converts the given color to sRGB before changing
-    /// representations. If the color ends up with coordinates out of unit
-    /// range, i.e., is out of gamut for sRGB, those coordinates are clamped to
-    /// unit range, i.e., become either `0x00` or `0xff`.
-    fn from(value: &Color) -> Self {
-        TrueColor(value.to(ColorSpace::Srgb).to_24bit().unwrap())
-    }
-}
-
-impl AsRef<[u8; 3]> for TrueColor {
-    /// Access the true color's coordinates by reference.
-    fn as_ref(&self) -> &[u8; 3] {
-        &self.0
-    }
-}
-
-impl AsMut<[u8; 3]> for TrueColor {
-    /// Access the true color's coordinates by mutable reference.
-    fn as_mut(&mut self) -> &mut [u8; 3] {
-        &mut self.0
-    }
-}
-
-impl std::ops::Index<usize> for TrueColor {
-    type Output = u8;
-
-    /// Access the coordinate with the given index.
-    ///
-    /// # Panics
-    ///
-    /// This method panics if `index > 2`.
-    #[inline]
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-impl std::ops::IndexMut<usize> for TrueColor {
-    /// Access the coordinate with the given index.
-    ///
-    /// # Panics
-    ///
-    /// This method panics if `index > 2`.
-    #[inline]
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.0[index]
-    }
-}
-
-impl From<EmbeddedRgb> for Color {
-    /// Instantiate a high-resolution color from an embedded RGB value.
-    fn from(value: EmbeddedRgb) -> Self {
-        let [r, g, b] = *TrueColor::from(value).as_ref();
-        Color::from_24bit(r, g, b)
-    }
-}
-
-impl From<GrayGradient> for Color {
-    /// Instantiate a high-resolution color from an embedded RGB value.
-    fn from(value: GrayGradient) -> Self {
-        let [r, g, b] = *TrueColor::from(value).as_ref();
-        Color::from_24bit(r, g, b)
-    }
-}
-
-impl From<TrueColor> for Color {
-    /// Instantiate a new color from the true color.
-    fn from(value: TrueColor) -> Self {
-        let [r, g, b] = *value.as_ref();
-        Color::from_24bit(r, g, b)
-    }
-}
-
-impl std::fmt::Display for TrueColor {
-    /// Display this true color using the hashed hexadecimal format.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use prettypretty::TrueColor;
-    /// let maroon = TrueColor::new(0xb0, 0x30, 0x60);
-    /// assert_eq!(format!("{}", maroon), "#b03060");
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: #b03060;"></div>
-    /// </div>
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let [r, g, b] = self.0;
-        write!(f, "#{:02x}{:02x}{:02x}", r, g, b)
-    }
-}
-
-// ====================================================================================================================
 
 #[cfg(test)]
 mod test {
@@ -617,10 +591,10 @@ mod test {
         let magenta = AnsiColor::Magenta;
         assert_eq!(magenta as u8, 5);
 
-        let green = EmbeddedRgb::new(0, 4, 0)?;
-        assert_eq!(green.coordinates(), &[0, 4, 0]);
+        let green = EmbeddedRgb::new(0, 4, 0);
+        assert_eq!(green.as_ref(), &[0, 4, 0]);
 
-        let gray = GrayGradient::new(12)?;
+        let gray = GrayGradient::new(12);
         assert_eq!(gray.level(), 12);
 
         let also_magenta = EightBitColor::Ansi(AnsiColor::Magenta);
@@ -648,10 +622,10 @@ mod test {
         assert_eq!(u8::from(white_ansi), 15);
 
         let black_rgb = EmbeddedRgb::try_from(16)?;
-        assert_eq!(*black_rgb.coordinates(), [0_u8, 0_u8, 0_u8]);
+        assert_eq!(*black_rgb.as_ref(), [0_u8, 0_u8, 0_u8]);
         assert_eq!(u8::from(black_rgb), 16);
         let white_rgb = EmbeddedRgb::try_from(231)?;
-        assert_eq!(*white_rgb.coordinates(), [5_u8, 5_u8, 5_u8]);
+        assert_eq!(*white_rgb.as_ref(), [5_u8, 5_u8, 5_u8]);
         assert_eq!(u8::from(white_rgb), 231);
 
         let black_gray = GrayGradient::try_from(232)?;

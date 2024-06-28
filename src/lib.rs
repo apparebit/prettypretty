@@ -1,3 +1,5 @@
+#![doc(html_logo_url = "https://repository-images.githubusercontent.com/796446264/7483a099-9280-489e-b1b0-119497d8c2da")]
+
 //! # Pretty 🌸 Pretty
 //!
 //! This library brings 2020s color science to 1970s terminals to help build
@@ -78,9 +80,7 @@
 //! represented through the following abstractions:
 //!
 //!   * [`EightBitColor`] combines [`AnsiColor`], [`EmbeddedRgb`], and
-//!     [`GrayGradient`].
-//!   * [`TrueColor`] represents 24-bit RGB colors, originally in the "device
-//!     RGB" color space, nowadays sRGB.
+//!     [`GrayGradient`] to represent 8-bit colors.
 //!
 //! [`AnsiColor`] represents the 16 extended ANSI colors. They are eight base
 //! colors—black, red, green, yellow, blue, magenta, cyan, and white—and their
@@ -363,37 +363,41 @@
 //! `EightBitColor` is infallible, whereas it is fallible for the three
 //! component colors.
 //!
-//! [`TrueColor`] was a misnomer even when 24-bit video cards first came out.
-//! Nowadays, the ready availability of wide-gamut and high-dynamic-range (HDR)
-//! displays only underlines that true color is anything but true. But it *is*
-//! the historically accurate term and lives on in this crate thanks to a mix of
-//! ironic detachment and nostalgia.
+//! Many terminal emulators also support 24-bit RGB colors or "true color. Even
+//! in the early 1990s, when 24-bit graphic cards were first introduced, that
+//! term was a misnomer. For example, Kodak's [Photo
+//! CD](https://en.wikipedia.org/wiki/Photo_CD) was introduced at the same time
+//! and had a considerably wider gamut than the device RGB of graphic cards.
+//! Alas, the term lives on. Terminal emulators often advertise support for 16
+//! million colors by setting the `COLORTERM` environment variable to
+//! `truecolor`. This crate originally included a structure to represent such
+//! colors, but [`Color`] does just fine on its own thanks to
+//! [`Color::from_24bit`], [`Color::to_24bit`], and [`Color::to_hex_format`].
 //!
 //! The example code below illustrates how [`AnsiColor`], [`EmbeddedRgb`],
 //! [`GrayGradient`], and [`EightBitColor`] abstract over the underlying 8-bit
 //! index space while also providing convenient access to RGB coordinates and
 //! gray levels. Embedded RGB and gray gradient colors also nicely convert to
-//! true colors, but ANSI and therefore 8-bit colors do not.
+//! high-resolutions colors, but ANSI and therefore 8-bit colors do not.
 //!
 //! ```
-//! # use prettypretty::{AnsiColor, EightBitColor, EmbeddedRgb};
-//! # use prettypretty::{GrayGradient, TrueColor};
+//! # use prettypretty::{AnsiColor, Color, EightBitColor, EmbeddedRgb, GrayGradient};
 //! let red = AnsiColor::BrightRed;
 //! assert_eq!(u8::from(red), 9);
-//! // Is TrueColor the equivalent of #f00, #f55, #e60000, #e74856, or what?
+//! // What's the color value of ANSI red? We don't know!
 //!
-//! let purple = EmbeddedRgb::new(3, 1, 4).unwrap();
+//! let purple = EmbeddedRgb::new(3, 1, 4);
 //! let index = 16 + 3 * 36 + 1 * 6 + 4 * 1;
 //! assert_eq!(index, 134);
 //! assert_eq!(u8::from(purple), index);
-//! assert_eq!(TrueColor::from(purple), TrueColor::new(175, 95, 215));
+//! assert_eq!(Color::from(purple), Color::from_24bit(175, 95, 215));
 //!
-//! let gray = GrayGradient::new(18).unwrap();
+//! let gray = GrayGradient::new(18);
 //! let index = 232 + 18;
 //! assert_eq!(index, 250);
 //! assert_eq!(gray.level(), 18);
 //! assert_eq!(u8::from(gray), index);
-//! assert_eq!(TrueColor::from(gray), TrueColor::new(188, 188, 188));
+//! assert_eq!(Color::from(gray), Color::from_24bit(188, 188, 188));
 //!
 //! let green = EightBitColor::from(71);
 //! assert!(matches!(green, EightBitColor::Rgb(_)));
@@ -401,7 +405,7 @@
 //!     assert_eq!(also_green[0], 1);
 //!     assert_eq!(also_green[1], 3);
 //!     assert_eq!(also_green[2], 1);
-//!     assert_eq!(TrueColor::from(also_green), TrueColor::new(95, 175, 95));
+//!     assert_eq!(Color::from(also_green), Color::from_24bit(95, 175, 95));
 //! } else {
 //!     unreachable!("green is an embedded RGB color")
 //! }
@@ -449,7 +453,7 @@
 //!
 //! ```
 //! # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorMatcher, DEFAULT_THEME};
-//! # use prettypretty::{EightBitColor, EmbeddedRgb, GrayGradient, OkVersion, TrueColor};
+//! # use prettypretty::OkVersion;
 //! # use std::str::FromStr;
 //! let red = &DEFAULT_THEME[AnsiColor::BrightRed];
 //! assert_eq!(red, &Color::srgb(1.0, 0.333333333333333, 0.333333333333333));
@@ -549,13 +553,37 @@ pub type Bits = u64;
 pub type Bits = u32;
 
 mod collection;
-mod color;
+mod object;
 mod core;
 mod term_color;
 
 pub use collection::{ColorMatcher, Layer, Theme, DEFAULT_THEME};
-pub use color::{Color, Interpolator, OkVersion};
+pub use object::{parse_color, Color, Interpolator, OkVersion};
 pub use core::{ColorFormatError, ColorSpace, HueInterpolation};
 pub use term_color::{
-    AnsiColor, EightBitColor, EmbeddedRgb, GrayGradient, OutOfBoundsError, TrueColor,
+    AnsiColor, EightBitColor, EmbeddedRgb, GrayGradient, OutOfBoundsError,
 };
+
+#[cfg(feature = "pyffi")]
+use pyo3::prelude::*;
+
+/// Collect Python classes and functions implemented in Rust in the simulated
+/// `color` module.
+#[cfg(feature = "pyffi")]
+#[pymodule]
+pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(parse_color, m)?)?;
+    m.add_class::<AnsiColor>()?;
+    m.add_class::<Color>()?;
+    m.add_class::<ColorMatcher>()?;
+    m.add_class::<ColorSpace>()?;
+    m.add_class::<EightBitColor>()?;
+    m.add_class::<EmbeddedRgb>()?;
+    m.add_class::<GrayGradient>()?;
+    m.add_class::<HueInterpolation>()?;
+    m.add_class::<Interpolator>()?;
+    m.add_class::<Layer>()?;
+    m.add_class::<OkVersion>()?;
+    m.add_class::<Theme>()?;
+    Ok(())
+}

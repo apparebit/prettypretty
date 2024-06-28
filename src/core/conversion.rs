@@ -1,16 +1,19 @@
-use crate::{ColorSpace, Float};
+use crate::Float;
+use super::{normalize, ColorSpace};
 
 /// Convert the given 24-bit RGB coordinates to floating point coordinates.
-pub(crate) fn from_24bit_rgb(r: u8, g: u8, b: u8) -> [Float; 3] {
+pub(crate) fn from_24bit(r: u8, g: u8, b: u8) -> [Float; 3] {
     [r as Float / 255.0, g as Float / 255.0, b as Float / 255.0]
 }
 
-/// Convert the RGB coordinates to 24-bit representation.
+/// Convert the color coordinates to 24-bit representation.
 ///
-/// This function clips out-of-gamut coordinates, i.e., any coordinate below
-/// zero becomes `0x00` and any coordinate above one becomes `0xff`.
-pub(crate) fn to_24bit_rgb(coordinates: &[Float; 3]) -> [u8; 3] {
-    let [r, g, b] = coordinates;
+/// This function converts the color coordinates to 24-bit representation. It
+/// assumes that the color is an in-gamut RGB color, i.e., that its coordinates
+/// range `0..=1`. Even if that is not the case, the conversion automatically
+/// clamps coordinates to the range `0x00..=0xff`.
+pub(crate) fn to_24bit(space: ColorSpace, coordinates: &[Float; 3]) -> [u8; 3] {
+    let [r, g, b] = normalize(space, coordinates);
     [
         (r * 255.0).round() as u8,
         (g * 255.0).round() as u8,
@@ -464,10 +467,10 @@ fn xyz_to_oklrch(value: &[Float; 3]) -> [Float; 3] {
 
 /// Convert the coordinates from one color space to another.
 ///
-/// This function converts from any color space to any other color space,
-/// including itself. Alas, the result may very well be out-of-gamut in either
-/// color space. It is the caller's responsibility to ensure that the
-/// coordinates are usable for their intended purpose.
+/// This function normalizes not-a-number coordinates to zero and then converts
+/// them to to the targeted color space, which may be the same as the original
+/// color space. This function does not check whether the result is in gamut for
+/// the targeted color space.
 #[must_use = "function returns new color coordinates and does not mutate original value"]
 pub(crate) fn convert(
     from_space: ColorSpace,
@@ -476,55 +479,56 @@ pub(crate) fn convert(
 ) -> [Float; 3] {
     use ColorSpace::*;
 
-    // 1. Handle identities
+    // 1. Normalize coordinates. Be done if color spaces are the same.
+    let coordinates = normalize(from_space, coordinates);
     if from_space == to_space {
-        return *coordinates;
+        return coordinates;
     }
 
-    // 2. Handle single-branch conversions, ignoring root
+    // 2. Handle in-branch conversions that don't go through root XYZ
     match (from_space, to_space) {
         // Single-hop sRGB and P3 conversions
         (Srgb, LinearSrgb) | (DisplayP3, LinearDisplayP3) => {
-            return rgb_to_linear_rgb(coordinates);
+            return rgb_to_linear_rgb(&coordinates);
         }
         (LinearSrgb, Srgb) | (LinearDisplayP3, DisplayP3) => {
-            return linear_rgb_to_rgb(coordinates);
+            return linear_rgb_to_rgb(&coordinates);
         }
 
         // Single-hop Rec2020 conversions
-        (Rec2020, LinearRec2020) => return rec2020_to_linear_rec2020(coordinates),
-        (LinearRec2020, Rec2020) => return linear_rec2020_to_rec2020(coordinates),
+        (Rec2020, LinearRec2020) => return rec2020_to_linear_rec2020(&coordinates),
+        (LinearRec2020, Rec2020) => return linear_rec2020_to_rec2020(&coordinates),
 
-        // Single-hop Ok*** conversions
-        (Oklch, Oklab) | (Oklrch, Oklrab) => return okxch_to_okxab(coordinates),
-        (Oklab, Oklch) | (Oklrab, Oklrch) => return okxab_to_okxch(coordinates),
-        (Oklab, Oklrab) | (Oklch, Oklrch) => return oklxx_to_oklrxx(coordinates),
-        (Oklrab, Oklab) | (Oklrch, Oklch) => return oklrxx_to_oklxx(coordinates),
+        // Single-hop Oklab variation conversions
+        (Oklch, Oklab) | (Oklrch, Oklrab) => return okxch_to_okxab(&coordinates),
+        (Oklab, Oklch) | (Oklrab, Oklrch) => return okxab_to_okxch(&coordinates),
+        (Oklab, Oklrab) | (Oklch, Oklrch) => return oklxx_to_oklrxx(&coordinates),
+        (Oklrab, Oklab) | (Oklrch, Oklch) => return oklrxx_to_oklxx(&coordinates),
 
-        // Two-hop Ok*** conversions
-        (Oklrch, Oklab) => return oklrch_to_oklab(coordinates),
-        (Oklch, Oklrab) => return oklch_to_oklrab(coordinates),
-        (Oklab, Oklrch) => return oklab_to_oklrch(coordinates),
-        (Oklrab, Oklch) => return oklrab_to_oklch(coordinates),
+        // Two-hop Oklab variation conversions
+        (Oklrch, Oklab) => return oklrch_to_oklab(&coordinates),
+        (Oklch, Oklrab) => return oklch_to_oklrab(&coordinates),
+        (Oklab, Oklrch) => return oklab_to_oklrch(&coordinates),
+        (Oklrab, Oklch) => return oklrab_to_oklch(&coordinates),
         _ => (),
     };
 
-    // 3a. Convert from source to XYZ
+    // 3a. Convert from source color space to root XYZ
     let intermediate = match from_space {
-        Srgb => srgb_to_xyz(coordinates),
-        LinearSrgb => linear_srgb_to_xyz(coordinates),
-        DisplayP3 => display_p3_to_xyz(coordinates),
-        LinearDisplayP3 => linear_display_p3_to_xyz(coordinates),
-        Rec2020 => rec2020_to_xyz(coordinates),
-        LinearRec2020 => linear_rec2020_to_xyz(coordinates),
-        Oklch => oklch_to_xyz(coordinates),
-        Oklab => oklab_to_xyz(coordinates),
-        Oklrch => oklrch_to_xyz(coordinates),
-        Oklrab => oklrab_to_xyz(coordinates),
-        Xyz => *coordinates,
+        Srgb => srgb_to_xyz(&coordinates),
+        LinearSrgb => linear_srgb_to_xyz(&coordinates),
+        DisplayP3 => display_p3_to_xyz(&coordinates),
+        LinearDisplayP3 => linear_display_p3_to_xyz(&coordinates),
+        Rec2020 => rec2020_to_xyz(&coordinates),
+        LinearRec2020 => linear_rec2020_to_xyz(&coordinates),
+        Oklch => oklch_to_xyz(&coordinates),
+        Oklab => oklab_to_xyz(&coordinates),
+        Oklrch => oklrch_to_xyz(&coordinates),
+        Oklrab => oklrab_to_xyz(&coordinates),
+        Xyz => coordinates,
     };
 
-    // 3b. Convert from XYZ to target on different branch
+    // 3b. Convert from root XYZ to target color space on different branch
     match to_space {
         Srgb => xyz_to_srgb(&intermediate),
         LinearSrgb => xyz_to_linear_srgb(&intermediate),

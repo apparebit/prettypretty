@@ -10,13 +10,13 @@ use crate::{
 // ====================================================================================================================
 
 /// The layer for rendering to the terminal.
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int))]
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Layer {
     /// The foreground or text layer.
-    Foreground,
+    Foreground = 0,
     /// The background layer.
-    Background,
+    Background = 10,
 }
 
 /// A color theme with concrete color values.
@@ -29,8 +29,8 @@ pub enum Layer {
 /// By itself, a theme enables the conversion of ANSI colors to high-resolution
 /// colors. Through a [`ColorMatcher`], a theme also enables the (lossy)
 /// conversion of high-resolution colors to ANSI and 8-bit colors.
-#[cfg_attr(feature = "pyffi", pyclass)]
-#[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "pyffi", pyclass(eq))]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Theme {
     colors: [Color; 18],
 }
@@ -38,27 +38,45 @@ pub struct Theme {
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl Theme {
-    /// Instantiate a new theme. The colors of the new theme are all the default
-    /// color.
+    /// Instantiate a new theme.
+    ///
+    /// The 18 colors for the new theme are, in order, the foreground default,
+    /// the background default, and the 16 extended ANSI colors in standard
+    /// order.
     #[new]
     #[inline]
-    pub fn new() -> Self {
-        Theme::default()
+    pub const fn new(colors: [Color; 18]) -> Self {
+        Theme { colors }
     }
 
     #[cfg(feature = "pyffi")]
-    pub fn __getitem__(&self, index: AnsiColor) -> Color {
-        self.colors[(index as usize) + 2].clone()
+    pub fn __getitem__(&self, index: usize) -> PyResult<Color> {
+        if (0..18).contains(&index) {
+            Ok(self.colors[index].clone())
+        } else {
+            Err(pyo3::exceptions::PyIndexError::new_err("index out of bounds"))
+        }
     }
 }
 
 #[cfg(not(feature = "pyffi"))]
 impl Theme {
-    /// Instantiate a new theme. The colors of the new theme are all the default
-    /// color.
+    /// Instantiate a new theme.
+    ///
+    /// The 18 colors for the new theme are, in order, the foreground default,
+    /// the background default, and the 16 extended ANSI colors in standard
+    /// order.
     #[inline]
-    pub fn new() -> Self {
-        Theme::default()
+    pub const fn new(colors: [Color; 18]) -> Self {
+        Theme { colors }
+    }
+}
+
+impl Default for Theme {
+    fn default() -> Self {
+        // Since Color does not implement Copy, `[Color::default(); 18]` doesn't
+        // work. But std::array::from_fn() is almost as good.
+        Self::new(std::array::from_fn(|_| Color::default()))
     }
 }
 
@@ -105,38 +123,36 @@ impl std::ops::IndexMut<AnsiColor> for Theme {
 /// This theme exists to demonstrate the functionality enabled by themes as well
 /// as for testing. It uses the colors of [VGA text
 /// mode](https://en.wikipedia.org/wiki/ANSI_escape_code#3-bit_and_4-bit).
-pub const DEFAULT_THEME: Theme = Theme {
-    colors: [
-        Color::new(ColorSpace::Srgb, 0.0, 0.0, 0.0),
-        Color::new(ColorSpace::Srgb, 1.0, 1.0, 1.0),
-        Color::new(ColorSpace::Srgb, 0.0, 0.0, 0.0),
-        Color::new(ColorSpace::Srgb, 0.666666666666667, 0.0, 0.0),
-        Color::new(ColorSpace::Srgb, 0.0, 0.666666666666667, 0.0),
-        Color::new(ColorSpace::Srgb, 0.666666666666667, 0.333333333333333, 0.0),
-        Color::new(ColorSpace::Srgb, 0.0, 0.0, 0.666666666666667),
-        Color::new(ColorSpace::Srgb, 0.666666666666667, 0.0, 0.666666666666667),
-        Color::new(ColorSpace::Srgb, 0.0, 0.666666666666667, 0.666666666666667),
-        Color::new(
-            ColorSpace::Srgb,
-            0.666666666666667,
-            0.666666666666667,
-            0.666666666666667,
-        ),
-        Color::new(
-            ColorSpace::Srgb,
-            0.333333333333333,
-            0.333333333333333,
-            0.333333333333333,
-        ),
-        Color::new(ColorSpace::Srgb, 1.0, 0.333333333333333, 0.333333333333333),
-        Color::new(ColorSpace::Srgb, 0.333333333333333, 1.0, 0.333333333333333),
-        Color::new(ColorSpace::Srgb, 1.0, 1.0, 0.333333333333333),
-        Color::new(ColorSpace::Srgb, 0.333333333333333, 0.333333333333333, 1.0),
-        Color::new(ColorSpace::Srgb, 1.0, 0.333333333333333, 1.0),
-        Color::new(ColorSpace::Srgb, 0.333333333333333, 1.0, 1.0),
-        Color::new(ColorSpace::Srgb, 1.0, 1.0, 1.0),
-    ],
-};
+pub const DEFAULT_THEME: Theme = Theme::new([
+    Color::new(ColorSpace::Srgb, [0.0, 0.0, 0.0]),
+    Color::new(ColorSpace::Srgb, [1.0, 1.0, 1.0]),
+    Color::new(ColorSpace::Srgb, [0.0, 0.0, 0.0]),
+    Color::new(ColorSpace::Srgb, [0.666666666666667, 0.0, 0.0]),
+    Color::new(ColorSpace::Srgb, [0.0, 0.666666666666667, 0.0]),
+    Color::new(ColorSpace::Srgb, [0.666666666666667, 0.333333333333333, 0.0]),
+    Color::new(ColorSpace::Srgb, [0.0, 0.0, 0.666666666666667]),
+    Color::new(ColorSpace::Srgb, [0.666666666666667, 0.0, 0.666666666666667]),
+    Color::new(ColorSpace::Srgb, [0.0, 0.666666666666667, 0.666666666666667]),
+    Color::new(
+        ColorSpace::Srgb,
+        [0.666666666666667,
+        0.666666666666667,
+        0.666666666666667],
+    ),
+    Color::new(
+        ColorSpace::Srgb,
+        [0.333333333333333,
+        0.333333333333333,
+        0.333333333333333],
+    ),
+    Color::new(ColorSpace::Srgb, [1.0, 0.333333333333333, 0.333333333333333]),
+    Color::new(ColorSpace::Srgb, [0.333333333333333, 1.0, 0.333333333333333]),
+    Color::new(ColorSpace::Srgb, [1.0, 1.0, 0.333333333333333]),
+    Color::new(ColorSpace::Srgb, [0.333333333333333, 0.333333333333333, 1.0]),
+    Color::new(ColorSpace::Srgb, [1.0, 0.333333333333333, 1.0]),
+    Color::new(ColorSpace::Srgb, [0.333333333333333, 1.0, 1.0]),
+    Color::new(ColorSpace::Srgb, [1.0, 1.0, 1.0]),
+]);
 
 // ====================================================================================================================
 // Color Matcher
@@ -175,6 +191,7 @@ pub const DEFAULT_THEME: Theme = Theme {
 ///     justify-content: center;
 /// }
 /// </style>
+#[cfg_attr(feature = "pyffi", pyclass)]
 #[derive(Debug)]
 pub struct ColorMatcher {
     space: ColorSpace,
@@ -182,29 +199,57 @@ pub struct ColorMatcher {
     eight_bit: Vec<[Float; 3]>,
 }
 
+/// Create the coordinates for the 8-bit colors in the given color space.
+#[inline]
+fn eight_bit_coordinates(theme: &Theme, space: ColorSpace) -> (Vec<[Float;3]>, Vec<[Float; 3]>) {
+    let ansi = (0..=15)
+        .map(|n| *theme[AnsiColor::try_from(n).unwrap()].to(space).as_ref())
+        .collect();
+    let eight_bit: Vec<[Float; 3]> = (16..=231)
+        .map(|n| {
+            *Color::from(EmbeddedRgb::try_from(n).unwrap())
+                .to(space)
+                .as_ref()
+        })
+        .chain((232..=255).map(|n| {
+            *Color::from(GrayGradient::try_from(n).unwrap())
+                .to(space)
+                .as_ref()
+        }))
+        .collect();
+
+        (ansi, eight_bit)
+}
+
+#[cfg_attr(feature = "pyffi", pymethods)]
 impl ColorMatcher {
     /// Create a new terminal color matcher. This method initializes the
     /// matcher's internal state, which comprises the coordinates for the 256
     /// 8-bit colors, 16 for the ANSI colors based on the provided theme, 216
     /// for the embedded RGB colors, and 24 for the gray gradient, all in the
     /// requested color space.
+    #[cfg(feature = "pyffi")]
+    #[new]
     pub fn new(theme: &Theme, ok_version: OkVersion) -> Self {
         let space = ok_version.cartesian_space();
-        let ansi = (0..=15)
-            .map(|n| *theme[AnsiColor::try_from(n).unwrap()].to(space).as_ref())
-            .collect();
-        let eight_bit: Vec<[Float; 3]> = (16..=231)
-            .map(|n| {
-                *Color::from(EmbeddedRgb::try_from(n).unwrap())
-                    .to(space)
-                    .as_ref()
-            })
-            .chain((232..=255).map(|n| {
-                *Color::from(GrayGradient::try_from(n).unwrap())
-                    .to(space)
-                    .as_ref()
-            }))
-            .collect();
+        let (ansi, eight_bit) = eight_bit_coordinates(theme, space);
+
+        Self {
+            space,
+            ansi,
+            eight_bit,
+        }
+    }
+
+    /// Create a new terminal color matcher. This method initializes the
+    /// matcher's internal state, which comprises the coordinates for the 256
+    /// 8-bit colors, 16 for the ANSI colors based on the provided theme, 216
+    /// for the embedded RGB colors, and 24 for the gray gradient, all in the
+    /// requested color space.
+    #[cfg(not(feature = "pyffi"))]
+    pub fn new(theme: &Theme, ok_version: &OkVersion) -> Self {
+        let space = ok_version.cartesian_space();
+        let (ansi, eight_bit) = eight_bit_coordinates(theme, space);
 
         Self {
             space,
@@ -383,7 +428,7 @@ impl ColorMatcher {
     /// for r in 0..5 {
     ///     for g in 0..5 {
     ///         for b in 0..5 {
-    ///             let embedded = EmbeddedRgb::new(r, g, b)?;
+    ///             let embedded = EmbeddedRgb::new(r, g, b);
     ///             let color = Color::from(embedded);
     ///             assert_eq!(color.space(), ColorSpace::Srgb);
     ///
@@ -399,7 +444,6 @@ impl ColorMatcher {
     ///         }
     ///     }
     /// }
-    /// # Ok::<(), OutOfBoundsError>(())
     /// ```
     pub fn to_eight_bit(&self, color: &Color) -> EightBitColor {
         use crate::core::{delta_e_ok, find_closest};
@@ -420,7 +464,7 @@ mod test {
 
     #[test]
     fn test_matcher() -> Result<(), OutOfBoundsError> {
-        let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
+        let matcher = ColorMatcher::new(&DEFAULT_THEME, &OkVersion::Revised);
 
         let result = matcher.to_ansi(&Color::srgb(1.0, 1.0, 0.0));
         assert_eq!(result, AnsiColor::BrightYellow);

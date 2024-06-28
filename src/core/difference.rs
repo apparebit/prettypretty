@@ -1,102 +1,36 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use crate::core::{convert, ColorSpace};
+use crate::core::{convert, normalize, ColorSpace};
 use crate::{Bits, Float};
 
-/// Normalize coordinates that are not-a-number.
-#[inline]
-fn normalize_nan_mut(space: ColorSpace, coordinates: &mut [Float; 3]) {
-    let [c1, c2, c3] = coordinates;
+/// Normalize coordinates for equality testing and hashing.
+#[must_use = "function returns new color coordinates and does not mutate original value"]
+pub(crate) fn to_eq_bits(space: ColorSpace, coordinates: &[Float; 3]) -> [Bits; 3] {
+    let [mut c1, mut c2, mut c3] = normalize(space, coordinates);
 
-    // Ensure all coordinates are numbers
-    if c1.is_nan() {
-        *c1 = 0.0;
-    }
-
-    if c2.is_nan() {
-        *c2 = 0.0;
-    }
-
-    if c3.is_nan() {
-        *c3 = 0.0;
-        if space.is_polar() {
-            *c2 = 0.0;
-        }
-    }
-}
-
-/// Normalize coordinates ranges.
-///
-/// For Ok*** coordinates, this function clamps (revised) lightness to `0..=1`
-/// and chroma to `0..`. It also reduces hue to an equivalent angle `0..=360`.
-fn normalize_range_mut(space: ColorSpace, coordinates: &mut [Float; 3]) {
-    let [c1, c2, c3] = coordinates;
-
-    // Clamp lightness and chroma in Oklab et al
-    if space.is_ok() {
-        *c1 = c1.clamp(0.0, 1.0);
-
-        if space.is_polar() {
-            *c2 = c2.max(0.0);
-        }
-    }
-
-    // Normalize hue
+    // Normalize rotation and scale to unit range.
     if space.is_polar() {
-        *c3 = c3.rem_euclid(360.0)
-    }
-}
-
-/// Normalize the color's coordinates by zeroing out not-a-numbers and enforcing
-/// range limits.
-pub(crate) fn normalize(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3] {
-    let mut coordinates = *coordinates;
-    normalize_nan_mut(space, &mut coordinates);
-    normalize_range_mut(space, &mut coordinates);
-    coordinates
-}
-
-/// Normalize coordinates for testing equality and hashing.
-fn normalize_eq_mut(space: ColorSpace, coordinates: &mut [Float; 3]) {
-    let [c1, c2, c3] = coordinates;
-
-    // Scale to unit range.
-    if space.is_polar() {
-        *c3 /= 360.0
+        c3 = c3.rem_euclid(360.0) / 360.0
     }
 
     // Drop one digit of precision.
     let factor = (10.0 as Float).powi((Float::DIGITS as i32) - 1);
-    *c1 = (*c1 * factor).round();
-    *c2 = (*c2 * factor).round();
-    *c3 = (*c3 * factor).round();
+    c1 = (c1 * factor).round();
+    c2 = (c2 * factor).round();
+    c3 = (c3 * factor).round();
 
     // Ensure canonical zero.
-    if *c1 == -0.0 {
-        *c1 = 0.0;
+    if c1 == -0.0 {
+        c1 = 0.0;
     }
-    if *c2 == -0.0 {
-        *c2 = 0.0
+    if c2 == -0.0 {
+        c2 = 0.0
     }
-    if *c3 == -0.0 {
-        *c3 = 0.0
+    if c3 == -0.0 {
+        c3 = 0.0
     }
-}
 
-/// Convert coordinates to equivalent bits suitable for testing equality and
-/// hashing.
-///
-/// This function eliminates not-a-numbers, enforces correct ranges, scales
-/// coordinates to have the same order of magnitude, and converts the result to
-/// bits that are ready for equality comparison and/or hashing.
-#[must_use = "function returns new color coordinates and does not mutate original value"]
-pub(crate) fn to_eq_bits(space: ColorSpace, coordinates: &[Float; 3]) -> [Bits; 3] {
-    let mut coordinates = *coordinates;
-    normalize_nan_mut(space, &mut coordinates);
-    normalize_range_mut(space, &mut coordinates);
-    normalize_eq_mut(space, &mut coordinates);
-    let [c1, c2, c3] = coordinates;
     [c1.to_bits(), c2.to_bits(), c3.to_bits()]
 }
 
@@ -187,10 +121,7 @@ fn prepare_coordinate_interpolation(
     coordinates: &[Float; 3],
 ) -> [Float; 3] {
     // Normalize coordinates and convert to interpolation space
-    let mut intermediate = *coordinates;
-    normalize_nan_mut(from_space, &mut intermediate);
-    normalize_range_mut(from_space, &mut intermediate);
-    intermediate = convert(from_space, to_space, &intermediate);
+    let mut intermediate = convert(from_space, to_space, &normalize(from_space, coordinates));
 
     // Carry forward missing components
     for (index, coordinate) in coordinates.iter().enumerate() {
@@ -214,7 +145,7 @@ fn prepare_coordinate_interpolation(
 /// between hues, [`HueInterpolation::Shorter`] and
 /// [`HueInterpolation::Longer`], or on the direction,
 /// [`HueInterpolation::Increasing`] and [`HueInterpolation::Decreasing`].
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int))]
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum HueInterpolation {
     /// Take the shorter arc between the two hue angles.
@@ -276,6 +207,10 @@ fn prepare_hue_interpolation(strategy: HueInterpolation, h1: Float, h2: Float) -
 /// By separating preparation from actual interpolation, it becomes possible to
 /// amortize the overhead of the former when generating several interpolated
 /// colors, e.g., when computing a gradient.
+///
+/// This function normalizes coordinates. However, if both colors in the
+/// interpolation color space end up with forward-carried not-a-number values
+/// for the same coordinate, those not-a-number values remain.
 #[must_use = "function returns new color coordinates and does not mutate original values"]
 pub(crate) fn prepare_to_interpolate(
     space1: ColorSpace,

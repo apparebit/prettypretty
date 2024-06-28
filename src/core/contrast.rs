@@ -8,12 +8,7 @@ pub(crate) fn scale_lightness(
     coordinates: &[Float; 3],
     factor: Float,
 ) -> [Float; 3] {
-    let [lr, c, h] = if space == ColorSpace::Oklrch {
-        *coordinates
-    } else {
-        convert(space, ColorSpace::Oklrch, coordinates)
-    };
-
+    let [lr, c, h] = convert(space, ColorSpace::Oklrch, coordinates);
     [factor * lr, c, h]
 }
 

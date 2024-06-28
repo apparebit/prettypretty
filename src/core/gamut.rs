@@ -1,5 +1,5 @@
 use crate::core::conversion::okxch_to_okxab;
-use crate::core::{convert, delta_e_ok};
+use crate::core::{convert, delta_e_ok, normalize};
 use crate::{ColorSpace, Float};
 
 /// Determine whether the coordinates are in gamut for their color space.
@@ -21,6 +21,9 @@ pub(crate) fn clip(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3] {
     }
 }
 
+const JND: Float = 0.02;
+const EPSILON: Float = 0.0001;
+
 /// Map the given color coordinates into the gamut of their color space.
 ///
 /// This function implements the CSS Color 4 [gamut mapping
@@ -32,16 +35,15 @@ pub(crate) fn clip(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3] {
 pub(crate) fn to_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3] {
     use ColorSpace::*;
 
-    const JND: Float = 0.02;
-    const EPSILON: Float = 0.0001;
+    let coordinates = normalize(space, coordinates);
 
     // If the color space is unbounded, there is nothing to map to
     if !space.is_bounded() {
-        return *coordinates;
+        return coordinates;
     }
 
     // Preliminary 1/2: Clamp Lightness
-    let origin_as_oklch = convert(space, Oklch, coordinates);
+    let origin_as_oklch = convert(space, Oklch, &coordinates);
     let l = origin_as_oklch[0];
     if l >= 1.0 {
         return convert(Oklch, space, &[1.0, 0.0, 0.0]);
@@ -51,8 +53,8 @@ pub(crate) fn to_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3
     }
 
     // Preliminary 2/2: Check gamut
-    if in_gamut(space, coordinates) {
-        return *coordinates;
+    if in_gamut(space, &coordinates) {
+        return coordinates;
     }
 
     // Goal: Minimize just noticeable difference between current and clipped
