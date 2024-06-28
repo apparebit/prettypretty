@@ -9,7 +9,7 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use crate::Color;
+use crate::{Color, Theme};
 
 /// An out-of-bounds error.
 ///
@@ -71,32 +71,28 @@ impl From<OutOfBoundsError> for PyErr {
 
 /// The 16 extended ANSI colors.
 ///
-/// Despite their names, *white* and *bright black* are obviously distinct from
-/// white and black, respectively. Both are gray. *White* is closer to *bright
-/// white* than to either shade named black. *Bright black* is closer to *black*
-/// than either shade named white. In other words, the 16 extended ANSI colors
-/// include a four-color gray gradient from *black* to *bright black* to *white*
-/// to *bright white*.
+/// Rust code converts between 8-bit color codes and enumeration variants with
+/// [`TryFrom<u8> as
+/// AnsiColor`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) and
+/// [`From<AnsiColor> as
+/// u8`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8).
+#[cfg_attr(
+    feature = "pyffi",
+    doc = "In contrast, Python code uses the [`AnsiColor::from_8bit`] and
+    [`AnsiColor::to_8bit`] methods."
+)]
+/// Since ANSI colors have no intrinsic color values, conversion to
+/// high-resolution colors requires additional machinery, provided by
+/// [`Theme`](crate::Theme).
 ///
-/// With [`EightBitColor`]  composing [`AnsiColor`], [`EmbeddedRgb`], and
-/// [`GrayGradient`] to represent 8-bit terminal colors, all four support
-/// conversions from and to `u8`. In particular, this crate provides
-/// implementations of the infallible
-/// [`From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8),
-/// [`From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8),
-/// [`From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8),
-/// and
-/// [`From<EightBitColor>`](enum.EightBitColor.html#impl-From%3CEightBitColor%3E-for-u8),
-/// all for `u8`. In the other direction, it provides implementations of the
-/// fallible
-/// [`TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) for
-/// `AnsiColor`,
-/// [`TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
-/// for `EmbeddedRgb`, and
-/// [`TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
-/// for `GrayGradient`, as well as the infallible
-/// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
-/// for `EightBitColor`.
+/// # Black and White
+///
+/// Despite their names, *white* and *bright black* usually aren't white and
+/// black, respectively, but tones of gray. *White* tends to be closer to
+/// *bright white* than to either shade named black. Similarly, *bright black*
+/// tends to be closer to *black* than either shade named white. In other words,
+/// the 16 extended ANSI colors include a four-color gray gradient from *black*
+/// to *bright black* to *white* to *bright white*.
 #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum AnsiColor {
@@ -118,22 +114,24 @@ pub enum AnsiColor {
     BrightWhite,
 }
 
-#[cfg_attr(feature = "pyffi", pymethods)]
+#[cfg(feature = "pyffi")]
+#[pymethods]
 impl AnsiColor {
     /// Instantiate an ANSI color from its 8-bit code.
-    #[cfg(feature = "pyffi")]
+    ///
+    /// This method offers the same functionality as [`TryFrom<u8> as
+    /// AnsiColor`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) and
+    /// is available in Python only.
     #[staticmethod]
     pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
         Self::try_from(value)
     }
 
-    /// Instantiate an ANSI color from its 8-bit code.
-    #[cfg(not(feature = "pyffi"))]
-    pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
-        Self::try_from(value)
-    }
-
     /// Get the 8-bit code for this ANSI color.
+    ///
+    /// This method offers the same functionality as [`From<AnsiColor> as
+    /// u8`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8) and is
+    /// available in Python only.
     pub fn to_8bit(&self) -> u8 {
         *self as u8
     }
@@ -181,95 +179,141 @@ impl From<AnsiColor> for u8 {
 
 /// The 6x6x6 RGB cube embedded in 8-bit terminal colors.
 ///
-/// With [`EightBitColor`]  composing [`AnsiColor`], [`EmbeddedRgb`], and
-/// [`GrayGradient`] to represent 8-bit terminal colors, all four support
-/// conversions from and to `u8`. In particular, this crate provides
-/// implementations of the infallible
-/// [`From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8),
-/// [`From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8),
-/// [`From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8),
-/// and
-/// [`From<EightBitColor>`](enum.EightBitColor.html#impl-From%3CEightBitColor%3E-for-u8),
-/// all for `u8`. In the other direction, it provides implementations of the
-/// fallible
-/// [`TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) for
-/// `AnsiColor`,
-/// [`TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
-/// for `EmbeddedRgb`, and
-/// [`TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
-/// for `GrayGradient`, as well as the infallible
-/// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
-/// for `EightBitColor`.
-#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
+/// <style>
+/// .color-swatch {
+///     display: flex;
+/// }
+/// .color-swatch > div {
+///     height: 4em;
+///     width: 4em;
+///     border: black 0.5pt solid;
+///     display: flex;
+///     align-items: center;
+///     justify-content: center;
+/// }
+/// </style>
+///
+/// # Examples
+///
+/// Rust code can create a new embedded RGB color with either
+/// [`EmbeddedRgb::new`] or [`TryFrom<u8> as
+/// EmbeddedRgb`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb).
+/// ```
+/// # use prettypretty::{EmbeddedRgb, OutOfBoundsError};
+/// let orange = EmbeddedRgb::new(5, 2, 0)?;
+/// let orange_too = EmbeddedRgb::try_from(208)?;
+/// assert_eq!(orange, orange_too);
+/// # Ok::<(), OutOfBoundsError>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #ff8700;"></div>
+/// </div>
+/// <br>
+///
+/// It can access the coordinates with [`AsRef<[u8; 3]> as
+/// EmbeddedRgb`](struct.EmbeddedRgb.html#impl-AsRef%3C%5Bu8;+3%5D%3E-for-EmbeddedRgb)
+/// or with [`Index<usize> as
+/// EmbeddedRgb`](struct.EmbeddedRgb.html#impl-Index%3Cusize%3E-for-EmbeddedRgb).
+/// ```
+/// # use prettypretty::{EmbeddedRgb, OutOfBoundsError};
+/// let blue = EmbeddedRgb::try_from(75)?;
+/// assert_eq!(blue.as_ref(), &[1_u8, 3, 5]);
+/// assert_eq!(blue[1], 3);
+/// # Ok::<(), OutOfBoundsError>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #5fafff;"></div>
+/// </div>
+/// <br>
+///
+/// Finally, it can convert an embedded RGB color to `u8` with
+/// [`From<EmbeddedRgb> as
+/// u8`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8) or to
+/// a high-resolution color with [`From<EmbeddedRgb> as
+/// Color`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color).
+/// ```
+/// # use prettypretty::{Color, EmbeddedRgb, OutOfBoundsError};
+/// let rose = EmbeddedRgb::new(5, 4, 5)?;
+/// assert_eq!(u8::from(rose), 225);
+///
+/// let rose_too = Color::from(rose);
+/// assert_eq!(rose_too.to_hex_format(), "#ffd7ff");
+/// # Ok::<(), OutOfBoundsError>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #ffd7ff;"></div>
+/// </div>
+/// <br>
+///
+#[cfg_attr(
+    feature = "pyffi",
+    doc = "Since there is no Python feature equivalent to trait implementations in
+    Rust, the Python class for `EmbeddedRgb` provides equivalent functionality
+    through [`EmbeddedRgb::from_8bit`], [`EmbeddedRgb::__len__`],
+    [`EmbeddedRgb::__getitem__`], [`EmbeddedRgb::to_8bit`], and
+    [`EmbeddedRgb::to_color`]. These methods are not available in Rust."
+)]
+#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, sequence))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EmbeddedRgb([u8; 3]);
 
-#[cfg_attr(feature = "pyffi", pymethods)]
+#[cfg(feature = "pyffi")]
+#[pymethods]
 impl EmbeddedRgb {
     /// Create a new embedded RGB value from its coordinates.
-    ///
-    /// # Panics
-    ///
-    /// This constructor panics if any coordinate is greater than 5.
-    #[cfg(feature = "pyffi")]
     #[new]
-    pub const fn new(r: u8, g: u8, b: u8) -> Self {
-        if r >= 6 || g >= 6 || b >= 6 {
-            panic!("embedded RGB coordinates are out of bounds");
+    pub const fn new(r: u8, g: u8, b: u8) -> Result<Self, OutOfBoundsError> {
+        if r >= 6 {
+            Err(OutOfBoundsError::from_u8(r, 0..=5))
+        } else if g >= 6 {
+            Err(OutOfBoundsError::from_u8(g, 0..=5))
+        } else if b >= 6 {
+            Err(OutOfBoundsError::from_u8(b, 0..=5))
+        } else {
+            Ok(Self([r, g, b]))
         }
-
-        Self([r, g, b])
-    }
-
-    /// Create a new embedded RGB value from its coordinates.
-    ///
-    /// # Panics
-    ///
-    /// This constructor panics if any coordinate is greater than 5.
-    #[cfg(not( feature = "pyffi"))]
-    pub const fn new(r: u8, g: u8, b: u8) -> Self {
-        if r >= 6 || g >= 6 || b >= 6 {
-            panic!("embedded RGB coordinates are out of bounds");
-        }
-
-        Self([r, g, b])
     }
 
     /// Instantiate an embedded RGB color from its 8-bit code.
-    #[cfg(feature = "pyffi")]
+    ///
+    /// This method offers the same functionality as [`TryFrom<u8> as
+    /// EmbeddedRgb`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
+    /// and is available in Python only.
     #[staticmethod]
     pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
         Self::try_from(value)
     }
 
-    /// Instantiate an embedded RGB color from its 8-bit code.
-    #[cfg(not(feature = "pyffi"))]
-    pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
-        Self::try_from(value)
-    }
-
-    /// Get the 8-bit code for this ANSI color.
+    /// Get the 8-bit code for this embedded RGB color.
+    ///
+    /// This method offers the same functionality as [`From<EmbeddedRgb> as
+    /// u8`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8) and is
+    /// available in Python only.
     pub fn to_8bit(&self) -> u8 {
         u8::from(*self)
     }
 
-    /// Access the coordinates of the embedded RGB color.
-    #[cfg(not(feature = "pyffi"))]
-    #[inline]
-    pub const fn coordinates(&self) -> &[u8; 3] {
-        &self.0
+    /// Convert this embedded RGB color to a high-resolution color.
+    ///
+    /// This method offers the same functionality as [`From<EmbeddedRgb> as
+    /// Color`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color)
+    /// and is available in Python only.
+    pub fn to_color(&self) -> Color {
+        Color::from(*self)
     }
 
-    /// Get the color's length.
+    /// Get this embedded RGB color's length, which is 3.
     ///
-    /// This method returns 3.
-    #[cfg(feature = "pyffi")]
+    /// This method improves integration with Python's runtime and hence is
+    /// available in Python only.
     pub fn __len__(&self) -> usize {
         3
     }
 
-    /// Read coordinates by index.
-    #[cfg(feature = "pyffi")]
+    /// Get the coordinate at the given index.
+    ///
+    /// This method improves integration with Python's runtime and hence is
+    /// available in Python only.
     pub fn __getitem__(&self, index: isize) -> PyResult<u8> {
         match index {
             -3..=-1 => Ok(self.0[(3 + index) as usize]),
@@ -277,6 +321,22 @@ impl EmbeddedRgb {
             _ => Err(pyo3::exceptions::PyIndexError::new_err(
                 "Invalid coordinate index",
             )),
+        }
+    }
+}
+
+#[cfg(not(feature = "pyffi"))]
+impl EmbeddedRgb {
+    /// Create a new embedded RGB value from its coordinates.
+    pub const fn new(r: u8, g: u8, b: u8) -> Result<Self, OutOfBoundsError> {
+        if r >= 6 {
+            Err(OutOfBoundsError::from_u8(r, 0..=5))
+        } else if g >= 6 {
+            Err(OutOfBoundsError::from_u8(g, 0..=5))
+        } else if b >= 6 {
+            Err(OutOfBoundsError::from_u8(b, 0..=5))
+        } else {
+            Ok(Self([r, g, b]))
         }
     }
 }
@@ -295,7 +355,7 @@ impl TryFrom<u8> for EmbeddedRgb {
             let g = b / 6;
             b -= g * 6;
 
-            Ok(Self::new(r, g, b))
+            Self::new(r, g, b)
         }
     }
 }
@@ -351,76 +411,139 @@ impl From<EmbeddedRgb> for Color {
 
 /// The 24-step gray gradient embedded in 8-bit terminal colors.
 ///
-/// With [`EightBitColor`]  composing [`AnsiColor`], [`EmbeddedRgb`], and
-/// [`GrayGradient`] to represent 8-bit terminal colors, all four support
-/// conversions from and to `u8`. In particular, this crate provides
-/// implementations of the infallible
-/// [`From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8),
-/// [`From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8),
-/// [`From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8),
-/// and
-/// [`From<EightBitColor>`](enum.EightBitColor.html#impl-From%3CEightBitColor%3E-for-u8),
-/// all for `u8`. In the other direction, it provides implementations of the
-/// fallible
-/// [`TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) for
-/// `AnsiColor`,
-/// [`TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
-/// for `EmbeddedRgb`, and
-/// [`TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
-/// for `GrayGradient`, as well as the infallible
-/// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
-/// for `EightBitColor`.
+/// <style>
+/// .color-swatch {
+///     display: flex;
+/// }
+/// .color-swatch > div {
+///     height: 4em;
+///     width: 4em;
+///     border: black 0.5pt solid;
+///     display: flex;
+///     align-items: center;
+///     justify-content: center;
+/// }
+/// </style>
+///
+/// # Examples
+///
+/// Rust code can instantiate a new gray gradient color with either
+/// [`GrayGradient::new`] or [`TryFrom<u8> as
+/// GrayGradient`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient).
+/// ```
+/// # use prettypretty::{GrayGradient, OutOfBoundsError};
+/// let almost_black = GrayGradient::new(4)?;
+/// let almost_black_too = GrayGradient::try_from(236)?;
+/// assert_eq!(almost_black, almost_black_too);
+/// # Ok::<(), OutOfBoundsError>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #303030;"></div>
+/// </div>
+/// <br>
+///
+/// It can access the gray level with [`GrayGradient::level`].
+/// ```
+/// # use prettypretty::{GrayGradient, OutOfBoundsError};
+/// let midgray = GrayGradient::try_from(243)?;
+/// assert_eq!(midgray.level(), 11);
+/// # Ok::<(), OutOfBoundsError>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #767676;"></div>
+/// </div>
+/// <br>
+///
+/// Finally, it can convert a gray gradient color to `u8` with
+/// [`From<GrayGradient> as
+/// u8`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8) or to a
+/// high-resolution color with [`From<GrayGradient> as
+/// Color`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Color).
+/// ```
+/// # use prettypretty::{Color, GrayGradient, OutOfBoundsError};
+/// let light_gray = GrayGradient::new(20)?;
+/// assert_eq!(u8::from(light_gray), 252);
+///
+/// let light_gray_too = Color::from(light_gray);
+/// assert_eq!(light_gray_too.to_hex_format(), "#d0d0d0");
+/// # Ok::<(), OutOfBoundsError>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #d0d0d0;"></div>
+/// </div>
+/// <br>
+///
+#[cfg_attr(
+    feature = "pyffi",
+    doc = "Since there is no Python feature equivalent to trait implementations in
+    Rust, the Python class for `GrayGradient` provides equivalent functionality
+    through [`GrayGradient::from_8bit`], [`GrayGradient::to_8bit`], and
+    [`GrayGradient::to_color`]. These methods are not available in Rust, though
+    [`GrayGradient::new`] and [`GrayGradient::level`] are."
+)]
 #[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, ord))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GrayGradient(u8);
 
-#[cfg_attr(feature = "pyffi", pymethods)]
+#[cfg(feature = "pyffi")]
+#[pymethods]
 impl GrayGradient {
     /// Instantiate a new gray gradient from its level `0..=23`.
-    ///
-    /// # Panics
-    ///
-    /// This constructor panics if the level value is larger than 23.
-    #[cfg(feature = "pyffi")]
     #[new]
-    pub const fn new(value: usize) -> Self {
+    pub const fn new(value: u8) -> Result<Self, OutOfBoundsError> {
         if value >= 24 {
-            panic!("gray gradient value is out of bounds");
+            Err(OutOfBoundsError::from_u8(value, 0..=23))
         } else {
-            Self(value as u8)
-        }
-    }
-
-    /// Instantiate a new gray gradient from its level `0..=23`.
-    ///
-    /// # Panics
-    ///
-    /// This constructor panics if the level value is larger than 23.
-    #[cfg(not(feature = "pyffi"))]
-    pub const fn new(value: usize) -> Self {
-        if value >= 24 {
-            panic!("gray gradient value is out of bounds");
-        } else {
-            Self(value as u8)
+            Ok(Self(value))
         }
     }
 
     /// Instantiate a gray gradient from its 8-bit code.
-    #[cfg(feature = "pyffi")]
+    ///
+    /// This method offers the same functionality as [`TryFrom<u8> as
+    /// GrayGradient`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
+    /// and is available in Python only.
     #[staticmethod]
     pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
         Self::try_from(value)
     }
 
-    /// Instantiate a gray gradient from its 8-bit code.
-    #[cfg(not(feature = "pyffi"))]
-    pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
-        Self::try_from(value)
-    }
-
     /// Get the 8-bit code for this gray gradient color.
+    ///
+    /// This method offers the same functionality as [`From<GrayGradient> as
+    /// u8`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8) and is
+    /// available in Python only.
+    #[inline]
     pub fn to_8bit(&self) -> u8 {
         u8::from(*self)
+    }
+
+    /// Convert this gray gradient to a high-resolution color.
+    ///
+    /// This method offers the same functionality as [`From<GrayGradient> as
+    /// Color`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Color)
+    /// and is available in Python only.
+    #[inline]
+    pub fn to_color(&self) -> Color {
+        Color::from(*self)
+    }
+
+    /// Access the gray level `0..=23`.
+    #[inline]
+    pub const fn level(&self) -> u8 {
+        self.0
+    }
+}
+
+#[cfg(not(feature = "pyffi"))]
+impl GrayGradient {
+    /// Instantiate a new gray gradient from its level `0..=23`.
+    pub const fn new(value: u8) -> Result<Self, OutOfBoundsError> {
+        if value <= 23 {
+            Ok(Self(value))
+        } else {
+            Err(OutOfBoundsError::from_u8(value, 0..=23))
+        }
     }
 
     /// Access the gray level `0..=23`.
@@ -438,7 +561,7 @@ impl TryFrom<u8> for GrayGradient {
         if value <= 231 {
             Err(OutOfBoundsError::from_u8(value, 232..=255))
         } else {
-            Ok(Self(value - 232))
+            Self::new(value - 232)
         }
     }
 }
@@ -463,26 +586,6 @@ impl From<GrayGradient> for Color {
 // ====================================================================================================================
 
 /// 8-bit terminal colors.
-///
-/// With [`EightBitColor`]  composing [`AnsiColor`], [`EmbeddedRgb`], and
-/// [`GrayGradient`] to represent 8-bit terminal colors, all four support
-/// conversions from and to `u8`. In particular, this crate provides
-/// implementations of the infallible
-/// [`From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8),
-/// [`From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8),
-/// [`From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8),
-/// and
-/// [`From<EightBitColor>`](enum.EightBitColor.html#impl-From%3CEightBitColor%3E-for-u8),
-/// all for `u8`. In the other direction, it provides implementations of the
-/// fallible
-/// [`TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) for
-/// `AnsiColor`,
-/// [`TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
-/// for `EmbeddedRgb`, and
-/// [`TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
-/// for `GrayGradient`, as well as the infallible
-/// [`From<u8>`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
-/// for `EightBitColor`.
 ///
 /// <style>
 /// .color-swatch {
@@ -536,21 +639,37 @@ pub enum EightBitColor {
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl EightBitColor {
     /// Instantiate an 8-bit color from its numeric code.
+    ///
+    /// This method offers the same functionality as [`From<u8> as
+    /// EightBitColor`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
+    /// and is available in Python only.
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn from_8bit(value: u8) -> Self {
         Self::from(value)
     }
 
-    /// Instantiate an 8-bit color from its numeric code.
-    #[cfg(not(feature = "pyffi"))]
-    pub fn from_8bit(value: u8) -> Self {
-        Self::from(value)
-    }
-
     /// Get the numeric code for this 8-bit color.
+    ///
+    /// This method offers the same functionality as [`From<EightBitColor> as
+    /// u8`](enum.EightBitColor.html#impl-From%3CEightBitColor%3E-for-u8) and is
+    /// available in Python only.
+    #[cfg(feature = "pyffi")]
     pub fn to_8bit(&self) -> u8 {
         u8::from(*self)
+    }
+
+    /// Convert this 8-bit color to a high-resolution color.
+    ///
+    /// Since the 16 extended ANSI colors do not have intrinsic color values,
+    /// this method requires access to the current color theme for possibly
+    /// looking up a color value.
+    pub fn to_color(&self, theme: &Theme) -> Color {
+        match *self {
+            Self::Ansi(color) => theme[color].clone(),
+            Self::Rgb(color) => color.into(),
+            Self::Gray(color) => color.into(),
+        }
     }
 }
 
@@ -591,10 +710,10 @@ mod test {
         let magenta = AnsiColor::Magenta;
         assert_eq!(magenta as u8, 5);
 
-        let green = EmbeddedRgb::new(0, 4, 0);
+        let green = EmbeddedRgb::new(0, 4, 0)?;
         assert_eq!(green.as_ref(), &[0, 4, 0]);
 
-        let gray = GrayGradient::new(12);
+        let gray = GrayGradient::new(12)?;
         assert_eq!(gray.level(), 12);
 
         let also_magenta = EightBitColor::Ansi(AnsiColor::Magenta);

@@ -6,7 +6,11 @@ use crate::core::{
     prepare_to_interpolate, scale_lightness, to_24bit, to_contrast, to_contrast_luminance_p3,
     to_contrast_luminance_srgb, to_eq_bits, to_gamut, ColorSpace, HueInterpolation,
 };
-use crate::{ColorFormatError, Float};
+
+#[cfg(feature = "pyffi")]
+use crate::core::ColorFormatError;
+
+use crate::Float;
 
 /// A high-resolution color object.
 ///
@@ -60,6 +64,10 @@ use crate::{ColorFormatError, Float};
 /// While rounding isn't strictly necessary for correctness, it makes for a more
 /// robust comparison without meaningfully reducing precision.
 ///
+/// ## Coordinate Access
+///
+/// Both Rust and Python code can access individual coordinates by indexing a
+/// color object with integers `0..2`.
 ///
 /// <style>
 /// .color-swatch {
@@ -74,7 +82,7 @@ use crate::{ColorFormatError, Float};
 ///     justify-content: center;
 /// }
 /// </style>
-#[cfg_attr(feature = "pyffi", pyclass(eq))]
+#[cfg_attr(feature = "pyffi", pyclass(eq, sequence))]
 #[derive(Clone, Debug)]
 pub struct Color {
     space: ColorSpace,
@@ -102,10 +110,7 @@ impl Color {
     #[new]
     #[inline]
     pub const fn new(space: ColorSpace, coordinates: [Float; 3]) -> Self {
-        Self {
-            space,
-            coordinates,
-        }
+        Self { space, coordinates }
     }
 
     /// Instantiate a new color with the given color space and coordinates.
@@ -121,10 +126,20 @@ impl Color {
     #[cfg(not(feature = "pyffi"))]
     #[inline]
     pub const fn new(space: ColorSpace, coordinates: [Float; 3]) -> Self {
-        Self {
-            space,
-            coordinates,
-        }
+        Self { space, coordinates }
+    }
+
+    /// Parse a color from its string representation.
+    ///
+    /// This method implements the same functionality as `Color`'s [`Color as
+    /// FromStr`](struct.Color.html#impl-FromStr-for-Color) and is available in
+    /// Python only.
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn parse(s: &str) -> Result<Color, ColorFormatError> {
+        use std::str::FromStr;
+
+        Color::from_str(s)
     }
 
     /// Instantiate a new sRGB color from its 24-bit representation.
@@ -252,7 +267,7 @@ impl Color {
     /// Many methods automatically normalize colors. A statement to that effect
     /// is included in their documentation. Methods that do *not* normalize
     /// their colors include [`Color::clip`], [`Color::distance`],
-    ///  [`Color::in_gamut`], and [`Color::is_default`].s
+    ///  [`Color::in_gamut`], and [`Color::is_default`].
     #[inline]
     pub fn normalize(&self) -> Self {
         Self::new(self.space, normalize(self.space, &self.coordinates))
@@ -360,11 +375,12 @@ impl Color {
     /// suited to different needs. First, it performs clipping and in-gamut
     /// testing in the current color space. After all, that's the color space
     /// the application requires the color to be in. Second, it performs color
-    /// adjustments in Oklch. It is eminently suited to color manipulation
-    /// because it is both perceptually uniform and has polar coordinates.
-    /// Third, it measures distance in Oklab. Since the color space is
-    /// perceptually uniform and has Cartesian coordinates, Euclidian distance
-    /// is easy to compute and still accurate.
+    /// adjustments in Oklch. It is nicely suited to color manipulation because
+    /// it is both perceptually uniform and has polar coordinates. Third, it
+    /// measures distance in Oklab. Since the color space is perceptually
+    /// uniform and has Cartesian coordinates, computing that distance is as
+    /// simple as calculating Euclidian distance, i.e., the square root of the
+    /// coordinate differences squared and summed.
     ///
     /// # Examples
     ///
@@ -389,7 +405,7 @@ impl Color {
     #[must_use = "method returns a new color and does not mutate original value"]
     pub fn to_gamut(&self) -> Self {
         Self::new(self.space, to_gamut(self.space, &self.coordinates))
-     }
+    }
 
     /// Compute the Euclidian distance between the two colors in Oklab.
     ///
@@ -557,7 +573,10 @@ impl Color {
     #[inline]
     #[must_use = "method returns a new color and does not mutate original value"]
     pub fn lighten(&self, factor: Float) -> Self {
-        Self::new(ColorSpace::Oklrch, scale_lightness(self.space, &self.coordinates, factor))
+        Self::new(
+            ColorSpace::Oklrch,
+            scale_lightness(self.space, &self.coordinates, factor),
+        )
     }
 
     /// Darken this color by the given factor.
@@ -567,7 +586,10 @@ impl Color {
     #[inline]
     #[must_use = "method returns a new color and does not mutate original value"]
     pub fn darken(&self, factor: Float) -> Self {
-        Self::new(ColorSpace::Oklrch, scale_lightness(self.space, &self.coordinates, factor.recip()))
+        Self::new(
+            ColorSpace::Oklrch,
+            scale_lightness(self.space, &self.coordinates, factor.recip()),
+        )
     }
 
     /// Determine the perceptual contrast of text against a solidly colored
@@ -666,26 +688,32 @@ impl Color {
     // they implement Python-specific dunder methods.
 
     /// Convert this color to its debug representation.
+    ///
+    /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
     }
 
     /// Convert this color to its (CSS-based) string representation.
+    ///
+    /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
     pub fn __str__(&self) -> String {
         format!("{}", self)
     }
 
-    /// Get the color's length.
+    /// Get this color's length, which is 3.
     ///
-    /// This method returns 3.
+    /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
     pub fn __len__(&self) -> usize {
         3
     }
 
     /// Read coordinates by index.
+    ///
+    /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
     pub fn __getitem__(&self, index: isize) -> PyResult<Float> {
         match index {
@@ -836,9 +864,14 @@ impl Color {
     /// Find the index position of the candidate color closest to this color.
     ///
     /// This method delegates to [`Color::find_closest`] using the Delta E
-    /// metric for Oklab/Oklrab, which is the Euclidian distance. Because it is
-    /// generic, this method is available in Rust only. A specialized version is
-    /// available in Python through [`crate::ColorMatcher`].
+    /// metric for Oklab/Oklrab, which is the Euclidian distance.
+    ///
+    /// Since this method converts every color to either Oklab or Oklrab, it
+    /// also normalizes every color before use.
+    ///
+    /// Due to being generic, this method is available in Rust only. A
+    /// specialized version is available in Python through
+    /// [`ColorMatcher`](crate::ColorMatcher).
     ///
     /// # Examples
     ///
@@ -880,9 +913,12 @@ impl Color {
     /// returns `None`. The distance metric is declared `mut` to allow for
     /// stateful comparisons.
     ///
-    /// Because it is generic, this method is available in Rust only. A
+    /// Since this method converts every color to the given color space, it also
+    /// normalizes every color before use.
+    ///
+    /// Due to being generic, this method is available in Rust only. A
     /// specialized version is available in Python through
-    /// [`crate::ColorMatcher`].
+    /// [`ColorMatcher`](crate::ColorMatcher).
     pub fn find_closest<'c, C, F>(
         &self,
         candidates: C,
@@ -913,8 +949,8 @@ impl Color {
 impl Default for Color {
     /// Create an instance of the default color.
     ///
-    /// The chosen default for high-resolution colors is pitch black, i.e., the
-    /// origin in XYZ.
+    /// The chosen default for high-resolution colors is the origin in XYZ,
+    /// i.e., pitch black.
     ///
     /// # Examples
     ///
@@ -1000,18 +1036,6 @@ impl std::str::FromStr for Color {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         parse(s).map(|(space, coordinates)| Self::new(space, coordinates))
     }
-}
-
-/// Parse a color from its string representation.
-///
-/// This function implements the same functionality as the `FromStr` trait.
-/// Because it is a function instead of a trait, it is available in Python as
-/// well.
-#[cfg_attr(feature = "pyffi", pyfunction)]
-pub fn parse_color(s: &str) -> Result<Color, ColorFormatError> {
-    use std::str::FromStr;
-
-    Color::from_str(s)
 }
 
 impl AsRef<[Float; 3]> for Color {

@@ -1,5 +1,5 @@
-use crate::Float;
 use super::{normalize, ColorSpace};
+use crate::Float;
 
 /// Convert the given 24-bit RGB coordinates to floating point coordinates.
 pub(crate) fn from_24bit(r: u8, g: u8, b: u8) -> [Float; 3] {

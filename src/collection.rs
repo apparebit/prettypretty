@@ -29,7 +29,7 @@ pub enum Layer {
 /// By itself, a theme enables the conversion of ANSI colors to high-resolution
 /// colors. Through a [`ColorMatcher`], a theme also enables the (lossy)
 /// conversion of high-resolution colors to ANSI and 8-bit colors.
-#[cfg_attr(feature = "pyffi", pyclass(eq))]
+#[cfg_attr(feature = "pyffi", pyclass(eq, sequence))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Theme {
     colors: [Color; 18],
@@ -49,12 +49,48 @@ impl Theme {
         Theme { colors }
     }
 
-    #[cfg(feature = "pyffi")]
+    /// Instantiate a new default theme.
+    ///
+    /// This method implements the same functionality as [`Theme as
+    /// Default`](struct.Theme.html#impl-Default-for-Theme), is available in
+    /// Python only, and returns a clone of the default theme with VGA text
+    /// colors.
+    #[staticmethod]
+    pub fn new_default() -> Self {
+        Self::default()
+    }
+
+    /// Determine the length of this theme, which is 18.
+    ///
+    /// This method is available in Python only.
+    pub fn __len__(&self) -> usize {
+        18
+    }
+
+    /// Get the color at the given index.
+    ///
+    /// This method clones the indexed color. It is available in Python only.
     pub fn __getitem__(&self, index: usize) -> PyResult<Color> {
         if (0..18).contains(&index) {
             Ok(self.colors[index].clone())
         } else {
-            Err(pyo3::exceptions::PyIndexError::new_err("index out of bounds"))
+            Err(pyo3::exceptions::PyIndexError::new_err(
+                "index out of bounds",
+            ))
+        }
+    }
+
+    /// Set the color at the given index.
+    ///
+    /// This method clones the given color. It is available in Python only.
+    pub fn __setitem__(&mut self, index: usize, color: &Color) -> PyResult<()> {
+        if (0..18).contains(&index) {
+            self.colors[index] = color.clone();
+            Ok(())
+        } else {
+            Err(pyo3::exceptions::PyIndexError::new_err(
+                "theme index out of bounds 0..18",
+            ))
         }
     }
 }
@@ -65,7 +101,9 @@ impl Theme {
     ///
     /// The 18 colors for the new theme are, in order, the foreground default,
     /// the background default, and the 16 extended ANSI colors in standard
-    /// order.
+    /// order. Rust code accesses these 18 colors by indexing with the variants
+    /// of the [`Layer`] and [`AnsiColor`] enumerations. Python code instead
+    /// indexes with integers in range `0..=17`.
     #[inline]
     pub const fn new(colors: [Color; 18]) -> Self {
         Theme { colors }
@@ -73,10 +111,12 @@ impl Theme {
 }
 
 impl Default for Theme {
+    /// Create a new default theme instance.
+    ///
+    /// This method returns a clone of the default theme, which comprises the
+    /// VGA text colors.
     fn default() -> Self {
-        // Since Color does not implement Copy, `[Color::default(); 18]` doesn't
-        // work. But std::array::from_fn() is almost as good.
-        Self::new(std::array::from_fn(|_| Color::default()))
+        DEFAULT_THEME.clone()
     }
 }
 
@@ -129,26 +169,40 @@ pub const DEFAULT_THEME: Theme = Theme::new([
     Color::new(ColorSpace::Srgb, [0.0, 0.0, 0.0]),
     Color::new(ColorSpace::Srgb, [0.666666666666667, 0.0, 0.0]),
     Color::new(ColorSpace::Srgb, [0.0, 0.666666666666667, 0.0]),
-    Color::new(ColorSpace::Srgb, [0.666666666666667, 0.333333333333333, 0.0]),
+    Color::new(
+        ColorSpace::Srgb,
+        [0.666666666666667, 0.333333333333333, 0.0],
+    ),
     Color::new(ColorSpace::Srgb, [0.0, 0.0, 0.666666666666667]),
-    Color::new(ColorSpace::Srgb, [0.666666666666667, 0.0, 0.666666666666667]),
-    Color::new(ColorSpace::Srgb, [0.0, 0.666666666666667, 0.666666666666667]),
     Color::new(
         ColorSpace::Srgb,
-        [0.666666666666667,
-        0.666666666666667,
-        0.666666666666667],
+        [0.666666666666667, 0.0, 0.666666666666667],
     ),
     Color::new(
         ColorSpace::Srgb,
-        [0.333333333333333,
-        0.333333333333333,
-        0.333333333333333],
+        [0.0, 0.666666666666667, 0.666666666666667],
     ),
-    Color::new(ColorSpace::Srgb, [1.0, 0.333333333333333, 0.333333333333333]),
-    Color::new(ColorSpace::Srgb, [0.333333333333333, 1.0, 0.333333333333333]),
+    Color::new(
+        ColorSpace::Srgb,
+        [0.666666666666667, 0.666666666666667, 0.666666666666667],
+    ),
+    Color::new(
+        ColorSpace::Srgb,
+        [0.333333333333333, 0.333333333333333, 0.333333333333333],
+    ),
+    Color::new(
+        ColorSpace::Srgb,
+        [1.0, 0.333333333333333, 0.333333333333333],
+    ),
+    Color::new(
+        ColorSpace::Srgb,
+        [0.333333333333333, 1.0, 0.333333333333333],
+    ),
     Color::new(ColorSpace::Srgb, [1.0, 1.0, 0.333333333333333]),
-    Color::new(ColorSpace::Srgb, [0.333333333333333, 0.333333333333333, 1.0]),
+    Color::new(
+        ColorSpace::Srgb,
+        [0.333333333333333, 0.333333333333333, 1.0],
+    ),
     Color::new(ColorSpace::Srgb, [1.0, 0.333333333333333, 1.0]),
     Color::new(ColorSpace::Srgb, [0.333333333333333, 1.0, 1.0]),
     Color::new(ColorSpace::Srgb, [1.0, 1.0, 1.0]),
@@ -201,7 +255,7 @@ pub struct ColorMatcher {
 
 /// Create the coordinates for the 8-bit colors in the given color space.
 #[inline]
-fn eight_bit_coordinates(theme: &Theme, space: ColorSpace) -> (Vec<[Float;3]>, Vec<[Float; 3]>) {
+fn eight_bit_coordinates(theme: &Theme, space: ColorSpace) -> (Vec<[Float; 3]>, Vec<[Float; 3]>) {
     let ansi = (0..=15)
         .map(|n| *theme[AnsiColor::try_from(n).unwrap()].to(space).as_ref())
         .collect();
@@ -218,7 +272,7 @@ fn eight_bit_coordinates(theme: &Theme, space: ColorSpace) -> (Vec<[Float;3]>, V
         }))
         .collect();
 
-        (ansi, eight_bit)
+    (ansi, eight_bit)
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
@@ -247,7 +301,7 @@ impl ColorMatcher {
     /// for the embedded RGB colors, and 24 for the gray gradient, all in the
     /// requested color space.
     #[cfg(not(feature = "pyffi"))]
-    pub fn new(theme: &Theme, ok_version: &OkVersion) -> Self {
+    pub fn new(theme: &Theme, ok_version: OkVersion) -> Self {
         let space = ok_version.cartesian_space();
         let (ansi, eight_bit) = eight_bit_coordinates(theme, space);
 
@@ -428,7 +482,7 @@ impl ColorMatcher {
     /// for r in 0..5 {
     ///     for g in 0..5 {
     ///         for b in 0..5 {
-    ///             let embedded = EmbeddedRgb::new(r, g, b);
+    ///             let embedded = EmbeddedRgb::new(r, g, b)?;
     ///             let color = Color::from(embedded);
     ///             assert_eq!(color.space(), ColorSpace::Srgb);
     ///
@@ -444,6 +498,7 @@ impl ColorMatcher {
     ///         }
     ///     }
     /// }
+    /// # Ok::<(), OutOfBoundsError>(())
     /// ```
     pub fn to_eight_bit(&self, color: &Color) -> EightBitColor {
         use crate::core::{delta_e_ok, find_closest};
@@ -464,7 +519,7 @@ mod test {
 
     #[test]
     fn test_matcher() -> Result<(), OutOfBoundsError> {
-        let matcher = ColorMatcher::new(&DEFAULT_THEME, &OkVersion::Revised);
+        let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
 
         let result = matcher.to_ansi(&Color::srgb(1.0, 1.0, 0.0));
         assert_eq!(result, AnsiColor::BrightYellow);

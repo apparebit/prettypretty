@@ -107,14 +107,17 @@ impl ColorSpace {
         )
     }
 
-    /// Determine whether this color space is one of the Ok*** color spaces.
+    /// Determine whether this color space is one of the Oklab variations.
     pub const fn is_ok(&self) -> bool {
         use ColorSpace::*;
         matches!(*self, Oklab | Oklch | Oklrab | Oklrch)
     }
 
-    /// Determine whether this color space is bounded. XYZ and the Okl*** color
-    /// spaces are *unbounded*, whereas the RGB color spaces are *bounded*.
+    /// Determine whether this color space is bounded. XYZ and the Oklab
+    /// variations are *unbounded* and hence can model any color, whereas the
+    /// RGB color spaces are *bounded* and hence colors may be in-gamut or
+    /// out-of-gamut. Conveniently, the coordinates of in-gamut RGB colors range
+    /// `0..=1`.
     pub const fn is_bounded(&self) -> bool {
         self.is_rgb()
     }

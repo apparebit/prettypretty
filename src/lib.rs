@@ -1,4 +1,6 @@
-#![doc(html_logo_url = "https://repository-images.githubusercontent.com/796446264/7483a099-9280-489e-b1b0-119497d8c2da")]
+#![doc(
+    html_logo_url = "https://repository-images.githubusercontent.com/796446264/7483a099-9280-489e-b1b0-119497d8c2da"
+)]
 
 //! # Pretty 🌸 Pretty
 //!
@@ -382,17 +384,18 @@
 //!
 //! ```
 //! # use prettypretty::{AnsiColor, Color, EightBitColor, EmbeddedRgb, GrayGradient};
+//! # use prettypretty::OutOfBoundsError;
 //! let red = AnsiColor::BrightRed;
 //! assert_eq!(u8::from(red), 9);
 //! // What's the color value of ANSI red? We don't know!
 //!
-//! let purple = EmbeddedRgb::new(3, 1, 4);
+//! let purple = EmbeddedRgb::new(3, 1, 4)?;
 //! let index = 16 + 3 * 36 + 1 * 6 + 4 * 1;
 //! assert_eq!(index, 134);
 //! assert_eq!(u8::from(purple), index);
 //! assert_eq!(Color::from(purple), Color::from_24bit(175, 95, 215));
 //!
-//! let gray = GrayGradient::new(18);
+//! let gray = GrayGradient::new(18)?;
 //! let index = 232 + 18;
 //! assert_eq!(index, 250);
 //! assert_eq!(gray.level(), 18);
@@ -409,6 +412,7 @@
 //! } else {
 //!     unreachable!("green is an embedded RGB color")
 //! }
+//! # Ok::<(), OutOfBoundsError>(())
 //! ```
 //! <div class=color-swatch>
 //! <div style="background: repeating-linear-gradient(45deg, #fff, #fff 10px, #fdd 10px, #fdd 20px);">
@@ -553,16 +557,14 @@ pub type Bits = u64;
 pub type Bits = u32;
 
 mod collection;
-mod object;
 mod core;
+mod object;
 mod term_color;
 
 pub use collection::{ColorMatcher, Layer, Theme, DEFAULT_THEME};
-pub use object::{parse_color, Color, Interpolator, OkVersion};
 pub use core::{ColorFormatError, ColorSpace, HueInterpolation};
-pub use term_color::{
-    AnsiColor, EightBitColor, EmbeddedRgb, GrayGradient, OutOfBoundsError,
-};
+pub use object::{Color, Interpolator, OkVersion};
+pub use term_color::{AnsiColor, EightBitColor, EmbeddedRgb, GrayGradient, OutOfBoundsError};
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
@@ -572,7 +574,6 @@ use pyo3::prelude::*;
 #[cfg(feature = "pyffi")]
 #[pymodule]
 pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(parse_color, m)?)?;
     m.add_class::<AnsiColor>()?;
     m.add_class::<Color>()?;
     m.add_class::<ColorMatcher>()?;
