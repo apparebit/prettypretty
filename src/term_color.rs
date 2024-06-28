@@ -9,7 +9,7 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use crate::{Color, Theme};
+use crate::{Color, Float, Theme};
 
 /// An out-of-bounds error.
 ///
@@ -85,6 +85,26 @@ impl From<OutOfBoundsError> for PyErr {
 /// high-resolution colors requires additional machinery, provided by
 /// [`Theme`](crate::Theme).
 ///
+/// <style>
+/// .python-only::before, .rust-only::before {
+///     font-size: 0.8em;
+///     display: inline-block;
+///     border-radius: 0.5em;
+///     padding: 0 0.6em;
+///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
+///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
+///     font-weight: bold;
+/// }
+/// .python-only::before {
+///     content: "Python only!";
+///     background: #84c5fb;
+/// }
+/// .rust-only::before {
+///     content: "Rust only!";
+///     background: #f0ac84;
+/// }
+/// </style>
+///
 /// # Black and White
 ///
 /// Despite their names, *white* and *bright black* usually aren't white and
@@ -117,7 +137,8 @@ pub enum AnsiColor {
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl AnsiColor {
-    /// Instantiate an ANSI color from its 8-bit code.
+    /// Instantiate an ANSI color from its 8-bit code. <span
+    /// class=python-only></span>
     ///
     /// This method offers the same functionality as [`TryFrom<u8> as
     /// AnsiColor`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) and
@@ -127,7 +148,7 @@ impl AnsiColor {
         Self::try_from(value)
     }
 
-    /// Get the 8-bit code for this ANSI color.
+    /// Get the 8-bit code for this ANSI color. <span class=python-only></span>
     ///
     /// This method offers the same functionality as [`From<AnsiColor> as
     /// u8`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8) and is
@@ -190,6 +211,23 @@ impl From<AnsiColor> for u8 {
 ///     display: flex;
 ///     align-items: center;
 ///     justify-content: center;
+/// }
+/// .python-only::before, .rust-only::before {
+///     font-size: 0.8em;
+///     display: inline-block;
+///     border-radius: 0.5em;
+///     padding: 0 0.6em;
+///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
+///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
+///     font-weight: bold;
+/// }
+/// .python-only::before {
+///     content: "Python only!";
+///     background: #84c5fb;
+/// }
+/// .rust-only::before {
+///     content: "Rust only!";
+///     background: #f0ac84;
 /// }
 /// </style>
 ///
@@ -274,7 +312,8 @@ impl EmbeddedRgb {
         }
     }
 
-    /// Instantiate an embedded RGB color from its 8-bit code.
+    /// Instantiate an embedded RGB color from its 8-bit code. <span
+    /// class=python-only></span>
     ///
     /// This method offers the same functionality as [`TryFrom<u8> as
     /// EmbeddedRgb`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
@@ -284,7 +323,8 @@ impl EmbeddedRgb {
         Self::try_from(value)
     }
 
-    /// Get the 8-bit code for this embedded RGB color.
+    /// Get the 8-bit code for this embedded RGB color. <span
+    /// class=python-only></span>
     ///
     /// This method offers the same functionality as [`From<EmbeddedRgb> as
     /// u8`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8) and is
@@ -293,7 +333,8 @@ impl EmbeddedRgb {
         u8::from(*self)
     }
 
-    /// Convert this embedded RGB color to a high-resolution color.
+    /// Convert this embedded RGB color to a high-resolution color. <span
+    /// class=python-only></span>
     ///
     /// This method offers the same functionality as [`From<EmbeddedRgb> as
     /// Color`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color)
@@ -302,7 +343,8 @@ impl EmbeddedRgb {
         Color::from(*self)
     }
 
-    /// Get this embedded RGB color's length, which is 3.
+    /// Get this embedded RGB color's length, which is 3. <span
+    /// class=python-only></span>
     ///
     /// This method improves integration with Python's runtime and hence is
     /// available in Python only.
@@ -310,7 +352,7 @@ impl EmbeddedRgb {
         3
     }
 
-    /// Get the coordinate at the given index.
+    /// Get the coordinate at the given index. <span class=python-only></span>
     ///
     /// This method improves integration with Python's runtime and hence is
     /// available in Python only.
@@ -423,6 +465,23 @@ impl From<EmbeddedRgb> for Color {
 ///     align-items: center;
 ///     justify-content: center;
 /// }
+/// .python-only::before, .rust-only::before {
+///     font-size: 0.8em;
+///     display: inline-block;
+///     border-radius: 0.5em;
+///     padding: 0 0.6em;
+///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
+///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
+///     font-weight: bold;
+/// }
+/// .python-only::before {
+///     content: "Python only!";
+///     background: #84c5fb;
+/// }
+/// .rust-only::before {
+///     content: "Rust only!";
+///     background: #f0ac84;
+/// }
 /// </style>
 ///
 /// # Examples
@@ -498,7 +557,8 @@ impl GrayGradient {
         }
     }
 
-    /// Instantiate a gray gradient from its 8-bit code.
+    /// Instantiate a gray gradient from its 8-bit code. <span
+    /// class=python-only></span>
     ///
     /// This method offers the same functionality as [`TryFrom<u8> as
     /// GrayGradient`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
@@ -508,7 +568,8 @@ impl GrayGradient {
         Self::try_from(value)
     }
 
-    /// Get the 8-bit code for this gray gradient color.
+    /// Get the 8-bit code for this gray gradient color. <span
+    /// class=python-only></span>
     ///
     /// This method offers the same functionality as [`From<GrayGradient> as
     /// u8`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8) and is
@@ -518,7 +579,8 @@ impl GrayGradient {
         u8::from(*self)
     }
 
-    /// Convert this gray gradient to a high-resolution color.
+    /// Convert this gray gradient to a high-resolution color. <span
+    /// class=python-only></span>
     ///
     /// This method offers the same functionality as [`From<GrayGradient> as
     /// Color`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Color)
@@ -599,6 +661,23 @@ impl From<GrayGradient> for Color {
 ///     align-items: center;
 ///     justify-content: center;
 /// }
+/// .python-only::before, .rust-only::before {
+///     font-size: 0.8em;
+///     display: inline-block;
+///     border-radius: 0.5em;
+///     padding: 0 0.6em;
+///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
+///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
+///     font-weight: bold;
+/// }
+/// .python-only::before {
+///     content: "Python only!";
+///     background: #84c5fb;
+/// }
+/// .rust-only::before {
+///     content: "Rust only!";
+///     background: #f0ac84;
+/// }
 /// </style>
 ///
 /// # Black and White
@@ -638,7 +717,8 @@ pub enum EightBitColor {
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl EightBitColor {
-    /// Instantiate an 8-bit color from its numeric code.
+    /// Instantiate an 8-bit color from its numeric code. <span
+    /// class=python-only></span>
     ///
     /// This method offers the same functionality as [`From<u8> as
     /// EightBitColor`](enum.EightBitColor.html#impl-From%3Cu8%3E-for-EightBitColor)
@@ -649,7 +729,8 @@ impl EightBitColor {
         Self::from(value)
     }
 
-    /// Get the numeric code for this 8-bit color.
+    /// Get the numeric code for this 8-bit color. <span
+    /// class=python-only></span>
     ///
     /// This method offers the same functionality as [`From<EightBitColor> as
     /// u8`](enum.EightBitColor.html#impl-From%3CEightBitColor%3E-for-u8) and is
@@ -659,11 +740,43 @@ impl EightBitColor {
         u8::from(*self)
     }
 
+    /// Convert this 8-bit color to a 3+1-bit RGB color.
+    ///
+    /// This method treats embedded RGB and gray gradient colors as RGB colors,
+    /// downsamples them to 3-bit RGB, i.e., one bit per component, and then
+    /// uses the magnitude of the corresponding integer as signal for possibly
+    /// switching to bright colors, i.e., the +1-bit. While pretty coarse, this
+    /// heuristic is already more sophisticated than the one employed by
+    /// [Chalk](https://github.com/chalk/chalk/blob/main/source/vendor/ansi-styles/index.js),
+    /// one of the more popular terminal color libraries for JavaScript.
+    pub fn to_4bit_rgb(&self) -> AnsiColor {
+        let (r, g, b) = match *self {
+            Self::Ansi(color) => return color,
+            Self::Rgb(color) => {
+                (color[0] as Float / 5.0, color[1] as Float / 5.0, color[2] as Float / 5.0)
+            }
+            Self::Gray(color) => {
+                let c = color.level() as Float / 23.0;
+                (c, c, c)
+            }
+        };
+
+        // (0..=1).round() effectively downsamples to 1-bit per component.
+        // Then shift bits into 3-bit binary number, b most significant.
+        let mut c = (b.round() as u8) << 2 + (g.round() as u8) << 1 + r.round() as u8;
+        // Use magnitude of bgr to maybe switch (+1 bit) to bright colors.
+        if c >= 2 {
+            c += 8;
+        }
+
+        AnsiColor::try_from(c).unwrap()
+    }
+
     /// Convert this 8-bit color to a high-resolution color.
     ///
     /// Since the 16 extended ANSI colors do not have intrinsic color values,
     /// this method requires access to the current color theme for possibly
-    /// looking up a color value.
+    /// resolving an ANSI color to its current value.
     pub fn to_color(&self, theme: &Theme) -> Color {
         match *self {
             Self::Ansi(color) => theme[color].clone(),

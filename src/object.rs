@@ -81,6 +81,23 @@ use crate::Float;
 ///     align-items: center;
 ///     justify-content: center;
 /// }
+/// .python-only::before, .rust-only::before {
+///     font-size: 0.8em;
+///     display: inline-block;
+///     border-radius: 0.5em;
+///     padding: 0 0.6em;
+///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
+///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
+///     font-weight: bold;
+/// }
+/// .python-only::before {
+///     content: "Python only!";
+///     background: #84c5fb;
+/// }
+/// .rust-only::before {
+///     content: "Rust only!";
+///     background: #f0ac84;
+/// }
 /// </style>
 #[cfg_attr(feature = "pyffi", pyclass(eq, sequence))]
 #[derive(Clone, Debug)]
@@ -129,7 +146,7 @@ impl Color {
         Self { space, coordinates }
     }
 
-    /// Parse a color from its string representation.
+    /// Parse a color from its string representation. <span class=python-only></span>
     ///
     /// This method implements the same functionality as `Color`'s [`Color as
     /// FromStr`](struct.Color.html#impl-FromStr-for-Color) and is available in
@@ -687,7 +704,8 @@ impl Color {
     // The following methods are only defined under the pyffi feature, since
     // they implement Python-specific dunder methods.
 
-    /// Convert this color to its debug representation.
+    /// Convert this color to its debug representation. <span
+    /// class=python-only></span>
     ///
     /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
@@ -695,7 +713,8 @@ impl Color {
         format!("{:?}", self)
     }
 
-    /// Convert this color to its (CSS-based) string representation.
+    /// Convert this color to its (CSS-based) string representation. <span
+    /// class=python-only></span>
     ///
     /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
@@ -703,7 +722,7 @@ impl Color {
         format!("{}", self)
     }
 
-    /// Get this color's length, which is 3.
+    /// Get this color's length, which is 3. <span class=python-only></span>
     ///
     /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
@@ -711,7 +730,7 @@ impl Color {
         3
     }
 
-    /// Read coordinates by index.
+    /// Read coordinates by index. <span class=python-only></span>
     ///
     /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
@@ -731,7 +750,7 @@ impl Color {
 
 impl Color {
     /// Instantiate a new sRGB color with the given red, green, and blue
-    /// coordinates.
+    /// coordinates. <span class=rust-only></span>
     ///
     /// This convenience constructor is available in Rust only.
     ///
@@ -751,7 +770,7 @@ impl Color {
     }
 
     /// Instantiate a new Display P3 color with the given red, green, and blue
-    /// coordinates.
+    /// coordinates. <span class=rust-only></span>
     ///
     /// This convenience constructor is available in Rust only.
     ///
@@ -771,7 +790,7 @@ impl Color {
     }
 
     /// Instantiate a new Oklab color with the given lightness L, a, and b
-    /// coordinates.
+    /// coordinates. <span class=rust-only></span>
     ///
     /// This convenience constructor is available in Rust only.
     ///
@@ -791,7 +810,7 @@ impl Color {
     }
 
     /// Instantiate a new Oklrab color with the given revised lightness Lr, a,
-    /// and b coordinates.
+    /// and b coordinates. <span class=rust-only></span>
     ///
     /// This convenience constructor is available in Rust only.
     ///
@@ -815,7 +834,7 @@ impl Color {
     }
 
     /// Instantiate a new Oklch color with the given lightness L, chroma C, and
-    /// hue h coordinates.
+    /// hue h coordinates. <span class=rust-only></span>
     ///
     /// This convenience constructor is available in Rust only.
     ///
@@ -835,7 +854,7 @@ impl Color {
     }
 
     /// Instantiate a new Oklrch color with the given revised lightness Lr,
-    /// chroma C, and hue h coordinates.
+    /// chroma C, and hue h coordinates. <span class=rust-only></span>
     ///
     /// This convenience constructor is available in Rust only.
     ///
@@ -862,6 +881,7 @@ impl Color {
     }
 
     /// Find the index position of the candidate color closest to this color.
+    /// <span class=rust-only></span>
     ///
     /// This method delegates to [`Color::find_closest`] using the Delta E
     /// metric for Oklab/Oklrab, which is the Euclidian distance.
@@ -906,6 +926,7 @@ impl Color {
     }
 
     /// Find the index position of the candidate color closest to this color.
+    /// <span class=rust-only></span>
     ///
     /// This method compares this color to every candidate color by computing
     /// the distance with the given function and returns the index position of
