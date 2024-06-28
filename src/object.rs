@@ -88,7 +88,7 @@ use crate::Float;
 ///     padding: 0 0.6em;
 ///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
 ///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
-///     font-weight: bold;
+///     font-weight: 600;
 /// }
 /// .python-only::before {
 ///     content: "Python only!";

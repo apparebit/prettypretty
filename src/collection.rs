@@ -29,6 +29,26 @@ pub enum Layer {
 /// By itself, a theme enables the conversion of ANSI colors to high-resolution
 /// colors. Through a [`ColorMatcher`], a theme also enables the (lossy)
 /// conversion of high-resolution colors to ANSI and 8-bit colors.
+///
+/// <style>
+/// .python-only::before, .rust-only::before {
+///     font-size: 0.8em;
+///     display: inline-block;
+///     border-radius: 0.5em;
+///     padding: 0 0.6em;
+///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
+///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
+///     font-weight: 600;
+/// }
+/// .python-only::before {
+///     content: "Python only!";
+///     background: #84c5fb;
+/// }
+/// .rust-only::before {
+///     content: "Rust only!";
+///     background: #f0ac84;
+/// }
+/// </style>
 #[cfg_attr(feature = "pyffi", pyclass(eq, sequence))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Theme {
@@ -49,7 +69,7 @@ impl Theme {
         Theme { colors }
     }
 
-    /// Instantiate a new default theme.
+    /// Instantiate a new default theme. <span class=python-only></span>
     ///
     /// This method implements the same functionality as [`Theme as
     /// Default`](struct.Theme.html#impl-Default-for-Theme), is available in
@@ -60,14 +80,15 @@ impl Theme {
         Self::default()
     }
 
-    /// Determine the length of this theme, which is 18.
+    /// Determine the length of this theme, which is 18. <span
+    /// class=python-only></span>
     ///
     /// This method is available in Python only.
     pub fn __len__(&self) -> usize {
         18
     }
 
-    /// Get the color at the given index.
+    /// Get the color at the given index. <span class=python-only></span>
     ///
     /// This method clones the indexed color. It is available in Python only.
     pub fn __getitem__(&self, index: usize) -> PyResult<Color> {
@@ -80,7 +101,7 @@ impl Theme {
         }
     }
 
-    /// Set the color at the given index.
+    /// Set the color at the given index. <span class=python-only></span>
     ///
     /// This method clones the given color. It is available in Python only.
     pub fn __setitem__(&mut self, index: usize, color: &Color) -> PyResult<()> {
@@ -92,6 +113,14 @@ impl Theme {
                 "theme index out of bounds 0..18",
             ))
         }
+    }
+
+    /// Convert this color theme to its debug representation. <span
+    /// class=python-only></span>
+    ///
+    /// This method is available from Python only.
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
     }
 }
 
@@ -243,6 +272,23 @@ pub const DEFAULT_THEME: Theme = Theme::new([
 ///     display: flex;
 ///     align-items: center;
 ///     justify-content: center;
+/// }
+/// .python-only::before, .rust-only::before {
+///     font-size: 0.8em;
+///     display: inline-block;
+///     border-radius: 0.5em;
+///     padding: 0 0.6em;
+///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
+///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
+///     font-weight: 600;
+/// }
+/// .python-only::before {
+///     content: "Python only!";
+///     background: #84c5fb;
+/// }
+/// .rust-only::before {
+///     content: "Rust only!";
+///     background: #f0ac84;
 /// }
 /// </style>
 #[cfg_attr(feature = "pyffi", pyclass)]

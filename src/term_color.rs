@@ -93,7 +93,7 @@ impl From<OutOfBoundsError> for PyErr {
 ///     padding: 0 0.6em;
 ///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
 ///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
-///     font-weight: bold;
+///     font-weight: 600;
 /// }
 /// .python-only::before {
 ///     content: "Python only!";
@@ -219,7 +219,7 @@ impl From<AnsiColor> for u8 {
 ///     padding: 0 0.6em;
 ///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
 ///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
-///     font-weight: bold;
+///     font-weight: 600;
 /// }
 /// .python-only::before {
 ///     content: "Python only!";
@@ -365,6 +365,14 @@ impl EmbeddedRgb {
             )),
         }
     }
+
+    /// Convert this embedded RGB color to its debug representation. <span
+    /// class=python-only></span>
+    ///
+    /// This method is available from Python only.
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
 }
 
 #[cfg(not(feature = "pyffi"))]
@@ -472,7 +480,7 @@ impl From<EmbeddedRgb> for Color {
 ///     padding: 0 0.6em;
 ///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
 ///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
-///     font-weight: bold;
+///     font-weight: 600;
 /// }
 /// .python-only::before {
 ///     content: "Python only!";
@@ -595,6 +603,14 @@ impl GrayGradient {
     pub const fn level(&self) -> u8 {
         self.0
     }
+
+    /// Convert this gray gradient to its debug representation. <span
+    /// class=python-only></span>
+    ///
+    /// This method is available from Python only.
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
 }
 
 #[cfg(not(feature = "pyffi"))]
@@ -668,7 +684,7 @@ impl From<GrayGradient> for Color {
 ///     padding: 0 0.6em;
 ///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
 ///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
-///     font-weight: bold;
+///     font-weight: 600;
 /// }
 /// .python-only::before {
 ///     content: "Python only!";
@@ -763,7 +779,7 @@ impl EightBitColor {
 
         // (0..=1).round() effectively downsamples to 1-bit per component.
         // Then shift bits into 3-bit binary number, b most significant.
-        let mut c = (b.round() as u8) << 2 + (g.round() as u8) << 1 + r.round() as u8;
+        let mut c = ((b.round() as u8) << 2) + ((g.round() as u8) << 1) + (r.round() as u8);
         // Use magnitude of bgr to maybe switch (+1 bit) to bright colors.
         if c >= 2 {
             c += 8;

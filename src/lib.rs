@@ -54,6 +54,23 @@
 //!     height: 1em;
 //!     width: 1em;
 //! }
+//! .python-only::before, .rust-only::before {
+//!     font-size: 0.8em;
+//!     display: inline-block;
+//!     border-radius: 0.5em;
+//!     padding: 0 0.6em;
+//!     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
+//!         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
+//!     font-weight: 600;
+//! }
+//! .python-only::before {
+//!     content: "Python only!";
+//!     background: #84c5fb;
+//! }
+//! .rust-only::before {
+//!     content: "Rust only!";
+//!     background: #f0ac84;
+//! }
 //! </style>
 //! <div class=color-swatch>
 //! <div style="background-color: oklch(0.716 0.349 335);"></div>
@@ -479,20 +496,30 @@
 //!
 //! This crate has two features:
 //!
-//!   - **`f32`**: When this feature is enabled, the entire crate uses `f32`
-//!     instead of `f64`. In either case, the currently active floating point
-//!     type is [`Float`] and its corresponding unsigned integer bits are
-//!     [`Bits`].
+//!   - **`f64`**: When this feature is disabled, the entire crate uses `f32`
+//!     instead of the default `f64`. In either case, the currently active
+//!     floating point type is [`Float`] and the same-sized unsigned integer
+//!     bits are [`Bits`].
 //!   - **`pyffi`**: When this feature is enabled, this crate uses
 //!     [PyO3](https://pyo3.rs/) to export an extension module for Python that
 //!     makes this crate's Rust-based colors available in Python.
 //!
-//! The latter neatly solves the problem posed by separate Python and Rust
-//! implementations of the same functionality. They at least double the
-//! maintenance effort and are bound to drift apart over time. In fact, they
-//! already did so during the few weeks I focused on getting the Rust
-//! implementation off the ground, with only the Rust version ever gaining
-//! support for Oklrab, Oklrch, Rec. 2020, and linear Rec. 2020.
+//! The second feature makes it possible to satisfy the need for easily scripted
+//! as well as for strictly checked and fast from one and the same code base,
+//! which is great. Furthermore, the extent of PyO3's integration between Rust
+//! and Python goes well beyond that of other FFIs, which is even better. Alas,
+//! getting everything to work nicely still required a painful amount of `cfg()`
+//! annotations, a fair number of language-specific methods, and some outright
+//! code duplication, which was disappointing.
+//!
+//! Furthermore, while the Rust and Python versions largely implement the same
+//! features (with only two methods currently unavailable from Python), the two
+//! versions nonetheless differ substantially. Notably, the Rust version makes
+//! extensive use of standard library traits such as `From` and `TryFrom`. Since
+//! Python does not include similar language features, that same functionality
+//! needs to be provided by regular methods. The documentation tags such
+//! Python-only methods as <span class=python-only></span> and the few Rust-only
+//! methods as <span class=rust-only></span>.
 //!
 //!
 //! ## 5. BYOIO: Bring Your Own (Terminal) I/O
@@ -543,17 +570,17 @@
 //! their work, I could not have gotten as far as quickly. Thank you! 🌸
 
 /// The floating point type in use.
-#[cfg(not(feature = "f32"))]
+#[cfg(feature = "f64")]
 pub type Float = f64;
 /// The floating point type in use.
-#[cfg(feature = "f32")]
+#[cfg(not(feature = "f64"))]
 pub type Float = f32;
 
 /// [`Float`]'s bits.
-#[cfg(not(feature = "f32"))]
+#[cfg(feature = "f64")]
 pub type Bits = u64;
 /// [`Float`]'s bits.
-#[cfg(feature = "f32")]
+#[cfg(not(feature = "f64"))]
 pub type Bits = u32;
 
 mod collection;
