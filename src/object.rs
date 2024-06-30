@@ -159,6 +159,131 @@ impl Color {
         Color::from_str(s)
     }
 
+    /// Instantiate a new sRGB color with the given red, green, and blue
+    /// coordinates.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let fire_brick = Color::srgb(177.0/255.0, 31.0/255.0, 36.0/255.0);
+    /// assert_eq!(fire_brick.space(), ColorSpace::Srgb);
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: rgb(177 31 36);"></div>
+    /// </div>
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn srgb(r: Float, g: Float, b: Float) -> Self {
+        Self::new(ColorSpace::Srgb, [r, g, b])
+    }
+
+    /// Instantiate a new Display P3 color with the given red, green, and blue
+    /// coordinates.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let cyan = Color::p3(0, 0.87, 0.85);
+    /// assert_eq!(cyan.space(), ColorSpace::DisplayP3);
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(display-p3 0 0.87 0.85);"></div>
+    /// </div>
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn p3(r: Float, g: Float, b: Float) -> Self {
+        Self::new(ColorSpace::DisplayP3, [r, g, b])
+    }
+
+    /// Instantiate a new Oklab color with the given lightness L, a, and b
+    /// coordinates.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let sky = Color::oklab(0.78, -0.1, -0.1);
+    /// assert_eq!(sky.space(), ColorSpace::Oklab);
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklab(0.78 -0.1 -0.1);"></div>
+    /// </div>
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn oklab(l: Float, a: Float, b: Float) -> Self {
+        Self::new(ColorSpace::Oklab, [l, a, b])
+    }
+
+    /// Instantiate a new Oklrab color with the given revised lightness Lr, a,
+    /// and b coordinates.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let turquoise = Color::oklrab(0.48, -0.1, -0.1);
+    /// assert_eq!(turquoise.space(), ColorSpace::Oklrab);
+    /// assert!(
+    ///     (turquoise.to(ColorSpace::Oklab).as_ref()[0] - 0.5514232757779728).abs()
+    ///     < 1e-13
+    /// );
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklab(0.5514232757779728 -0.1 -0.1);"></div>
+    /// </div>
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn oklrab(lr: Float, a: Float, b: Float) -> Self {
+        Self::new(ColorSpace::Oklab, [lr, a, b])
+    }
+
+    /// Instantiate a new Oklch color with the given lightness L, chroma C, and
+    /// hue h coordinates.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let olive = Color::oklch(0.59, 0.1351, 126);
+    /// assert_eq!(olive.space(), ColorSpace::Oklch);
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklch(0.59 0.1351 126);"></div>
+    /// </div>
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn oklch(l: Float, c: Float, h: Float) -> Self {
+        Self::new(ColorSpace::Oklch, [l, c, h])
+    }
+
+    /// Instantiate a new Oklrch color with the given revised lightness Lr,
+    /// chroma C, and hue h coordinates.
+    ///
+    /// # Examples
+    ///
+    /// When you compare the example code below with that for [`Color::oklch`],
+    /// the impact of revised lightness becomes plainly visible, with Oklrch
+    /// producing a clearly lighter olive tone at the same magnitude of
+    /// lightness. In other words, Oklrab and Oklrch decompress lighter tones
+    /// while compressing darker ones.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let olive = Color::oklrch(0.59, 0.1351, 126);
+    /// let same_olive = olive.to(ColorSpace::Oklch);
+    /// assert_eq!(same_olive, Color::oklch(0.6469389611084363, 0.1351, 126));
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklch(0.647 0.1351 126);"></div>
+    /// </div>
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn oklrch(lr: Float, c: Float, h: Float) -> Self {
+        Self::new(ColorSpace::Oklch, [lr, c, h])
+    }
+
     /// Instantiate a new sRGB color from its 24-bit representation.
     ///
     /// This function returns a new sRGB color with the given red, green, and
@@ -738,11 +863,12 @@ impl Color {
 // --------------------------------------------------------------------------------------------------------------------
 // Methods that are only available to Rust code.
 
+// Use separate block, so that methods are not exposed to Python.
+// Use cfg(), so that methods are not documented again.
+#[cfg(not(feature = "pyffi"))]
 impl Color {
     /// Instantiate a new sRGB color with the given red, green, and blue
-    /// coordinates. <span class=rust-only></span>
-    ///
-    /// This convenience constructor is available in Rust only.
+    /// coordinates.
     ///
     /// # Examples
     ///
@@ -760,9 +886,7 @@ impl Color {
     }
 
     /// Instantiate a new Display P3 color with the given red, green, and blue
-    /// coordinates. <span class=rust-only></span>
-    ///
-    /// This convenience constructor is available in Rust only.
+    /// coordinates.
     ///
     /// # Examples
     ///
@@ -780,9 +904,7 @@ impl Color {
     }
 
     /// Instantiate a new Oklab color with the given lightness L, a, and b
-    /// coordinates. <span class=rust-only></span>
-    ///
-    /// This convenience constructor is available in Rust only.
+    /// coordinates.
     ///
     /// # Examples
     ///
@@ -800,9 +922,7 @@ impl Color {
     }
 
     /// Instantiate a new Oklrab color with the given revised lightness Lr, a,
-    /// and b coordinates. <span class=rust-only></span>
-    ///
-    /// This convenience constructor is available in Rust only.
+    /// and b coordinates.
     ///
     /// # Examples
     ///
@@ -824,9 +944,7 @@ impl Color {
     }
 
     /// Instantiate a new Oklch color with the given lightness L, chroma C, and
-    /// hue h coordinates. <span class=rust-only></span>
-    ///
-    /// This convenience constructor is available in Rust only.
+    /// hue h coordinates.
     ///
     /// # Examples
     ///
@@ -844,9 +962,7 @@ impl Color {
     }
 
     /// Instantiate a new Oklrch color with the given revised lightness Lr,
-    /// chroma C, and hue h coordinates. <span class=rust-only></span>
-    ///
-    /// This convenience constructor is available in Rust only.
+    /// chroma C, and hue h coordinates.
     ///
     /// # Examples
     ///
@@ -869,7 +985,11 @@ impl Color {
     pub fn oklrch(lr: impl Into<Float>, c: impl Into<Float>, h: impl Into<Float>) -> Self {
         Self::new(ColorSpace::Oklrch, [lr.into(), c.into(), h.into()])
     }
+}
 
+// Use separate block, so that methods are not exposed to Python.
+// Do not use cfg(), so that methods are documented.
+impl Color {
     /// Find the index position of the candidate color closest to this color.
     /// <span class=rust-only></span>
     ///
