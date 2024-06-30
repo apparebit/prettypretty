@@ -17,7 +17,8 @@
 //! explicit color spaces:
 //!
 //!   * [`ColorSpace`] enumerates supported color spaces.
-//!   * [`Color`] adds `f64` coordinates to precisely represent colors.
+//!   * [`Color`] combines a color space and floating point coordinates into
+//!     a precise color representation.
 //!
 //! The example below instantiates a color in the polar Oklch color space. It
 //! then converts the color to Display P3 and tests whether it is in gamut—it
@@ -94,12 +95,26 @@
 //!
 //! ## 2. Terminal Colors
 //!
-//! In contrast to high-resolution colors, terminal color formats from the 1970s
-//! and 1980s may not even have coordinates, only integer index values. They are
-//! represented through the following abstractions:
+//! In contrast to high-resolution colors, which fit into a nicely uniform
+//! representation with three coordinates, terminal color formats from the 1970s
+//! and 1980s may not even have coordinates, only integer index values. ANSI
+//! escape codes support four different kinds of colors:
 //!
-//!   * [`EightBitColor`] combines [`AnsiColor`], [`EmbeddedRgb`], and
-//!     [`GrayGradient`] to represent 8-bit colors.
+//!   * [`TerminalColor::Default`], i.e., the default foreground and background
+//!     colors.
+//!   * [`AnsiColor`], i.e., the 16 extended ANSI colors.
+//!   * 8-bit indexed colors, which comprise [`AnsiColor`], [`EmbeddedRgb`],
+//!     and [`GrayGradient`].
+//!   * [`TrueColor`], i.e., 24-bit RGB colors.
+//!
+//! Treating these color types uniformly requires another one:
+//!
+//!   * [`TerminalColor`] combines the different types of terminal colors into
+//!     one coherent type.
+//!
+//! [`TerminalColor::Default`] represents the default foreground and background
+//! colors. They have their own ANSI escape codes and hence are distinct from
+//! the ANSI colors. Typically, they can also be independently themed.
 //!
 //! [`AnsiColor`] represents the 16 extended ANSI colors. They are eight base
 //! colors—black, red, green, yellow, blue, magenta, cyan, and white—and their
@@ -377,30 +392,28 @@
 //! </div>
 //! </figure>
 //!
-//! By combining ANSI, embedded RGB, and gray gradient colors, [`EightBitColor`]
-//! covers the entire 8-bit code space. As a result, conversion from `u8` to
-//! `EightBitColor` is infallible, whereas it is fallible for the three
-//! component colors.
+//! [`TrueColor`] represents 24-bit RGB colors. Even in the early 1990s, when
+//! 24-bit graphic cards first became widely available, the term was a misnomer.
+//! For example, Kodak's [Photo CD](https://en.wikipedia.org/wiki/Photo_CD) was
+//! introduced at the same time and had a considerably wider gamut than the
+//! device RGB of graphic cards. Alas, the term lives on. Terminal emulators
+//! often advertise support for 16 million colors by setting the `COLORTERM`
+//! environment variable to `truecolor`.
 //!
-//! Many terminal emulators also support 24-bit RGB colors or "true color. Even
-//! in the early 1990s, when 24-bit graphic cards were first introduced, that
-//! term was a misnomer. For example, Kodak's [Photo
-//! CD](https://en.wikipedia.org/wiki/Photo_CD) was introduced at the same time
-//! and had a considerably wider gamut than the device RGB of graphic cards.
-//! Alas, the term lives on. Terminal emulators often advertise support for 16
-//! million colors by setting the `COLORTERM` environment variable to
-//! `truecolor`. This crate originally included a structure to represent such
-//! colors, but [`Color`] does just fine on its own thanks to
-//! [`Color::from_24bit`], [`Color::to_24bit`], and [`Color::to_hex_format`].
+//! [`TerminalColor`] combines the just listed types into a single coherent type
+//! for terminal colors. It does *not* model that ANSI colors can appear as
+//! themselves and as 8-bit indexed colors. This crate used to include the
+//! corresponding wrapper type, but it offered too little functionality to
+//! justify having a wrapper of a wrapper of a type.
 //!
-//! The example code below illustrates how [`AnsiColor`], [`EmbeddedRgb`],
-//! [`GrayGradient`], and [`EightBitColor`] abstract over the underlying 8-bit
-//! index space while also providing convenient access to RGB coordinates and
-//! gray levels. Embedded RGB and gray gradient colors also nicely convert to
-//! high-resolutions colors, but ANSI and therefore 8-bit colors do not.
+//! The example code below illustrates how [`AnsiColor`], [`EmbeddedRgb`], and
+//! [`GrayGradient`] abstract over the underlying 8-bit index space while also
+//! providing convenient access to RGB coordinates and gray levels. Embedded RGB
+//! and gray gradient colors also nicely convert to true as well as
+//! high-resolutions colors, but ANSI colors do not.
 //!
 //! ```
-//! # use prettypretty::{AnsiColor, Color, EightBitColor, EmbeddedRgb, GrayGradient};
+//! # use prettypretty::{AnsiColor, Color, EmbeddedRgb, GrayGradient, TerminalColor, TrueColor};
 //! # use prettypretty::OutOfBoundsError;
 //! let red = AnsiColor::BrightRed;
 //! assert_eq!(u8::from(red), 9);
@@ -410,6 +423,7 @@
 //! let index = 16 + 3 * 36 + 1 * 6 + 4 * 1;
 //! assert_eq!(index, 134);
 //! assert_eq!(u8::from(purple), index);
+//! assert_eq!(TrueColor::from(purple), TrueColor::new(175, 95, 215));
 //! assert_eq!(Color::from(purple), Color::from_24bit(175, 95, 215));
 //!
 //! let gray = GrayGradient::new(18)?;
@@ -417,14 +431,16 @@
 //! assert_eq!(index, 250);
 //! assert_eq!(gray.level(), 18);
 //! assert_eq!(u8::from(gray), index);
+//! assert_eq!(TrueColor::from(gray), TrueColor::new(188, 188, 188));
 //! assert_eq!(Color::from(gray), Color::from_24bit(188, 188, 188));
 //!
-//! let green = EightBitColor::from(71);
-//! assert!(matches!(green, EightBitColor::Rgb(_)));
-//! if let EightBitColor::Rgb(also_green) = green {
+//! let green = TerminalColor::from(71);
+//! assert!(matches!(green, TerminalColor::Rgb6(_)));
+//! if let TerminalColor::Rgb6(also_green) = green {
 //!     assert_eq!(also_green[0], 1);
 //!     assert_eq!(also_green[1], 3);
 //!     assert_eq!(also_green[2], 1);
+//!     assert_eq!(TrueColor::from(also_green), TrueColor::new(95, 175, 95));
 //!     assert_eq!(Color::from(also_green), Color::from_24bit(95, 175, 95));
 //! } else {
 //!     unreachable!("green is an embedded RGB color")
@@ -446,42 +462,49 @@
 //! To apply 2020s color science to terminal colors, we need to be able to
 //! convert them to high-resolution colors and back again:
 //!
-//!   * [`Theme`] provides high-resolution color values for the 16 extended ANSI
-//!     colors and terminal defaults.
-//!   * [`ColorMatcher`] stores high-resolution color values for all
-//!     8-bit terminal colors to find closest matching color.
+//!   * [`Theme`] provides high-resolution color values for the default
+//!     foreground, default background, and 16 extended ANSI colors.
+//!   * [`Downsampler`] stores high-resolution color values for all 8-bit
+//!     terminal colors to facilitate color matching.
 //!
 //! Terminal emulators address ANSI colors' lack of intrinsic color values by
 //! making colors configurable through [color
-//! themes](https://gogh-co.github.io/Gogh/). This crate takes the exact same
-//! approach. Though applications shouldn't require configuration and, as
-//! described in the next section, use ANSI escape codes to query the terminal
-//! for its current color theme instead. As the code example below illustrates,
-//! with such a color [`Theme`], converting ANSI colors to high-resolution
-//! colors becomes as simple as an index expression.
+//! themes](https://gogh-co.github.io/Gogh/). This crate takes the same
+//! approach, relying on color themes to provide high-resolution color values.
+//! But instead of configuring themes, applications should use ANSI escape codes
+//! to query the terminal for its current color theme. As the code example below
+//! illustrates, with such a color [`Theme`], converting ANSI colors to
+//! high-resolution colors becomes as simple as an index expression. It also
+//! does not loose precision.
 //!
 //! Conversion in the other direction, from high-resolution colors to terminal
-//! colors, requires two different strategies, depending on the targeted
-//! terminal color format's resolution. When targeting 24-bit color, the
-//! conversion from floating point to integer representations does incur loss of
-//! resolution. But the important part is to convert and gamut-map the source
-//! color to sRGB first. When targeting 8-bit and ANSI colors, there are so few
-//! candidates that searching for the closest match becomes practical.
-//! [`ColorMatcher`] collects and stores the necessary color values.
+//! colors, always entails some loss of precision. In the best case of
+//! converting colors that are in-gamut for sRGB to true color, that loss is
+//! mostly due to the conversion from floating point to integer coordinates and
+//! probably remains imperceptible. However, when source colors are out-of-gamut
+//! for sRGB or when the target are 8-bit or ANSI colors, the loss of precision
+//! may be considerable and the difference between source and target colors will
+//! be readily visible. To minimize divergence, this crate gamut-maps colors
+//! that are out-of-gamut for sRGB when converting to true colors.
 //!
-//! The example below illustrates the use of color theme and matcher for
+//! When converting to 8-bit or ANSI colors, there are not enough colors for
+//! gamut-mapping. But there are few enough colors for exhaustively searching
+//! for the best match. [`Downsampler`] stores the necessary color state and
+//! implements the search.
+//!
+//! The example below illustrates the use of color theme and sampler for
 //! conversion between ANSI colors and high-resolution colors.
 //!
 //! ```
-//! # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorMatcher, DEFAULT_THEME};
+//! # use prettypretty::{AnsiColor, Color, ColorFormatError, Downsampler, DEFAULT_THEME};
 //! # use prettypretty::OkVersion;
 //! # use std::str::FromStr;
 //! let red = &DEFAULT_THEME[AnsiColor::BrightRed];
 //! assert_eq!(red, &Color::srgb(1.0, 0.333333333333333, 0.333333333333333));
 //!
-//! let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
+//! let sampler = Downsampler::new(&DEFAULT_THEME, OkVersion::Revised);
 //! let yellow = Color::from_str("#FFE06C")?;
-//! let bright_yellow = matcher.to_ansi(&yellow);
+//! let bright_yellow = sampler.to_ansi(&yellow);
 //! assert_eq!(u8::from(bright_yellow), 11);
 //! # Ok::<(), ColorFormatError>(())
 //! ```
@@ -528,7 +551,7 @@
 //! include its own facilities for styled text or terminal I/O. Instead, it is
 //! designed to be a lightweight addition that focuses on color management only.
 //! To use this crate, an application must create its own instances of [`Theme`]
-//! and [`ColorMatcher`]. While this crate contains one default theme,
+//! and [`Downsampler`]. While this crate contains one default theme,
 //! surprisingly called [`DEFAULT_THEME`], that theme is suitable for tests but
 //! no more.
 //!
@@ -585,13 +608,17 @@ pub type Bits = u32;
 
 mod collection;
 mod core;
+mod error;
 mod object;
 mod term_color;
 
-pub use collection::{ColorMatcher, Layer, Theme, DEFAULT_THEME};
+pub use collection::{Downsampler, Theme, ThemeEntry, DEFAULT_THEME};
 pub use core::{ColorFormatError, ColorSpace, HueInterpolation};
+pub use error::OutOfBoundsError;
 pub use object::{Color, Interpolator, OkVersion};
-pub use term_color::{AnsiColor, EightBitColor, EmbeddedRgb, GrayGradient, OutOfBoundsError};
+pub use term_color::{
+    AnsiColor, EmbeddedRgb, Fidelity, GrayGradient, Layer, TerminalColor, TrueColor,
+};
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
@@ -603,15 +630,18 @@ use pyo3::prelude::*;
 pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AnsiColor>()?;
     m.add_class::<Color>()?;
-    m.add_class::<ColorMatcher>()?;
     m.add_class::<ColorSpace>()?;
-    m.add_class::<EightBitColor>()?;
+    m.add_class::<Downsampler>()?;
     m.add_class::<EmbeddedRgb>()?;
+    m.add_class::<Fidelity>()?;
     m.add_class::<GrayGradient>()?;
     m.add_class::<HueInterpolation>()?;
     m.add_class::<Interpolator>()?;
     m.add_class::<Layer>()?;
     m.add_class::<OkVersion>()?;
+    m.add_class::<TerminalColor>()?;
     m.add_class::<Theme>()?;
+    m.add_class::<ThemeEntry>()?;
+    m.add_class::<TrueColor>()?;
     Ok(())
 }
