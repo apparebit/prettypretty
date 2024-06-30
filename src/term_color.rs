@@ -63,8 +63,7 @@ pub enum AnsiColor {
     BrightWhite,
 }
 
-#[cfg(feature = "pyffi")]
-#[pymethods]
+#[cfg_attr(feature = "pyffi", pymethods)]
 impl AnsiColor {
     /// Instantiate an ANSI color from its 8-bit code. <span
     /// class=python-only></span>
@@ -72,6 +71,7 @@ impl AnsiColor {
     /// This method offers the same functionality as [`TryFrom<u8> as
     /// AnsiColor`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) and
     /// is available in Python only.
+    #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
         Self::try_from(value)
@@ -82,8 +82,26 @@ impl AnsiColor {
     /// This method offers the same functionality as [`From<AnsiColor> as
     /// u8`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8) and is
     /// available in Python only.
+    #[cfg(feature = "pyffi")]
     pub fn to_8bit(&self) -> u8 {
         *self as u8
+    }
+
+    /// Determine whether this ANSI color is bright.
+    pub fn is_bright(&self) -> bool {
+        *self as u8 >= 8
+    }
+
+    /// Get this ANSI color as nonbright.
+    ///
+    /// If this color is bright, this method returns the equivalent nonbright
+    /// color. Otherwise, it returns this color.
+    pub fn nonbright(&self) -> AnsiColor {
+        let mut index = *self as u8;
+        if index >= 8 {
+            index -= 8;
+        }
+        AnsiColor::try_from(index).unwrap()
     }
 }
 
@@ -929,16 +947,41 @@ impl TerminalColor {
         Self::Rgb256(TrueColor::new(r, g, b))
     }
 
+    /// Determine whether this terminal color is the default color.
+    pub fn is_default(&self) -> bool {
+        matches!(self, Self::Default())
+    }
+
+    /// Get the SGR parameters for this terminal color.
+    ///
+    /// This method determines the SGR parameters for setting the given layer,
+    /// i.e., foreground or background, to this terminal color. It returns 1, 3,
+    /// or 5 parameters that may be combined with other SGR parameters into one
+    /// escape sequence, as long as they are properly separated by semicolons.
+    pub fn sgr_parameters(&self, layer: Layer) -> Vec<u8> {
+        match self {
+            TerminalColor::Default() => vec![30 + layer.offset()],
+            TerminalColor::Ansi(c) => {
+                let base = if c.is_bright() { 90 } else { 30 } + layer.offset();
+                vec![base + c.nonbright() as u8]
+            }
+            TerminalColor::Rgb6(c) => {
+                vec![38 + layer.offset(), 5, u8::from(*c)]
+            }
+            TerminalColor::Gray(c) => {
+                vec![38 + layer.offset(), 5, u8::from(*c)]
+            }
+            TerminalColor::Rgb256(c) => {
+                vec![38 + layer.offset(), 2, c[0], c[1], c[2]]
+            }
+        }
+    }
+
     /// Convert to a debug representation. <span
     /// class=python-only></span>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
-    }
-
-    /// Determine whether this terminal color is the default color.
-    pub fn is_default(&self) -> bool {
-        matches!(self, Self::Default())
     }
 }
 
@@ -982,12 +1025,22 @@ impl From<&Color> for TerminalColor {
 
 /// The layer for rendering to the terminal.
 #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Layer {
     /// The foreground or text layer.
     Foreground = 0,
     /// The background layer.
     Background = 10,
+}
+
+impl Layer {
+    /// Determine the offset for this layer.
+    ///
+    /// The offset is added to CSI parameter values for foreground colors.
+    #[inline]
+    pub fn offset(&self) -> u8 {
+        *self as u8
+    }
 }
 
 /// The stylistic fidelity of terminal output.
@@ -1008,6 +1061,30 @@ pub enum Fidelity {
     EightBit,
     /// Full fidelity including 24-bit RGB color.
     Full,
+}
+
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl Fidelity {
+    /// Determine the fidelity required for rendering the given terminal color.
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn from_color(color: TerminalColor) -> Self {
+        match color {
+            TerminalColor::Default() | TerminalColor::Ansi(_) => Self::Ansi,
+            TerminalColor::Rgb6(_) | TerminalColor::Gray(_) => Self::EightBit,
+            TerminalColor::Rgb256(_) => Self::Full,
+        }
+    }
+
+    /// Determine the fidelity required for rendering the given terminal color.
+    #[cfg(not(feature = "pyffi"))]
+    pub fn from_color(color: TerminalColor) -> Self {
+        match color {
+            TerminalColor::Default() | TerminalColor::Ansi(_) => Self::Ansi,
+            TerminalColor::Rgb6(_) | TerminalColor::Gray(_) => Self::EightBit,
+            TerminalColor::Rgb256(_) => Self::Full,
+        }
+    }
 }
 
 // ====================================================================================================================
