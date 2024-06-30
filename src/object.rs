@@ -198,27 +198,22 @@ impl Color {
         Self::new(ColorSpace::Srgb, from_24bit(r, g, b))
     }
 
-    /// Convert this RGB color to 24-bit representation.
+    /// Convert this color to 24-bit RGB representation.
     ///
-    /// If the color is an RGB color, this function converts the coordinates to
-    /// unsigned bytes. It normalizes the color before conversion and implicitly
-    /// clips out-of-gamut coordinates, which become either `0x00` or
-    /// `0xff`.
-    ///
-    /// If the color is not an RGB color, this function returns `None`.
-    pub fn to_24bit(&self) -> Option<[u8; 3]> {
-        if self.space.is_rgb() {
-            Some(to_24bit(self.space, &self.coordinates))
-        } else {
-            None
-        }
+    /// This method converts the color to a gamut-mapped sRGB color before
+    /// converting each coordinate to a `u8`.
+    pub fn to_24bit(&self) -> [u8; 3] {
+        to_24bit(
+            ColorSpace::Srgb,
+            self.to(ColorSpace::Srgb).to_gamut().as_ref(),
+        )
     }
 
     /// Format this color in familiar `#123abc` hashed hexadecimal representation.
     ///
-    /// Since hashed hexadecimal representation requires that a color is an
-    /// in-gamut sRGB color, this method first converts this color to
-    /// gamut-mapped sRGB. As part of that conversion, it normalizes the color.
+    /// Like [`Color::to_24bit`], this method converts the color to a
+    /// gamut-mapped sRGB color before formatting its coordinates in hashed
+    /// hexadecimal notation.
     ///
     /// # Examples
     ///
@@ -243,12 +238,7 @@ impl Color {
     /// </div>
     #[inline]
     pub fn to_hex_format(&self) -> String {
-        let mut color = self.to(ColorSpace::Srgb);
-        if !color.in_gamut() {
-            color = color.to_gamut();
-        }
-
-        let [r, g, b] = to_24bit(color.space, &color.coordinates);
+        let [r, g, b] = self.to_24bit();
         format!("#{:02x}{:02x}{:02x}", r, g, b)
     }
 
@@ -578,9 +568,9 @@ impl Color {
     /// let goldenrod1 = Color::from_24bit(0x8b, 0x65, 0x08);
     /// let goldenrod3 = goldenrod1.lighten(1.4).to(Srgb);
     /// let goldenrod2 = goldenrod3.lighten(1.2/1.4).to(Srgb);
-    /// assert_eq!(goldenrod1.to_24bit(), Some([0x8b_u8, 0x65, 0x08]));
-    /// assert_eq!(goldenrod2.to_24bit(), Some([0xa4_u8, 0x7d, 0x2c]));
-    /// assert_eq!(goldenrod3.to_24bit(), Some([0xbd_u8, 0x95, 0x47]));
+    /// assert_eq!(goldenrod1.to_24bit(), [0x8b_u8, 0x65, 0x08]);
+    /// assert_eq!(goldenrod2.to_24bit(), [0xa4_u8, 0x7d, 0x2c]);
+    /// assert_eq!(goldenrod3.to_24bit(), [0xbd_u8, 0x95, 0x47]);
     /// ```
     /// <div class=color-swatch>
     /// <div style="background-color: #8b6508;"></div>
@@ -889,9 +879,9 @@ impl Color {
     /// Since this method converts every color to either Oklab or Oklrab, it
     /// also normalizes every color before use.
     ///
-    /// Due to being generic, this method is available in Rust only. A
+    /// Because it is generic, this method is available in Rust only. A
     /// specialized version is available in Python through
-    /// [`ColorMatcher`](crate::ColorMatcher).
+    /// [`Downsampler`](crate::Downsampler).
     ///
     /// # Examples
     ///
@@ -937,9 +927,9 @@ impl Color {
     /// Since this method converts every color to the given color space, it also
     /// normalizes every color before use.
     ///
-    /// Due to being generic, this method is available in Rust only. A
+    /// Because it is generic, this method is available in Rust only. A
     /// specialized version is available in Python through
-    /// [`ColorMatcher`](crate::ColorMatcher).
+    /// [`Downsampler`](crate::Downsampler).
     pub fn find_closest<'c, C, F>(
         &self,
         candidates: C,
