@@ -2,32 +2,113 @@
 use pyo3::prelude::*;
 
 use crate::{
-    AnsiColor, Color, ColorSpace, EightBitColor, EmbeddedRgb, Float, GrayGradient, OkVersion,
+    AnsiColor, Color, ColorSpace, EmbeddedRgb, Fidelity, Float, GrayGradient, Layer, OkVersion,
+    TerminalColor,
 };
 
 // ====================================================================================================================
 // Color Themes
 // ====================================================================================================================
 
-/// The layer for rendering to the terminal.
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Layer {
-    /// The foreground or text layer.
-    Foreground = 0,
-    /// The background layer.
-    Background = 10,
+macro_rules! count_ident {
+    () => { 0 };
+    ($odd:ident $($a:ident $b:ident)*) => { (count_ident!($($a)*) << 1) | 1 };
+    ($($a:ident $even:ident)*) => { count_ident!($($a)*) << 1 };
+}
+
+macro_rules! enriched {
+    (
+        $( #[$meta:meta] )*
+        enum $name:ident {
+            $( $variant:ident ),*,
+        }
+    ) => {
+        $(#[$meta])*
+        #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
+        #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+        pub enum $name {
+            $($variant),*
+        }
+
+        impl $name {
+            /// Get the variant name.
+            pub fn name(&self) -> &'static str {
+                match self {
+                   $($name::$variant => stringify!($variant)),*
+                }
+            }
+        }
+
+        impl ::std::convert::TryFrom<usize> for $name {
+            type Error = $crate::OutOfBoundsError;
+
+            #[doc = stringify!(Convert integer to $name.)]
+            fn try_from(value: usize) -> Result<Self, Self::Error> {
+                match value {
+                    $(x if x == $name::$variant as usize => Ok($name::$variant)),*,
+                    _ => Err(Self::Error::new(
+                        value,
+                        0..=(count_ident!($($variant)*) - 1)
+                    ))
+                }
+            }
+        }
+    }
+}
+
+enriched! {
+    /// A theme entry.
+    enum ThemeEntry {
+        Foreground,
+        Background,
+        Black,
+        Red,
+        Green,
+        Yellow,
+        Blue,
+        Magenta,
+        Cyan,
+        White,
+        BrightBlack,
+        BrightRed,
+        BrightGreen,
+        BrightYellow,
+        BrightBlue,
+        BrightMagenta,
+        BrightCyan,
+        BrightWhite,
+    }
+}
+
+impl From<Layer> for ThemeEntry {
+    /// Convert the given layer to a theme entry.
+    fn from(value: Layer) -> Self {
+        match value {
+            Layer::Foreground => ThemeEntry::Foreground,
+            Layer::Background => ThemeEntry::Background,
+        }
+    }
+}
+
+impl From<AnsiColor> for ThemeEntry {
+    /// Convert the given ANSI color to a theme entry.
+    fn from(value: AnsiColor) -> Self {
+        ThemeEntry::try_from(value as usize + 2).unwrap()
+    }
 }
 
 /// A color theme with concrete color values.
 ///
-/// A color theme provides concrete color values for the foreground and
-/// background defaults as well as for the 16 extended ANSI colors. They are
-/// accessed (and also updated) through index expressions using [`Layer`] and
-/// [`AnsiColor`].
+/// A color theme provides concrete color values for the default foreground,
+/// default background, and 16 extended ANSI colors. Once created, a theme is
+/// immutable.
+///
+/// Rust code can use [`Layer`](crate::Layer) and [`AnsiColor`] values to
+/// directly index a theme. Both Rust and Python can use integer indexes to look
+/// up colors.
 ///
 /// By itself, a theme enables the conversion of ANSI colors to high-resolution
-/// colors. Through a [`ColorMatcher`], a theme also enables the (lossy)
+/// colors. Through a [`Downsampler`], a theme also enables the (lossy)
 /// conversion of high-resolution colors to ANSI and 8-bit colors.
 ///
 /// <style>
@@ -60,24 +141,14 @@ pub struct Theme {
 impl Theme {
     /// Instantiate a new theme.
     ///
-    /// The 18 colors for the new theme are, in order, the foreground default,
-    /// the background default, and the 16 extended ANSI colors in standard
+    /// The 18 colors for the new theme are, in order, the default foreground,
+    /// the default background, the ANSI colors black, red, green, yellow, blue,
+    /// magenta, cyan, and white, as well as their bright versions in the same
     /// order.
     #[new]
     #[inline]
     pub const fn new(colors: [Color; 18]) -> Self {
         Theme { colors }
-    }
-
-    /// Instantiate a new default theme. <span class=python-only></span>
-    ///
-    /// This method implements the same functionality as [`Theme as
-    /// Default`](struct.Theme.html#impl-Default-for-Theme), is available in
-    /// Python only, and returns a clone of the default theme with VGA text
-    /// colors.
-    #[staticmethod]
-    pub fn new_default() -> Self {
-        Self::default()
     }
 
     /// Determine the length of this theme, which is 18. <span
@@ -101,20 +172,6 @@ impl Theme {
         }
     }
 
-    /// Set the color at the given index. <span class=python-only></span>
-    ///
-    /// This method clones the given color. It is available in Python only.
-    pub fn __setitem__(&mut self, index: usize, color: &Color) -> PyResult<()> {
-        if (0..18).contains(&index) {
-            self.colors[index] = color.clone();
-            Ok(())
-        } else {
-            Err(pyo3::exceptions::PyIndexError::new_err(
-                "theme index out of bounds 0..18",
-            ))
-        }
-    }
-
     /// Convert this color theme to its debug representation. <span
     /// class=python-only></span>
     ///
@@ -128,62 +185,22 @@ impl Theme {
 impl Theme {
     /// Instantiate a new theme.
     ///
-    /// The 18 colors for the new theme are, in order, the foreground default,
-    /// the background default, and the 16 extended ANSI colors in standard
-    /// order. Rust code accesses these 18 colors by indexing with the variants
-    /// of the [`Layer`] and [`AnsiColor`] enumerations. Python code instead
-    /// indexes with integers in range `0..=17`.
+    /// The 18 colors for the new theme are, in order, the default foreground,
+    /// the default background, the ANSI colors black, red, green, yellow, blue,
+    /// magenta, cyan, and white, as well as their bright versions in the same
+    /// order.
     #[inline]
     pub const fn new(colors: [Color; 18]) -> Self {
         Theme { colors }
     }
 }
 
-impl Default for Theme {
-    /// Create a new default theme instance.
-    ///
-    /// This method returns a clone of the default theme, which comprises the
-    /// VGA text colors.
-    fn default() -> Self {
-        DEFAULT_THEME.clone()
-    }
-}
-
-impl std::ops::Index<Layer> for Theme {
-    type Output = Color;
-
-    /// Access the color value for the layer's default color.
-    fn index(&self, index: Layer) -> &Self::Output {
-        match index {
-            Layer::Foreground => &self.colors[0],
-            Layer::Background => &self.colors[1],
-        }
-    }
-}
-
-impl std::ops::IndexMut<Layer> for Theme {
-    /// Mutably access the color value for the layer's default color.
-    fn index_mut(&mut self, index: Layer) -> &mut Self::Output {
-        match index {
-            Layer::Foreground => &mut self.colors[0],
-            Layer::Background => &mut self.colors[1],
-        }
-    }
-}
-
-impl std::ops::Index<AnsiColor> for Theme {
+impl<T: Into<ThemeEntry>> std::ops::Index<T> for Theme {
     type Output = Color;
 
     /// Access the color value for the ANSI color.
-    fn index(&self, index: AnsiColor) -> &Self::Output {
-        &self.colors[2 + index as usize]
-    }
-}
-
-impl std::ops::IndexMut<AnsiColor> for Theme {
-    /// Mutably access the color value for the ANSI color.
-    fn index_mut(&mut self, index: AnsiColor) -> &mut Self::Output {
-        &mut self.colors[2 + index as usize]
+    fn index(&self, index: T) -> &Self::Output {
+        &self.colors[index.into() as usize]
     }
 }
 
@@ -238,17 +255,17 @@ pub const DEFAULT_THEME: Theme = Theme::new([
 ]);
 
 // ====================================================================================================================
-// Color Matcher
+// Downsampler
 // ====================================================================================================================
 
-/// Conversion from high-resolution to terminal colors by exhaustive search
+/// A downsampler for colors.
 ///
-/// A color matcher converts [`Color`] objects to [`EightBitColor`] or
-/// [`AnsiColor`] by comparing the original color to all 8-bit colors but the
-/// ANSI colors or all ANSI colors, respectively, and returning the closest
-/// matching color. Conversion to 8-bit colors does not consider the ANSI colors
-/// because they become highly visible outliers when converting several
-/// graduated colors.
+/// A downsampler converts [`Color`] objects to [`AnsiColor`], [`EmbeddedRgb`],
+/// and [`GrayGradient`]. Since even [`TrueColor`](crate::TrueColor)
+/// accommodates 16 million colors and there are just 256 8-bit colors, that
+/// conversion entails a significant loss of resolution. However, that same
+/// scarcity of target colors also means that exhaustive search for the best
+/// match becomes a viable strategy.
 ///
 /// To be meaningful, the search for the closest color is performed in a
 /// perceptually uniform color space and uses high-resolution colors that are
@@ -257,9 +274,8 @@ pub const DEFAULT_THEME: Theme = Theme::new([
 /// coordinates upon creation and caches them for its lifetime, which maximizes
 /// the performance of conversion.
 ///
-/// Since a color matcher incorporates the color values from a [`Theme`], an
-/// application should regenerate its color matcher if the current theme
-/// changes.
+/// Since a downsampler incorporates the color values from a [`Theme`], an
+/// application should regenerate its downsampler if the current theme changes.
 ///
 /// <style>
 /// .color-swatch {
@@ -293,19 +309,21 @@ pub const DEFAULT_THEME: Theme = Theme::new([
 /// </style>
 #[cfg_attr(feature = "pyffi", pyclass)]
 #[derive(Debug)]
-pub struct ColorMatcher {
+pub struct Downsampler {
     space: ColorSpace,
     ansi: Vec<[Float; 3]>,
     eight_bit: Vec<[Float; 3]>,
 }
 
 /// Create the coordinates for the 8-bit colors in the given color space.
-#[inline]
-fn eight_bit_coordinates(theme: &Theme, space: ColorSpace) -> (Vec<[Float; 3]>, Vec<[Float; 3]>) {
-    let ansi = (0..=15)
+fn ansi_coordinates(space: ColorSpace, theme: &Theme) -> Vec<[Float; 3]> {
+    (0..=15)
         .map(|n| *theme[AnsiColor::try_from(n).unwrap()].to(space).as_ref())
-        .collect();
-    let eight_bit: Vec<[Float; 3]> = (16..=231)
+        .collect()
+}
+
+fn eight_bit_coordinates(space: ColorSpace) -> Vec<[Float; 3]> {
+    (16..=231)
         .map(|n| {
             *Color::from(EmbeddedRgb::try_from(n).unwrap())
                 .to(space)
@@ -316,23 +334,21 @@ fn eight_bit_coordinates(theme: &Theme, space: ColorSpace) -> (Vec<[Float; 3]>, 
                 .to(space)
                 .as_ref()
         }))
-        .collect();
-
-    (ansi, eight_bit)
+        .collect()
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
-impl ColorMatcher {
-    /// Create a new terminal color matcher. This method initializes the
-    /// matcher's internal state, which comprises the coordinates for the 256
-    /// 8-bit colors, 16 for the ANSI colors based on the provided theme, 216
-    /// for the embedded RGB colors, and 24 for the gray gradient, all in the
-    /// requested color space.
+impl Downsampler {
+    /// Create a new downsampler. This method initializes the sampler's internal
+    /// state, which comprises the coordinates for the 256 8-bit colors, 16 for
+    /// the ANSI colors based on the provided theme, 216 for the embedded RGB
+    /// colors, and 24 for the gray gradient, all in the requested color space.
     #[cfg(feature = "pyffi")]
     #[new]
     pub fn new(theme: &Theme, ok_version: OkVersion) -> Self {
         let space = ok_version.cartesian_space();
-        let (ansi, eight_bit) = eight_bit_coordinates(theme, space);
+        let ansi = ansi_coordinates(space, theme);
+        let eight_bit = eight_bit_coordinates(space);
 
         Self {
             space,
@@ -341,15 +357,15 @@ impl ColorMatcher {
         }
     }
 
-    /// Create a new terminal color matcher. This method initializes the
-    /// matcher's internal state, which comprises the coordinates for the 256
-    /// 8-bit colors, 16 for the ANSI colors based on the provided theme, 216
-    /// for the embedded RGB colors, and 24 for the gray gradient, all in the
-    /// requested color space.
+    /// Create a new downsampler. This method initializes the sampler's internal
+    /// state, which comprises the coordinates for the 256 8-bit colors, 16 for
+    /// the ANSI colors based on the provided theme, 216 for the embedded RGB
+    /// colors, and 24 for the gray gradient, all in the requested color space.
     #[cfg(not(feature = "pyffi"))]
     pub fn new(theme: &Theme, ok_version: OkVersion) -> Self {
         let space = ok_version.cartesian_space();
-        let (ansi, eight_bit) = eight_bit_coordinates(theme, space);
+        let ansi = ansi_coordinates(space, theme);
+        let eight_bit = eight_bit_coordinates(space);
 
         Self {
             space,
@@ -372,25 +388,25 @@ impl ColorMatcher {
     /// (more or less) saturated color.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorMatcher, ColorSpace};
+    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Downsampler};
     /// # use prettypretty::{DEFAULT_THEME, OkVersion};
     /// # use std::str::FromStr;
-    /// let original_matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Original);
+    /// let original_sampler = Downsampler::new(&DEFAULT_THEME, OkVersion::Original);
     ///
     /// let orange1 = Color::from_str("#ffa563")?;
-    /// let ansi = original_matcher.to_ansi(&orange1);
+    /// let ansi = original_sampler.to_ansi(&orange1);
     /// assert_eq!(u8::from(ansi), 7);
     ///
     /// let orange2 = Color::from_str("#ff9600")?;
-    /// let ansi = original_matcher.to_ansi(&orange2);
+    /// let ansi = original_sampler.to_ansi(&orange2);
     /// assert_eq!(u8::from(ansi), 9);
     /// // ---------------------------------------------------------------------
-    /// let revised_matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
+    /// let revised_sampler = Downsampler::new(&DEFAULT_THEME, OkVersion::Revised);
     ///
-    /// let ansi = revised_matcher.to_ansi(&orange1);
+    /// let ansi = revised_sampler.to_ansi(&orange1);
     /// assert_eq!(u8::from(ansi), 7);
     ///
-    /// let ansi = revised_matcher.to_ansi(&orange2);
+    /// let ansi = revised_sampler.to_ansi(&orange2);
     /// assert_eq!(u8::from(ansi), 9);
     /// # Ok::<(), ColorFormatError>(())
     /// ```
@@ -434,7 +450,7 @@ impl ColorMatcher {
     /// more accurate, we'll be comparing colors in Oklrch. We start by
     /// preparing a list with the color values for the 16 extended ANSI colors
     /// in that color space. That, by the way, is pretty much what
-    /// [`ColorMatcher::new`] does as well.
+    /// [`Downsampler::new`] does as well.
     /// ```
     /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, DEFAULT_THEME};
     /// # use std::str::FromStr;
@@ -508,22 +524,47 @@ impl ColorMatcher {
             .unwrap()
     }
 
+    /// Convert the high-resolution color to an ANSI color in RGB.
+    ///
+    /// This method performs a conversion from high-resolution color to ANSI
+    /// color solely based on RGB coordinates. Since the ANSI colors essentially
+    /// are 3-bit RGB colors with an additional bit for brightness, it converts
+    /// the given color to linear sRGB, clipping out of gamut coordinates, and
+    /// then rounds each coordinate to 0 or 1. It determines whether to set the
+    /// brightness bit based on a heuristically weighted sum of the individual
+    /// coordinates.
+    ///
+    /// While that may seem an unusual choice for conversion algorithm, it is a
+    /// significant improvement over the algorithm used by
+    /// [Chalk](https://github.com/chalk/chalk/blob/main/source/vendor/ansi-styles/index.js),
+    /// which is one of the most popular terminal color libraries for JavaScript.
+    pub fn to_ansi_in_rgb(&self, color: &Color) -> AnsiColor {
+        let color = color.to(ColorSpace::LinearSrgb).clip();
+        let [r, g, b] = color.as_ref();
+        let mut index = ((b.round() as u8) << 2) + ((g.round() as u8) << 1) + (r.round() as u8);
+        if index >= 2 {
+            index += 8;
+        }
+
+        AnsiColor::try_from(index).unwrap()
+    }
+
     /// Find the 8-bit color that comes closest to the given color.
     ///
     /// # Examples
     ///
     /// The example below converts every color of the RGB cube embedded in 8-bit
     /// colors to a high-resolution color in sRGB, which is validated by the
-    /// first two assertions, and then uses a color matcher to convert that
-    /// color back to an embedded RGB color. The result is the original color,
-    /// now wrapped as an 8-bit color, which is validated by the third
-    /// assertion. The example demonstrates that the 216 colors in the embedded
-    /// RGB cube still are closest to themselves after conversion to Oklrch.
+    /// first two assertions, and then uses a downsampler to convert that color
+    /// back to an embedded RGB color. The result is the original color, now
+    /// wrapped as a terminal color, which is validated by the third assertion.
+    /// The example demonstrates that the 216 colors in the embedded RGB cube
+    /// still are closest to themselves after conversion to Oklrch.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, DEFAULT_THEME, EightBitColor, Float};
-    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, ColorMatcher, OkVersion};
-    /// let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
+    /// # use prettypretty::{Color, ColorSpace, DEFAULT_THEME, TerminalColor, Float};
+    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Downsampler, OkVersion};
+    /// let sampler = Downsampler::new(&DEFAULT_THEME, OkVersion::Revised);
     ///
     /// for r in 0..5 {
     ///     for g in 0..5 {
@@ -539,20 +580,55 @@ impl ColorMatcher {
     ///             };
     ///             assert!((color[0] - c1).abs() < Float::EPSILON);
     ///
-    ///             let result = matcher.to_eight_bit(&color);
-    ///             assert_eq!(result, EightBitColor::Rgb(embedded));
+    ///             let result = sampler.to_eight_bit(&color);
+    ///             assert_eq!(result, TerminalColor::Rgb6(embedded));
     ///         }
     ///     }
     /// }
     /// # Ok::<(), OutOfBoundsError>(())
     /// ```
-    pub fn to_eight_bit(&self, color: &Color) -> EightBitColor {
+    pub fn to_eight_bit(&self, color: &Color) -> TerminalColor {
         use crate::core::{delta_e_ok, find_closest};
 
         let color = color.to(self.space);
         find_closest(color.as_ref(), &self.eight_bit, delta_e_ok)
-            .map(|idx| EightBitColor::from(idx as u8 + 16))
+            .map(|idx| TerminalColor::from(idx as u8 + 16))
             .unwrap()
+    }
+
+    /// Adjust the terminal color to the fidelity.
+    ///
+    /// This method ensures that the given color can be displayed with the given
+    /// fidelity, downsampling it if necessary. If the fidelity is plain text or
+    /// no color, this method returns `None`. If the fidelity is ANSI, this
+    /// method downsamples 24-bit and 8-bit colors to ANSI colors. If the
+    /// fidelity is 8-bit, this method downsamples 24-bit colors. Finally, if
+    /// the fidelity is 24-bit, this method returns the color unchanged.
+    pub fn adjust(&self, color: TerminalColor, fidelity: Fidelity) -> Option<TerminalColor> {
+        match fidelity {
+            Fidelity::Plain | Fidelity::NoColor => None,
+            Fidelity::Ansi => {
+                if matches!(color, TerminalColor::Default() | TerminalColor::Ansi(_)) {
+                    Some(color)
+                } else {
+                    let c = match color {
+                        TerminalColor::Rgb6(c) => Color::from(c),
+                        TerminalColor::Gray(c) => Color::from(c),
+                        TerminalColor::Rgb256(c) => Color::from(c),
+                        _ => unreachable!(),
+                    };
+                    Some(TerminalColor::Ansi(self.to_ansi(&c)))
+                }
+            }
+            Fidelity::EightBit => {
+                if let TerminalColor::Rgb256(c) = color {
+                    Some(self.to_eight_bit(&Color::from(c)))
+                } else {
+                    Some(color)
+                }
+            }
+            Fidelity::Full => Some(color),
+        }
     }
 }
 
@@ -560,14 +636,14 @@ impl ColorMatcher {
 
 #[cfg(test)]
 mod test {
-    use super::{ColorMatcher, DEFAULT_THEME};
+    use super::{Downsampler, DEFAULT_THEME};
     use crate::{AnsiColor, Color, OkVersion, OutOfBoundsError};
 
     #[test]
-    fn test_matcher() -> Result<(), OutOfBoundsError> {
-        let matcher = ColorMatcher::new(&DEFAULT_THEME, OkVersion::Revised);
+    fn test_sampler() -> Result<(), OutOfBoundsError> {
+        let sampler = Downsampler::new(&DEFAULT_THEME, OkVersion::Revised);
 
-        let result = matcher.to_ansi(&Color::srgb(1.0, 1.0, 0.0));
+        let result = sampler.to_ansi(&Color::srgb(1.0, 1.0, 0.0));
         assert_eq!(result, AnsiColor::BrightYellow);
 
         Ok(())
