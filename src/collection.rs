@@ -447,10 +447,10 @@ impl Sampler {
     pub fn try_high_res(&self, color: &TerminalColor) -> Option<Color> {
         match *color {
             TerminalColor::Default() => None,
-            TerminalColor::Ansi(c) => Some(self.theme[ThemeEntry::from(c)].clone()),
-            TerminalColor::Rgb6(c) => Some(Color::from(c)),
-            TerminalColor::Gray(c) => Some(Color::from(c)),
-            TerminalColor::Rgb256(c) => Some(Color::from(c)),
+            TerminalColor::Ansi { color: c } => Some(self.theme[ThemeEntry::from(c)].clone()),
+            TerminalColor::Rgb6 { color: c } => Some(Color::from(c)),
+            TerminalColor::Gray { color: c } => Some(Color::from(c)),
+            TerminalColor::Rgb256 { color: c } => Some(Color::from(c)),
         }
     }
 
@@ -708,20 +708,22 @@ impl Sampler {
         match fidelity {
             Fidelity::Plain | Fidelity::NoColor => None,
             Fidelity::Ansi => {
-                if matches!(color, TerminalColor::Default() | TerminalColor::Ansi(_)) {
+                if matches!(color, TerminalColor::Default() | TerminalColor::Ansi { .. }) {
                     Some(color)
                 } else {
                     let c = match color {
-                        TerminalColor::Rgb6(c) => Color::from(c),
-                        TerminalColor::Gray(c) => Color::from(c),
-                        TerminalColor::Rgb256(c) => Color::from(c),
+                        TerminalColor::Rgb6 { color: c } => Color::from(c),
+                        TerminalColor::Gray { color: c } => Color::from(c),
+                        TerminalColor::Rgb256 { color: c } => Color::from(c),
                         _ => unreachable!(),
                     };
-                    Some(TerminalColor::Ansi(self.to_closest_ansi(&c)))
+                    Some(TerminalColor::Ansi {
+                        color: self.to_closest_ansi(&c),
+                    })
                 }
             }
             Fidelity::EightBit => {
-                if let TerminalColor::Rgb256(c) = color {
+                if let TerminalColor::Rgb256 { color: c } = color {
                     Some(self.to_closest_8bit(&Color::from(c)))
                 } else {
                     Some(color)
