@@ -72,6 +72,7 @@ use crate::Float;
 /// foundational color space. Notably, all conversions between unrelated color
 /// spaces go through XYZ. This crate uses XYZ with the [D65 standard
 /// illuminant](https://en.wikipedia.org/wiki/Standard_illuminant), *not* D50.
+#[doc = include_str!("../style.html")]
 #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ColorSpace {
@@ -120,6 +121,35 @@ impl ColorSpace {
     /// `0..=1`.
     pub const fn is_bounded(&self) -> bool {
         self.is_rgb()
+    }
+
+    /// Create a human-readable representation for this color space.
+    #[cfg(feature = "pyffi")]
+    pub fn __str__(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+impl std::fmt::Display for ColorSpace {
+    /// Format a human-readable representation of this color space.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use ColorSpace::*;
+
+        let s = match self {
+            Srgb => "sRGB",
+            LinearSrgb => "linear sRGB",
+            DisplayP3 => "Display P3",
+            LinearDisplayP3 => "linear Display P3",
+            Rec2020 => "Rec. 2020",
+            LinearRec2020 => "linear Rec. 2020",
+            Oklab => "Oklab",
+            Oklrab => "Oklrab",
+            Oklch => "Oklch",
+            Oklrch => "Oklrch",
+            Xyz => "XYZ D65",
+        };
+
+        f.write_str(s)
     }
 }
 

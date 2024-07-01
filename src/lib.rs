@@ -10,6 +10,7 @@
 //! the closest matching color, gamut testing and mapping, and computing text
 //! contrast.
 //!
+#![doc = include_str!("style.html")]
 //!
 //! ## 1. High-Resolution Colors
 //!
@@ -39,40 +40,6 @@
 //! let srgb = not_srgb.to_gamut();
 //! assert_eq!(srgb, Color::srgb(1.0, 0.15942348587138203, 0.9222706101768445));
 //! ```
-//! <style>
-//! .color-swatch {
-//!     display: flex;
-//! }
-//! .color-swatch > div {
-//!     height: 4em;
-//!     width: 4em;
-//!     border: black 0.5pt solid;
-//!     display: flex;
-//!     align-items: center;
-//!     justify-content: center;
-//! }
-//! .small.color-swatch > div {
-//!     height: 1em;
-//!     width: 1em;
-//! }
-//! .python-only::before, .rust-only::before {
-//!     font-size: 0.8em;
-//!     display: inline-block;
-//!     border-radius: 0.5em;
-//!     padding: 0 0.6em;
-//!     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
-//!         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
-//!     font-weight: 600;
-//! }
-//! .python-only::before {
-//!     content: "Python only!";
-//!     background: #84c5fb;
-//! }
-//! .rust-only::before {
-//!     content: "Rust only!";
-//!     background: #f0ac84;
-//! }
-//! </style>
 //! <div class=color-swatch>
 //! <div style="background-color: oklch(0.716 0.349 335);"></div>
 //! <div style="background-color: color(srgb 1 0.15942 0.92227);"></div>
@@ -460,12 +427,12 @@
 //! ## 3. Integration of High-Resolution and Terminal Colors
 //!
 //! To apply 2020s color science to terminal colors, we need to be able to
-//! convert them to high-resolution colors and back again:
+//! translate them to high-resolution colors and back again:
 //!
 //!   * [`Theme`] provides high-resolution color values for the default
 //!     foreground, default background, and 16 extended ANSI colors.
-//!   * [`Downsampler`] stores high-resolution color values for all 8-bit
-//!     terminal colors to facilitate color matching.
+//!   * [`Sampler`] implements logic and caches state for translating
+//!     between terminal and high-resolution colors.
 //!
 //! Terminal emulators address ANSI colors' lack of intrinsic color values by
 //! making colors configurable through [color
@@ -489,22 +456,22 @@
 //!
 //! When converting to 8-bit or ANSI colors, there are not enough colors for
 //! gamut-mapping. But there are few enough colors for exhaustively searching
-//! for the best match. [`Downsampler`] stores the necessary color state and
+//! for the best match. [`Sampler`] stores the necessary color state and
 //! implements the search.
 //!
 //! The example below illustrates the use of color theme and sampler for
 //! conversion between ANSI colors and high-resolution colors.
 //!
 //! ```
-//! # use prettypretty::{AnsiColor, Color, ColorFormatError, Downsampler, DEFAULT_THEME};
+//! # use prettypretty::{AnsiColor, Color, ColorFormatError, Sampler, DEFAULT_THEME};
 //! # use prettypretty::OkVersion;
 //! # use std::str::FromStr;
 //! let red = &DEFAULT_THEME[AnsiColor::BrightRed];
 //! assert_eq!(red, &Color::srgb(1.0, 0.333333333333333, 0.333333333333333));
 //!
-//! let sampler = Downsampler::new(&DEFAULT_THEME, OkVersion::Revised);
+//! let sampler = Sampler::new(&DEFAULT_THEME, OkVersion::Revised);
 //! let yellow = Color::from_str("#FFE06C")?;
-//! let bright_yellow = sampler.to_ansi(&yellow);
+//! let bright_yellow = sampler.to_closest_ansi(&yellow);
 //! assert_eq!(u8::from(bright_yellow), 11);
 //! # Ok::<(), ColorFormatError>(())
 //! ```
@@ -551,9 +518,9 @@
 //! include its own facilities for styled text or terminal I/O. Instead, it is
 //! designed to be a lightweight addition that focuses on color management only.
 //! To use this crate, an application must create its own instances of [`Theme`]
-//! and [`Downsampler`]. While this crate contains one default theme,
-//! surprisingly called [`DEFAULT_THEME`], that theme is suitable for tests but
-//! no more.
+//! and [`Sampler`]. While this crate contains one default theme, surprisingly
+//! called [`DEFAULT_THEME`], that theme helps with examples and tests but isn't
+//! suitable for production usage.
 //!
 //! To fill in an accurate terminal theme, the application should use the ANSI
 //! escape sequences
@@ -612,7 +579,7 @@ mod error;
 mod object;
 mod term_color;
 
-pub use collection::{Downsampler, Theme, ThemeEntry, DEFAULT_THEME};
+pub use collection::{Sampler, Theme, ThemeEntry, ThemeEntryIterator, DEFAULT_THEME};
 pub use core::{ColorFormatError, ColorSpace, HueInterpolation};
 pub use error::OutOfBoundsError;
 pub use object::{Color, Interpolator, OkVersion};
@@ -631,7 +598,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AnsiColor>()?;
     m.add_class::<Color>()?;
     m.add_class::<ColorSpace>()?;
-    m.add_class::<Downsampler>()?;
+    m.add_class::<Sampler>()?;
     m.add_class::<EmbeddedRgb>()?;
     m.add_class::<Fidelity>()?;
     m.add_class::<GrayGradient>()?;
@@ -642,6 +609,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TerminalColor>()?;
     m.add_class::<Theme>()?;
     m.add_class::<ThemeEntry>()?;
+    m.add_class::<ThemeEntryIterator>()?;
     m.add_class::<TrueColor>()?;
     Ok(())
 }

@@ -14,6 +14,7 @@ use crate::{Color, ColorSpace, OutOfBoundsError};
 /// AnsiColor`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) and
 /// [`From<AnsiColor> as
 /// u8`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8).
+#[doc = include_str!("style.html")]
 #[cfg_attr(
     feature = "pyffi",
     doc = "In contrast, Python code uses the [`AnsiColor::from_8bit`] and
@@ -22,26 +23,6 @@ use crate::{Color, ColorSpace, OutOfBoundsError};
 /// Since ANSI colors have no intrinsic color values, conversion to
 /// high-resolution colors requires additional machinery, which is implemented
 /// by [`Theme`](crate::Theme).
-///
-/// <style>
-/// .python-only::before, .rust-only::before {
-///     font-size: 0.8em;
-///     display: inline-block;
-///     border-radius: 0.5em;
-///     padding: 0 0.6em;
-///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
-///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
-///     font-weight: 600;
-/// }
-/// .python-only::before {
-///     content: "Python only!";
-///     background: #84c5fb;
-/// }
-/// .rust-only::before {
-///     content: "Rust only!";
-///     background: #f0ac84;
-/// }
-/// </style>
 #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum AnsiColor {
@@ -147,42 +128,14 @@ impl From<AnsiColor> for u8 {
 
 /// The 6x6x6 RGB cube embedded in 8-bit terminal colors.
 ///
-/// <style>
-/// .color-swatch {
-///     display: flex;
-/// }
-/// .color-swatch > div {
-///     height: 4em;
-///     width: 4em;
-///     border: black 0.5pt solid;
-///     display: flex;
-///     align-items: center;
-///     justify-content: center;
-/// }
-/// .python-only::before, .rust-only::before {
-///     font-size: 0.8em;
-///     display: inline-block;
-///     border-radius: 0.5em;
-///     padding: 0 0.6em;
-///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
-///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
-///     font-weight: 600;
-/// }
-/// .python-only::before {
-///     content: "Python only!";
-///     background: #84c5fb;
-/// }
-/// .rust-only::before {
-///     content: "Rust only!";
-///     background: #f0ac84;
-/// }
-/// </style>
 ///
 /// # Examples
 ///
 /// Rust code can create a new embedded RGB color with either
 /// [`EmbeddedRgb::new`] or [`TryFrom<u8> as
 /// EmbeddedRgb`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb).
+///
+#[doc = include_str!("style.html")]
 /// ```
 /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError};
 /// let orange = EmbeddedRgb::new(5, 2, 0)?;
@@ -429,42 +382,13 @@ impl From<EmbeddedRgb> for Color {
 
 /// The 24-step gray gradient embedded in 8-bit terminal colors.
 ///
-/// <style>
-/// .color-swatch {
-///     display: flex;
-/// }
-/// .color-swatch > div {
-///     height: 4em;
-///     width: 4em;
-///     border: black 0.5pt solid;
-///     display: flex;
-///     align-items: center;
-///     justify-content: center;
-/// }
-/// .python-only::before, .rust-only::before {
-///     font-size: 0.8em;
-///     display: inline-block;
-///     border-radius: 0.5em;
-///     padding: 0 0.6em;
-///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
-///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
-///     font-weight: 600;
-/// }
-/// .python-only::before {
-///     content: "Python only!";
-///     background: #84c5fb;
-/// }
-/// .rust-only::before {
-///     content: "Rust only!";
-///     background: #f0ac84;
-/// }
-/// </style>
-///
 /// # Examples
 ///
 /// Rust code can instantiate a new gray gradient color with either
 /// [`GrayGradient::new`] or [`TryFrom<u8> as
 /// GrayGradient`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient).
+///
+#[doc = include_str!("style.html")]
 /// ```
 /// # use prettypretty::{GrayGradient, OutOfBoundsError};
 /// let almost_black = GrayGradient::new(4)?;
@@ -646,42 +570,13 @@ impl From<GrayGradient> for Color {
 
 /// A "true," 24-bit RGB color.
 ///
-/// <style>
-/// .color-swatch {
-///     display: flex;
-/// }
-/// .color-swatch > div {
-///     height: 4em;
-///     width: 4em;
-///     border: black 0.5pt solid;
-///     display: flex;
-///     align-items: center;
-///     justify-content: center;
-/// }
-/// .python-only::before, .rust-only::before {
-///     font-size: 0.8em;
-///     display: inline-block;
-///     border-radius: 0.5em;
-///     padding: 0 0.6em;
-///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
-///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
-///     font-weight: 600;
-/// }
-/// .python-only::before {
-///     content: "Python only!";
-///     background: #84c5fb;
-/// }
-/// .rust-only::before {
-///     content: "Rust only!";
-///     background: #f0ac84;
-/// }
-/// </style>
-///
 /// # Examples
 ///
 /// Rust code can create a new true color with either
 /// [`TrueColor::new`] or [`From<&Color> as
 /// TrueColor`](struct.TrueColor.html#impl-From%3C%26Color%3E-for-TrueColor).
+///
+#[doc = include_str!("style.html")]
 /// ```
 /// # use prettypretty::{Color,TrueColor};
 /// let blue = Color::from_24bit(0xae, 0xe8, 0xfb);
@@ -881,37 +776,7 @@ impl core::fmt::Display for TrueColor {
 ///
 /// The variants for embedded RGB and 24-bit RGB colors derive their names from
 /// the number of levels per channel.
-///
-/// <style>
-/// .color-swatch {
-///     display: flex;
-/// }
-/// .color-swatch > div {
-///     height: 4em;
-///     width: 4em;
-///     border: black 0.5pt solid;
-///     display: flex;
-///     align-items: center;
-///     justify-content: center;
-/// }
-/// .python-only::before, .rust-only::before {
-///     font-size: 0.8em;
-///     display: inline-block;
-///     border-radius: 0.5em;
-///     padding: 0 0.6em;
-///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
-///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
-///     font-weight: 600;
-/// }
-/// .python-only::before {
-///     content: "Python only!";
-///     background: #84c5fb;
-/// }
-/// .rust-only::before {
-///     content: "Rust only!";
-///     background: #f0ac84;
-/// }
-/// </style>
+#[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TerminalColor {
@@ -977,8 +842,7 @@ impl TerminalColor {
         }
     }
 
-    /// Convert to a debug representation. <span
-    /// class=python-only></span>
+    /// Convert to a debug representation. <span class=python-only></span>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
@@ -1024,6 +888,7 @@ impl From<&Color> for TerminalColor {
 // Layer and Fidelity
 
 /// The layer for rendering to the terminal.
+#[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Layer {
@@ -1033,6 +898,7 @@ pub enum Layer {
     Background = 10,
 }
 
+#[cfg_attr(feature = "pyffi", pymethods)]
 impl Layer {
     /// Determine the offset for this layer.
     ///
@@ -1041,6 +907,23 @@ impl Layer {
     pub fn offset(&self) -> u8 {
         *self as u8
     }
+
+    /// Return a humane description for this layer. <span
+    /// class=python-only></span>
+    #[cfg(feature = "pyffi")]
+    pub fn __str__(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+impl std::fmt::Display for Layer {
+    /// Format this layer name.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Foreground => f.write_str("foreground"),
+            Self::Background => f.write_str("background"),
+        }
+    }
 }
 
 /// The stylistic fidelity of terminal output.
@@ -1048,6 +931,8 @@ impl Layer {
 /// This enumeration captures levels of stylistic fidelity. It can describe the
 /// capabilities of a terminal or runtime environment (such as CI) as well as
 /// the preferences of a user (notably, `NoColor`).
+///
+#[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash, ord))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Fidelity {
@@ -1066,24 +951,50 @@ pub enum Fidelity {
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl Fidelity {
     /// Determine the fidelity required for rendering the given terminal color.
+    /// <span class=python-only></span>
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn from_color(color: TerminalColor) -> Self {
-        match color {
+        color.into()
+    }
+
+    /// Determine whether this fidelity level suffices for rendering the
+    /// terminal color.
+    pub fn covers(&self, color: TerminalColor) -> bool {
+        Fidelity::from(color) <= *self
+    }
+
+    /// Return a humane description for this fidelity. <span
+    /// class=python-only></span>
+    #[cfg(feature = "pyffi")]
+    pub fn __str__(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+impl From<TerminalColor> for Fidelity {
+    /// Determine the necessary fidelity level for the given terminal color.
+    fn from(value: TerminalColor) -> Self {
+        match value {
             TerminalColor::Default() | TerminalColor::Ansi(_) => Self::Ansi,
             TerminalColor::Rgb6(_) | TerminalColor::Gray(_) => Self::EightBit,
             TerminalColor::Rgb256(_) => Self::Full,
         }
     }
+}
 
-    /// Determine the fidelity required for rendering the given terminal color.
-    #[cfg(not(feature = "pyffi"))]
-    pub fn from_color(color: TerminalColor) -> Self {
-        match color {
-            TerminalColor::Default() | TerminalColor::Ansi(_) => Self::Ansi,
-            TerminalColor::Rgb6(_) | TerminalColor::Gray(_) => Self::EightBit,
-            TerminalColor::Rgb256(_) => Self::Full,
-        }
+impl std::fmt::Display for Fidelity {
+    /// Format a humane description for this fidelity.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Plain => "plain text",
+            Self::NoColor => "no colors",
+            Self::Ansi => "ANSI colors",
+            Self::EightBit => "8-bit colors",
+            Self::Full => "24-bit colors",
+        };
+
+        f.write_str(s)
     }
 }
 

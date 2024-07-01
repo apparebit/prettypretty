@@ -15,6 +15,7 @@ use crate::Float;
 /// A high-resolution color object.
 ///
 /// Every color object has a [color space](ColorSpace) and three coordinates.
+#[doc = include_str!("style.html")]
 ///
 /// # Color Coordinates
 ///
@@ -68,37 +69,6 @@ use crate::Float;
 ///
 /// Both Rust and Python code can access individual coordinates by indexing a
 /// color object with integers `0..2`.
-///
-/// <style>
-/// .color-swatch {
-///     display: flex;
-/// }
-/// .color-swatch > div {
-///     height: 4em;
-///     width: 4em;
-///     border: black 0.5pt solid;
-///     display: flex;
-///     align-items: center;
-///     justify-content: center;
-/// }
-/// .python-only::before, .rust-only::before {
-///     font-size: 0.8em;
-///     display: inline-block;
-///     border-radius: 0.5em;
-///     padding: 0 0.6em;
-///     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
-///         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
-///     font-weight: 600;
-/// }
-/// .python-only::before {
-///     content: "Python only!";
-///     background: #84c5fb;
-/// }
-/// .rust-only::before {
-///     content: "Rust only!";
-///     background: #f0ac84;
-/// }
-/// </style>
 #[cfg_attr(feature = "pyffi", pyclass(eq, sequence))]
 #[derive(Clone, Debug)]
 pub struct Color {
@@ -1001,7 +971,7 @@ impl Color {
     ///
     /// Because it is generic, this method is available in Rust only. A
     /// specialized version is available in Python through
-    /// [`Downsampler`](crate::Downsampler).
+    /// [`Sampler`](crate::Sampler).
     ///
     /// # Examples
     ///
@@ -1049,7 +1019,7 @@ impl Color {
     ///
     /// Because it is generic, this method is available in Rust only. A
     /// specialized version is available in Python through
-    /// [`Downsampler`](crate::Downsampler).
+    /// [`Sampler`](crate::Sampler).
     pub fn find_closest<'c, C, F>(
         &self,
         candidates: C,
