@@ -359,6 +359,17 @@ impl Color {
         self.space
     }
 
+    /// Access the coordinates. <span class=python-only></span>
+    ///
+    /// This method provides access to this color's coordinates as a single
+    /// sequence instead of piecemeal by index. However, it critically differs
+    /// from [`AsRef<[Float;3]> as Color`](struct.Color.html) because it returns
+    /// the coordinates by value instead of reference.
+    #[cfg(feature = "pyffi")]
+    pub fn coordinates(&self) -> [Float; 3] {
+        self.coordinates
+    }
+
     /// Normalize this color.
     ///
     /// This function replaces not-a-number coordinates with zero. For semantic
@@ -831,7 +842,6 @@ impl Color {
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// Methods that are only available to Rust code.
 
 // Use separate block, so that methods are not exposed to Python.
 // Use cfg(), so that methods are not documented again.
