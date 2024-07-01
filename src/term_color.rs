@@ -833,8 +833,9 @@ impl TerminalColor {
     /// Convert this terminal color to an 8-bit index color.
     #[cfg(feature = "pyffi")]
     pub fn to_8bit(&self) -> PyResult<u8> {
-        u8::try_from(*self)
-            .map_err(|_| pyo3::exceptions::PyValueError::new_err("unable to convert to 8-bit index"))
+        u8::try_from(*self).map_err(|_| {
+            pyo3::exceptions::PyValueError::new_err("unable to convert to 8-bit index")
+        })
     }
 
     /// Determine whether this terminal color is the default color.
