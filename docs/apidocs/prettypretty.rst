@@ -1,10 +1,11 @@
 prettypretty
 ============
 
-Prettypretty's color support is hefty enough to warrant its own subpackage with
-its own :doc:`colorful documentation page <color>`. Prettypretty also comes with
-a couple of demo scripts. They are much less hefty but do command :doc:`their
-own documentation <tools>`
+
+Prettypretty's core is written in Rust and exposed to Python through the
+`prettypretty.color` module. Please consult the Rust documentation for details.
+Also, you might want to look at how :doc:`packaged scripts <tools>` utilize
+`Color` & co.
 
 
 prettypretty.ansi
@@ -46,4 +47,11 @@ prettypretty.terminal
 ---------------------
 
 .. automodule:: prettypretty.terminal
+    :members:
+
+
+prettypretty.theme
+---------------------
+
+.. automodule:: prettypretty.theme
     :members:

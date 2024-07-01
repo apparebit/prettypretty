@@ -33,21 +33,13 @@ includes color swatches with the example code.
 
    Style <howto-style>
    Color <howto-color>
-
-.. toctree::
-   :maxdepth: 1
-   :caption: In Depth
-
-   formats-and-spaces
-   conversions
-   hires-slices
+   Mo' Color <hires-slices>
 
 .. toctree::
    :maxdepth: 1
    :caption: API
 
    apidocs/prettypretty
-   apidocs/color
    apidocs/tools
 
 .. toctree::
