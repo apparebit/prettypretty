@@ -1,6 +1,8 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
+use crate::core::convert;
+
 use crate::{
     AnsiColor, Color, ColorSpace, EmbeddedRgb, Fidelity, Float, GrayGradient, Layer, OkVersion,
     TerminalColor,
@@ -196,7 +198,7 @@ impl From<AnsiColor> for ThemeEntry {
 #[cfg_attr(feature = "pyffi", pyclass(eq, sequence))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Theme {
-    colors: [Color; 18],
+    colors: Vec<Color>,
 }
 
 #[cfg(feature = "pyffi")]
@@ -210,7 +212,8 @@ impl Theme {
     /// order.
     #[new]
     #[inline]
-    pub const fn new(colors: [Color; 18]) -> Self {
+    pub fn new(colors: [Color; 18]) -> Self {
+        let colors: Vec<Color> = colors.iter().map(|c| c.normalize()).collect();
         Theme { colors }
     }
 
@@ -259,7 +262,8 @@ impl Theme {
     /// magenta, cyan, and white, as well as their bright versions in the same
     /// order.
     #[inline]
-    pub const fn new(colors: [Color; 18]) -> Self {
+    pub fn new(colors: &[Color; 18]) -> Self {
+        let colors: Vec<Color> = colors.iter().map(|c| c.normalize()).collect();
         Theme { colors }
     }
 
@@ -280,12 +284,9 @@ impl<T: Into<ThemeEntry>> std::ops::Index<T> for Theme {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// The default theme.
-///
-/// This theme exists to demonstrate the functionality enabled by themes as well
-/// as for testing. It uses the colors of [VGA text
+/// The 2+16 colors of [VGA text
 /// mode](https://en.wikipedia.org/wiki/ANSI_escape_code#3-bit_and_4-bit).
-pub const DEFAULT_THEME: Theme = Theme::new([
+pub const VGA_COLORS: [Color; 18] = [
     Color::new(ColorSpace::Srgb, [0.0, 0.0, 0.0]),
     Color::new(ColorSpace::Srgb, [1.0, 1.0, 1.0]),
     Color::new(ColorSpace::Srgb, [0.0, 0.0, 0.0]),
@@ -328,7 +329,7 @@ pub const DEFAULT_THEME: Theme = Theme::new([
     Color::new(ColorSpace::Srgb, [1.0, 0.333333333333333, 1.0]),
     Color::new(ColorSpace::Srgb, [0.333333333333333, 1.0, 1.0]),
     Color::new(ColorSpace::Srgb, [1.0, 1.0, 1.0]),
-]);
+];
 
 // ====================================================================================================================
 // Sampler
@@ -373,6 +374,7 @@ pub struct Sampler {
     space: ColorSpace,
     ansi: Vec<[Float; 3]>,
     eight_bit: Vec<[Float; 3]>,
+    //polar_ansi: Vec<[Float; 3]>,
 }
 
 /// Create the coordinates for the ANSI colors in the given color space.
@@ -397,6 +399,113 @@ fn eight_bit_coordinates(space: ColorSpace) -> Vec<[Float; 3]> {
                 .as_ref()
         }))
         .collect()
+}
+
+#[allow(dead_code)]
+pub(crate) fn polar_sort(theme: &[Color; 18]) -> Option<Vec<[Float; 3]>> {
+    // Ensure that the four gray tones are in fact gray tones.
+    const MAX_GRAY_CHROMA: Float = 0.001;
+
+    if theme[2][1] > MAX_GRAY_CHROMA
+        || theme[9][1] > MAX_GRAY_CHROMA
+        || theme[10][1] > MAX_GRAY_CHROMA
+        || theme[17][1] > MAX_GRAY_CHROMA
+    {
+        return None;
+    }
+
+    // A bipartite vector: 4 grays and 12 color pairs.
+    let mut ordered = Vec::with_capacity(16);
+
+    // Sort grays into order based on lightness.
+    ordered.push(convert(
+        theme[2].space(),
+        ColorSpace::Oklrch,
+        theme[2].as_ref(),
+    ));
+    ordered.push(convert(
+        theme[9].space(),
+        ColorSpace::Oklrch,
+        theme[9].as_ref(),
+    ));
+    ordered.push(convert(
+        theme[10].space(),
+        ColorSpace::Oklrch,
+        theme[10].as_ref(),
+    ));
+    ordered.push(convert(
+        theme[17].space(),
+        ColorSpace::Oklrch,
+        theme[17].as_ref(),
+    ));
+    ordered.sort_by_key(|cs| cs[0].to_bits());
+
+    // Sort color pairs based on hue, while also enforcing order between pairs.
+    let mut maxhue = -1080.0;
+
+    let mut process_min_max = |index: usize| {
+        let mut regular: [Float; 3] = convert(
+            theme[index + 2].space(),
+            ColorSpace::Oklrch,
+            theme[index].as_ref(),
+        );
+        let mut bright: [Float; 3] = convert(
+            theme[index + 2 + 8].space(),
+            ColorSpace::Oklrch,
+            theme[index].as_ref(),
+        );
+
+        // We allow one or both coordinates of the first and last pair to cross
+        // 0º and 360º. Should we do so for the second and second to last, too?
+        if index == 1 + 2 {
+            if regular[2] > 180.0 {
+                regular[2] -= 360.0
+            }
+            if bright[2] > 180.0 {
+                bright[2] -= 360.0
+            }
+        } else if index == 5 + 2 {
+            if regular[2] < 180.0 {
+                regular[2] += 360.0
+            }
+            if bright[2] < 180.0 {
+                bright[2] += 360.0
+            }
+        }
+
+        if regular[2] < maxhue || bright[2] < maxhue {
+            // The color pairs are out of expected order.
+            return None;
+        }
+
+        if regular[2] < bright[2] {
+            ordered.push(regular);
+            ordered.push(bright);
+            maxhue = bright[2];
+        } else {
+            ordered.push(bright);
+            ordered.push(regular);
+            maxhue = regular[2];
+        }
+
+        Some(())
+    };
+
+    process_min_max(1)?;
+    process_min_max(3)?;
+    process_min_max(2)?;
+    process_min_max(6)?;
+    process_min_max(4)?;
+    process_min_max(5)?;
+
+    // We still need to validate that the last, magenta pair doesn't overlap the
+    // first, red pair.
+    let minhue = ordered[4][2];
+    if minhue < maxhue {
+        Some(ordered)
+    } else {
+        None
+    }
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
@@ -479,9 +588,10 @@ impl Sampler {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Sampler};
-    /// # use prettypretty::{DEFAULT_THEME, OkVersion};
+    /// # use prettypretty::{VGA_COLORS, OkVersion, Theme};
     /// # use std::str::FromStr;
-    /// let original_sampler = Sampler::new(&DEFAULT_THEME, OkVersion::Original);
+    /// let theme = Theme::new(&VGA_COLORS);
+    /// let original_sampler = Sampler::new(&theme, OkVersion::Original);
     ///
     /// let orange1 = Color::from_str("#ffa563")?;
     /// let ansi = original_sampler.to_closest_ansi(&orange1);
@@ -491,7 +601,7 @@ impl Sampler {
     /// let ansi = original_sampler.to_closest_ansi(&orange2);
     /// assert_eq!(u8::from(ansi), 9);
     /// // ---------------------------------------------------------------------
-    /// let revised_sampler = Sampler::new(&DEFAULT_THEME, OkVersion::Revised);
+    /// let revised_sampler = Sampler::new(&theme, OkVersion::Revised);
     ///
     /// let ansi = revised_sampler.to_closest_ansi(&orange1);
     /// assert_eq!(u8::from(ansi), 7);
@@ -542,13 +652,10 @@ impl Sampler {
     /// in that color space. That, by the way, is pretty much what
     /// [`Sampler::new`] does as well.
     /// ```
-    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, DEFAULT_THEME};
+    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, VGA_COLORS};
     /// # use std::str::FromStr;
     /// let ansi_colors: Vec<Color> = (0..=15)
-    ///     .map(|n| {
-    ///         DEFAULT_THEME[AnsiColor::try_from(n).unwrap()]
-    ///             .to(ColorSpace::Oklrch)
-    ///     })
+    ///     .map(|n| VGA_COLORS[n + 2].to(ColorSpace::Oklrch))
     ///     .collect();
     /// ```
     ///
@@ -574,13 +681,10 @@ impl Sampler {
     /// our list with the new distance metric.
     ///
     /// ```
-    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, DEFAULT_THEME, Float};
+    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, VGA_COLORS, Float};
     /// # use std::str::FromStr;
     /// # let ansi_colors: Vec<Color> = (0..=15)
-    /// #     .map(|n| {
-    /// #         DEFAULT_THEME[AnsiColor::try_from(n).unwrap()]
-    /// #             .to(ColorSpace::Oklrch)
-    /// #     })
+    /// #     .map(|n| VGA_COLORS[n + 2].to(ColorSpace::Oklrch))
     /// #     .collect();
     /// # fn minimum_degrees_of_separation(c1: &[Float; 3], c2: &[Float; 3]) -> Float {
     /// #     (c1[2] - c2[2]).rem_euclid(360.0)
@@ -665,9 +769,10 @@ impl Sampler {
     /// are closest to themselves after conversion to Oklrch.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, DEFAULT_THEME, TerminalColor, Float};
-    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Sampler, OkVersion};
-    /// let sampler = Sampler::new(&DEFAULT_THEME, OkVersion::Revised);
+    /// # use prettypretty::{Color, ColorSpace, VGA_COLORS, TerminalColor, Float};
+    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Sampler, Theme, OkVersion};
+    /// let sampler = Sampler::new(
+    ///     &Theme::new(&VGA_COLORS), OkVersion::Revised);
     ///
     /// for r in 0..5 {
     ///     for g in 0..5 {
@@ -684,14 +789,14 @@ impl Sampler {
     ///             assert!((color[0] - c1).abs() < Float::EPSILON);
     ///
     ///             let result = sampler.to_closest_8bit(&color);
-    ///             assert_eq!(result, TerminalColor::Rgb6(embedded));
+    ///             assert_eq!(result, TerminalColor::Rgb6 { color: embedded });
     ///         }
     ///     }
     /// }
     /// # Ok::<(), OutOfBoundsError>(())
     /// ```
     pub fn to_closest_8bit(&self, color: &Color) -> TerminalColor {
-        TerminalColor::from(self.to_closest_8bit_raw(color))
+        TerminalColor::from(dbg!(self.to_closest_8bit_raw(color)))
     }
 
     /// Adjust the terminal color to the fidelity.
@@ -738,12 +843,12 @@ impl Sampler {
 
 #[cfg(test)]
 mod test {
-    use super::{Sampler, DEFAULT_THEME};
+    use super::{Sampler, Theme, VGA_COLORS};
     use crate::{AnsiColor, Color, OkVersion, OutOfBoundsError};
 
     #[test]
     fn test_sampler() -> Result<(), OutOfBoundsError> {
-        let sampler = Sampler::new(&DEFAULT_THEME, OkVersion::Revised);
+        let sampler = Sampler::new(&Theme::new(&VGA_COLORS), OkVersion::Revised);
 
         let result = sampler.to_closest_ansi(&Color::srgb(1.0, 1.0, 0.0));
         assert_eq!(result, AnsiColor::BrightYellow);
