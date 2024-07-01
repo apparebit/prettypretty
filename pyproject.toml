@@ -37,6 +37,6 @@ bindings = "pyo3"
 features = ["pyffi", "pyo3/extension-module"]
 
 [tool.pyright]
-include = ["prettypretty/**/*.py", "test/*.py", "runtest.py"]
+include = ["prettypretty/**/*.py", "prettypretty/**/*.pyi", "test/*.py", "runtest.py"]
 typeCheckingMode = "strict"
 pythonVersion = "3.12"
