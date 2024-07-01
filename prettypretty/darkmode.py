@@ -1,9 +1,8 @@
 import os
 import sys
 
-from .color.conversion import get_converter
-from .color.theme import current_theme, Theme
-
+from .color import ColorSpace, Theme
+from .theme import current_theme
 
 def is_dark_theme(theme: None | Theme = None) -> bool:
     """
@@ -18,10 +17,8 @@ def is_dark_theme(theme: None | Theme = None) -> bool:
         theme = current_theme()
 
     # Convert to XYZ
-    foreground_xyz = get_converter(theme.text.tag, 'xyz')(*theme.text.coordinates)
-    background_xyz = get_converter(theme.background.tag, 'xyz')(
-        *theme.background.coordinates
-    )
+    foreground_xyz = theme[0].to(ColorSpace.Xyz)
+    background_xyz = theme[1].to(ColorSpace.Xyz)
 
     # Compare luminance components
     return foreground_xyz[1] > background_xyz[1]

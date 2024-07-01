@@ -20,9 +20,9 @@ import dataclasses
 import enum
 from typing import cast, Literal, overload, Self, TypeAlias, TypeVar
 
-from .ansi import Ansi, DEFAULT_COLOR, is_default, Layer
-from .color.spec import ColorSpec, CoordinateSpec
-from .fidelity import Fidelity, FidelityTag
+from .ansi import Ansi
+from .color import Color, Fidelity, Layer, TerminalColor
+from .theme import current_sampler
 
 
 class TextAttribute(enum.Enum):
@@ -161,9 +161,9 @@ def invert_attr(attr: None | TA) -> None | TA:
     return None if attr is None else ~attr
 
 
-def invert_color(color: None | ColorSpec) -> None | ColorSpec:
+def invert_color(color: None | TerminalColor) -> None | TerminalColor:
     """Invert the given color."""
-    return None if color is None or is_default(color) else DEFAULT_COLOR
+    return None if color is None or color.is_default() else TerminalColor.Default()
 
 
 class Instruction:
@@ -237,9 +237,9 @@ class Style(Instruction):
     strikeline: None | Strikeline = None
     coloring: None | Coloring = None
     visibility: None | Visibility = None
-    foreground: None | ColorSpec = None
-    background: None | ColorSpec = None
-    fidelity: None | Fidelity = dataclasses.field(init=False)
+    foreground: None | TerminalColor = None
+    background: None | TerminalColor = None
+    fidelity: Fidelity = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         if all(
@@ -247,23 +247,28 @@ class Style(Instruction):
             for f in dataclasses.fields(self)
             if f.name != 'fidelity'  # Careful, the attribute has not been set!
         ):
-            fidelity = Fidelity.PLAIN
+            # No styles
+            fidelity = Fidelity.Plain
+        elif self.foreground is None and self.background is None:
+            # No colors
+            fidelity = Fidelity.NoColor
         else:
+            # Some color
             fg = self.foreground
             bg = self.background
 
             # Fill in the fidelity
-            fg_fid = Fidelity.from_color(fg)
-            bg_fid = Fidelity.from_color(bg)
+            fg_fid = Fidelity.Plain if fg is None else Fidelity.from_color(fg)
+            bg_fid = Fidelity.Plain if bg is None else Fidelity.from_color(bg)
 
-            fidelity = None if fg_fid is None or bg_fid is None else max(fg_fid, bg_fid)
+            fidelity = max(fg_fid, bg_fid)
 
         object.__setattr__(self, 'fidelity', fidelity)
 
     @property
     def plain(self) -> bool:
         """The flag for an empty style specification."""
-        return self.fidelity is Fidelity.PLAIN
+        return self.fidelity is Fidelity.Plain
 
     def __invert__(self) -> Self:
         if self.plain:
@@ -318,36 +323,34 @@ class Style(Instruction):
             background = self.background or other.background,
         )
 
-    def prepare(self, fidelity: Fidelity | FidelityTag) -> Self:
+    def prepare(self, fidelity: Fidelity) -> Self:
         """
         Adjust this style specification for rendering with the given fidelity.
         """
-        fidelity = Fidelity.from_tag(fidelity)
-        if self.fidelity is not None and self.fidelity <= fidelity:
+        if self.fidelity <= fidelity:
             return self
 
-        if fidelity is Fidelity.PLAIN:
+        if fidelity is Fidelity.Plain:
+            # Erase all styles
             return type(self)()
 
-        fg = fidelity.prepare_to_render(self.foreground)
-        bg = fidelity.prepare_to_render(self.background)
+        sampler = current_sampler()
+
+        if self.foreground is None:
+            fg = None
+        else:
+            fg = sampler.adjust(self.foreground, fidelity)
+
+        if self.background is None:
+            bg = None
+        else:
+            bg = sampler.adjust(self.background, fidelity)
+
         return dataclasses.replace(self, foreground=fg, background=bg)
 
     def sgr_parameters(self) -> list[int]:
         """Convert this style to the equivalent SGR parameters."""
-        if self.fidelity is None:
-            raise ValueError('style has unbounded color fidelity')
-
         parameters: list[int] = []
-
-        def handle_color(layer: Layer, color: ColorSpec) -> None:
-            parameters.extend(
-                Ansi.color_parameters(
-                    layer,
-                    *cast(tuple[int, ...], color.coordinates),
-                    use_ansi=color.tag=='ansi',
-                )
-            )
 
         if self.weight is not None:
             parameters.append(self.weight.value)
@@ -364,9 +367,9 @@ class Style(Instruction):
         if self.visibility is not None:
             parameters.append(self.visibility.value)
         if self.foreground is not None:
-            handle_color(Layer.TEXT, self.foreground)
+            parameters.extend(self.foreground.sgr_parameters(Layer.Foreground))
         if self.background is not None:
-            handle_color(Layer.BACKGROUND, self.background)
+            parameters.extend(self.background.sgr_parameters(Layer.Background))
 
         return parameters
 
@@ -451,17 +454,14 @@ class RichText(Sequence[RichTextElement]):
     fidelity: None | Fidelity = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
-        fidelity = Fidelity.PLAIN
+        fidelity = Fidelity.Plain
         for fragment in self.fragments:
             if isinstance(fragment, str):
                 continue
             if isinstance(fragment, Style):
                 f = fragment.fidelity
-                if f is None:
-                    fidelity = None
-                    break
             else:
-                f = Fidelity.NOCOLOR
+                f = Fidelity.NoColor
 
             fidelity = max(f, fidelity)
 
@@ -488,7 +488,7 @@ class RichText(Sequence[RichTextElement]):
             if isinstance(fragment, str) or fragment.has_text:
                 # Keep all text
                 pass
-            elif fidelity is Fidelity.PLAIN:
+            elif fidelity is Fidelity.Plain:
                 # Drop instructions on plain fidelity
                 continue
             elif isinstance(fragment, Style):
@@ -706,29 +706,29 @@ class rich:
     def fg(self, c1: int, c2: int, c3: int, /) -> Self:
         ...
     @overload
-    def fg(self, color: ColorSpec, /) -> Self:
+    def fg(self, color: Color, /) -> Self:
         ...
     @overload
-    def fg(self, tag: str, c: int, /) -> Self:
-        ...
-    @overload
-    def fg(self, tag: str, coordinates: CoordinateSpec, /) -> Self:
-        ...
-    @overload
-    def fg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
+    def fg(self, color: TerminalColor, /) -> Self:
         ...
     def fg(
         self,
-        color: int | str | ColorSpec,
-        c1: None | float | CoordinateSpec = None,
-        c2: None | float = None,
-        c3: None | float = None,
+        c1: int | Color | TerminalColor,
+        c2: None | int = None,
+        c3: None | int = None,
     ) -> Self:
         """Update style with foreground color."""
-        self._elements[-1] = dataclasses.replace(
-            self._prepare_style(),
-            foreground=ColorSpec.of(color, c1, c2, c3)
-        )
+        if isinstance(c1, int):
+            if c2 is not None:
+                assert c3 is not None
+                c1 = TerminalColor.from_24bit(c1, c2, c3)
+            else:
+                assert c3 is None
+                c1 = TerminalColor.from_8bit(c1)
+        elif isinstance(c1, Color):
+            c1 = TerminalColor.from_color(c1)
+
+        self._elements[-1] = dataclasses.replace(self._prepare_style(), foreground=c1)
         return self
 
     @overload
@@ -738,29 +738,29 @@ class rich:
     def bg(self, c1: int, c2: int, c3: int, /) -> Self:
         ...
     @overload
-    def bg(self, color: ColorSpec, /) -> Self:
+    def bg(self, color: Color, /) -> Self:
         ...
     @overload
-    def bg(self, tag: str, c: int, /) -> Self:
-        ...
-    @overload
-    def bg(self, tag: str, coordinates: CoordinateSpec, /) -> Self:
-        ...
-    @overload
-    def bg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
+    def bg(self, color: TerminalColor, /) -> Self:
         ...
     def bg(
         self,
-        color: int | str | ColorSpec,
-        c1: None | float | CoordinateSpec = None,
-        c2: None | float = None,
-        c3: None | float = None,
+        c1: int | Color | TerminalColor,
+        c2: None | int = None,
+        c3: None | int = None,
     ) -> Self:
         """Update style with background color."""
-        self._elements[-1] = dataclasses.replace(
-            self._prepare_style(),
-            background=ColorSpec.of(color, c1, c2, c3)
-        )
+        if isinstance(c1, int):
+            if c2 is not None:
+                assert c3 is not None
+                c1 = TerminalColor.from_24bit(c1, c2, c3)
+            else:
+                assert c3 is None
+                c1 = TerminalColor.from_8bit(c1)
+        elif isinstance(c1, Color):
+            c1 = TerminalColor.from_color(c1)
+
+        self._elements[-1] = dataclasses.replace(self._prepare_style(), background=c1)
         return self
 
     def link(self, text: str, href: str, id: None | str = None) -> Self:

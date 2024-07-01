@@ -5,18 +5,10 @@ for down-sampling colors and maximizing contrast.
 import argparse
 from typing import cast, Literal
 
-from .ansi import Layer
-from .color.conversion import get_converter
-from .color.contrast import srgb_to_luminance, use_black_text, use_black_background
-from .color.lores import (
-    rgb6_to_eight_bit,
-    rgb6_to_srgb,
-    eight_bit_to_srgb,
-    oklab_to_ansi,
-    oklab_to_eight_bit,
-    naive_eight_bit_to_ansi,
+from .color import Color, EmbeddedRgb, Fidelity, Layer
+from .theme import (
+    MACOS_TERMINAL, VGA, XTERM, builtin_theme_name, current_theme, current_sampler
 )
-from .color.theme import MACOS_TERMINAL, VGA, XTERM, builtin_theme_name, current_theme
 from .terminal import Terminal
 
 
@@ -109,7 +101,7 @@ class FramedBoxes:
 def write_color_cube(
     term: Terminal,
     *,
-    layer: Layer = Layer.BACKGROUND,
+    layer: Layer = Layer.Background,
     strategy: Literal['8bit', 'pretty', 'naive'] = '8bit',
     show_label: bool = True,
 ) -> None:
@@ -135,45 +127,40 @@ def write_color_cube(
     )
 
     frame.top(
-        layer.name.capitalize()
+        str(layer)
         + ': '
         + prefix
         + '6•6•6 RGB Cube'
     )
 
-    srgb_to_oklab = get_converter('srgb', 'oklab')
+    sampler = current_sampler()
 
     for r in range(6):
         for b in range(6):
             frame.left()
 
             for g in range(6):
-                srgb = rgb6_to_srgb(r, g, b)
+                embedded = EmbeddedRgb(r, g, b)
+                color = embedded.to_color()
 
                 if strategy == '8bit':
-                    eight_bit = rgb6_to_eight_bit(r, g, b)
+                    eight_bit = embedded.to_8bit()
                 elif strategy == 'pretty':
-                    eight_bit = oklab_to_ansi(*srgb_to_oklab(*srgb))
-                    srgb = eight_bit_to_srgb(*eight_bit)
+                    eight_bit = sampler.to_closest_ansi(color).to_8bit()
+                    color = sampler.to_high_res_8bit(eight_bit)
                 elif strategy == 'naive':
-                    eight_bit = naive_eight_bit_to_ansi(*rgb6_to_eight_bit(r, g, b))
-                    srgb = eight_bit_to_srgb(*eight_bit)
+                    eight_bit = sampler.to_ansi_in_rgb(color).to_8bit()
+                    color = sampler.to_high_res_8bit(eight_bit)
                 else:
                     raise ValueError(f'invalid strategy "{strategy}"')
 
                 # Pick black or white for other color based on contrast
-                if layer is Layer.BACKGROUND:
-                    foreground = (
-                        16 if use_black_text(srgb_to_luminance(*srgb))
-                        else 231
-                    ),
-                    background = eight_bit
+                if layer is Layer.Background:
+                    foreground = 16 if color.use_black_text() else 231,
+                    background = eight_bit,
                 else:
-                    foreground = eight_bit
-                    background = (
-                        16 if use_black_background(srgb_to_luminance(*srgb))
-                        else 231
-                    ),
+                    foreground = eight_bit,
+                    background = 16 if color.use_black_background() else 231,
 
                 frame.box(
                     f'{r}•{g}•{b}' if show_label else ' ', foreground, background
@@ -202,15 +189,14 @@ def write_hires_slice(
         + label
     )
 
-    rgb256_to_oklab = None
-    if eight_bit_only:
-        rgb256_to_oklab = get_converter('rgb256', 'oklab')
+    sampler = current_sampler()
 
     def emit_box(r: int, g: int, b: int) -> None:
-        color = r, g, b
         if eight_bit_only:
-            assert rgb256_to_oklab is not None
-            color = oklab_to_eight_bit(*rgb256_to_oklab(*color))
+            color = sampler.to_closest_8bit_raw(Color.from_24bit(r, g, b)),
+        else:
+            color = r, g, b
+
         frame.box(' ', (0,), color)
 
     for x in range(0, 256, 8):
@@ -244,19 +230,16 @@ def write_theme_test(term: Terminal, show_label: bool = True):
     frame.top('Actual vs Claimed Color')
 
     theme = current_theme()
-    ansi_to_srgb = get_converter('ansi', 'srgb')
 
     for index in range(16):
-        srgb = ansi_to_srgb(index)
-        fg = (16 if use_black_text(srgb_to_luminance(*srgb)) else 231)
-
-        bg_spec = theme.ansi(index)
-        bg = get_converter(bg_spec.tag, 'rgb256')(*bg_spec.coordinates)
+        color = theme[index + 2]
+        fg = 16 if color.use_black_text() else 231
+        bg = color.to_24bit()
 
         label = ', '.join(f'{c:3d}' for c in bg)
 
         frame.left()
-        frame.box(f'{index}' if show_label else ' ', (fg,), (index,))
+        frame.box(f'{index:>2}' if show_label else ' ', (fg,), (index,))
         frame.box(label if show_label else ' ', (fg,), cast(tuple[int, int, int], bg))
         frame.right()
 
@@ -325,7 +308,7 @@ if __name__ == '__main__':
 
     fidelity = None
     if options.truecolor is not None:
-        fidelity = 'rgb256' if options.truecolor else 'eight_bit'
+        fidelity = Fidelity.Full if options.truecolor else Fidelity.EightBit
 
     with (
         Terminal(fidelity=fidelity)
@@ -338,9 +321,9 @@ if __name__ == '__main__':
         write_color_cube(term, show_label=options.label)
         write_color_cube(term, strategy='pretty', show_label=options.label)
         write_color_cube(term, strategy='naive', show_label=options.label)
-        write_color_cube(term, layer=Layer.TEXT)
+        write_color_cube(term, layer=Layer.Foreground)
 
-        if term.fidelity.name == 'RGB256':
+        if term.fidelity == Fidelity.Full:
             if options.slices:
                 for hold in ('r', 'g', 'b'):
                     for level in (0, 128, 255):
@@ -364,7 +347,7 @@ if __name__ == '__main__':
             """)
 
         theme_name = builtin_theme_name(current_theme()) or 'current terminal theme'
-        color_mode = 'truecolor' if term.fidelity.name == 'RGB256' else '8-bit color'
+        color_mode = 'truecolor' if term.fidelity is Fidelity.Full else '8-bit color'
 
         term.writeln(
             'The above charts use the ', theme_name, ' in ', color_mode, ' mode!\n'
@@ -376,6 +359,6 @@ if __name__ == '__main__':
         if color_support is None:
             support_level = 'does not respond to style queries'
         else:
-            support_level = f'reports support for {color_support.name.lower()} colors'
+            support_level = f'reports support for {color_support}'
 
         term.writeln(f'The terminal {support_level}!').flush()

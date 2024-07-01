@@ -1,6 +1,5 @@
 from collections.abc import Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager, ExitStack
-import dataclasses
 import enum
 import os
 import select
@@ -22,10 +21,10 @@ from typing import (
     TypeAlias,
 )
 
-from .ansi import Ansi, Layer, RawAnsi
-from .color.spec import ColorSpec, CoordinateSpec
-from .color.theme import current_theme, Theme
-from .fidelity import environment_fidelity, Fidelity, FidelityTag
+from .ansi import Ansi, RawAnsi
+from .color import Color, Fidelity, Layer, TerminalColor, Theme, ThemeEntry
+from .theme import current_theme, current_sampler
+from .fidelity import environment_fidelity
 from .ident import identify_terminal, normalize_terminal_name
 from .style import RichText, RichTextElement
 
@@ -182,6 +181,10 @@ class TerminalContextManager(AbstractContextManager['Terminal']):
         the current theme until exit.
         """
         self._check_not_active()
+
+
+
+
         if theme is None:
             factory = lambda: current_theme(self._request_theme())
         else:
@@ -377,19 +380,18 @@ class Terminal:
         self,
         input: None | TextIO = None,
         output: None | TextIO = None,
-        fidelity: None | Fidelity | FidelityTag = None,
+        fidelity: None | Fidelity = None,
     ) -> None:
         self._identity: Literal[False] | None | tuple[str, str] = False
 
-        self._input = input or sys.__stdin__
-        self._input_fileno: int = self._input.fileno()
-        self._output = output or sys.__stdout__
-
+        self._input = cast(TextIO, input or sys.__stdin__)
+        self._input_fileno = self._input.fileno()
+        self._output = cast(TextIO, output or sys.__stdout__)
         self._all_tty = self._input.isatty() and self._output.isatty()
 
         if fidelity is None:
             fidelity = environment_fidelity(self._output.isatty())
-        self._fidelity = Fidelity.from_tag(fidelity)
+        self._fidelity = fidelity
 
         self._width, self._height = self.request_size() or (80, 24)
 
@@ -402,7 +404,7 @@ class Terminal:
 
     def check_output_tty(self) -> Self:
         """Check that the output is a TTY."""
-        if self._fidelity is Fidelity.PLAIN:
+        if self._fidelity is Fidelity.Plain:
             raise ValueError('output does not accept ANSI escape sequences')
         return self
 
@@ -901,7 +903,7 @@ class Terminal:
         if not response:
             return None
         if response == [0, 38, 2, 1, 6, 65, 234]:
-            return Fidelity.RGB256
+            return Fidelity.Full
 
         response = (
             self
@@ -915,9 +917,9 @@ class Terminal:
         if not response:
             return None
         elif response == [0, 38, 5, 66]:
-            return Fidelity.EIGHT_BIT
+            return Fidelity.EightBit
         else:
-            return Fidelity.ANSI
+            return Fidelity.Ansi
 
     # ----------------------------------------------------------------------------------
 
@@ -926,7 +928,7 @@ class Terminal:
         index: int,
         name: str,
         response: None | bytes,
-    ) -> ColorSpec:
+    ) -> Color:
         if response is None:
             raise ValueError(f"no response to request for {name}'s color")
 
@@ -939,15 +941,9 @@ class Terminal:
         if r is None or not r.startswith('rgb:'):
             raise ValueError(f"malformed response for {name}'s color")
 
-        return ColorSpec(
-            'srgb',
-            cast(
-                tuple[float, float, float],
-                tuple(int(v, base=16) / 0xffff for v in r[4:].split('/'))
-            )
-        )
+        return Color.parse(r)
 
-    def request_ansi_color(self, color: int) -> ColorSpec:
+    def request_ansi_color(self, color: int) -> Color:
         """
         Determine the color for the given extended ANSI color. This method
         queries the terminal, parses the result, which by convention uses four
@@ -960,11 +956,11 @@ class Terminal:
 
         return self._parse_color(
             color + 2,
-            dataclasses.fields(Theme)[color + 2].name,
+            ThemeEntry.from_index(color + 2).name(),
             self.make_raw_request(Ansi.OSC, 4, color, ';?', Ansi.ST)
         )
 
-    def request_dynamic_color(self, code: int) -> ColorSpec:
+    def request_dynamic_color(self, code: int) -> Color:
         """
         Determine the color for the user interface element identified by
         ``code``:
@@ -982,24 +978,24 @@ class Terminal:
 
         return self._parse_color(
             code - 10,
-            dataclasses.fields(Theme)[code - 10].name,
+            ThemeEntry.from_index(code - 10).name(),
             self.make_raw_request(Ansi.OSC, code, ';?', Ansi.ST),
         )
 
     def _request_theme_v1(self) -> Theme:
         # (1) Completely process each color.
-        colors: list[ColorSpec] = []
+        colors: list[Color] = []
 
         for code in range(10, 12):
             colors.append(self.request_dynamic_color(code))
         for code in range(16):
             colors.append(self.request_ansi_color(code))
 
-        return Theme(**{f.name: c for f, c in zip(dataclasses.fields(Theme), colors)})
+        return Theme(colors)
 
     def _request_theme_v2(self) -> Theme:
         # (1) Write all requests. (2) Read + parse all responses.
-        colors: list[ColorSpec] = []
+        colors: list[Color] = []
 
         self.check_tty().check_cbreak_mode()
 
@@ -1009,15 +1005,19 @@ class Terminal:
             self.write_control(Ansi.OSC, 4, color, ';?', Ansi.ST)
         self.flush()
 
-        for index, field in enumerate(dataclasses.fields(Theme)):
+        for index in range(18):
             response = self.read_control()
-            colors.append(self._parse_color(index, field.name, response))
+            colors.append(self._parse_color(
+                index,
+                ThemeEntry.from_index(index).name(),
+                response,
+            ))
 
-        return Theme(**{f.name: c for f, c in zip(dataclasses.fields(Theme), colors)})
+        return Theme(colors)
 
     def _request_theme_v3(self) -> Theme:
         # (1) Write all requests. (2) Read all responses. (3) Parse all responses.
-        colors: list[ColorSpec] = []
+        colors: list[Color] = []
 
         self.check_tty().check_cbreak_mode()
 
@@ -1031,10 +1031,14 @@ class Terminal:
         for _ in range(18):
             responses.append(self.read_control())
 
-        for i, (f, response) in enumerate(zip(dataclasses.fields(Theme), responses)):
-            colors.append(self._parse_color(i, f.name, response))
+        for index, response in enumerate(responses):
+            colors.append(self._parse_color(
+                index,
+                ThemeEntry.from_index(index).name(),
+                response,
+            ))
 
-        return Theme(**{f.name: c for f, c in zip(dataclasses.fields(Theme), colors)})
+        return Theme(colors)
 
     request_theme = _request_theme_v3
     """
@@ -1157,7 +1161,7 @@ class Terminal:
         underlined. If that's too stringent for your use case, please do `open
         an issue <https://github.com/apparebit/prettypretty/issues/new>`_.
         """
-        if self._fidelity is Fidelity.PLAIN:
+        if self._fidelity is Fidelity.Plain:
             self.write(text)
             return self
 
@@ -1176,13 +1180,14 @@ class Terminal:
         return self.write_control(Ansi.CSI, 'm')
 
     @overload
-    def rich_text(self, fragments: Sequence[RichTextElement]) -> Self:
+    def rich_text(self, fragments: Sequence[RichTextElement], /) -> Self:
         ...
     @overload
     def rich_text(self, *fragments: RichTextElement) -> Self:
         ...
     def rich_text(
-        self, *fragments: RichTextElement | Sequence[RichTextElement]
+        self,
+        *fragments: RichTextElement | Sequence[RichTextElement],
     ) -> Self:
         """Write rich text to terminal output"""
         # Coerce to actual rich text to simplify fidelity adjustment
@@ -1219,41 +1224,44 @@ class Terminal:
         return self.write_control(Ansi.CSI, '2m')
 
     @overload
-    def fg(self, color: ColorSpec, /) -> Self:
-        ...
-    @overload
     def fg(self, color: int, /) -> Self:
         ...
     @overload
     def fg(self, c1: int, c2: int, c3: int, /) -> Self:
         ...
     @overload
-    def fg(self, tag: str, c: int, /) -> Self:
+    def fg(self, color: Color, /) -> Self:
         ...
     @overload
-    def fg(self, tag: str, coordinates: CoordinateSpec, /) -> Self:
-        ...
-    @overload
-    def fg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
+    def fg(self, color: TerminalColor, /) -> Self:
         ...
     def fg(
         self,
-        tag: int | str | ColorSpec,
-        c1: None | float | CoordinateSpec = None,
-        c2: None | float = None,
-        c3: None | float = None,
+        c1: int | Color | TerminalColor,
+        c2: None | int = None,
+        c3: None | int = None,
     ) -> Self:
         """Set the foreground color."""
-        color = self._fidelity.prepare_to_render(ColorSpec.of(tag, c1, c2, c3))
+        if isinstance(c1, int):
+            if c2 is None:
+                assert c3 is None
+                c1 = TerminalColor.from_8bit(c1)
+            else:
+                assert c3 is not None
+                c1 = TerminalColor.from_24bit(c1, c2, c3)
+        elif isinstance(c1, Color):
+            c1 = TerminalColor.from_color(c1)
+
+        sampler = current_sampler()
+        color = sampler.adjust(c1, self._fidelity)
         if color is not None:
-            self.write_control(Ansi.CSI, *Ansi.color_parameters(
-                Layer.TEXT, *cast(tuple[int, ...], color.coordinates)
-            ), 'm')
+            self.write_control(
+                Ansi.CSI,
+                *color.sgr_parameters(Layer.Foreground),
+                'm'
+            )
         return self
 
-    @overload
-    def bg(self, color: ColorSpec, /) -> Self:
-        ...
     @overload
     def bg(self, color: int, /) -> Self:
         ...
@@ -1261,27 +1269,36 @@ class Terminal:
     def bg(self, c1: int, c2: int, c3: int, /) -> Self:
         ...
     @overload
-    def bg(self, tag: str, c: int, /) -> Self:
+    def bg(self, color: Color, /) -> Self:
         ...
     @overload
-    def bg(self, tag: str, coordinates: CoordinateSpec, /) -> Self:
-        ...
-    @overload
-    def bg(self, tag: str, c1: float, c2: float, c3: float, /) -> Self:
+    def bg(self, color: TerminalColor, /) -> Self:
         ...
     def bg(
         self,
-        tag: int | str | ColorSpec,
-        c1: None | float | CoordinateSpec = None,
-        c2: None | float = None,
-        c3: None | float = None,
+        c1: int | Color | TerminalColor,
+        c2: None | int = None,
+        c3: None | int = None,
     ) -> Self:
         """Set the background color."""
-        color = self._fidelity.prepare_to_render(ColorSpec.of(tag, c1, c2, c3))
+        if isinstance(c1, int):
+            if c2 is None:
+                assert c3 is None
+                c1 = TerminalColor.from_8bit(c1)
+            else:
+                assert c3 is not None
+                c1 = TerminalColor.from_24bit(c1, c2, c3)
+        elif isinstance(c1, Color):
+            c1 = TerminalColor.from_color(c1)
+
+        sampler = current_sampler()
+        color = sampler.adjust(c1, self._fidelity)
         if color is not None:
-            self.write_control(Ansi.CSI, *Ansi.color_parameters(
-                Layer.BACKGROUND, *cast(tuple[int, ...], color.coordinates)
-            ), 'm')
+            self.write_control(
+                Ansi.CSI,
+                *color.sgr_parameters(Layer.Background),
+                'm'
+            )
         return self
 
 

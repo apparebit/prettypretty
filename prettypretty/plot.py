@@ -18,9 +18,8 @@ from pathlib import Path
 from typing import Any, cast
 
 from .terminal import Terminal
-from .color.object import Color
-from .color.spec import ColorSpec, FloatCoordinateSpec
-from .color.theme import current_theme, VGA
+from .color import Color, ColorSpace, ThemeEntry
+from .theme import current_theme, VGA
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -96,18 +95,13 @@ class ColorPlotter:
         self.status("                Color    L        Chroma   Hue")
         self.status("------------------------------------------------")
 
-    def add(self, name: str, color: str | ColorSpec, marker: str = "o") -> None:
-        color = Color(color)
-
+    def add(self, name: str, color: Color, marker: str = "o") -> None:
         # Matplotlib is sRGB only
-        srgb = color.to("srgb")
-        if not srgb.in_gamut():
-            srgb = srgb.to_gamut()
-        hex_color = f'{srgb.to("rgb256"):h}'
+        hex_color = color.to_hex_format()
 
         # Convert to Oklch
-        oklch = color.to("oklch")
-        l, c, h = cast(FloatCoordinateSpec, oklch.coordinates)
+        oklch = color.to(ColorSpace.Oklch)
+        l, c, h = oklch[0], oklch[1], oklch[2]
         c = round(c, 14)  # Chop off one digit of precision.
 
         # Update status
@@ -201,15 +195,12 @@ class ColorPlotter:
             )
 
         if self._grays:
-            gray = Color("oklab", sum(self._grays) / len(self._grays), 0, 0).to("srgb")
-            if not gray.in_gamut():
-                gray = gray.to_gamut()
-            hex_color = f'{gray.to("rgb256"):h}'
+            gray = Color.oklab(sum(self._grays) / len(self._grays), 0.0, 0.0).to_hex_format()
 
             axes.scatter(
                 [0],
                 [0],
-                c=[hex_color],
+                c=[gray],
                 s=[80],
                 marker=self._gray_marker,
                 edgecolors='#000',
@@ -250,19 +241,19 @@ def main() -> None:
 
     if options.input is not None:
         with open(options.input, mode="r", encoding="utf8") as file:
-            for color in [Color(l) for l in file.readlines() if l.strip()]:
+            for color in [Color.parse(l) for l in file.readlines() if l.strip()]:
                 plotter.add("", color)
     else:
         with Terminal().cbreak_mode().terminal_theme(options.theme) as term:
             if not options.theme:
                 terminal_id = term.request_terminal_identity()
 
-            for name, color in current_theme().colors():
-                if name in ("text", "background"):
-                    continue
-                plotter.add(name, color)
+            theme = current_theme()
+            for index in range(2, 18):
+                color = theme[index]
+                plotter.add(ThemeEntry.from_index(index).name(), color)
 
-    for color in ["#" + c for c in cast(list[str], options.colors) or []]:
+    for color in [Color.parse("#" + c) for c in cast(list[str], options.colors) or []]:
         plotter.add("<extra>", color, marker="d")
 
     plotter.stop_adding()

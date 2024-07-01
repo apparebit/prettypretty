@@ -41,9 +41,9 @@ def _init_registry() -> dict[str, str]:
         ("Warp", "dev.warp.Warp-Stable", "WarpTerminal"),
         ("WezTerm", "com.github.wez.wezterm", "org.wezfurlong.wezterm"),
     ):
-        registry[name] = name
+        registry[name.casefold()] = name
         for alias in aliases:
-            registry[alias] = name
+            registry[alias.casefold()] = name
 
     return registry
 
@@ -57,7 +57,7 @@ def normalize_terminal_name(name: str) -> str:
     If the given name is an alias for a well-known terminal, this function
     returns the canonical name. Otherwise, it just returns the given name.
     """
-    normal = _REGISTRY.get(name)
+    normal = _REGISTRY.get(name.casefold())
     return normal if normal else name
 
 

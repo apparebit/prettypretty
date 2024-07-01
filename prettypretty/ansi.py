@@ -1,45 +1,5 @@
 """Low-level support for assembling ANSI escape sequences"""
 import enum
-from typing import overload
-
-from .color.spec import ColorSpec
-
-
-def is_default(color: ColorSpec) -> bool:
-    """
-    Determine whether the color specification represents the default color.
-    """
-    return color.tag in ('ansi', 'eight_bit') and color.coordinates[0] == -1
-
-
-DEFAULT_COLOR = ColorSpec('ansi', (-1,))
-"""
-The default color for terminals. ANSI escape sequences actually support *two*
-default colors, one for the foreground and one for the background. Prettypretty
-does *not* support converting the default color into any other color. But it
-does represent it as either an ANSI or 8-bit color with -1 as its only
-component.
-"""
-
-
-# --------------------------------------------------------------------------------------
-
-
-class Layer(enum.Enum):
-    """
-    The display layer.
-
-    Attributes:
-        TEXT: is in front, in the foreground
-        BACKGROUND: is behind the text
-
-    The enumeration constant values capture the fact that the SGR parameters for
-    setting background color are the same as those for setting text color
-    shifted by 10, i.e., from 30–39 and 90–97 to 40–49 and 100–107. Hence the
-    value of :attr:`TEXT` is 0 and that of :attr:`BACKGROUND` is 10.
-    """
-    TEXT = 0
-    BACKGROUND = 10
 
 
 class Ansi(enum.StrEnum):
@@ -101,57 +61,6 @@ class Ansi(enum.StrEnum):
     ESC = '\x1b'
     OSC = '\x1b]'
     ST = '\x1b\\'
-
-    @overload
-    @staticmethod
-    def color_parameters(
-        layer: Layer,
-        color: int,
-        /,
-        use_ansi: bool = ...,
-    ) -> tuple[int, ...]:
-        ...
-    @overload
-    @staticmethod
-    def color_parameters(
-        layer: Layer,
-        r: int,
-        g: int,
-        b: int,
-        /,
-    ) -> tuple[int, ...]:
-        ...
-    @staticmethod
-    def color_parameters(
-        layer: Layer,
-        *coordinates: int,
-        **kwargs: bool,
-    ) -> tuple[int, ...]:
-        """
-        Convert the 8-bit color, RGB256 coordinates, or default color to
-        parameters for an SGR ANSI escape sequence. The default color takes on
-        the code point before the start of the 8-bit color code points, i.e.,
-        -1. The layer argument determines whether the resulting parameters
-        update the foreground or background color. To maximize compatibility,
-        this method uses 30–37, 40–47, 90–97, and 100–107 as parameters for
-        setting the 16 extended ANSI color and the triple 38, 5, ``color`` only
-        for the remaining 240 8-bit colors.
-        """
-        if len(coordinates) == 3:
-            return 38 + layer.value, 2, *coordinates
-
-        color = coordinates[0]
-        use_ansi = kwargs.get('use_ansi', True)
-
-        if color == -1:
-            return 30 + 9 + layer.value,
-        if use_ansi:
-            if 0 <= color <= 7:
-                return 30 + color + layer.value,
-            if 8 <= color <= 15:
-                return 90 - 8 + color + layer.value,
-
-        return 38 + layer.value, 5, color
 
     @staticmethod
     def fuse(*fragments: None | int | str) -> str:
