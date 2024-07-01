@@ -71,15 +71,14 @@ builder to declare two styles:
 
 .. code-block:: python
 
-   LIGHT_MODE_BAR = rich().fg('p3', 0, 1, 0).style()
-   DARK_MODE_BAR = rich().fg('rgb256', 3, 151, 49).style()
+   LIGHT_MODE_BAR = rich().fg(Color.p3(0.0, 1.0, 0.0)).style()
+   DARK_MODE_BAR = rich().fg(3, 151, 49).style()
 
-You could create styles with their constructor but, depending on the number of
-attributes you'd like set, that won't be very readable. The :class:`rich`
-builder is the cleaner option, since it provides a fluent interface for
-declaring styles—and also rich text sequences, which increase the repertoire
-with hyperlinks and cursor movement. Let's stick with styles, however, and
-see how we might declare a warning style:
+You could create styles directly but, depending on the number of attributes
+you'd like set, that won't be very readable. Instead, the :class:`rich` builder
+provides a fluent interface to declaring styles—and more: rich text sequences
+support hyperlinks and cursor movement as well. But for our progress bar, we
+stick with styles. Here's how we might declare a warning style:
 
 .. code-block:: python
 
@@ -98,7 +97,7 @@ subtraction ``-``, and alternative ``|`` operators. In particular, the style
 its default appearance. The style ``style2 - style1`` incrementally transitions
 from ``style1`` to ``style2``. The style ``style1 | style2`` lets you recover
 complete styles from incremental transitions by combining all attributes from
-``style1`` and ``style2``. Remember that ``|`` does give precedence to the first
+``style1`` and ``style2``. Beware that ``|`` does give precedence to the first
 operand ``style1`` if both of them impact the same attribute.
 
 For example, `the last line
