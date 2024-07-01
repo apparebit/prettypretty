@@ -194,9 +194,10 @@ impl From<AnsiColor> for u8 {
     feature = "pyffi",
     doc = "Since there is no Python feature equivalent to trait implementations in
     Rust, the Python class for `EmbeddedRgb` provides equivalent functionality
-    through [`EmbeddedRgb::from_8bit`], [`EmbeddedRgb::__len__`],
-    [`EmbeddedRgb::__getitem__`], [`EmbeddedRgb::__repr__`], [`EmbeddedRgb::to_8bit`],
-    and [`EmbeddedRgb::to_color`]. These methods are not available in Rust."
+    through [`EmbeddedRgb::from_8bit`], [`EmbeddedRgb::to_8bit`],
+    [`EmbeddedRgb::to_color`], [`EmbeddedRgb::coordinates`], [`EmbeddedRgb::__len__`],
+    [`EmbeddedRgb::__getitem__`], and [`EmbeddedRgb::__repr__`].
+    These methods are not available in Rust."
 )]
 #[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, sequence))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -248,6 +249,11 @@ impl EmbeddedRgb {
     /// and is available in Python only.
     pub fn to_color(&self) -> Color {
         Color::from(*self)
+    }
+
+    /// Access this true color's coordinates. <span class=python-only></span>
+    pub fn coordinates(&self) -> [u8; 3] {
+        self.0
     }
 
     /// Get this embedded RGB color's length, which is 3. <span
@@ -623,9 +629,9 @@ impl From<GrayGradient> for Color {
     feature = "pyffi",
     doc = "Since there is no Python feature equivalent to trait implementations in
     Rust, the Python class for `TrueColor` provides equivalent functionality
-    through [`TrueColor::from_color`], [`TrueColor::to_color`], [`TrueColor::__len__`],
-    [`TrueColor::__getitem__`], and [`True Color::to_8bit`]. These methods are not
-    available in Rust."
+    through [`TrueColor::from_color`], [`True Color::to_8bit`], [`TrueColor::to_color`],
+    [`TrueColor::coordinates`], [`TrueColor::__len__`], and [`TrueColor::__getitem__`].
+    These methods are not available in Rust."
 )]
 #[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, sequence))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -659,6 +665,11 @@ impl TrueColor {
     /// available in Python only.
     pub fn to_color(&self) -> Color {
         Color::from(*self)
+    }
+
+    /// Access this true color's coordinates. <span class=python-only></span>
+    pub fn coordinates(&self) -> [u8; 3] {
+        self.0
     }
 
     /// Get this true color's length, which is 3. <span
@@ -774,17 +785,22 @@ impl core::fmt::Display for TrueColor {
 /// version of this crate, it did not offer any useful functionality besides
 /// possibly avoiding an `unwrap()` and hence was removed again.
 ///
-/// The variants for embedded RGB and 24-bit RGB colors derive their names from
-/// the number of levels per channel.
+/// Variants other than the one for the default colors wrap more specific
+/// colors. They depart from common Rust practice of using tuple variants for
+/// wrapper types and instead are implemented as struct variants with a single
+/// `color` field. That does add some, small notational overhead in Rust. But it
+/// also results in a cleaner and more approachable interface in Python, hence
+/// their use here. The variants for embedded RGB and 24-bit RGB colors derive
+/// their names from the number of levels per channel.
 #[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TerminalColor {
     Default(),
-    Ansi(AnsiColor),
-    Rgb6(EmbeddedRgb),
-    Gray(GrayGradient),
-    Rgb256(TrueColor),
+    Ansi { color: AnsiColor },
+    Rgb6 { color: EmbeddedRgb },
+    Gray { color: GrayGradient },
+    Rgb256 { color: TrueColor },
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
@@ -809,7 +825,16 @@ impl TerminalColor {
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn from_24bit(r: u8, g: u8, b: u8) -> Self {
-        Self::Rgb256(TrueColor::new(r, g, b))
+        Self::Rgb256 {
+            color: TrueColor::new(r, g, b),
+        }
+    }
+
+    /// Convert this terminal color to an 8-bit index color.
+    #[cfg(feature = "pyffi")]
+    pub fn to_8bit(&self) -> PyResult<u8> {
+        u8::try_from(*self)
+            .map_err(|_| pyo3::exceptions::PyValueError::new_err("unable to convert to 8-bit index"))
     }
 
     /// Determine whether this terminal color is the default color.
@@ -826,17 +851,17 @@ impl TerminalColor {
     pub fn sgr_parameters(&self, layer: Layer) -> Vec<u8> {
         match self {
             TerminalColor::Default() => vec![30 + layer.offset()],
-            TerminalColor::Ansi(c) => {
+            TerminalColor::Ansi { color: c } => {
                 let base = if c.is_bright() { 90 } else { 30 } + layer.offset();
                 vec![base + c.nonbright() as u8]
             }
-            TerminalColor::Rgb6(c) => {
+            TerminalColor::Rgb6 { color: c } => {
                 vec![38 + layer.offset(), 5, u8::from(*c)]
             }
-            TerminalColor::Gray(c) => {
+            TerminalColor::Gray { color: c } => {
                 vec![38 + layer.offset(), 5, u8::from(*c)]
             }
-            TerminalColor::Rgb256(c) => {
+            TerminalColor::Rgb256 { color: c } => {
                 vec![38 + layer.offset(), 2, c[0], c[1], c[2]]
             }
         }
@@ -853,7 +878,9 @@ impl TerminalColor {
 impl TerminalColor {
     /// Instantiate a new terminal color from the 24-bit RGB coordinates.
     pub fn from_24bit(r: impl Into<u8>, g: impl Into<u8>, b: impl Into<u8>) -> Self {
-        Self::Rgb256(TrueColor::new(r.into(), g.into(), b.into()))
+        Self::Rgb256 {
+            color: TrueColor::new(r.into(), g.into(), b.into()),
+        }
     }
 }
 
@@ -864,11 +891,17 @@ impl From<u8> for TerminalColor {
     /// ANSI, embedded RGB, or gray gradient color.
     fn from(value: u8) -> Self {
         if (0..=15).contains(&value) {
-            Self::Ansi(AnsiColor::try_from(value).unwrap())
+            Self::Ansi {
+                color: AnsiColor::try_from(value).unwrap(),
+            }
         } else if (16..=231).contains(&value) {
-            Self::Rgb6(EmbeddedRgb::try_from(value).unwrap())
+            Self::Rgb6 {
+                color: EmbeddedRgb::try_from(value).unwrap(),
+            }
         } else {
-            Self::Gray(GrayGradient::try_from(value).unwrap())
+            Self::Gray {
+                color: GrayGradient::try_from(value).unwrap(),
+            }
         }
     }
 }
@@ -880,7 +913,28 @@ impl From<&Color> for TerminalColor {
     /// converts each coordinate to `u8` before returning a wrapped
     /// [`TrueColor`].
     fn from(value: &Color) -> Self {
-        Self::Rgb256(TrueColor::from(value))
+        Self::Rgb256 {
+            color: TrueColor::from(value),
+        }
+    }
+}
+
+impl TryFrom<TerminalColor> for u8 {
+    type Error = TerminalColor;
+
+    /// Try to convert this terminal color to an 8-bit index.
+    ///
+    /// For ANSI, embedded RGB, and gray gradient colors, this method unwraps
+    /// the color and converts it to an 8-bit index. It returns any other
+    /// terminal color as the error value.
+    fn try_from(value: TerminalColor) -> Result<Self, Self::Error> {
+        match value {
+            TerminalColor::Default() => Err(value),
+            TerminalColor::Ansi { color: c } => Ok(u8::from(c)),
+            TerminalColor::Rgb6 { color: c } => Ok(u8::from(c)),
+            TerminalColor::Gray { color: c } => Ok(u8::from(c)),
+            TerminalColor::Rgb256 { .. } => Err(value),
+        }
     }
 }
 
@@ -976,9 +1030,9 @@ impl From<TerminalColor> for Fidelity {
     /// Determine the necessary fidelity level for the given terminal color.
     fn from(value: TerminalColor) -> Self {
         match value {
-            TerminalColor::Default() | TerminalColor::Ansi(_) => Self::Ansi,
-            TerminalColor::Rgb6(_) | TerminalColor::Gray(_) => Self::EightBit,
-            TerminalColor::Rgb256(_) => Self::Full,
+            TerminalColor::Default() | TerminalColor::Ansi { .. } => Self::Ansi,
+            TerminalColor::Rgb6 { .. } | TerminalColor::Gray { .. } => Self::EightBit,
+            TerminalColor::Rgb256 { .. } => Self::Full,
         }
     }
 }
@@ -1015,9 +1069,11 @@ mod test {
         let gray = GrayGradient::new(12)?;
         assert_eq!(gray.level(), 12);
 
-        let also_magenta = TerminalColor::Ansi(AnsiColor::Magenta);
-        let also_green = TerminalColor::Rgb6(green);
-        let also_gray = TerminalColor::Gray(gray);
+        let also_magenta = TerminalColor::Ansi {
+            color: AnsiColor::Magenta,
+        };
+        let also_green = TerminalColor::Rgb6 { color: green };
+        let also_gray = TerminalColor::Gray { color: gray };
 
         assert_eq!(also_magenta, TerminalColor::from(5));
         assert_eq!(also_green, TerminalColor::from(40));
