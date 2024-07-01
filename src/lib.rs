@@ -402,8 +402,8 @@
 //! assert_eq!(Color::from(gray), Color::from_24bit(188, 188, 188));
 //!
 //! let green = TerminalColor::from(71);
-//! assert!(matches!(green, TerminalColor::Rgb6(_)));
-//! if let TerminalColor::Rgb6(also_green) = green {
+//! assert!(matches!(green, TerminalColor::Rgb6 { .. }));
+//! if let TerminalColor::Rgb6 { color: also_green } = green {
 //!     assert_eq!(also_green[0], 1);
 //!     assert_eq!(also_green[1], 3);
 //!     assert_eq!(also_green[2], 1);
@@ -463,13 +463,14 @@
 //! conversion between ANSI colors and high-resolution colors.
 //!
 //! ```
-//! # use prettypretty::{AnsiColor, Color, ColorFormatError, Sampler, DEFAULT_THEME};
+//! # use prettypretty::{AnsiColor, Color, ColorFormatError, Sampler, Theme, VGA_COLORS};
 //! # use prettypretty::OkVersion;
 //! # use std::str::FromStr;
-//! let red = &DEFAULT_THEME[AnsiColor::BrightRed];
+//! let theme = Theme::new(&VGA_COLORS);
+//! let red = &theme[AnsiColor::BrightRed];
 //! assert_eq!(red, &Color::srgb(1.0, 0.333333333333333, 0.333333333333333));
 //!
-//! let sampler = Sampler::new(&DEFAULT_THEME, OkVersion::Revised);
+//! let sampler = Sampler::new(&theme, OkVersion::Revised);
 //! let yellow = Color::from_str("#FFE06C")?;
 //! let bright_yellow = sampler.to_closest_ansi(&yellow);
 //! assert_eq!(u8::from(bright_yellow), 11);
@@ -518,9 +519,11 @@
 //! include its own facilities for styled text or terminal I/O. Instead, it is
 //! designed to be a lightweight addition that focuses on color management only.
 //! To use this crate, an application must create its own instances of [`Theme`]
-//! and [`Sampler`]. While this crate contains one default theme, surprisingly
-//! called [`DEFAULT_THEME`], that theme helps with examples and tests but isn't
-//! suitable for production usage.
+//! and [`Sampler`]. Unfortunately, [`Theme`]'s constructor is not suitable to
+//! become a const function. Though this crate does include [`VGA_COLORS`],
+//! which does contain the necessary 18 colors in the necessary order. Not that
+//! you should use these in production. But they help demonstrate the use of
+//! themes.
 //!
 //! To fill in an accurate terminal theme, the application should use the ANSI
 //! escape sequences
@@ -579,7 +582,7 @@ mod error;
 mod object;
 mod term_color;
 
-pub use collection::{Sampler, Theme, ThemeEntry, ThemeEntryIterator, DEFAULT_THEME};
+pub use collection::{Sampler, Theme, ThemeEntry, ThemeEntryIterator, VGA_COLORS};
 pub use core::{ColorFormatError, ColorSpace, HueInterpolation};
 pub use error::OutOfBoundsError;
 pub use object::{Color, Interpolator, OkVersion};
