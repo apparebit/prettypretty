@@ -5,11 +5,10 @@ to meaningful color values.
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import ContextManager, overload
 
-from .color import Color, Sampler, OkVersion, Theme
+from .color import Color, Sampler, OkVersion
 
-MACOS_TERMINAL = Theme([
+MACOS_TERMINAL = (
     Color.parse("#000000"),
     Color.parse("#ffffff"),
     Color.parse("#000000"),
@@ -28,10 +27,10 @@ MACOS_TERMINAL = Theme([
     Color.parse("#e500e5"),
     Color.parse("#00e5e5"),
     Color.parse("#e5e5e5"),
-])
+)
 
 
-VGA = Theme([
+VGA = (
     Color.parse("#000000"),
     Color.parse("#ffffff"),
     Color.parse("#000000"),
@@ -50,10 +49,10 @@ VGA = Theme([
     Color.parse("#ff55ff"),
     Color.parse("#55ffff"),
     Color.parse("#ffffff"),
-])
+)
 
 
-XTERM = Theme([
+XTERM = (
     Color.parse("#000000"),
     Color.parse("#ffffff"),
     Color.parse("#000000"),
@@ -72,71 +71,27 @@ XTERM = Theme([
     Color.parse("#ff00ff"),
     Color.parse("#00ffff"),
     Color.parse("#ffffff"),
-])
+)
 
 
-def builtin_theme_name(theme: Theme) -> None | str:
-    """
-    Determine the name of the given theme. If the theme is one of the built-in
-    themes, this function returns a descriptive name. Otherwise, it returns
-    ``None``.
-    """
-    if theme is MACOS_TERMINAL:
-        return 'macOS Terminal.app default theme'
-    elif theme is VGA:
-        return 'VGA text theme'
-    elif theme is XTERM:
-        return 'xterm default theme'
-    else:
-        return None
-
-
-_current_theme_and_sampler: list[tuple[Theme, Sampler]] = [
-    (VGA, Sampler(VGA, OkVersion.Revised))
-]
+_current_sampler: list[Sampler] = [Sampler(VGA, OkVersion.Revised)]
 
 @contextmanager
-def _manage_theme_and_sampler(theme: Theme) -> Iterator[Theme]:
-    _current_theme_and_sampler.append((theme, Sampler(theme, OkVersion.Revised)))
+def new_theme(theme_colors: list[Color]) -> Iterator[Sampler]:
+    """
+    Create a new context manager to make the theme colors the current theme
+    colors. This function expects exactly 18 colors.
+    """
+    _current_sampler.append(Sampler(theme_colors, OkVersion.Revised))
     try:
-        yield theme
+        yield _current_sampler[-1]
     finally:
-        _current_theme_and_sampler.pop()
-
-
-@overload
-def current_theme() -> Theme:
-    ...
-@overload
-def current_theme(theme: Theme) -> ContextManager[Theme]:
-    ...
-def current_theme(theme: None | Theme = None) -> Theme | ContextManager[Theme]:
-    """
-    Manage the current theme.
-
-    This function does the work of two:
-
-     1. When invoked without arguments, this function simply returns the current
-        theme.
-     2. When invoked with a theme as argument, this function returns a context
-        manager that switches to the provided theme on entry and restores the
-        current theme again on exit.
-
-    The default theme uses the same colors as good ol' VGA text mode.
-    """
-    return (
-        _current_theme_and_sampler[-1][0]
-        if theme is None
-        else _manage_theme_and_sampler(theme)
-    )
-
+        _current_sampler.pop()
 
 def current_sampler() -> Sampler:
     """
     Access the current sampler.
 
-    The sampler is automatically updated whenever the current theme changes. It
-    uses the revised version of Oklab, i.e., Oklrab, for measuring color
-    differences.
+    The sampler is automatically updated when using different theme colors.
     """
-    return _current_theme_and_sampler[-1][1]
+    return _current_sampler[-1]

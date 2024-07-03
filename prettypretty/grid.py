@@ -6,9 +6,7 @@ import argparse
 from typing import cast, Literal
 
 from .color import Color, EmbeddedRgb, Fidelity, Layer
-from .theme import (
-    MACOS_TERMINAL, VGA, XTERM, builtin_theme_name, current_theme, current_sampler
-)
+from .theme import MACOS_TERMINAL, VGA, XTERM, current_sampler
 from .terminal import Terminal
 
 
@@ -147,10 +145,10 @@ def write_color_cube(
                     eight_bit = embedded.to_8bit()
                 elif strategy == 'pretty':
                     eight_bit = sampler.to_closest_ansi(color).to_8bit()
-                    color = sampler.to_high_res_8bit(eight_bit)
+                    color = sampler.resolve_8bit(eight_bit)
                 elif strategy == 'naive':
-                    eight_bit = sampler.to_ansi_in_rgb(color).to_8bit()
-                    color = sampler.to_high_res_8bit(eight_bit)
+                    eight_bit = sampler.to_ansi_rgb(color).to_8bit()
+                    color = sampler.resolve_8bit(eight_bit)
                 else:
                     raise ValueError(f'invalid strategy "{strategy}"')
 
@@ -193,7 +191,7 @@ def write_hires_slice(
 
     def emit_box(r: int, g: int, b: int) -> None:
         if eight_bit_only:
-            color = sampler.to_closest_8bit_raw(Color.from_24bit(r, g, b)),
+            color = sampler.to_closest_8bit(Color.from_24bit(r, g, b)).to_8bit(),
         else:
             color = r, g, b
 
@@ -229,10 +227,10 @@ def write_theme_test(term: Terminal, show_label: bool = True):
     frame = FramedBoxes(term, 2, max_width=40)
     frame.top('Actual vs Claimed Color')
 
-    theme = current_theme()
+    sampler = current_sampler()
 
     for index in range(16):
-        color = theme[index + 2]
+        color = sampler.resolve_8bit(index)
         fg = 16 if color.use_black_text() else 231
         bg = color.to_24bit()
 
@@ -346,12 +344,8 @@ if __name__ == '__main__':
                 Both columns should have the exact same visual background color.
             """)
 
-        theme_name = builtin_theme_name(current_theme()) or 'current terminal theme'
         color_mode = 'truecolor' if term.fidelity is Fidelity.Full else '8-bit color'
-
-        term.writeln(
-            'The above charts use the ', theme_name, ' in ', color_mode, ' mode!\n'
-        )
+        term.writeln('The above charts utilize ', color_mode, ' mode!\n')
 
         color_support = None
         with term.cbreak_mode():
