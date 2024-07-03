@@ -293,7 +293,7 @@ impl EmbeddedRgb {
     /// Convert this embedded RGB color to its debug representation. <span
     /// class=python-only></span>
     pub fn __repr__(&self) -> String {
-        format!("{:?}", self)
+        format!("EmbeddedRgb({}, {}, {})", self.0[0], self.0[1], self.0[2])
     }
 }
 
@@ -527,7 +527,7 @@ impl GrayGradient {
     /// Convert this gray gradient to its debug representation. <span
     /// class=python-only></span>
     pub fn __repr__(&self) -> String {
-        format!("{:?}", self)
+        format!("GrayGradient({})", self.0)
     }
 }
 
@@ -715,7 +715,7 @@ impl TrueColor {
     /// Convert this true color to its debug representation. <span
     /// class=python-only></span>
     pub fn __repr__(&self) -> String {
-        format!("{:?}", self)
+        format!("TrueColor({}, {}, {})", self.0[0], self.0[1], self.0[2])
     }
 
     /// Convert this true color to hashed hexadecimal notation. <span
@@ -891,7 +891,13 @@ impl TerminalColor {
     /// Convert to a debug representation. <span class=python-only></span>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
-        format!("{:?}", self)
+        match self {
+            TerminalColor::Default() => "TerminalColor.Default()".into(),
+            TerminalColor::Ansi { color: c } => format!("TerminalColor.Ansi({:?})", c),
+            TerminalColor::Rgb6 { color: c } => format!("TerminalColor.Rgb6({})", c.__repr__()),
+            TerminalColor::Gray { color: c } => format!("TerminalColor.Gray({})", c.__repr__()),
+            TerminalColor::Rgb256 { color: c } => format!("TerminalColor.Rgb256({})", c.__repr__()),
+        }
     }
 }
 
@@ -968,9 +974,9 @@ impl TryFrom<TerminalColor> for u8 {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Layer {
     /// The foreground or text layer.
-    Foreground = 0,
+    Foreground,
     /// The background layer.
-    Background = 10,
+    Background,
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
@@ -980,7 +986,10 @@ impl Layer {
     /// The offset is added to CSI parameter values for foreground colors.
     #[inline]
     pub fn offset(&self) -> u8 {
-        *self as u8
+        match self {
+            Self::Foreground => 0,
+            Self::Background => 10,
+        }
     }
 
     /// Return a humane description for this layer. <span
@@ -995,8 +1004,8 @@ impl std::fmt::Display for Layer {
     /// Format this layer name.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Foreground => f.write_str("foreground"),
-            Self::Background => f.write_str("background"),
+            Self::Foreground => f.write_str("Foreground"),
+            Self::Background => f.write_str("Background"),
         }
     }
 }

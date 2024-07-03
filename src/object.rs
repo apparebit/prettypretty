@@ -866,7 +866,10 @@ impl Color {
     /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
-        format!("{:?}", self)
+        format!(
+            "Color({:?}, [{}, {}, {}])",
+            self.space, self.coordinates[0], self.coordinates[1], self.coordinates[2]
+        )
     }
 
     /// Convert this color to its (CSS-based) string representation. <span
@@ -1507,5 +1510,14 @@ impl Interpolator {
     pub fn at(&self, fraction: f64) -> Color {
         let [c1, c2, c3] = interpolate(fraction, &self.coordinates1, &self.coordinates2);
         Color::new(self.space, [c1, c2, c3])
+    }
+
+    /// Create a debug representation of this interpolator.
+    #[cfg(feature = "pyffi")]
+    pub fn __repr__(&self) -> String {
+        format!(
+            "Interpolator({:?}, {:?}, {:?})",
+            self.space, self.coordinates1, self.coordinates2
+        )
     }
 }
