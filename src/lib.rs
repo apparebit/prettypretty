@@ -429,48 +429,76 @@
 //! To apply 2020s color science to terminal colors, we need to be able to
 //! translate them to high-resolution colors and back again:
 //!
-//!   * [`Theme`] provides high-resolution color values for the default
-//!     foreground, default background, and 16 extended ANSI colors.
-//!   * [`Sampler`] implements logic and caches state for translating
-//!     between terminal and high-resolution colors.
+//!   * [`Sampler`] provides the logic for translating between terminal and
+//!     high-resolution colors. It also caches all necessary state.
 //!
 //! Terminal emulators address ANSI colors' lack of intrinsic color values by
 //! making colors configurable through [color
-//! themes](https://gogh-co.github.io/Gogh/). This crate takes the same
-//! approach, relying on color themes to provide high-resolution color values.
-//! But instead of configuring themes, applications should use ANSI escape codes
-//! to query the terminal for its current color theme. As the code example below
-//! illustrates, with such a color [`Theme`], converting ANSI colors to
-//! high-resolution colors becomes as simple as an index expression. It also
-//! does not loose precision.
+//! themes](https://gogh-co.github.io/Gogh/). Prettypretty takes the same basic
+//! approach—except, applications should not rely on some configured color
+//! values, which would just burden their users. They should use ANSI escape
+//! codes to query the terminal for its current theme colors and then pass those
+//! colors to a [`Sampler`] instance.
 //!
-//! Conversion in the other direction, from high-resolution colors to terminal
-//! colors, always entails some loss of precision. In the best case of
-//! converting colors that are in-gamut for sRGB to true color, that loss is
-//! mostly due to the conversion from floating point to integer coordinates and
-//! probably remains imperceptible. However, when source colors are out-of-gamut
-//! for sRGB or when the target are 8-bit or ANSI colors, the loss of precision
-//! may be considerable and the difference between source and target colors will
-//! be readily visible. To minimize divergence, this crate gamut-maps colors
-//! that are out-of-gamut for sRGB when converting to true colors.
+//! [`Sampler::new`] expects the list of the 18 theme colors in order of
+//! [`ThemeEntry`]'s variants. The instance's *resolve* methods then use that
+//! list to look up color values. While largely straight-forward, [`Sampler`]
+//! nonetheless has several methods to accommodate the various representations
+//! of terminal colors.
 //!
-//! When converting to 8-bit or ANSI colors, there are not enough colors for
-//! gamut-mapping. But there are few enough colors for exhaustively searching
-//! for the best match. [`Sampler`] stores the necessary color state and
-//! implements the search.
+//!   * *Translation to 24-bit colors*: Translation from high-resolution to
+//!     terminal colors is a bit more involved. In the best case, when the
+//!     source color is in-gamut for sRGB and the target are 24-bit "true"
+//!     colors, the loss of numeric resolution may not even be perceptible.
+//!     However, if the source color is out of sRGB gamut, even when still
+//!     targeting 24-bit colors and using gamut-mapping, which [`Sampler`] does,
+//!     the difference becomes clearly noticeable. It only becomes more glaring
+//!     when targeting 8-bit or ANSI colors.
 //!
-//! The example below illustrates the use of color theme and sampler for
-//! conversion between ANSI colors and high-resolution colors.
+//!   * *Translation to 8-bit colors*: While accuracy necessarily suffers when
+//!     targeting 8-bit colors, the small number of colors makes brute force
+//!     search feasible for finding the closest target color.
+//!     [`Sampler::to_closest_8bit`] does just that, though it only considers
+//!     embedded RGB and gray gradient colors. ANSI colors aren't usually
+//!     assigned coordinates based on some formula and hence tend to stick out
+//!     amongst embedded RGB and gray gradient colors.
+//!
+//!   * *Translation to ANSI colors*: [`Sampler::to_closest_ansi`] is the
+//!     equivalent method for targeting ANSI colors. However, unlike the 8-bit
+//!     version, it may not find a good match. Its documentation describes one
+//!     such case. That's why I developed my own algorithm for conversion to
+//!     ANSI colors that leverages their semantics. More specifically, it first
+//!     uses hue to find a matching pair of regular and bright colors and then
+//!     uses lightness to pick the better fitting one. Alas, if you terminal
+//!     theme does violates semantics, it can't possibly work and prettypretty
+//!     automatically falls back to brute force.
+//!
+//! The example below illustrates the use of a sampler instance for translation
+//! between ANSI and high-resolution colors. Just as required by
+//! [`Sampler::new`], `VGA_COLORS` comprises 18 theme colors, namely the default
+//! foreground and background colors followed by the 16 extended ANSI colors.
+//! Hence, the index expression on the first line needs to add 2 to the index
+//! for bright red. As long as your application sticks to [`Sampler`]'s
+//! interface, it won't have to adjust indexes like that.
+//!
+//! Meanwhile, the fifth line uses [`Sampler::try_resolve`] to translate a
+//! terminal to a high-resolution color. Since the terminal color may be the
+//! default color and that color cannot be resolved without its [`Layer`], the
+//! method returns an option that needs to be unwrapped. [`Sampler::resolve`]
+//! avoids the option but requires the layer as second argument. Pick your
+//! poison... 🤢
 //!
 //! ```
-//! # use prettypretty::{AnsiColor, Color, ColorFormatError, Sampler, Theme, VGA_COLORS};
+//! # use prettypretty::{AnsiColor, Color, ColorFormatError, Layer, Sampler, VGA_COLORS};
 //! # use prettypretty::OkVersion;
 //! # use std::str::FromStr;
-//! let theme = Theme::new(&VGA_COLORS);
-//! let red = &theme[AnsiColor::BrightRed];
+//! let red = &VGA_COLORS[AnsiColor::BrightRed as usize + 2];
 //! assert_eq!(red, &Color::srgb(1.0, 0.333333333333333, 0.333333333333333));
 //!
-//! let sampler = Sampler::new(&theme, OkVersion::Revised);
+//! let sampler = Sampler::new(VGA_COLORS.clone(), OkVersion::Revised);
+//! let also_red = &sampler.try_resolve(AnsiColor::BrightRed).unwrap();
+//! assert_eq!(red, also_red);
+//!
 //! let yellow = Color::from_str("#FFE06C")?;
 //! let bright_yellow = sampler.to_closest_ansi(&yellow);
 //! assert_eq!(u8::from(bright_yellow), 11);
@@ -487,30 +515,34 @@
 //!
 //! This crate has two features:
 //!
-//!   - **`f64`**: When this feature is disabled, the entire crate uses `f32`
-//!     instead of the default `f64`. In either case, the currently active
-//!     floating point type is [`Float`] and the same-sized unsigned integer
-//!     bits are [`Bits`].
-//!   - **`pyffi`**: When this feature is enabled, this crate uses
-//!     [PyO3](https://pyo3.rs/) to export an extension module for Python that
-//!     makes this crate's Rust-based colors available in Python.
+//!   - **`f64`**: This feature is enabled by default. When disabled, the crate
+//!     uses `f32`. In either case, the currently active floating point type is
+//!     [`Float`] and the same-sized unsigned integer bits are [`Bits`].
+//!   - **`pyffi`**: This feature is disabled by default. When enabled, this
+//!     crate uses [PyO3](https://pyo3.rs/) to export an extension module for
+//!     Python that makes this crate's Rust-based colors available in Python.
 //!
-//! The second feature makes it possible to satisfy the need for easily scripted
-//! as well as for strictly checked and fast from one and the same code base,
-//! which is great. Furthermore, the extent of PyO3's integration between Rust
-//! and Python goes well beyond that of other FFIs, which is even better. Alas,
-//! getting everything to work nicely still required a painful amount of `cfg()`
-//! annotations, a fair number of language-specific methods, and some outright
-//! code duplication, which was disappointing.
+//! The `pyffi` feature makes it possible to satisfy the need for easily
+//! scripted but also safe & fast code from the same code base. It helps that
+//! PyO3's integration between Rust and Python goes well beyond what other FFIs
+//! offer.
 //!
-//! Furthermore, while the Rust and Python versions largely implement the same
-//! features (with only two methods currently unavailable from Python), the two
-//! versions nonetheless differ substantially. Notably, the Rust version makes
-//! extensive use of standard library traits such as `From` and `TryFrom`. Since
-//! Python does not include similar language features, that same functionality
-//! needs to be provided by regular methods. The documentation tags such
-//! Python-only methods as <span class=python-only></span> and the few Rust-only
-//! methods as <span class=rust-only></span>.
+//! Alas, getting everything to work was somewhat painful. One major frustration
+//! is that, despite appropriate `cfg()` and `cfg_attr()` annotations, `maturin`
+//! or `cargo doc` would pick up the wrong methods. Notably, `#[new]` and
+//! `#[staticmethod]` confuse tools. So does Python accepting some `T` when Rust
+//! accepts `impl Into<T>`. The only solution has been breaking the code into
+//! one `impl` block for `feature="pyffi"`, one for `not(feature="pyffi")`, and,
+//! sometimes, a third for shared, private helper methods.
+//!
+//! While the Rust and Python versions implement the same features (modulo two
+//! methods), the two versions nonetheless differ substantially. Notably, the
+//! Rust version makes extensive use of standard library traits such as `From`
+//! and `TryFrom`. Since Python does not include similar language features, that
+//! same functionality needs to be provided by regular methods. The
+//! documentation tags such Python-only methods as <span
+//! class=python-only></span> and the few Rust-only methods as <span
+//! class=rust-only></span>.
 //!
 //!
 //! ## 5. BYOIO: Bring Your Own (Terminal) I/O
@@ -518,15 +550,10 @@
 //! Unlike the Python version, the Rust version of prettypretty does not (yet?)
 //! include its own facilities for styled text or terminal I/O. Instead, it is
 //! designed to be a lightweight addition that focuses on color management only.
-//! To use this crate, an application must create its own instances of [`Theme`]
-//! and [`Sampler`]. Unfortunately, [`Theme`]'s constructor is not suitable to
-//! become a const function. Though this crate does include [`VGA_COLORS`],
-//! which does contain the necessary 18 colors in the necessary order. Not that
-//! you should use these in production. But they help demonstrate the use of
-//! themes.
+//! To use this crate, an application should create its own instance of
+//! [`Sampler`] with the colors of the current terminal theme.
 //!
-//! To fill in an accurate terminal theme, the application should use the ANSI
-//! escape sequences
+//! An application should use the ANSI escape sequences
 //! ```text
 //! "{OSC}{10..=11};?{ST}"
 //! ```
@@ -534,7 +561,7 @@
 //! ```text
 //! "{OSC}4;{0..=15};?{ST}"
 //! ```
-//! to query the terminal for its two default and 16 extended ANSI colors. The
+//! to query the terminal for the two default and 16 extended ANSI colors. The
 //! responses are ANSI escape sequences with the exact same prefix as requests,
 //! *before* the question mark, followed by the color in X Windows `rgb:`
 //! format, followed by ST. Once you stripped the prefix and suffix from a
@@ -582,7 +609,7 @@ mod error;
 mod object;
 mod term_color;
 
-pub use collection::{Sampler, Theme, ThemeEntry, ThemeEntryIterator, VGA_COLORS};
+pub use collection::{Sampler, ThemeEntry, ThemeEntryIterator, VGA_COLORS};
 pub use core::{ColorFormatError, ColorSpace, HueInterpolation};
 pub use error::OutOfBoundsError;
 pub use object::{Color, Interpolator, OkVersion};
@@ -601,7 +628,6 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AnsiColor>()?;
     m.add_class::<Color>()?;
     m.add_class::<ColorSpace>()?;
-    m.add_class::<Sampler>()?;
     m.add_class::<EmbeddedRgb>()?;
     m.add_class::<Fidelity>()?;
     m.add_class::<GrayGradient>()?;
@@ -609,8 +635,8 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Interpolator>()?;
     m.add_class::<Layer>()?;
     m.add_class::<OkVersion>()?;
+    m.add_class::<Sampler>()?;
     m.add_class::<TerminalColor>()?;
-    m.add_class::<Theme>()?;
     m.add_class::<ThemeEntry>()?;
     m.add_class::<ThemeEntryIterator>()?;
     m.add_class::<TrueColor>()?;
