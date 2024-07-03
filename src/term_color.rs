@@ -96,7 +96,6 @@ impl AnsiColor {
 impl TryFrom<u8> for AnsiColor {
     type Error = OutOfBoundsError;
 
-    /// Try to convert an unsigned byte to an ANSI color.
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         let ansi = match value {
             0 => AnsiColor::Black,
@@ -123,9 +122,14 @@ impl TryFrom<u8> for AnsiColor {
 }
 
 impl From<AnsiColor> for u8 {
-    /// Convert an ANSI color to an unsigned byte.
     fn from(value: AnsiColor) -> u8 {
         value as u8
+    }
+}
+
+impl From<AnsiColor> for TerminalColor {
+    fn from(color: AnsiColor) -> Self {
+        TerminalColor::Ansi { color }
     }
 }
 
@@ -350,7 +354,6 @@ impl std::ops::Index<usize> for EmbeddedRgb {
 }
 
 impl From<EmbeddedRgb> for u8 {
-    /// Convert an embedded RGB color to an unsigned byte.
     fn from(value: EmbeddedRgb) -> u8 {
         let [r, g, b] = value.0;
         16 + 36 * r + 6 * g + b
@@ -358,7 +361,6 @@ impl From<EmbeddedRgb> for u8 {
 }
 
 impl From<EmbeddedRgb> for TrueColor {
-    /// Instantiate a true color from an embedded RGB value.
     fn from(value: EmbeddedRgb) -> Self {
         fn convert(value: u8) -> u8 {
             if value == 0 {
@@ -370,6 +372,12 @@ impl From<EmbeddedRgb> for TrueColor {
 
         let [r, g, b] = *value.as_ref();
         TrueColor::new(convert(r), convert(g), convert(b))
+    }
+}
+
+impl From<EmbeddedRgb> for TerminalColor {
+    fn from(color: EmbeddedRgb) -> Self {
+        TerminalColor::Rgb6 { color }
     }
 }
 
@@ -544,7 +552,6 @@ impl GrayGradient {
 impl TryFrom<u8> for GrayGradient {
     type Error = OutOfBoundsError;
 
-    /// Try instantiating a gray gradient value from an unsigned byte.
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         if value <= 231 {
             Err(OutOfBoundsError::new(value, 232..=255))
@@ -555,22 +562,25 @@ impl TryFrom<u8> for GrayGradient {
 }
 
 impl From<GrayGradient> for u8 {
-    /// Convert the gray gradient to an unsigned byte.
     fn from(value: GrayGradient) -> u8 {
         232 + value.0
     }
 }
 
 impl From<GrayGradient> for TrueColor {
-    /// Convert the gray gradient to a true color.
     fn from(value: GrayGradient) -> TrueColor {
         let level = 8 + 10 * value.level();
         TrueColor::new(level, level, level)
     }
 }
 
+impl From<GrayGradient> for TerminalColor {
+    fn from(color: GrayGradient) -> Self {
+        TerminalColor::Gray { color }
+    }
+}
+
 impl From<GrayGradient> for Color {
-    /// Instantiate a high-resolution color from an embedded RGB value.
     fn from(value: GrayGradient) -> Self {
         let level = 8 + 10 * value.level();
         Color::from_24bit(level, level, level)
@@ -724,7 +734,6 @@ impl TrueColor {
 }
 
 impl AsRef<[u8; 3]> for TrueColor {
-    /// Access this color's coordinates by reference.
     fn as_ref(&self) -> &[u8; 3] {
         &self.0
     }
@@ -755,15 +764,19 @@ impl From<&Color> for TrueColor {
     }
 }
 
+impl From<TrueColor> for TerminalColor {
+    fn from(color: TrueColor) -> Self {
+        TerminalColor::Rgb256 { color }
+    }
+}
+
 impl From<TrueColor> for Color {
-    /// Instantiate a high-resolution color from a true color value.
     fn from(value: TrueColor) -> Self {
         Self::from_24bit(value.0[0], value.0[1], value.0[2])
     }
 }
 
 impl core::fmt::Display for TrueColor {
-    /// Format this true color in hashed hexadecimal notation.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let [r, g, b] = *self.as_ref();
         write!(f, "#{:02x}{:02x}{:02x}", r, g, b)
@@ -1035,7 +1048,6 @@ impl Fidelity {
 }
 
 impl From<TerminalColor> for Fidelity {
-    /// Determine the necessary fidelity level for the given terminal color.
     fn from(value: TerminalColor) -> Self {
         match value {
             TerminalColor::Default() | TerminalColor::Ansi { .. } => Self::Ansi,
@@ -1046,7 +1058,6 @@ impl From<TerminalColor> for Fidelity {
 }
 
 impl std::fmt::Display for Fidelity {
-    /// Format a humane description for this fidelity.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Self::Plain => "plain text",
