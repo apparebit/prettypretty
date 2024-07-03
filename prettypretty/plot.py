@@ -19,7 +19,7 @@ from typing import Any, cast
 
 from .terminal import Terminal
 from .color import Color, ColorSpace, ThemeEntry
-from .theme import current_theme, VGA
+from .theme import current_sampler, VGA
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -206,6 +206,7 @@ class ColorPlotter:
                 edgecolors='#000',
             )
 
+        axes.set_rmin(0)
         axes.set_rmax(self.effective_max_chroma())  # type: ignore
 
         # Don't show tick labels at angle
@@ -248,10 +249,10 @@ def main() -> None:
             if not options.theme:
                 terminal_id = term.request_terminal_identity()
 
-            theme = current_theme()
-            for index in range(2, 18):
-                color = theme[index]
-                plotter.add(ThemeEntry.from_index(index).name(), color)
+            sampler = current_sampler()
+            for index in range(16):
+                color = sampler.resolve_8bit(index)
+                plotter.add(ThemeEntry.from_index(index + 2).name(), color)
 
     for color in [Color.parse("#" + c) for c in cast(list[str], options.colors) or []]:
         plotter.add("<extra>", color, marker="d")
