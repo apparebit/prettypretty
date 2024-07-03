@@ -7,13 +7,13 @@ name = "prettypretty"
 description = "Applying 2020s color science to 1970s terminal user interfaces"
 keywords = ["awesome", "terminal", "color", "ANSI escape code", "terminal user interface"]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 license = {text = "Apache 2.0"}
 authors = [{name = "Robert Grimm", email="rgrimm@alum.mit.edu"}]
 dynamic = ["version"]
 
 [project.optional-dependencies]
-dev = ["flit", "ipython", "pyright"]
+dev = ["maturin", "matplotlib", "pyright"]
 doc = [
     "sphinx",
     "sphinxcontrib-autoprogram",
@@ -39,4 +39,4 @@ features = ["pyffi", "pyo3/extension-module"]
 [tool.pyright]
 include = ["prettypretty/**/*.py", "prettypretty/**/*.pyi", "test/*.py", "runtest.py"]
 typeCheckingMode = "strict"
-pythonVersion = "3.12"
+pythonVersion = "3.11"
