@@ -692,7 +692,7 @@ mod test {
             assert!(close_enough(&and_again_xyz, &xyz, false));
 
             let oklch = okxab_to_okxch(&oklab);
-            assert!(close_enough(dbg!(&oklch), dbg!(&color.oklch), true));
+            assert!(close_enough(&oklch, &color.oklch, true));
 
             let also_oklab = okxch_to_okxab(&oklch);
             assert!(close_enough(&also_oklab, &oklab, false));
