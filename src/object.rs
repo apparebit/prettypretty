@@ -71,7 +71,7 @@ use crate::Float;
 /// Both Rust and Python code can access individual coordinates by indexing a
 /// color object with integers `0..2`.
 #[cfg_attr(feature = "pyffi", pyclass(eq, sequence))]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Color {
     space: ColorSpace,
     coordinates: [Float; 3],
@@ -866,10 +866,7 @@ impl Color {
     /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
-        format!(
-            "Color({:?}, [{}, {}, {}])",
-            self.space, self.coordinates[0], self.coordinates[1], self.coordinates[2]
-        )
+        format!("{:?}", self)
     }
 
     /// Convert this color to its (CSS-based) string representation. <span
@@ -1331,6 +1328,13 @@ impl PartialEq for Color {
 }
 
 impl Eq for Color {}
+
+impl std::fmt::Debug for Color {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let [c1, c2, c3] = self.coordinates;
+        write!(f, "Color({:?}, [{}, {}, {}])", self.space, c1, c2, c3)
+    }
+}
 
 impl std::fmt::Display for Color {
     /// Format this color.

@@ -504,7 +504,6 @@ impl HueLightnessTable {
 /// its sampler if the current theme changes.
 #[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass)]
-#[derive(Debug)]
 pub struct Sampler {
     /// The theme colors. For converting *to* high-resolution colors.
     theme_colors: [Color; 18],
@@ -927,6 +926,10 @@ impl Sampler {
     pub fn adjust(&self, color: TerminalColor, fidelity: Fidelity) -> Option<TerminalColor> {
         self.do_adjust(color, fidelity)
     }
+
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
 }
 
 #[cfg(not(feature = "pyffi"))]
@@ -1348,6 +1351,22 @@ impl Sampler {
             }
             Fidelity::Full => Some(color),
         }
+    }
+}
+
+impl std::fmt::Debug for Sampler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Sampler({}, [\n", if self.space == ColorSpace::Oklab {
+            "OkVersion.Original"
+        } else {
+            "OkVersion.Revised"
+        })?;
+
+        for color in self.theme_colors.iter() {
+            write!(f, "    {:?},\n", color)?;
+        }
+
+        write!(f, "])")
     }
 }
 
