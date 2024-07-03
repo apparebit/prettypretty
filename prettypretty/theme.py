@@ -74,7 +74,7 @@ XTERM = (
 )
 
 
-_current_sampler: list[Sampler] = [Sampler(VGA, OkVersion.Revised)]
+_current_sampler: list[Sampler] = [Sampler(OkVersion.Revised, VGA)]
 
 @contextmanager
 def new_theme(theme_colors: list[Color]) -> Iterator[Sampler]:
@@ -82,7 +82,7 @@ def new_theme(theme_colors: list[Color]) -> Iterator[Sampler]:
     Create a new context manager to make the theme colors the current theme
     colors. This function expects exactly 18 colors.
     """
-    _current_sampler.append(Sampler(theme_colors, OkVersion.Revised))
+    _current_sampler.append(Sampler(OkVersion.Revised, theme_colors))
     try:
         yield _current_sampler[-1]
     finally:
