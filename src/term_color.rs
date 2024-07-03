@@ -316,7 +316,6 @@ impl EmbeddedRgb {
 impl TryFrom<u8> for EmbeddedRgb {
     type Error = OutOfBoundsError;
 
-    /// Try instantiating an embedded RGB color from an unsigned byte.
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         if !(16..=231).contains(&value) {
             Err(OutOfBoundsError::new(value, 16..=231))
@@ -333,7 +332,6 @@ impl TryFrom<u8> for EmbeddedRgb {
 }
 
 impl AsRef<[u8; 3]> for EmbeddedRgb {
-    /// Access this color's coordinates by reference.
     fn as_ref(&self) -> &[u8; 3] {
         &self.0
     }
@@ -382,7 +380,6 @@ impl From<EmbeddedRgb> for TerminalColor {
 }
 
 impl From<EmbeddedRgb> for Color {
-    /// Instantiate a high-resolution color from an embedded RGB value.
     fn from(value: EmbeddedRgb) -> Self {
         fn convert(value: u8) -> u8 {
             if value == 0 {
@@ -1001,7 +998,6 @@ impl Layer {
 }
 
 impl std::fmt::Display for Layer {
-    /// Format this layer name.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Foreground => f.write_str("Foreground"),

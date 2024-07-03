@@ -27,7 +27,6 @@ pub struct ThemeEntryIterator {
 impl Iterator for ThemeEntryIterator {
     type Item = ThemeEntry;
 
-    /// Access the next theme entry.
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= 18 {
             None
@@ -38,7 +37,6 @@ impl Iterator for ThemeEntryIterator {
         }
     }
 
-    /// Get the number of remaining theme entry, color pairs.
     fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = 18 - self.index;
         (remaining, Some(remaining))
@@ -49,6 +47,7 @@ impl std::iter::FusedIterator for ThemeEntryIterator {}
 impl std::iter::ExactSizeIterator for ThemeEntryIterator {}
 
 #[cfg(feature = "pyffi")]
+#[pymethods]
 impl ThemeEntryIterator {
     /// Access the next theme entry. <span class=python-only></span>
     pub fn __next__(&mut self) -> Option<ThemeEntry> {
@@ -144,7 +143,6 @@ macro_rules! enriched_theme_entry {
         impl ::std::convert::TryFrom<usize> for $name {
             type Error = $crate::OutOfBoundsError;
 
-            /// Convert an integer to a theme entry.
             fn try_from(value: usize) -> Result<Self, Self::Error> {
                 match value {
                     $(x if x == $name::$variant as usize => Ok($name::$variant)),*,
@@ -182,7 +180,6 @@ enriched_theme_entry! {
 }
 
 impl From<Layer> for ThemeEntry {
-    /// Convert the given layer to a theme entry.
     fn from(value: Layer) -> Self {
         match value {
             Layer::Foreground => ThemeEntry::Foreground,
@@ -192,7 +189,6 @@ impl From<Layer> for ThemeEntry {
 }
 
 impl From<AnsiColor> for ThemeEntry {
-    /// Convert the given ANSI color to a theme entry.
     fn from(value: AnsiColor) -> Self {
         ThemeEntry::try_from(value as usize + 2).unwrap()
     }
@@ -1356,14 +1352,18 @@ impl Sampler {
 
 impl std::fmt::Debug for Sampler {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Sampler({}, [\n", if self.space == ColorSpace::Oklab {
-            "OkVersion.Original"
-        } else {
-            "OkVersion.Revised"
-        })?;
+        writeln!(
+            f,
+            "Sampler({}, [",
+            if self.space == ColorSpace::Oklab {
+                "OkVersion.Original"
+            } else {
+                "OkVersion.Revised"
+            }
+        )?;
 
         for color in self.theme_colors.iter() {
-            write!(f, "    {:?},\n", color)?;
+            writeln!(f, "    {:?},", color)?;
         }
 
         write!(f, "])")

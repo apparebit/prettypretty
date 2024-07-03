@@ -131,7 +131,6 @@ impl ColorSpace {
 }
 
 impl std::fmt::Display for ColorSpace {
-    /// Format a human-readable representation of this color space.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use ColorSpace::*;
 

@@ -1188,7 +1188,6 @@ impl std::str::FromStr for Color {
 }
 
 impl AsRef<[Float; 3]> for Color {
-    /// Access this color's coordinates by reference.
     #[inline]
     fn as_ref(&self) -> &[Float; 3] {
         &self.coordinates
@@ -1196,7 +1195,6 @@ impl AsRef<[Float; 3]> for Color {
 }
 
 impl AsMut<[Float; 3]> for Color {
-    /// Access this color's coordinates by mutable reference.
     #[inline]
     fn as_mut(&mut self) -> &mut [Float; 3] {
         &mut self.coordinates
@@ -1255,9 +1253,6 @@ impl std::ops::IndexMut<usize> for Color {
 }
 
 impl std::hash::Hash for Color {
-    /// Hash this color.
-    ///
-    /// See the discussion for [`Color::eq`].
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.space.hash(state);
 

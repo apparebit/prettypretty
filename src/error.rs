@@ -29,7 +29,6 @@ impl OutOfBoundsError {
 }
 
 impl std::fmt::Display for OutOfBoundsError {
-    /// Format this out-of-bounds error.
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
@@ -43,7 +42,6 @@ impl std::fmt::Display for OutOfBoundsError {
 
 #[cfg(feature = "pyffi")]
 impl From<OutOfBoundsError> for PyErr {
-    /// Convert a color format error to a Python exception.
     fn from(value: OutOfBoundsError) -> Self {
         pyo3::exceptions::PyIndexError::new_err(value.to_string())
     }

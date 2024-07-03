@@ -58,7 +58,6 @@ pub enum ColorFormatError {
 }
 
 impl std::fmt::Display for ColorFormatError {
-    /// Format a description of this color format error.
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use ColorFormatError::*;
 
@@ -106,7 +105,6 @@ impl std::error::Error for ColorFormatError {}
 
 #[cfg(feature = "pyffi")]
 impl From<ColorFormatError> for PyErr {
-    /// Convert a color format error to a Python exception.
     fn from(value: ColorFormatError) -> Self {
         PyValueError::new_err(value.to_string())
     }
