@@ -2,9 +2,10 @@
 use pyo3::prelude::*;
 
 use crate::core::{
-    clip, convert, delta_e_ok, format, from_24bit, in_gamut, interpolate, normalize, parse,
-    prepare_to_interpolate, scale_lightness, to_24bit, to_contrast, to_contrast_luminance_p3,
-    to_contrast_luminance_srgb, to_eq_bits, to_gamut, ColorSpace, HueInterpolation,
+    clip, convert, delta_e_ok, format, from_24bit, in_gamut, interpolate, is_gray, normalize,
+    parse, prepare_to_interpolate, scale_lightness, to_24bit, to_contrast,
+    to_contrast_luminance_p3, to_contrast_luminance_srgb, to_eq_bits, to_gamut, ColorSpace,
+    HueInterpolation,
 };
 
 #[cfg(feature = "pyffi")]
@@ -293,56 +294,7 @@ impl Color {
         Self::new(ColorSpace::Srgb, from_24bit(r, g, b))
     }
 
-    /// Convert this color to 24-bit RGB representation.
-    ///
-    /// This method converts the color to a gamut-mapped sRGB color before
-    /// converting each coordinate to a `u8`.
-    pub fn to_24bit(&self) -> [u8; 3] {
-        to_24bit(
-            ColorSpace::Srgb,
-            self.to(ColorSpace::Srgb).to_gamut().as_ref(),
-        )
-    }
-
-    /// Format this color in familiar `#123abc` hashed hexadecimal representation.
-    ///
-    /// Like [`Color::to_24bit`], this method converts the color to a
-    /// gamut-mapped sRGB color before formatting its coordinates in hashed
-    /// hexadecimal notation.
-    ///
-    /// # Examples
-    ///
-    /// The example code illustrates formatting in hashed hexadecimal format for
-    /// a hot pink in Display P3. Together with the color swatch below, it also
-    /// demonstrates that clipped and gamut-mapped color can substantially
-    /// differ.
-    ///
-    /// ```
-    /// # use prettypretty::{Color, ColorSpace};
-    /// let pink = Color::p3(1, 0.2, 1).to(ColorSpace::Srgb);
-    /// assert!(!pink.in_gamut());
-    /// let clip = pink.clip();
-    /// assert_eq!(clip, Color::srgb(1, 0, 1));
-    /// let hex = pink.to_hex_format();
-    /// assert_eq!(hex, "#ff41fb");
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: color(display-p3 1 0.2 1);"></div>
-    /// <div style="background-color: color(srgb 1 0 1);"></div>
-    /// <div style="background-color: #ff41fb;"></div>
-    /// </div>
-    #[inline]
-    pub fn to_hex_format(&self) -> String {
-        let [r, g, b] = self.to_24bit();
-        format!("#{:02x}{:02x}{:02x}", r, g, b)
-    }
-
-    /// Determine whether this color is the default color, i.e., is the origin
-    /// of the XYZ color space.
-    #[inline]
-    pub fn is_default(&self) -> bool {
-        self.space == ColorSpace::Xyz && self.coordinates == [0.0, 0.0, 0.0]
-    }
+    // ----------------------------------------------------------------------------------------------------------------
 
     /// Access the color space.
     ///
@@ -369,6 +321,38 @@ impl Color {
     pub fn coordinates(&self) -> [Float; 3] {
         self.coordinates
     }
+
+    /// Determine whether this color is the default color, i.e., is the origin
+    /// of the XYZ color space.
+    #[inline]
+    pub fn is_default(&self) -> bool {
+        self.space == ColorSpace::Xyz && self.coordinates == [0.0, 0.0, 0.0]
+    }
+
+    /// Determine whether this color is a gray.
+    ///
+    /// This method determines whether this color is a gray. If the color is not
+    /// already in Oklch or Oklrch, this method converts it to Oklch first
+    /// (which is slightly more performant than converting to Oklrch). This
+    /// method then tests for the hue not being a number or the chroma being
+    /// less than a small threshold.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::Color;
+    /// let gray_enough = Color::srgb(0.5, 0.5, 0.51);
+    /// assert!(gray_enough.is_gray());
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(srgb 0.5 0.5 0.51)"></div>
+    /// </div>
+    #[inline]
+    pub fn is_gray(&self) -> bool {
+        is_gray(self.space, &self.coordinates)
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
 
     /// Normalize this color.
     ///
@@ -425,6 +409,8 @@ impl Color {
     pub fn to(&self, target: ColorSpace) -> Self {
         Self::new(target, convert(self.space, target, &self.coordinates))
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
 
     /// Determine whether this color is in-gamut for its color space.
     ///
@@ -520,6 +506,8 @@ impl Color {
         Self::new(self.space, to_gamut(self.space, &self.coordinates))
     }
 
+    // ----------------------------------------------------------------------------------------------------------------
+
     /// Compute the Euclidian distance between the two colors in Oklab.
     ///
     /// This method computes the color difference *Delta E OK*, which is the
@@ -554,6 +542,8 @@ impl Color {
             &other.to(version.cartesian_space()).coordinates,
         )
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
 
     /// Interpolate the two colors.
     ///
@@ -654,6 +644,8 @@ impl Color {
         Interpolator::new(self, color, interpolation_space, interpolation_strategy)
     }
 
+    // ----------------------------------------------------------------------------------------------------------------
+
     /// Lighten this color by the given factor in Oklrch.
     ///
     /// This method normalizes this color, converts it to Oklrch, multiplies its
@@ -704,6 +696,8 @@ impl Color {
             scale_lightness(self.space, &self.coordinates, factor.recip()),
         )
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
 
     /// Determine the perceptual contrast of text against a solidly colored
     /// background.
@@ -797,26 +791,52 @@ impl Color {
     }
 
     // ----------------------------------------------------------------------------------------------------------------
-    // The following methods are only defined under the pyffi feature, since
-    // they implement Python-specific dunder methods.
 
-    /// Convert this color to its debug representation. <span
-    /// class=python-only></span>
+    /// Convert this color to 24-bit RGB representation.
     ///
-    /// This method is available from Python only.
-    #[cfg(feature = "pyffi")]
-    pub fn __repr__(&self) -> String {
-        format!("{:?}", self)
+    /// This method converts the color to a gamut-mapped sRGB color before
+    /// converting each coordinate to a `u8`.
+    pub fn to_24bit(&self) -> [u8; 3] {
+        to_24bit(
+            ColorSpace::Srgb,
+            self.to(ColorSpace::Srgb).to_gamut().as_ref(),
+        )
     }
 
-    /// Convert this color to its (CSS-based) string representation. <span
-    /// class=python-only></span>
+    /// Format this color in familiar `#123abc` hashed hexadecimal representation.
     ///
-    /// This method is available from Python only.
-    #[cfg(feature = "pyffi")]
-    pub fn __str__(&self) -> String {
-        format!("{}", self)
+    /// Like [`Color::to_24bit`], this method converts the color to a
+    /// gamut-mapped sRGB color before formatting its coordinates in hashed
+    /// hexadecimal notation.
+    ///
+    /// # Examples
+    ///
+    /// The example code illustrates formatting in hashed hexadecimal format for
+    /// a hot pink in Display P3. Together with the color swatch below, it also
+    /// demonstrates that clipped and gamut-mapped color can substantially
+    /// differ.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let pink = Color::p3(1, 0.2, 1).to(ColorSpace::Srgb);
+    /// assert!(!pink.in_gamut());
+    /// let clip = pink.clip();
+    /// assert_eq!(clip, Color::srgb(1, 0, 1));
+    /// let hex = pink.to_hex_format();
+    /// assert_eq!(hex, "#ff41fb");
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(display-p3 1 0.2 1);"></div>
+    /// <div style="background-color: color(srgb 1 0 1);"></div>
+    /// <div style="background-color: #ff41fb;"></div>
+    /// </div>
+    #[inline]
+    pub fn to_hex_format(&self) -> String {
+        let [r, g, b] = self.to_24bit();
+        format!("#{:02x}{:02x}{:02x}", r, g, b)
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
 
     /// Get this color's length, which is 3. <span class=python-only></span>
     ///
@@ -838,6 +858,24 @@ impl Color {
                 "Invalid coordinate index",
             )),
         }
+    }
+
+    /// Convert this color to its debug representation. <span
+    /// class=python-only></span>
+    ///
+    /// This method is available from Python only.
+    #[cfg(feature = "pyffi")]
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    /// Convert this color to its (CSS-based) string representation. <span
+    /// class=python-only></span>
+    ///
+    /// This method is available from Python only.
+    #[cfg(feature = "pyffi")]
+    pub fn __str__(&self) -> String {
+        format!("{}", self)
     }
 }
 

@@ -2,6 +2,24 @@ use crate::core::conversion::okxch_to_okxab;
 use crate::core::{convert, delta_e_ok, normalize};
 use crate::{ColorSpace, Float};
 
+/// Determine whether the color is a gray.
+pub(crate) fn is_gray(space: ColorSpace, coordinates: &[Float; 3]) -> bool {
+    let coordinates = match space {
+        ColorSpace::Oklch | ColorSpace::Oklrch => coordinates,
+        _ => &convert(space, ColorSpace::Oklch, coordinates),
+    };
+
+    is_gray_chroma_hue(coordinates[1], coordinates[2])
+}
+
+const MAX_GRAY_CHROMA: Float = 0.01;
+
+/// Determine whether the chroma and hue are that of a gray.
+#[inline]
+pub(crate) fn is_gray_chroma_hue(chroma: Float, hue: Float) -> bool {
+    hue.is_nan() || chroma < MAX_GRAY_CHROMA
+}
+
 /// Determine whether the coordinates are in gamut for their color space.
 pub(crate) fn in_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> bool {
     if space.is_rgb() {

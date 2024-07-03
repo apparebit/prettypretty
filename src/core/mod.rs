@@ -16,7 +16,7 @@ pub use difference::HueInterpolation;
 pub(crate) use difference::{
     delta_e_ok, find_closest, interpolate, prepare_to_interpolate, to_eq_bits,
 };
-pub(crate) use gamut::{clip, in_gamut, to_gamut};
+pub(crate) use gamut::{clip, in_gamut, is_gray, is_gray_chroma_hue, to_gamut};
 pub(crate) use space::normalize;
 pub use space::ColorSpace;
 pub use string::ColorFormatError;

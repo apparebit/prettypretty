@@ -20,12 +20,13 @@ use crate::{Color, ColorSpace, OutOfBoundsError};
     doc = "In contrast, Python code uses the [`AnsiColor::from_8bit`] and
     [`AnsiColor::to_8bit`] methods."
 )]
-/// Since ANSI colors have no intrinsic color values, conversion to
-/// high-resolution colors requires additional machinery, which is implemented
-/// by [`Theme`](crate::Theme).
+/// Since ANSI colors have no intrinsic color values, conversion from/to
+/// high-resolution colors requires additional machinery, as provided by
+/// [`Sampler`](crate::Sampler).
 #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum AnsiColor {
+    #[default]
     Black,
     Red,
     Green,
@@ -68,16 +69,22 @@ impl AnsiColor {
         *self as u8
     }
 
+    /// Determine whether this ANSI color is gray.
+    pub fn is_gray(&self) -> bool {
+        use AnsiColor::*;
+        matches!(self, Black | White | BrightBlack | BrightWhite)
+    }
+
     /// Determine whether this ANSI color is bright.
     pub fn is_bright(&self) -> bool {
         *self as u8 >= 8
     }
 
-    /// Get this ANSI color as nonbright.
+    /// Get the corresponding 3-bit ANSI color.
     ///
-    /// If this color is bright, this method returns the equivalent nonbright
-    /// color. Otherwise, it returns this color.
-    pub fn nonbright(&self) -> AnsiColor {
+    /// If this color is bright, this method returns the corresponding nonbright
+    /// color. Otherwise, it returns the color.
+    pub fn to_3bit(&self) -> AnsiColor {
         let mut index = *self as u8;
         if index >= 8 {
             index -= 8;
@@ -854,7 +861,7 @@ impl TerminalColor {
             TerminalColor::Default() => vec![30 + layer.offset()],
             TerminalColor::Ansi { color: c } => {
                 let base = if c.is_bright() { 90 } else { 30 } + layer.offset();
-                vec![base + c.nonbright() as u8]
+                vec![base + c.to_3bit() as u8]
             }
             TerminalColor::Rgb6 { color: c } => {
                 vec![38 + layer.offset(), 5, u8::from(*c)]
