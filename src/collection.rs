@@ -550,11 +550,11 @@ fn eight_bit_coordinates(space: ColorSpace) -> [[Float; 3]; 240] {
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl Sampler {
-    /// Create a new sampler for the given theme and Oklab version.
+    /// Create a new sampler for the given Oklab version and theme colors.
     #[new]
-    pub fn new(theme_colors: [Color; 18], ok_version: OkVersion) -> Self {
+    pub fn new(version: OkVersion, theme_colors: [Color; 18]) -> Self {
         let hue_lightness_table = HueLightnessTable::new(&theme_colors);
-        let space = ok_version.cartesian_space();
+        let space = version.cartesian_space();
         let ansi = ansi_coordinates(space, &theme_colors);
         let eight_bit = eight_bit_coordinates(space);
 
@@ -574,6 +574,18 @@ impl Sampler {
     }
 
     /// Resolve the theme entry to a high-resolution color.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{Color, OkVersion, Sampler, ThemeEntry, VGA_COLORS};
+    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
+    /// let color = sampler.resolve_theme(ThemeEntry::BrightMagenta);
+    /// assert_eq!(color, Color::srgb(1.0, 0.333333333333333, 1.0));
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #ff55ff;"></div>
+    /// </div>
     pub fn resolve_theme(&self, entry: ThemeEntry) -> Color {
         self.theme_colors[entry as usize].clone()
     }
@@ -590,6 +602,21 @@ impl Sampler {
     /// [`Sampler::resolve_8bit`]. They are not necessary in Rust because
     /// this method accepts an `impl Into<TerminalColor>` whereas the
     /// Python version accepts a `TerminalColor` only."
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{AnsiColor, Color, OkVersion, Sampler, TerminalColor};
+    /// # use prettypretty::{ThemeEntry, VGA_COLORS};
+    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
+    /// assert_eq!(sampler.try_resolve(TerminalColor::Default()), None);
+    ///
+    /// let blue = sampler.try_resolve(TerminalColor::Ansi(AnsiColor::Blue));
+    /// assert_eq!(blue, Some(Color::srgb(0.0, 0.0, 0.666666666666667)));
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #0000aa;"></div>
+    /// </div>
     pub fn try_resolve(&self, color: TerminalColor) -> Option<Color> {
         self.do_try_resolve(color)
     }
@@ -600,6 +627,27 @@ impl Sampler {
     /// Python class also includes [`Sampler::resolve_ansi`] and
     /// [`Sampler::resolve_8bit`]. They are not necessary in Rust because the
     /// Rust version of this method accepts an `impl Into<TerminalColor>`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{AnsiColor, Color, OkVersion, Sampler, TerminalColor};
+    /// # use prettypretty::{Layer, ThemeEntry, TrueColor, VGA_COLORS};
+    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
+    /// let default = sampler.resolve(TerminalColor::Default(), Layer::Background);
+    /// assert_eq!(default, Color::srgb(1.0, 1.0, 1.0));
+    ///
+    /// let maroon = sampler.resolve(TerminalColor::Rgb256 {
+    ///     color: TrueColor::new(148, 23, 81)
+    /// }, Layer::Foreground);
+    /// assert_eq!(maroon, Color::srgb(
+    ///     0.5803921568627451, 0.09019607843137255, 0.3176470588235294
+    /// ));
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #ffffff;"></div>
+    /// <div style="background-color: #941751;"></div>
+    /// </div>
     pub fn resolve(&self, color: TerminalColor, layer: Layer) -> Color {
         match color {
             TerminalColor::Default() => self.theme_colors[layer as usize].clone(),
@@ -659,7 +707,7 @@ impl Sampler {
     /// # use prettypretty::{VGA_COLORS, OkVersion};
     /// # use std::str::FromStr;
     /// let original_sampler = Sampler::new(
-    ///     VGA_COLORS.clone(), OkVersion::Original);
+    ///     OkVersion::Original, VGA_COLORS.clone());
     ///
     /// let orange1 = Color::from_str("#ffa563")?;
     /// let ansi = original_sampler.to_closest_ansi(&orange1);
@@ -670,7 +718,7 @@ impl Sampler {
     /// assert_eq!(u8::from(ansi), 9);
     /// // ---------------------------------------------------------------------
     /// let revised_sampler = Sampler::new(
-    ///     VGA_COLORS.clone(), OkVersion::Revised);
+    ///     OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// let ansi = revised_sampler.to_closest_ansi(&orange1);
     /// assert_eq!(u8::from(ansi), 7);
@@ -832,7 +880,7 @@ impl Sampler {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, VGA_COLORS, TerminalColor, Float};
     /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Sampler, OkVersion};
-    /// let sampler = Sampler::new(VGA_COLORS.clone(), OkVersion::Revised);
+    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// for r in 0..5 {
     ///     for g in 0..5 {
@@ -883,10 +931,10 @@ impl Sampler {
 
 #[cfg(not(feature = "pyffi"))]
 impl Sampler {
-    /// Create a new sampler for the given theme and Oklab version.
-    pub fn new(theme_colors: [Color; 18], ok_version: OkVersion) -> Self {
+    /// Create a new sampler for the given Oklab version and theme colors.
+    pub fn new(version: OkVersion, theme_colors: [Color; 18]) -> Self {
         let hue_lightness_table = HueLightnessTable::new(&theme_colors);
-        let space = ok_version.cartesian_space();
+        let space = version.cartesian_space();
         let ansi = ansi_coordinates(space, &theme_colors);
         let eight_bit = eight_bit_coordinates(space);
 
@@ -900,6 +948,18 @@ impl Sampler {
     }
 
     /// Resolve the theme entry to a high-resolution color.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{Color, OkVersion, Sampler, ThemeEntry, VGA_COLORS};
+    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
+    /// let color = sampler.resolve_theme(ThemeEntry::BrightMagenta);
+    /// assert_eq!(color, Color::srgb(1.0, 0.333333333333333, 1.0));
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #ff55ff;"></div>
+    /// </div>
     pub fn resolve_theme(&self, entry: ThemeEntry) -> Color {
         self.theme_colors[entry as usize].clone()
     }
@@ -909,6 +969,21 @@ impl Sampler {
     ///  The Python class also includes [`Sampler::resolve_ansi`] and
     /// [`Sampler::resolve_8bit`]. They are not necessary in Rust because the
     /// Rust version of this method accepts an `impl Into<TerminalColor>`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{AnsiColor, Color, OkVersion, Sampler, TerminalColor};
+    /// # use prettypretty::{ThemeEntry, VGA_COLORS};
+    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
+    /// assert_eq!(sampler.try_resolve(TerminalColor::Default()), None);
+    ///
+    /// let blue = sampler.try_resolve(AnsiColor::Blue);
+    /// assert_eq!(blue, Some(Color::srgb(0.0, 0.0, 0.666666666666667)));
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #0000aa;"></div>
+    /// </div>
     pub fn try_resolve(&self, color: impl Into<TerminalColor>) -> Option<Color> {
         self.do_try_resolve(color)
     }
@@ -919,6 +994,27 @@ impl Sampler {
     /// Python class also includes [`Sampler::resolve_ansi`] and
     /// [`Sampler::resolve_8bit`]. They are not necessary in Rust because the
     /// Rust version of this method accepts an `impl Into<TerminalColor>`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{AnsiColor, Color, OkVersion, Sampler, TerminalColor};
+    /// # use prettypretty::{Layer, ThemeEntry, TrueColor, VGA_COLORS};
+    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
+    /// let default = sampler.resolve(TerminalColor::Default(), Layer::Background);
+    /// assert_eq!(default, Color::srgb(1.0, 1.0, 1.0));
+    ///
+    /// let maroon = sampler.resolve(TerminalColor::Rgb256 {
+    ///     color: TrueColor::new(148, 23, 81)
+    /// }, Layer::Foreground);
+    /// assert_eq!(maroon, Color::srgb(
+    ///     0.5803921568627451, 0.09019607843137255, 0.3176470588235294
+    /// ));
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #ffffff;"></div>
+    /// <div style="background-color: #941751;"></div>
+    /// </div>
     pub fn resolve(&self, color: impl Into<TerminalColor>, layer: Layer) -> Color {
         let color = color.into();
         match color {
@@ -979,7 +1075,7 @@ impl Sampler {
     /// # use prettypretty::{VGA_COLORS, OkVersion};
     /// # use std::str::FromStr;
     /// let original_sampler = Sampler::new(
-    ///     VGA_COLORS.clone(), OkVersion::Original);
+    ///     OkVersion::Original, VGA_COLORS.clone());
     ///
     /// let orange1 = Color::from_str("#ffa563")?;
     /// let ansi = original_sampler.to_closest_ansi(&orange1);
@@ -990,7 +1086,7 @@ impl Sampler {
     /// assert_eq!(u8::from(ansi), 9);
     /// // ---------------------------------------------------------------------
     /// let revised_sampler = Sampler::new(
-    ///     VGA_COLORS.clone(), OkVersion::Revised);
+    ///     OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// let ansi = revised_sampler.to_closest_ansi(&orange1);
     /// assert_eq!(u8::from(ansi), 7);
@@ -1152,7 +1248,7 @@ impl Sampler {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, VGA_COLORS, TerminalColor, Float};
     /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Sampler, OkVersion};
-    /// let sampler = Sampler::new(VGA_COLORS.clone(), OkVersion::Revised);
+    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// for r in 0..5 {
     ///     for g in 0..5 {
@@ -1264,7 +1360,7 @@ mod test {
 
     #[test]
     fn test_sampler() -> Result<(), OutOfBoundsError> {
-        let sampler = Sampler::new(VGA_COLORS.clone(), OkVersion::Revised);
+        let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
 
         let result = sampler.to_closest_ansi(&Color::srgb(1.0, 1.0, 0.0));
         assert_eq!(result, AnsiColor::BrightYellow);

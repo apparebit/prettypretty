@@ -495,7 +495,7 @@
 //! let red = &VGA_COLORS[AnsiColor::BrightRed as usize + 2];
 //! assert_eq!(red, &Color::srgb(1.0, 0.333333333333333, 0.333333333333333));
 //!
-//! let sampler = Sampler::new(VGA_COLORS.clone(), OkVersion::Revised);
+//! let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
 //! let also_red = &sampler.try_resolve(AnsiColor::BrightRed).unwrap();
 //! assert_eq!(red, also_red);
 //!
