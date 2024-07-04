@@ -1,7 +1,28 @@
 from collections.abc import Sequence
 from typing import Self
 
+
+class DefaultColor:
+    """The default foreground or background color."""
+    Foreground: DefaultColor = ...
+    Background: DefaultColor = ...
+
+    def __hash__(self) -> int:
+        ...
+    def __eq__(self, other: object) -> bool:
+        ...
+    def __ne__(self, other: object) -> bool:
+        ...
+
+
 class AnsiColor:
+    """
+    The 16 extended ANSI colors.
+
+    The ANSI color comprise eight base colors and their eight bright versions.
+    Unlike most other colors, the ANSI colors have no intrinsic color values and
+    hence are abstract colors. At the same time, they do have semantics.
+    """
     Black: AnsiColor = ...
     Red: AnsiColor = ...
     Green: AnsiColor = ...
@@ -20,7 +41,7 @@ class AnsiColor:
     BrightWhite: AnsiColor = ...
 
     @staticmethod
-    def from_8bit(value: int) -> AnsiColor:
+    def try_from_8bit(value: int) -> AnsiColor:
         ...
     def to_8bit(self) -> int:
         ...
@@ -39,10 +60,11 @@ class AnsiColor:
 
 
 class EmbeddedRgb:
+    """The 6x6x6 RGB cube embedded in 8-bit color."""
     def __new__(cls, r: int, g: int, b:int) -> Self:
         ...
     @staticmethod
-    def from_8bit(value: int) -> EmbeddedRgb:
+    def try_from_8bit(value: int) -> EmbeddedRgb:
         ...
     def to_8bit(self) -> int:
         ...
@@ -65,10 +87,11 @@ class EmbeddedRgb:
 
 
 class GrayGradient:
+    """The 24-step gray gradient embedded in 8-bit color."""
     def __new__(cls, value: int) -> Self:
         ...
     @staticmethod
-    def from_8bit(value: int) -> GrayGradient:
+    def try_from_8bit(value: int) -> GrayGradient:
         ...
     def to_8bit(self) -> int:
         ...
@@ -95,6 +118,7 @@ class GrayGradient:
 
 
 class TrueColor:
+    """24-bit RGB colors."""
     def __new__(cls, r: int, g: int, b: int) -> Self:
         ...
     @staticmethod
@@ -121,12 +145,17 @@ class TrueColor:
 
 
 class TerminalColor_Default(TerminalColor):
-    def __new__(cls) -> Self:
+    """The default foreground and background colors."""
+    def __new__(cls, color: DefaultColor) -> Self:
+        ...
+    @property
+    def color(self) -> DefaultColor:
         ...
 
 
 class TerminalColor_Ansi(TerminalColor):
-    def __new__(cls, color:AnsiColor) -> Self:
+    """The 16 extended ANSI colors."""
+    def __new__(cls, color: AnsiColor) -> Self:
         ...
     @property
     def color(self) -> AnsiColor:
@@ -134,6 +163,7 @@ class TerminalColor_Ansi(TerminalColor):
 
 
 class TerminalColor_Rgb6(TerminalColor):
+    """The 6x6x6 RGB cube embedded in 8-bit colors."""
     def __new__(cls, color: EmbeddedRgb) -> Self:
         ...
     @property
@@ -142,6 +172,7 @@ class TerminalColor_Rgb6(TerminalColor):
 
 
 class TerminalColor_Gray(TerminalColor):
+    """The gray gradient embedded in 8-bit colors."""
     def __new__(cls, color: GrayGradient) -> Self:
         ...
     @property
@@ -150,6 +181,7 @@ class TerminalColor_Gray(TerminalColor):
 
 
 class TerminalColor_Rgb256(TerminalColor):
+    """24-bit RGB colors."""
     def __new__(cls, color: TrueColor) -> Self:
         ...
     @property
@@ -158,6 +190,7 @@ class TerminalColor_Rgb256(TerminalColor):
 
 
 class TerminalColor:
+    """Terminal colors."""
     Default = TerminalColor_Default
     Ansi = TerminalColor_Ansi
     Rgb6 = TerminalColor_Rgb6
@@ -173,7 +206,7 @@ class TerminalColor:
     @staticmethod
     def from_color(color: Color) -> TerminalColor:
         ...
-    def to_8bit(self) -> int:
+    def try_to_8bit(self) -> int:
         ...
     def is_default(self) -> bool:
         ...
@@ -190,6 +223,9 @@ class TerminalColor:
 
 
 class Fidelity:
+    """
+    Levels of support for ANSI escape codes and colors.
+    """
     Plain: Fidelity = ...
     NoColor: Fidelity = ...
     Ansi: Fidelity = ...
@@ -218,6 +254,7 @@ class Fidelity:
 
 
 class Layer:
+    """The render layer."""
     Foreground: Layer = ...
     Background: Layer = ...
 
@@ -234,6 +271,7 @@ class Layer:
 
 
 class ColorSpace:
+    """A color space."""
     Srgb: ColorSpace = ...
     LinearSrgb: ColorSpace = ...
     DisplayP3: ColorSpace = ...
@@ -265,6 +303,7 @@ class ColorSpace:
 
 
 class HueInterpolation:
+    """The rule for deciding how to interpolate hues."""
     Shorter: HueInterpolation = ...
     Longer: HueInterpolation = ...
     Increasing: HueInterpolation = ...
@@ -279,6 +318,7 @@ class HueInterpolation:
 
 
 class OkVersion:
+    """The version of the Oklab color space."""
     Original: OkVersion = ...
     Revised: OkVersion = ...
 
@@ -295,6 +335,7 @@ class OkVersion:
 
 
 class Color:
+    """High-resolution colors."""
     def __new__(
         cls, space: ColorSpace, coordinates: tuple[float, float, float]
     ) -> Self:
@@ -322,10 +363,6 @@ class Color:
         ...
     @staticmethod
     def from_24bit(r: int, g: int, b: int) -> Color:
-        ...
-    def to_24bit(self) -> list[int]:
-        ...
-    def to_hex_format(self) -> str:
         ...
     def is_default(self) -> bool:
         ...
@@ -376,9 +413,14 @@ class Color:
         ...
     def __str__(self) -> str:
         ...
+    def to_24bit(self) -> list[int]:
+        ...
+    def to_hex_format(self) -> str:
+        ...
 
 
 class Interpolator:
+    """A color interpolator."""
     def __new__(
         cls,
         color1: Color,
@@ -392,6 +434,12 @@ class Interpolator:
 
 
 class ThemeEntry:
+    """
+    The 18 theme colors.
+
+    This enumeration effectively concatenates the two default colors and the 16
+    ANSI colors.
+    """
     Foreground: ThemeEntry = ...
     Background: ThemeEntry = ...
     Black: ThemeEntry = ...
@@ -431,6 +479,7 @@ class ThemeEntry:
 
 
 class ThemeEntryIterator:
+    """An iterator over theme entries."""
     def __iter__(self) -> Self:
         ...
     def __next__(self) -> None | ThemeEntry:
@@ -438,19 +487,24 @@ class ThemeEntryIterator:
 
 
 class Sampler:
+    """A color sampler for translating between terminal and high-resolution colors."""
     def __new__(cls, version: OkVersion, theme_colors: Sequence[Color]) -> Self:
+        ...
+
+    """Translate to high-resolution colors."""
+    def resolve_default(self, color: DefaultColor) -> Color:
         ...
     def resolve_ansi(self, color: AnsiColor) -> Color:
         ...
-    def resolve_theme(self, entry: ThemeEntry) -> Color:
-        ...
     def resolve_8bit(self, color: int) -> Color:
         ...
-    def try_resolve(self, color: TerminalColor) -> None | Color:
+    def resolve(self, color: TerminalColor) -> Color:
         ...
-    def resolve(self, color: TerminalColor, layer: Layer) -> Color:
-        ...
+
+    """Translate to ANSI colors."""
     def to_ansi(self, color: Color) -> Color:
+        ...
+    def supports_hue_lightness(self) -> bool:
         ...
     def to_ansi_hue_lightness(self, color: Color) -> None | AnsiColor:
         ...
@@ -458,10 +512,12 @@ class Sampler:
         ...
     def to_ansi_rgb(self, color: Color) -> AnsiColor:
         ...
-    def to_closest_8bit_raw(self, color: Color) -> int:
-        ...
+
+    """Translate to 8-bit colors."""
     def to_closest_8bit(self, color: Color) -> TerminalColor:
         ...
+
+    """Adjust terminal colors."""
     def adjust(self, color: TerminalColor, fidelity: Fidelity) -> None | TerminalColor:
         ...
     def __repr__(self) -> str:
