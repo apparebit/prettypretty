@@ -1,6 +1,6 @@
 use crate::Float;
 
-pub(crate) fn close_enough_numbers(value1: Float, value2: Float, is_hue: bool) -> bool {
+fn close_enough_numbers(value1: Float, value2: Float, is_hue: bool) -> bool {
     if value1.is_nan() {
         if is_hue {
             return value2.is_nan();
@@ -17,7 +17,7 @@ pub(crate) fn close_enough_numbers(value1: Float, value2: Float, is_hue: bool) -
     (value1 * factor).round() == (value2 * factor).round()
 }
 
-pub(crate) fn close_enough(
+pub(crate) fn close_enough_internal(
     coordinates1: &[Float; 3],
     coordinates2: &[Float; 3],
     is_polar: bool,

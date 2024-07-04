@@ -549,15 +549,14 @@ impl Color {
     /// revised lightness Lr corrects the original's dark bias, we'd expect
     /// light colors to be more spread out in Oklrab. That is indeed the case.
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, OkVersion, ColorFormatError};
+    /// # use prettypretty::{Color, ColorSpace, OkVersion, ColorFormatError, close_enough};
     /// # use std::str::FromStr;
     /// let honeydew = Color::from_str("#d4fb79")?;
     /// let cantaloupe = Color::from_str("#ffd479")?;
     /// let d1 = honeydew.distance(&cantaloupe, OkVersion::Original);
     /// let d2 = honeydew.distance(&cantaloupe, OkVersion::Revised);
-    /// (dbg!(d1) - 0.11174969799958659).abs() < f64::EPSILON;
-    /// (dbg!(d2) - 0.11498895250174994).abs() < f64::EPSILON;
-    /// assert!(false);
+    /// assert!(close_enough(d1, 0.11174969799958659));
+    /// assert!(close_enough(d2, 0.11498895250174994));
     /// # Ok::<(), ColorFormatError>(())
     /// ```
     /// <div class=color-swatch>

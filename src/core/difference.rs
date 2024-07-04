@@ -4,6 +4,26 @@ use pyo3::prelude::*;
 use crate::core::{convert, normalize, ColorSpace};
 use crate::{Bits, Float};
 
+/// Convert the floating point number to bits. Do NOT use for coordinates!
+fn to_eq_bits1(f: Float) -> Bits {
+    let mut f = if f.is_nan() { 0.0 } else { f };
+
+    let multiplier = (10.0 as Float).powi(Float::DIGITS as i32 - 1);
+    f = (multiplier * f).round();
+
+    if f == -0.0 {
+        f = 0.0
+    }
+
+    f.to_bits()
+}
+
+/// Determine whether the floating point numbers are close enough to be
+/// considered as representing the same quantity.
+pub fn close_enough(f1: Float, f2: Float) -> bool {
+    to_eq_bits1(f1) == to_eq_bits1(f2)
+}
+
 /// Normalize coordinates for equality testing and hashing.
 #[must_use = "function returns new color coordinates and does not mutate original value"]
 pub(crate) fn to_eq_bits(space: ColorSpace, coordinates: &[Float; 3]) -> [Bits; 3] {

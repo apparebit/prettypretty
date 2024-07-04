@@ -625,7 +625,7 @@ mod object;
 mod term_color;
 
 pub use collection::{Sampler, ThemeEntry, ThemeEntryIterator, VGA_COLORS};
-pub use core::{ColorFormatError, ColorSpace, HueInterpolation};
+pub use core::{close_enough, ColorFormatError, ColorSpace, HueInterpolation};
 pub use error::OutOfBoundsError;
 pub use object::{Color, Interpolator, OkVersion};
 pub use term_color::{
@@ -641,6 +641,7 @@ use pyo3::prelude::*;
 #[cfg(feature = "pyffi")]
 #[pymodule]
 pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(close_enough, m)?)?;
     m.add_class::<AnsiColor>()?;
     m.add_class::<Color>()?;
     m.add_class::<ColorSpace>()?;

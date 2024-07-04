@@ -12,7 +12,7 @@ pub(crate) use contrast::{
     scale_lightness, to_contrast, to_contrast_luminance_p3, to_contrast_luminance_srgb,
 };
 pub(crate) use conversion::{convert, from_24bit, to_24bit};
-pub use difference::HueInterpolation;
+pub use difference::{close_enough, HueInterpolation};
 pub(crate) use difference::{
     delta_e_ok, find_closest, interpolate, prepare_to_interpolate, to_eq_bits,
 };

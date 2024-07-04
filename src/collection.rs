@@ -905,6 +905,7 @@ impl Sampler {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, VGA_COLORS, TerminalColor, Float};
     /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Sampler, OkVersion};
+    /// # use prettypretty::close_enough;
     /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// for r in 0..5 {
@@ -919,7 +920,7 @@ impl Sampler {
     ///             } else {
     ///                 (55.0 + 40.0 * (r as Float)) / 255.0
     ///             };
-    ///             assert!((color[0] - c1).abs() < Float::EPSILON);
+    ///             assert!(close_enough(color[0], c1));
     ///
     ///             let result = sampler.to_closest_8bit(&color);
     ///             assert_eq!(result, TerminalColor::Rgb6 { color: embedded });
@@ -1285,6 +1286,7 @@ impl Sampler {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, VGA_COLORS, TerminalColor, Float};
     /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Sampler, OkVersion};
+    /// # use prettypretty::close_enough;
     /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// for r in 0..5 {
@@ -1299,7 +1301,7 @@ impl Sampler {
     ///             } else {
     ///                 (55.0 + 40.0 * (r as Float)) / 255.0
     ///             };
-    ///             assert!((color[0] - c1).abs() < Float::EPSILON);
+    ///             assert!(close_enough(color[0], c1));
     ///
     ///             let result = sampler.to_closest_8bit(&color);
     ///             assert_eq!(result, TerminalColor::Rgb6 { color: embedded });
