@@ -20,6 +20,7 @@ fn to_eq_bits1(f: Float) -> Bits {
 
 /// Determine whether the floating point numbers are close enough to be
 /// considered as representing the same quantity.
+#[cfg_attr(feature = "pyffi", pyfunction)]
 pub fn close_enough(f1: Float, f2: Float) -> bool {
     to_eq_bits1(f1) == to_eq_bits1(f2)
 }
