@@ -32,30 +32,25 @@ jobs:
         python-version: "3.12"
         cache: "pip"
 
-    - name: Install Sphinx & Autoprogram, Copy Button, Design, RTD Theme
-      run: |
-        python -m pip install --upgrade pip
-        pip install matplotlib sphinx sphinxcontrib-autoprogram
-        pip install sphinx-copybutton sphinx_design sphinx-rtd-theme
+    - name: Set up stable Rust
+      run: rustup toolchain install stable
 
-    - name: Set up Pages
+    - name: Configure GitHub Pages
       id: pages
       uses: actions/configure-pages@v5
 
-    - name: Build documentation
-      run: |
-        echo '─── Current Working Directory ──────────────────────────────────────────'
-        pwd
-        ls -ld docs
-        echo '────────────────────────────────────────────────────────────────────────'
-        cd docs
-        make html
+    - name: Create Rust-based documentation
+      run: cargo doc --no-deps --all-features
 
-    - name: Upload Artifact
+    - name: Create redirect to prettypretty
+      run: |
+          echo '<meta http-equiv=refresh content=0;url=prettypretty/index.html>' > target/doc/index.html
+
+    - name: Upload documentation
       uses: actions/upload-pages-artifact@v3
       with:
         name: github-pages
-        path: docs/_build/html/
+        path: target/doc/
 
   deploy:
     environment:
@@ -64,6 +59,6 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-    - name: Deploy Artifact to GitHub Pages
+    - name: Deploy documentation to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4

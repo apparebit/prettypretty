@@ -1,0 +1,15 @@
+# Automatically update dependencies appearing in Github Actions
+# https://docs.github.com/en/code-security/dependabot/working-with-dependabot/keeping-your-actions-up-to-date-with-dependabot
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    groups:
+      github-actions:
+        patterns:
+        # Group all Actions updates into a single larger pull request
+          - "*"
+    schedule:
+      # Check for updates to GitHub Actions every week
+      interval: "weekly"
