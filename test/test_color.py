@@ -36,28 +36,12 @@ class ColorValues:
         self.xyz = Color(ColorSpace.Xyz, xyz)
         self.oklab = Color(ColorSpace.Oklab, oklab)
         self.oklch = Color(ColorSpace.Oklch, oklch)
-        self.ansi = AnsiColor.from_8bit(ansi)
+        self.ansi = AnsiColor.try_from_8bit(ansi)
         self.black_text = black_text
         self.black_background = black_background
         self.closest_index = closest_index
         self.xterm = xterm
         self.css = css
-
-    # spec: str
-    # parsed: tuple[int, int, int]
-    # srgb: tuple[float, float, float]
-    # linear_srgb: tuple[float, float, float]
-    # p3: tuple[float, float, float]
-    # linear_p3: tuple[float, float, float]
-    # xyz: tuple[float, float, float]
-    # oklab: tuple[float, float, float]
-    # oklch: tuple[float, float, float]
-    # ansi: tuple[int]
-    # black_text: bool
-    # black_background: bool
-    # closest_index: int
-    # xterm: str
-    # css: str
 
 
 class TestColor(unittest.TestCase):
@@ -151,7 +135,7 @@ class TestColor(unittest.TestCase):
         self.assertEqual(green_too.coordinates(), [0.0, 1.0, 0.0])
 
         sampler = current_sampler()
-        green3 = sampler.to_high_res_8bit(also_green.color.to_8bit())  # type: ignore
+        green3 = sampler.resolve(also_green)
         self.assertEqual(green_too, green3)
 
 
