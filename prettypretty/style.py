@@ -21,7 +21,7 @@ import enum
 from typing import cast, Literal, overload, Self, TypeAlias, TypeVar
 
 from .ansi import Ansi
-from .color import Color, Fidelity, Layer, TerminalColor
+from .color import Color, DefaultColor, Fidelity, Layer, TerminalColor
 from .theme import current_sampler
 
 
@@ -161,9 +161,14 @@ def invert_attr(attr: None | TA) -> None | TA:
     return None if attr is None else ~attr
 
 
-def invert_color(color: None | TerminalColor) -> None | TerminalColor:
+def invert_color(color: None | TerminalColor, layer: Layer) -> None | TerminalColor:
     """Invert the given color."""
-    return None if color is None or color.is_default() else TerminalColor.Default()
+    if color is None or color.is_default():
+        return None
+    elif layer is Layer.Foreground:
+        return TerminalColor.Default(DefaultColor.Foreground)
+    else:
+        return TerminalColor.Default(DefaultColor.Background)
 
 
 class Instruction:
@@ -283,8 +288,8 @@ class Style(Instruction):
             strikeline = invert_attr(self.strikeline),
             coloring = invert_attr(self.coloring),
             visibility = invert_attr(self.visibility),
-            foreground = invert_color(self.foreground),
-            background = invert_color(self.background),
+            foreground = invert_color(self.foreground, Layer.Foreground),
+            background = invert_color(self.background, Layer.Background),
         )
 
     def __sub__(self, other: object) -> Self:

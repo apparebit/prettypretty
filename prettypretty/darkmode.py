@@ -1,7 +1,7 @@
 import os
 import sys
 
-from .color import Color, ColorSpace, Layer, TerminalColor
+from .color import Color, ColorSpace, DefaultColor
 from .theme import current_sampler
 
 def is_dark_theme(theme_colors: None | list[Color] = None) -> bool:
@@ -16,8 +16,8 @@ def is_dark_theme(theme_colors: None | list[Color] = None) -> bool:
     # Get default foreground and background colors
     if theme_colors is None:
         sampler = current_sampler()
-        foreground = sampler.resolve(TerminalColor.Default(), Layer.Foreground)
-        background = sampler.resolve(TerminalColor.Default(), Layer.Background)
+        foreground = sampler.resolve_default(DefaultColor.Foreground)
+        background = sampler.resolve_default(DefaultColor.Background)
     else:
         foreground = theme_colors[0]
         background = theme_colors[1]

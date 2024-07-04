@@ -4,6 +4,36 @@ use pyo3::prelude::*;
 use crate::{Color, ColorSpace, OutOfBoundsError};
 
 // ====================================================================================================================
+// Default Color
+// ====================================================================================================================
+
+/// The default foreground and background colors.
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum DefaultColor {
+    Foreground,
+    Background,
+}
+
+impl TryFrom<usize> for DefaultColor {
+    type Error = OutOfBoundsError;
+
+    fn try_from(value: usize) -> Result<Self, OutOfBoundsError> {
+        match value {
+            0 => Ok(DefaultColor::Foreground),
+            1 => Ok(DefaultColor::Background),
+            _ => Err(OutOfBoundsError::new(value, 0..=1)),
+        }
+    }
+}
+
+impl From<DefaultColor> for TerminalColor {
+    fn from(color: DefaultColor) -> Self {
+        TerminalColor::Default { color }
+    }
+}
+
+// ====================================================================================================================
 // Ansi Color
 // ====================================================================================================================
 
@@ -17,7 +47,7 @@ use crate::{Color, ColorSpace, OutOfBoundsError};
 #[doc = include_str!("style.html")]
 #[cfg_attr(
     feature = "pyffi",
-    doc = "In contrast, Python code uses the [`AnsiColor::from_8bit`] and
+    doc = "In contrast, Python code uses the [`AnsiColor::try_from_8bit`] and
     [`AnsiColor::to_8bit`] methods."
 )]
 /// Since ANSI colors have no intrinsic color values, conversion from/to
@@ -55,7 +85,7 @@ impl AnsiColor {
     /// is available in Python only.
     #[cfg(feature = "pyffi")]
     #[staticmethod]
-    pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
+    pub fn try_from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
         Self::try_from(value)
     }
 
@@ -205,7 +235,7 @@ impl From<AnsiColor> for TerminalColor {
     feature = "pyffi",
     doc = "Since there is no Python feature equivalent to trait implementations in
     Rust, the Python class for `EmbeddedRgb` provides equivalent functionality
-    through [`EmbeddedRgb::from_8bit`], [`EmbeddedRgb::to_8bit`],
+    through [`EmbeddedRgb::try_from_8bit`], [`EmbeddedRgb::to_8bit`],
     [`EmbeddedRgb::to_color`], [`EmbeddedRgb::coordinates`], [`EmbeddedRgb::__len__`],
     [`EmbeddedRgb::__getitem__`], and [`EmbeddedRgb::__repr__`].
     These methods are not available in Rust."
@@ -238,7 +268,7 @@ impl EmbeddedRgb {
     /// EmbeddedRgb`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
     /// and is available in Python only.
     #[staticmethod]
-    pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
+    pub fn try_from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
         Self::try_from(value)
     }
 
@@ -461,7 +491,7 @@ impl From<EmbeddedRgb> for Color {
     feature = "pyffi",
     doc = "Since there is no Python feature equivalent to trait implementations in
     Rust, the Python class for `GrayGradient` provides equivalent functionality
-    through [`GrayGradient::from_8bit`], [`GrayGradient::__repr__`],
+    through [`GrayGradient::try_from_8bit`], [`GrayGradient::__repr__`],
     [`GrayGradient::to_8bit`], and [`GrayGradient::to_color`]. These methods are not
     available in Rust."
 )]
@@ -489,7 +519,7 @@ impl GrayGradient {
     /// GrayGradient`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
     /// and is available in Python only.
     #[staticmethod]
-    pub fn from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
+    pub fn try_from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
         Self::try_from(value)
     }
 
@@ -786,34 +816,22 @@ impl core::fmt::Display for TrueColor {
 
 /// A terminal color.
 ///
-/// ANSI escape codes distinguish between four kinds of color:
+/// This enumeration unifies all five terminal color types, [`DefaultColor`],
+/// [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`], and [`TrueColor`]. It does
+/// not distinguish between ANSI colors as themselves and as 8-bit colors. An
+/// early version of this crate included the corresponding wrapper type, but it
+/// offered no distinct functionality and hence was removed again.
 ///
-///  1. The default foreground and background colors
-///  2. [`AnsiColor`], the 16 extended ANSI colors
-///  3. 8-bit indexed colors, which comprise [`AnsiColor`], [`EmbeddedRgb`], and
-///     [`GrayGradient`]
-///  4. [`TrueColor`], i.e., 24-bit RGB
-///
-/// This enumeration captures the four kinds by offering variants that wrap the
-/// types for ANSI, embedded RGB, gray gradient, and 24-bit colors while also
-/// adding a variant for the default colors.
-///
-/// There is no wrapper type for 8-bit colors. While one existed in an early
-/// version of this crate, it did not offer any useful functionality besides
-/// possibly avoiding an `unwrap()` and hence was removed again.
-///
-/// Variants other than the one for the default colors wrap more specific
-/// colors. They depart from common Rust practice of using tuple variants for
-/// wrapper types and instead are implemented as struct variants with a single
-/// `color` field. That does add some, small notational overhead in Rust. But it
-/// also results in a cleaner and more approachable interface in Python, hence
-/// their use here. The variants for embedded RGB and 24-bit RGB colors derive
-/// their names from the number of levels per channel.
+/// In a departure from common practice, variants are implemented as struct
+/// variants with a single `color` field. This does result in slightly more
+/// verbose Rust patterns, but it also makes the Python classes much easier to
+/// use. The variants for the embedded RGB and 24-bit RGB colors derive their
+/// names from the number of levels per channel.
 #[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TerminalColor {
-    Default(),
+    Default { color: DefaultColor },
     Ansi { color: AnsiColor },
     Rgb6 { color: EmbeddedRgb },
     Gray { color: GrayGradient },
@@ -849,7 +867,7 @@ impl TerminalColor {
 
     /// Convert this terminal color to an 8-bit index color.
     #[cfg(feature = "pyffi")]
-    pub fn to_8bit(&self) -> PyResult<u8> {
+    pub fn try_to_8bit(&self) -> PyResult<u8> {
         u8::try_from(*self).map_err(|_| {
             pyo3::exceptions::PyValueError::new_err("unable to convert to 8-bit index")
         })
@@ -857,7 +875,7 @@ impl TerminalColor {
 
     /// Determine whether this terminal color is the default color.
     pub fn is_default(&self) -> bool {
-        matches!(self, Self::Default())
+        matches!(self, Self::Default { .. })
     }
 
     /// Get the SGR parameters for this terminal color.
@@ -866,9 +884,23 @@ impl TerminalColor {
     /// i.e., foreground or background, to this terminal color. It returns 1, 3,
     /// or 5 parameters that may be combined with other SGR parameters into one
     /// escape sequence, as long as they are properly separated by semicolons.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if it is invoked on a default color with an
+    /// inconsistent layer.
     pub fn sgr_parameters(&self, layer: Layer) -> Vec<u8> {
         match self {
-            TerminalColor::Default() => vec![30 + layer.offset()],
+            TerminalColor::Default { color: c } => {
+                if *c as u8 != layer as u8 {
+                    panic!("unable to use default color {:?} for layer {:?}", c, layer);
+                }
+
+                match c {
+                    DefaultColor::Foreground => vec![39],
+                    DefaultColor::Background => vec![49],
+                }
+            }
             TerminalColor::Ansi { color: c } => {
                 let base = if c.is_bright() { 90 } else { 30 } + layer.offset();
                 vec![base + c.to_3bit() as u8]
@@ -889,7 +921,7 @@ impl TerminalColor {
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         match self {
-            TerminalColor::Default() => "TerminalColor.Default()".into(),
+            TerminalColor::Default { color: c } => format!("TerminalColor.Default({:?})", c),
             TerminalColor::Ansi { color: c } => format!("TerminalColor.Ansi({:?})", c),
             TerminalColor::Rgb6 { color: c } => format!("TerminalColor.Rgb6({})", c.__repr__()),
             TerminalColor::Gray { color: c } => format!("TerminalColor.Gray({})", c.__repr__()),
@@ -953,7 +985,7 @@ impl TryFrom<TerminalColor> for u8 {
     /// terminal color as the error value.
     fn try_from(value: TerminalColor) -> Result<Self, Self::Error> {
         match value {
-            TerminalColor::Default() => Err(value),
+            TerminalColor::Default { .. } => Err(value),
             TerminalColor::Ansi { color: c } => Ok(u8::from(c)),
             TerminalColor::Rgb6 { color: c } => Ok(u8::from(c)),
             TerminalColor::Gray { color: c } => Ok(u8::from(c)),
@@ -966,7 +998,6 @@ impl TryFrom<TerminalColor> for u8 {
 // Layer and Fidelity
 
 /// The layer for rendering to the terminal.
-#[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Layer {
@@ -1055,7 +1086,7 @@ impl Fidelity {
 impl From<TerminalColor> for Fidelity {
     fn from(value: TerminalColor) -> Self {
         match value {
-            TerminalColor::Default() | TerminalColor::Ansi { .. } => Self::Ansi,
+            TerminalColor::Default { .. } | TerminalColor::Ansi { .. } => Self::Ansi,
             TerminalColor::Rgb6 { .. } | TerminalColor::Gray { .. } => Self::EightBit,
             TerminalColor::Rgb256 { .. } => Self::Full,
         }

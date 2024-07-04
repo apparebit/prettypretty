@@ -4,9 +4,12 @@ use pyo3::prelude::*;
 use crate::core::is_gray_chroma_hue;
 
 use crate::{
-    AnsiColor, Bits, Color, ColorSpace, EmbeddedRgb, Fidelity, Float, GrayGradient, Layer,
-    OkVersion, TerminalColor,
+    AnsiColor, Bits, Color, ColorSpace, EmbeddedRgb, Fidelity, Float, GrayGradient,
+    Layer, OkVersion, TerminalColor,
 };
+
+#[cfg(feature = "pyffi")]
+use crate::DefaultColor;
 
 // ====================================================================================================================
 // Color Themes
@@ -49,14 +52,11 @@ impl std::iter::ExactSizeIterator for ThemeEntryIterator {}
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl ThemeEntryIterator {
-    /// Access the next theme entry. <span class=python-only></span>
-    pub fn __next__(&mut self) -> Option<ThemeEntry> {
-        self.next()
+    pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
     }
-
-    /// Access this iterator. <span class=python-only></span>
-    pub fn __iter__(&self) -> &Self {
-        self
+    pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<ThemeEntry> {
+        slf.next()
     }
 }
 
@@ -419,23 +419,42 @@ impl HueLightnessTable {
             return self.grays[self.grays.len() - 1].spec;
         }
 
-        // Select hue index by hue and lr. Since humans are least sensitive to
-        // chroma differences, it seems reasonable to ignore.
+        // Select pair of color versions by hue and then pick one by lightness.
+        // Humans are less sensitive to chroma, so ignoring it seems reasonable.
         let length = self.colors.len();
-        for current in 0..length {
-            let current_entry = &self.colors[current];
-            let next_entry = &self.colors[(current + 1).rem_euclid(length)];
-            if current_entry.h <= h && h < next_entry.h {
-                if current_entry.base() == next_entry.base() {
-                    return self.pick_lightness(lr, current_entry, next_entry);
-                } else if (current_entry.h - h).abs() <= (next_entry.h - h).abs() {
-                    // Calculating current - 1 is not safe, but current + length - 1 is.
-                    let previous_entry = &self.colors[(current + length - 1).rem_euclid(length)];
-                    return self.pick_lightness(lr, previous_entry, current_entry);
-                } else {
-                    let next_next_entry = &self.colors[(current + 2).rem_euclid(length)];
-                    return self.pick_lightness(lr, next_entry, next_next_entry);
-                }
+        for index in 0..length {
+            // We are looking for the first entry with a larger hue.
+            let next_entry = &self.colors[index];
+            if h > next_entry.h && (index != 0 || h < self.colors[length - 1].h) {
+                // The first interval starts with the last color.
+                continue;
+            }
+
+            // (index - 1) is unsafe, but (index + length - 1) isn't. Go rem, go!
+            let previous_entry = &self.colors[(index + length - 1).rem_euclid(length)];
+            if previous_entry.base() == next_entry.base() {
+                // Hue is bracketed by versions of same color.
+                let result = self.pick_lightness(lr, previous_entry, next_entry);
+                return result;
+            }
+
+            // We need previous_hue < h <= next_hue to determine closer one.
+            let mut previous_hue = previous_entry.h;
+            let next_hue = next_entry.h;
+            if previous_hue > h {
+                assert!(index == 0);
+                previous_hue -= 360.0
+            }
+
+            // Pick closer color pair.
+            if h - previous_hue <= next_hue - h {
+                // Hue is closer to previous color
+                let twice_previous_entry = &self.colors[(index + length - 2).rem_euclid(length)];
+                return self.pick_lightness(lr, twice_previous_entry, previous_entry);
+            } else {
+                // Hue is closer to next color
+                let twice_next_entry = &self.colors[(index + 1).rem_euclid(length)];
+                return self.pick_lightness(lr, next_entry, twice_next_entry);
             }
         }
 
@@ -562,92 +581,53 @@ impl Sampler {
         }
     }
 
+    /// Resolve the default color to a high-resolution color.
+    pub fn resolve_default(&self, color: DefaultColor) -> Color {
+        self.theme_colors[color as usize].clone()
+    }
+
     /// Resolve the ANSI color to a high-resolution color. <span
     /// class=python-only></span>
     pub fn resolve_ansi(&self, color: AnsiColor) -> Color {
         self.theme_colors[color as usize + 2].clone()
     }
 
-    /// Resolve the theme entry to a high-resolution color.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use prettypretty::{Color, OkVersion, Sampler, ThemeEntry, VGA_COLORS};
-    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
-    /// let color = sampler.resolve_theme(ThemeEntry::BrightMagenta);
-    /// assert_eq!(color, Color::srgb(1.0, 0.333333333333333, 1.0));
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: #ff55ff;"></div>
-    /// </div>
-    pub fn resolve_theme(&self, entry: ThemeEntry) -> Color {
-        self.theme_colors[entry as usize].clone()
-    }
-
     /// Resolve the 8-bit index to a high-resolution color. <span
     /// class=python-only></span>
     pub fn resolve_8bit(&self, index: u8) -> Color {
-        self.try_resolve(TerminalColor::from(index)).unwrap()
-    }
-
-    /// Try to resolve the terminal color to a high-resolution color.
-    ///
-    /// The Python class also includes [`Sampler::resolve_ansi`] and
-    /// [`Sampler::resolve_8bit`]. They are not necessary in Rust because
-    /// this method accepts an `impl Into<TerminalColor>` whereas the
-    /// Python version accepts a `TerminalColor` only."
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use prettypretty::{AnsiColor, Color, OkVersion, Sampler, TerminalColor};
-    /// # use prettypretty::{ThemeEntry, VGA_COLORS};
-    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
-    /// assert_eq!(sampler.try_resolve(TerminalColor::Default()), None);
-    ///
-    /// let blue = sampler.try_resolve(TerminalColor::Ansi(AnsiColor::Blue));
-    /// assert_eq!(blue, Some(Color::srgb(0.0, 0.0, 0.666666666666667)));
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: #0000aa;"></div>
-    /// </div>
-    pub fn try_resolve(&self, color: TerminalColor) -> Option<Color> {
-        self.do_try_resolve(color)
+        self.resolve(TerminalColor::from(index))
     }
 
     /// Resolve the terminal color to a high-resolution color.
     ///
-    /// The layer argument is necessary for translating default colors. The
-    /// Python class also includes [`Sampler::resolve_ansi`] and
-    /// [`Sampler::resolve_8bit`]. They are not necessary in Rust because the
-    /// Rust version of this method accepts an `impl Into<TerminalColor>`.
+    /// The Python class also includes [`Sampler::resolve_default`],
+    /// [`Sampler::resolve_ansi`] and [`Sampler::resolve_8bit`]. They are not
+    /// necessary in Rust because the Rust version of this method accepts an
+    /// `impl Into<TerminalColor>`.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use prettypretty::{AnsiColor, Color, OkVersion, Sampler, TerminalColor};
-    /// # use prettypretty::{Layer, ThemeEntry, TrueColor, VGA_COLORS};
-    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
-    /// let default = sampler.resolve(TerminalColor::Default(), Layer::Background);
-    /// assert_eq!(default, Color::srgb(1.0, 1.0, 1.0));
+    /// # use prettypretty::{AnsiColor, Color, DefaultColor, OkVersion, Sampler, TrueColor};
+    /// # use prettypretty::{VGA_COLORS};
+    /// let black = sampler.resolve(DefaultColor::Foreground);
+    /// assert_eq!(black, Color::srgb(0.0, 0.0, 0.0));
     ///
-    /// let maroon = sampler.resolve(TerminalColor::Rgb256 {
-    ///     color: TrueColor::new(148, 23, 81)
-    /// }, Layer::Foreground);
+    /// let blue = sampler.resolve(AnsiColor::Blue);
+    /// assert_eq!(blue, Color::srgb(0.0, 0.0, 0.666666666666667));
+    ///
+    /// let maroon = sampler.resolve(TrueColor::new(148, 23, 81));
     /// assert_eq!(maroon, Color::srgb(
     ///     0.5803921568627451, 0.09019607843137255, 0.3176470588235294
     /// ));
     /// ```
     /// <div class=color-swatch>
-    /// <div style="background-color: #ffffff;"></div>
+    /// <div style="background-color: #0000aa;"></div>
+    /// <div style="background-color: #000000;"></div>
     /// <div style="background-color: #941751;"></div>
     /// </div>
-    pub fn resolve(&self, color: TerminalColor, layer: Layer) -> Color {
-        match color {
-            TerminalColor::Default() => self.theme_colors[layer as usize].clone(),
-            _ => self.try_resolve(color).unwrap(),
-        }
+    pub fn resolve(&self, color: TerminalColor) -> Color {
+        self.do_resolve(color)
     }
 
     /// Convert the high-resolution color into an ANSI color.
@@ -660,6 +640,12 @@ impl Sampler {
     pub fn to_ansi(&self, color: &Color) -> AnsiColor {
         self.to_ansi_hue_lightness(color)
             .unwrap_or_else(|| self.to_closest_ansi(color))
+    }
+
+    /// Determine whether this sampler instance supports color translation with
+    /// hue/lightness algorithm.
+    pub fn supports_hue_lightness(&self) -> bool {
+        self.hue_lightness_table.is_some()
     }
 
     /// Convert the high-resolution color to ANSI based on hue and lightness.
@@ -678,6 +664,50 @@ impl Sampler {
     /// an order for regular and bright versions of the same abstract ANSI
     /// color. If the theme colors passed to this sampler's constructor did not
     /// meet this requirement, this method returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// The documentation for [`Sampler::to_closest_ansi`] gives the example of
+    /// two colors that yield subpar results with an exhaustive search for the
+    /// closest color and then sketches an alternative approach that searches
+    /// for the closest hue.
+    ///
+    /// The algorithm implemented by this method goes well beyond that sketch by
+    /// not only leveraging color pragmatics (i.e., their coordinates) but also
+    /// their semantics. Hence, it first searches for one out of six pairs of
+    /// regular and bright ANSI colors with the closest hue and then picks the
+    /// one out of two colors with the closest lightness.
+    ///
+    /// As this example illustrates, that strategy works well for the light
+    /// orange colors from [`Sampler::to_closest_ansi`]. They both match the
+    /// yellow pair by hue and then bright yellow by lightness. Alas, it is no
+    /// panacea because color themes may not observe the necessary semantic
+    /// constraints. This method detects such cases and returns `None`.
+    /// [`Sampler::to_ansi`] instead automatically falls back onto searching for
+    /// the closest color.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Sampler};
+    /// # use prettypretty::{VGA_COLORS, OkVersion};
+    /// # use std::str::FromStr;
+    /// let sampler = Sampler::new(
+    ///     OkVersion::Revised, VGA_COLORS.clone());
+    ///
+    /// let orange1 = Color::from_str("#ffa563")?;
+    /// let ansi = sampler.to_ansi_hue_lightness(&orange1);
+    /// assert_eq!(u8::from(ansi.unwrap()), 11);
+    ///
+    /// let orange2 = Color::from_str("#ff9600")?;
+    /// let ansi = sampler.to_ansi_hue_lightness(&orange2);
+    /// assert_eq!(u8::from(ansi.unwrap()), 11);
+    /// # Ok::<(), ColorFormatError>(())
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #ffa563;"></div>
+    /// <div style="background-color: #ffff55;"></div>
+    /// <div style="background-color: #ff9600;"></div>
+    /// <div style="background-color: #ffff55;"></div>
+    /// </div>
     pub fn to_ansi_hue_lightness(&self, color: &Color) -> Option<AnsiColor> {
         self.hue_lightness_table
             .as_ref()
@@ -820,7 +850,7 @@ impl Sampler {
     /// The hue-based comparison picks ANSI color 3, VGA's orange yellow, just
     /// as expected. It appears that our hue-based proof-of-concept works.
     /// However, a production-ready version does need to account for lightness,
-    /// too.
+    /// too. The method to do so is [`Sampler::to_ansi_hue_lightness`].
     pub fn to_closest_ansi(&self, color: &Color) -> AnsiColor {
         use crate::core::{delta_e_ok, find_closest};
 
@@ -946,80 +976,37 @@ impl Sampler {
         }
     }
 
-    /// Resolve the theme entry to a high-resolution color.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use prettypretty::{Color, OkVersion, Sampler, ThemeEntry, VGA_COLORS};
-    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
-    /// let color = sampler.resolve_theme(ThemeEntry::BrightMagenta);
-    /// assert_eq!(color, Color::srgb(1.0, 0.333333333333333, 1.0));
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: #ff55ff;"></div>
-    /// </div>
-    pub fn resolve_theme(&self, entry: ThemeEntry) -> Color {
-        self.theme_colors[entry as usize].clone()
-    }
-
-    /// Try to resolve the terminal color to a high-resolution color.
-    ///
-    ///  The Python class also includes [`Sampler::resolve_ansi`] and
-    /// [`Sampler::resolve_8bit`]. They are not necessary in Rust because the
-    /// Rust version of this method accepts an `impl Into<TerminalColor>`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use prettypretty::{AnsiColor, Color, OkVersion, Sampler, TerminalColor};
-    /// # use prettypretty::{ThemeEntry, VGA_COLORS};
-    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
-    /// assert_eq!(sampler.try_resolve(TerminalColor::Default()), None);
-    ///
-    /// let blue = sampler.try_resolve(AnsiColor::Blue);
-    /// assert_eq!(blue, Some(Color::srgb(0.0, 0.0, 0.666666666666667)));
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: #0000aa;"></div>
-    /// </div>
-    pub fn try_resolve(&self, color: impl Into<TerminalColor>) -> Option<Color> {
-        self.do_try_resolve(color)
-    }
-
     /// Resolve the terminal color to a high-resolution color.
     ///
-    /// The layer argument is necessary for translating default colors. The
-    /// Python class also includes [`Sampler::resolve_ansi`] and
-    /// [`Sampler::resolve_8bit`]. They are not necessary in Rust because the
-    /// Rust version of this method accepts an `impl Into<TerminalColor>`.
-    ///
     /// # Examples
     ///
-    /// ```
-    /// # use prettypretty::{AnsiColor, Color, OkVersion, Sampler, TerminalColor};
-    /// # use prettypretty::{Layer, ThemeEntry, TrueColor, VGA_COLORS};
-    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
-    /// let default = sampler.resolve(TerminalColor::Default(), Layer::Background);
-    /// assert_eq!(default, Color::srgb(1.0, 1.0, 1.0));
+    /// Thanks to Rust's `Into<TerminalColor>` trait, the terminal color wrapper
+    /// type appears exactly zero times in the actual source code, just as it
+    /// should be. Since Python does not support traits, the Python version of
+    /// this class has further `resolve_<color>` methods.
     ///
-    /// let maroon = sampler.resolve(TerminalColor::Rgb256 {
-    ///     color: TrueColor::new(148, 23, 81)
-    /// }, Layer::Foreground);
+    /// ```
+    /// # use prettypretty::{AnsiColor, Color, DefaultColor, OkVersion, Sampler, TrueColor};
+    /// # use prettypretty::{VGA_COLORS};
+    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
+    /// let black = sampler.resolve(DefaultColor::Foreground);
+    /// assert_eq!(black, Color::srgb(0.0, 0.0, 0.0));
+    ///
+    /// let blue = sampler.resolve(AnsiColor::Blue);
+    /// assert_eq!(blue, Color::srgb(0.0, 0.0, 0.666666666666667));
+    ///
+    /// let maroon = sampler.resolve(TrueColor::new(148, 23, 81));
     /// assert_eq!(maroon, Color::srgb(
     ///     0.5803921568627451, 0.09019607843137255, 0.3176470588235294
     /// ));
     /// ```
     /// <div class=color-swatch>
-    /// <div style="background-color: #ffffff;"></div>
+    /// <div style="background-color: #0000aa;"></div>
+    /// <div style="background-color: #000000;"></div>
     /// <div style="background-color: #941751;"></div>
     /// </div>
-    pub fn resolve(&self, color: impl Into<TerminalColor>, layer: Layer) -> Color {
-        let color = color.into();
-        match color {
-            TerminalColor::Default() => self.theme_colors[layer as usize].clone(),
-            _ => self.try_resolve(color).unwrap(),
-        }
+    pub fn resolve(&self, color: impl Into<TerminalColor>) -> Color {
+        self.do_resolve(color)
     }
 
     /// Convert the high-resolution color into an ANSI color.
@@ -1034,11 +1021,18 @@ impl Sampler {
             .unwrap_or_else(|| self.to_closest_ansi(color))
     }
 
-    /// Convert the high-resolution color to ANSI based on hue and lightness.
+    /// Determine whether this sampler instance supports color translation with
+    /// hue/lightness algorithm.
+    pub fn supports_hue_lightness(&self) -> bool {
+        self.hue_lightness_table.is_some()
+    }
+
+    /// Convert the high-resolution color to ANSI based on hue (h) and lightness
+    /// revised (lr).
     ///
     /// For grays, this method finds the ANSI gray with the closest lightness.
     /// For colors, this method first finds the pair of regular and bright ANSI
-    /// colors with the closest hue and then selects the one with the closest
+    /// colors with the closest hue and then selects the color with the closest
     /// lightness.
     ///
     /// This method requires that concrete theme colors and abstract ANSI colors
@@ -1050,6 +1044,50 @@ impl Sampler {
     /// an order for regular and bright versions of the same abstract ANSI
     /// color. If the theme colors passed to this sampler's constructor did not
     /// meet this requirement, this method returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// The documentation for [`Sampler::to_closest_ansi`] gives the example of
+    /// two colors that yield subpar results with an exhaustive search for the
+    /// closest color and then sketches an alternative approach that searches
+    /// for the closest hue.
+    ///
+    /// The algorithm implemented by this method goes well beyond that sketch by
+    /// not only leveraging color pragmatics (i.e., their coordinates) but also
+    /// their semantics. Hence, it first searches for one out of six pairs of
+    /// regular and bright ANSI colors with the closest hue and then picks the
+    /// one out of two colors with the closest lightness.
+    ///
+    /// As this example illustrates, that strategy works well for the light
+    /// orange colors from [`Sampler::to_closest_ansi`]. They both match the
+    /// yellow pair by hue and then bright yellow by lightness. Alas, it is no
+    /// panacea because color themes may not observe the necessary semantic
+    /// constraints. This method detects such cases and returns `None`.
+    /// [`Sampler::to_ansi`] instead automatically falls back onto searching for
+    /// the closest color.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Sampler};
+    /// # use prettypretty::{VGA_COLORS, OkVersion};
+    /// # use std::str::FromStr;
+    /// let sampler = Sampler::new(
+    ///     OkVersion::Revised, VGA_COLORS.clone());
+    ///
+    /// let orange1 = Color::from_str("#ffa563")?;
+    /// let ansi = sampler.to_ansi_hue_lightness(&orange1);
+    /// assert_eq!(u8::from(ansi.unwrap()), 11);
+    ///
+    /// let orange2 = Color::from_str("#ff9600")?;
+    /// let ansi = sampler.to_ansi_hue_lightness(&orange2);
+    /// assert_eq!(u8::from(ansi.unwrap()), 11);
+    /// # Ok::<(), ColorFormatError>(())
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: #ffa563;"></div>
+    /// <div style="background-color: #ffff55;"></div>
+    /// <div style="background-color: #ff9600;"></div>
+    /// <div style="background-color: #ffff55;"></div>
+    /// </div>
     pub fn to_ansi_hue_lightness(&self, color: &Color) -> Option<AnsiColor> {
         self.hue_lightness_table
             .as_ref()
@@ -1192,7 +1230,7 @@ impl Sampler {
     /// The hue-based comparison picks ANSI color 3, VGA's orange yellow, just
     /// as expected. It appears that our hue-based proof-of-concept works.
     /// However, a production-ready version does need to account for lightness,
-    /// too.
+    /// too. The method to do so is [`Sampler::to_ansi_hue_lightness`].
     pub fn to_closest_ansi(&self, color: &Color) -> AnsiColor {
         use crate::core::{delta_e_ok, find_closest};
 
@@ -1305,13 +1343,13 @@ impl Sampler {
 
 impl Sampler {
     #[inline]
-    fn do_try_resolve(&self, color: impl Into<TerminalColor>) -> Option<Color> {
+    fn do_resolve(&self, color: impl Into<TerminalColor>) -> Color {
         match color.into() {
-            TerminalColor::Default() => None,
-            TerminalColor::Ansi { color: c } => Some(self.theme_colors[c as usize + 2].clone()),
-            TerminalColor::Rgb6 { color: c } => Some(Color::from(c)),
-            TerminalColor::Gray { color: c } => Some(Color::from(c)),
-            TerminalColor::Rgb256 { color: c } => Some(Color::from(c)),
+            TerminalColor::Default { color: c } => self.theme_colors[c as usize].clone(),
+            TerminalColor::Ansi { color: c } => self.theme_colors[c as usize + 2].clone(),
+            TerminalColor::Rgb6 { color: c } => c.into(),
+            TerminalColor::Gray { color: c } => c.into(),
+            TerminalColor::Rgb256 { color: c } => c.into(),
         }
     }
 
@@ -1324,19 +1362,18 @@ impl Sampler {
         match fidelity {
             Fidelity::Plain | Fidelity::NoColor => None,
             Fidelity::Ansi => {
-                if matches!(color, TerminalColor::Default() | TerminalColor::Ansi { .. }) {
-                    Some(color)
-                } else {
-                    let c = match color {
-                        TerminalColor::Rgb6 { color: c } => Color::from(c),
-                        TerminalColor::Gray { color: c } => Color::from(c),
-                        TerminalColor::Rgb256 { color: c } => Color::from(c),
-                        _ => unreachable!(),
-                    };
-                    Some(TerminalColor::Ansi {
-                        color: self.to_ansi(&c),
-                    })
-                }
+                let c = match color {
+                    TerminalColor::Default { .. } | TerminalColor::Ansi { .. } => {
+                        return Some(color);
+                    }
+                    TerminalColor::Rgb6 { color: c } => Color::from(c),
+                    TerminalColor::Gray { color: c } => Color::from(c),
+                    TerminalColor::Rgb256 { color: c } => Color::from(c),
+                };
+
+                Some(TerminalColor::Ansi {
+                    color: self.to_ansi(&c),
+                })
             }
             Fidelity::EightBit => {
                 if let TerminalColor::Rgb256 { color: c } = color {
