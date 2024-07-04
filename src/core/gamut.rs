@@ -2,7 +2,9 @@ use crate::core::conversion::okxch_to_okxab;
 use crate::core::{convert, delta_e_ok, normalize};
 use crate::{ColorSpace, Float};
 
-/// Determine whether the color is a gray.
+/// Determine whether the color is a gray. For maximally consistent results,
+/// this functions tests chroma and hue in Oklch/Oklrch. If the color is in
+/// neither color space, this function first converts the coordinates.
 pub(crate) fn is_gray(space: ColorSpace, coordinates: &[Float; 3]) -> bool {
     let coordinates = match space {
         ColorSpace::Oklch | ColorSpace::Oklrch => coordinates,
@@ -14,7 +16,7 @@ pub(crate) fn is_gray(space: ColorSpace, coordinates: &[Float; 3]) -> bool {
 
 const MAX_GRAY_CHROMA: Float = 0.01;
 
-/// Determine whether the chroma and hue are that of a gray.
+/// Determine whether the chroma and hue are gray.
 #[inline]
 pub(crate) fn is_gray_chroma_hue(chroma: Float, hue: Float) -> bool {
     hue.is_nan() || chroma < MAX_GRAY_CHROMA

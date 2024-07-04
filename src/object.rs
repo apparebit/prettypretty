@@ -322,6 +322,28 @@ impl Color {
         self.coordinates
     }
 
+    /// Get this color's length, which is 3. <span class=python-only></span>
+    ///
+    /// This method is available from Python only.
+    #[cfg(feature = "pyffi")]
+    pub fn __len__(&self) -> usize {
+        3
+    }
+
+    /// Read coordinates by index. <span class=python-only></span>
+    ///
+    /// This method is available from Python only.
+    #[cfg(feature = "pyffi")]
+    pub fn __getitem__(&self, index: isize) -> PyResult<Float> {
+        match index {
+            -3..=-1 => Ok(self.coordinates[(3 + index) as usize]),
+            0..=2 => Ok(self.coordinates[index as usize]),
+            _ => Err(pyo3::exceptions::PyIndexError::new_err(
+                "Invalid coordinate index",
+            )),
+        }
+    }
+
     /// Determine whether this color is the default color, i.e., is the origin
     /// of the XYZ color space.
     #[inline]
@@ -331,11 +353,17 @@ impl Color {
 
     /// Determine whether this color is a gray.
     ///
-    /// This method determines whether this color is a gray. If the color is not
-    /// already in Oklch or Oklrch, this method converts it to Oklch first
-    /// (which is slightly more performant than converting to Oklrch). This
-    /// method then tests for the hue not being a number or the chroma being
-    /// less than a small threshold.
+    /// For consistent, high-quality results, this method tests for hue being
+    /// not-a-number or chroma being close to zero in Oklch or Oklrch. If this
+    /// color is not in either color space, this method first converts it.
+    ///
+    /// Meanwhile, other color spaces do not seem particularly suitable to
+    /// implementing this predicate: A per-component maximum for a/b in
+    /// Oklab/Oklrab would carve a rectangular cuboid out of those color spaces
+    /// and hence produce inconsistent results. Similarly, a limit on component
+    /// differences for RGB components would carve a cube out of *linear* RGB
+    /// color spaces. For gamma-corrected RGB spaces, that cube would be gamma
+    /// distorted as well.
     ///
     /// # Examples
     ///
@@ -837,28 +865,6 @@ impl Color {
     }
 
     // ----------------------------------------------------------------------------------------------------------------
-
-    /// Get this color's length, which is 3. <span class=python-only></span>
-    ///
-    /// This method is available from Python only.
-    #[cfg(feature = "pyffi")]
-    pub fn __len__(&self) -> usize {
-        3
-    }
-
-    /// Read coordinates by index. <span class=python-only></span>
-    ///
-    /// This method is available from Python only.
-    #[cfg(feature = "pyffi")]
-    pub fn __getitem__(&self, index: isize) -> PyResult<Float> {
-        match index {
-            -3..=-1 => Ok(self.coordinates[(3 + index) as usize]),
-            0..=2 => Ok(self.coordinates[index as usize]),
-            _ => Err(pyo3::exceptions::PyIndexError::new_err(
-                "Invalid coordinate index",
-            )),
-        }
-    }
 
     /// Convert this color to its debug representation. <span
     /// class=python-only></span>
