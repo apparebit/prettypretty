@@ -4,8 +4,8 @@ use pyo3::prelude::*;
 use crate::core::is_gray_chroma_hue;
 
 use crate::{
-    AnsiColor, Bits, Color, ColorSpace, EmbeddedRgb, Fidelity, Float, GrayGradient,
-    Layer, OkVersion, TerminalColor,
+    AnsiColor, Bits, Color, ColorSpace, EmbeddedRgb, Fidelity, Float, GrayGradient, Layer,
+    OkVersion, TerminalColor,
 };
 
 #[cfg(feature = "pyffi")]
