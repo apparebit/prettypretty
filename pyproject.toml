@@ -2,6 +2,7 @@
 requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
+
 [project]
 name = "prettypretty"
 description = "Applying 2020s color science to 1970s terminal user interfaces"
@@ -11,6 +12,7 @@ requires-python = ">=3.11"
 license = {text = "Apache 2.0"}
 authors = [{name = "Robert Grimm", email="rgrimm@alum.mit.edu"}]
 dynamic = ["version"]
+
 
 [project.optional-dependencies]
 dev = ["maturin", "matplotlib", "pyright"]
@@ -23,18 +25,21 @@ doc = [
     "matplotlib",
 ]
 
+
 [project.urls]
 repository = "https://github.com/apparebit/prettypretty"
 package = "https://pypi.org/project/prettypretty/"
 documentation= "https://apparebit.github.io/prettypretty/"
 
+
 [tool.maturin]
 python-source = "."
-# Use a nested module for the native extension. src/lib.rs configures a module
-# of the same name, core_color.
+python-packages = ["prettypretty"]
+# Keep consistent with name of module function in src/lib.rs:
 module-name = "prettypretty.color"
 bindings = "pyo3"
-features = ["pyffi", "pyo3/extension-module"]
+features = ["pyffi"]
+
 
 [tool.pyright]
 include = ["prettypretty/**/*.py", "prettypretty/**/*.pyi", "test/*.py", "runtest.py"]
