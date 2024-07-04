@@ -100,7 +100,7 @@ def write_color_cube(
     term: Terminal,
     *,
     layer: Layer = Layer.Background,
-    strategy: Literal['8bit', 'pretty', 'naive'] = '8bit',
+    strategy: Literal['none', 'hlr', 'closest', 'rgb'] = 'none',
     show_label: bool = True,
 ) -> None:
     """
@@ -116,22 +116,24 @@ def write_color_cube(
         label: determines whether boxes are labelled with their color
             components
     """
+    sampler = current_sampler()
+
     frame = FramedBoxes(term, 6)
 
-    prefix = (
-        'Original ' if strategy == '8bit'
-        else 'Pretty Compression of ' if strategy == 'pretty'
-        else 'Naive Compression of '
+    suffix = (
+        '' if strategy == 'none'
+        else ' (Hue/Lightness)' if strategy == 'hlr'
+        else ' (Min Search)' if strategy == 'closest'
+        else ' (3+1-Bit RGB)'
     )
 
     frame.top(
         str(layer)
         + ': '
-        + prefix
+        + ('Original ' if strategy == 'none' else 'Compressed ')
         + '6•6•6 RGB Cube'
+        + suffix
     )
-
-    sampler = current_sampler()
 
     for r in range(6):
         for b in range(6):
@@ -139,26 +141,31 @@ def write_color_cube(
 
             for g in range(6):
                 embedded = EmbeddedRgb(r, g, b)
-                color = embedded.to_color()
+                source = embedded.to_color()
 
-                if strategy == '8bit':
+                if strategy == 'none':
                     eight_bit = embedded.to_8bit()
-                elif strategy == 'pretty':
-                    eight_bit = sampler.to_closest_ansi(color).to_8bit()
-                    color = sampler.resolve_8bit(eight_bit)
-                elif strategy == 'naive':
-                    eight_bit = sampler.to_ansi_rgb(color).to_8bit()
-                    color = sampler.resolve_8bit(eight_bit)
+                elif strategy == 'hlr':
+                    maybe_value = sampler.to_ansi_hue_lightness(source)
+                    if maybe_value is None:
+                        raise ValueError('hue/lightness reduction unavailable')
+                    eight_bit = maybe_value.to_8bit()
+                elif strategy == 'closest':
+                    eight_bit = sampler.to_closest_ansi(source).to_8bit()
+                elif strategy == 'rgb':
+                    eight_bit = sampler.to_ansi_rgb(source).to_8bit()
                 else:
                     raise ValueError(f'invalid strategy "{strategy}"')
 
-                # Pick black or white for other color based on contrast
+                target = sampler.resolve_8bit(eight_bit)
+
+                # Pick black or white for target, not source color.
                 if layer is Layer.Background:
-                    foreground = 16 if color.use_black_text() else 231,
+                    foreground = 16 if target.use_black_text() else 231,
                     background = eight_bit,
                 else:
                     foreground = eight_bit,
-                    background = 16 if color.use_black_background() else 231,
+                    background = 16 if target.use_black_background() else 231,
 
                 frame.box(
                     f'{r}•{g}•{b}' if show_label else ' ', foreground, background
@@ -191,7 +198,7 @@ def write_hires_slice(
 
     def emit_box(r: int, g: int, b: int) -> None:
         if eight_bit_only:
-            color = sampler.to_closest_8bit(Color.from_24bit(r, g, b)).to_8bit(),
+            color = sampler.to_closest_8bit(Color.from_24bit(r, g, b)).try_to_8bit(),
         else:
             color = r, g, b
 
@@ -317,8 +324,9 @@ if __name__ == '__main__':
         term.writeln()
 
         write_color_cube(term, show_label=options.label)
-        write_color_cube(term, strategy='pretty', show_label=options.label)
-        write_color_cube(term, strategy='naive', show_label=options.label)
+        write_color_cube(term, strategy='hlr', show_label=options.label)
+        write_color_cube(term, strategy='closest', show_label=options.label)
+        write_color_cube(term, strategy='rgb', show_label=options.label)
         write_color_cube(term, layer=Layer.Foreground)
 
         if term.fidelity == Fidelity.Full:
