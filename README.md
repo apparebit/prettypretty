@@ -50,14 +50,27 @@ starting point for familiarizing yourself with prettypretty are the scripts:
 
   * [prettypretty.progress](https://github.com/apparebit/prettypretty/blob/main/prettypretty/progress.py)
     illustrates the library's use on the example of a progress bar in less than
-    100 lines of Python.
+    100 lines of Python. The finished progress bar is shown below for both light
+    and dark themes.
+
+    ![A green progress bar under a light theme](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/progress-bar-light.png)
+
+    ![A green progress bar under a dark theme](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/progress-bar-dark.png)
+
   * [prettypretty.plot](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
     charts colors on the chroma/hue plane of Oklab, if you don't feed it colors
-    defaulting to your terminal's current color scheme.
+    defaulting to your terminal's current color scheme. Here's the one for the
+    basic theme in Apple's Terminal.app:
+
+    ![The basic theme colors of Apple's
+    Terminal.app](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/terminal.app-basic.svg)
+
   * [prettypretty.grid](https://github.com/apparebit/prettypretty/blob/main/prettypretty/grid.py)
     visualizes perceptual contrast and color downsampling strategies,
     exhaustively for the 6x6x6 RGB cube embedded in 8-bit color and selectively
     for 32x32 slices through the much bigger 24-bit RGB cube.
+
+    ![A grid visualizing 8-bit RGB colors](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/rgb6-background.png)
 
 
 ## Acknowledgements
