@@ -555,8 +555,9 @@ impl Color {
     /// let cantaloupe = Color::from_str("#ffd479")?;
     /// let d1 = honeydew.distance(&cantaloupe, OkVersion::Original);
     /// let d2 = honeydew.distance(&cantaloupe, OkVersion::Revised);
-    /// assert!((d1 - 0.11174969799958659).abs() < f64::EPSILON);
-    /// assert!((d2 - 0.11498895250174994).abs() < f64::EPSILON);
+    /// (dbg!(d1) - 0.11174969799958659).abs() < f64::EPSILON;
+    /// (dbg!(d2) - 0.11498895250174994).abs() < f64::EPSILON;
+    /// assert!(false);
     /// # Ok::<(), ColorFormatError>(())
     /// ```
     /// <div class=color-swatch>
