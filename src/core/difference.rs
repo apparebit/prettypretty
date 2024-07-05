@@ -4,13 +4,29 @@ use pyo3::prelude::*;
 use crate::core::{convert, normalize, ColorSpace};
 use crate::{Bits, Float};
 
+const DELTA_EQ_PRECISION: i32 = 2;
+
+/// Determine whether two floating point numbers can be considered the same.
+///
+/// This function normalizes the two numbers by zeroing out not-a-numbers,
+/// reducing the resolution by a couple of decimals, and dropping the sign of
+/// negative zeros. It is *not* suitable for testing color coordinates, which
+/// requires additional normalization steps.
+#[cfg_attr(feature = "pyffi", pyfunction)]
+pub fn close_enough(f1: Float, f2: Float) -> bool {
+    to_eq_bits1(f1) == to_eq_bits1(f2)
+}
+
 /// Convert the floating point number to bits. Do NOT use for coordinates!
 fn to_eq_bits1(f: Float) -> Bits {
+    // Eliminate not-a-number.
     let mut f = if f.is_nan() { 0.0 } else { f };
 
-    let multiplier = (10.0 as Float).powi(Float::DIGITS as i32 - 1);
+    // Reduce precision.
+    let multiplier = (10.0 as Float).powi(Float::DIGITS as i32 - DELTA_EQ_PRECISION);
     f = (multiplier * f).round();
 
+    // Too much negativity!
     if f == -0.0 {
         f = 0.0
     }
@@ -18,20 +34,26 @@ fn to_eq_bits1(f: Float) -> Bits {
     f.to_bits()
 }
 
-/// Determine whether the numbers are close enough to be considered the same.
+/// Determine whether two colors can be considered the same.
 ///
-/// This function normalizes the two numbers by replacing not-a-numbers and
-/// negative zeros with positive zeros as well as by rounding the last decimal
-/// digit. It is not suitable for testing color coordinates, which require
-/// additional normalization steps.
-#[cfg_attr(feature = "pyffi", pyfunction)]
-pub fn close_enough(f1: Float, f2: Float) -> bool {
-    to_eq_bits1(f1) == to_eq_bits1(f2)
+/// This function normalizes the coordinates of the two colors by zeroing out
+/// not-a-numbers, clamping the a/b/c components of colors in Oklab, scaling the
+/// hue of Oklch/Oklrch, reducing resolution, and dropping the sign of negative
+/// zeros before comparing the resulting bit strings. Both coordinate vectors
+/// must be in the given color space.
+#[cfg(test)]
+pub(crate) fn close_enough_colors(
+    space: ColorSpace,
+    coordinates1: &[Float; 3],
+    coordinates2: &[Float; 3],
+) -> bool {
+    to_eq_bits(space, coordinates1) == to_eq_bits(space, coordinates2)
 }
 
 /// Normalize coordinates for equality testing and hashing.
 #[must_use = "function returns new color coordinates and does not mutate original value"]
 pub(crate) fn to_eq_bits(space: ColorSpace, coordinates: &[Float; 3]) -> [Bits; 3] {
+    // Zero out not-a-numbers and clamp Oklab's a/b/c.
     let [mut c1, mut c2, mut c3] = normalize(space, coordinates);
 
     // Normalize rotation and scale to unit range.
@@ -39,13 +61,13 @@ pub(crate) fn to_eq_bits(space: ColorSpace, coordinates: &[Float; 3]) -> [Bits; 
         c3 = c3.rem_euclid(360.0) / 360.0
     }
 
-    // Drop one digit of precision.
-    let factor = (10.0 as Float).powi((Float::DIGITS as i32) - 1);
+    // Reduce precision.
+    let factor = (10.0 as Float).powi(Float::DIGITS as i32 - DELTA_EQ_PRECISION);
     c1 = (c1 * factor).round();
     c2 = (c2 * factor).round();
     c3 = (c3 * factor).round();
 
-    // Ensure canonical zero.
+    // Prevent too much negativity.
     if c1 == -0.0 {
         c1 = 0.0;
     }

@@ -548,7 +548,8 @@ pub(crate) fn convert(
 #[allow(clippy::excessive_precision)]
 mod test {
     use super::*;
-    use crate::core::test_util::close_enough_internal;
+    use crate::core::close_enough_colors;
+    use crate::core::ColorSpace::*;
     use crate::Float;
 
     struct Representations {
@@ -650,80 +651,88 @@ mod test {
         for &color in [&BLACK, &YELLOW, &BLUE, &WHITE].iter() {
             // Test all one-hop conversions
             let linear_srgb = rgb_to_linear_rgb(&color.srgb);
-            assert!(close_enough_internal(
+            assert!(close_enough_colors(
+                LinearSrgb,
                 &linear_srgb,
                 &color.linear_srgb,
-                false
             ));
 
             let srgb = linear_rgb_to_rgb(&linear_srgb);
-            assert!(close_enough_internal(&srgb, &color.srgb, false));
+            assert!(close_enough_colors(Srgb, &srgb, &color.srgb));
 
             let xyz = linear_srgb_to_xyz(&linear_srgb);
-            assert!(close_enough_internal(&xyz, &color.xyz, false));
+            assert!(close_enough_colors(Xyz, &xyz, &color.xyz));
 
             let also_linear_srgb = xyz_to_linear_srgb(&xyz);
-            assert!(close_enough_internal(
+            assert!(close_enough_colors(
+                LinearSrgb,
                 &also_linear_srgb,
                 &linear_srgb,
-                false
             ));
 
             let linear_p3 = xyz_to_linear_display_p3(&xyz);
-            assert!(close_enough_internal(&linear_p3, &color.linear_p3, false));
+            assert!(close_enough_colors(
+                LinearDisplayP3,
+                &linear_p3,
+                &color.linear_p3
+            ));
 
             let also_xyz = linear_display_p3_to_xyz(&linear_p3);
-            assert!(close_enough_internal(&also_xyz, &xyz, false));
+            assert!(close_enough_colors(Xyz, &also_xyz, &xyz));
 
             let p3 = linear_rgb_to_rgb(&linear_p3);
-            assert!(close_enough_internal(&p3, &color.p3, false));
+            assert!(close_enough_colors(DisplayP3, &p3, &color.p3));
 
             let also_linear_p3 = rgb_to_linear_rgb(&p3);
-            assert!(close_enough_internal(&also_linear_p3, &linear_p3, false));
+            assert!(close_enough_colors(
+                LinearDisplayP3,
+                &also_linear_p3,
+                &linear_p3
+            ));
 
             let linear_rec2020 = xyz_to_linear_rec2020(&xyz);
-            assert!(close_enough_internal(
+            assert!(close_enough_colors(
+                LinearRec2020,
                 &linear_rec2020,
                 &color.linear_rec2020,
-                false
             ));
 
             let and_also_xyz = linear_rec2020_to_xyz(&linear_rec2020);
-            assert!(close_enough_internal(&and_also_xyz, &xyz, false));
+            assert!(close_enough_colors(Xyz, &and_also_xyz, &xyz));
 
             let rec2020 = linear_rec2020_to_rec2020(&linear_rec2020);
-            assert!(close_enough_internal(&rec2020, &color.rec2020, false));
+            assert!(close_enough_colors(Rec2020, &rec2020, &color.rec2020));
 
             let also_linear_rec2020 = rec2020_to_linear_rec2020(&rec2020);
-            assert!(close_enough_internal(
+            assert!(close_enough_colors(
+                LinearRec2020,
                 &also_linear_rec2020,
                 &linear_rec2020,
-                false
             ));
 
             let oklab = xyz_to_oklab(&xyz);
-            assert!(close_enough_internal(&oklab, &color.oklab, false));
+            assert!(close_enough_colors(Oklab, &oklab, &color.oklab));
 
             let and_again_xyz = oklab_to_xyz(&oklab);
-            assert!(close_enough_internal(&and_again_xyz, &xyz, false));
+            assert!(close_enough_colors(Xyz, &and_again_xyz, &xyz));
 
             let oklch = okxab_to_okxch(&oklab);
-            assert!(close_enough_internal(&oklch, &color.oklch, true));
+            assert!(close_enough_colors(Oklch, &oklch, &color.oklch));
 
             let also_oklab = okxch_to_okxab(&oklch);
-            assert!(close_enough_internal(&also_oklab, &oklab, false));
+            assert!(close_enough_colors(Oklab, &also_oklab, &oklab));
 
             let oklrab = oklxx_to_oklrxx(&oklab);
-            assert!(close_enough_internal(&oklrab, &color.oklrab, false));
+            assert!(close_enough_colors(Oklrab, &oklrab, &color.oklrab));
 
             let oklab_too = oklrxx_to_oklxx(&oklrab);
-            assert!(close_enough_internal(&oklab_too, &color.oklab, false));
+            assert!(close_enough_colors(Oklab, &oklab_too, &color.oklab));
 
             let oklrch = oklxx_to_oklrxx(&oklch);
-            assert!(close_enough_internal(&oklrch, &color.oklrch, true));
+            assert!(close_enough_colors(Oklrch, &oklrch, &color.oklrch));
 
             let oklch_too = oklrxx_to_oklxx(&oklrch);
-            assert!(close_enough_internal(&oklch_too, &color.oklch, true));
+            assert!(close_enough_colors(Oklch, &oklch_too, &color.oklch));
         }
     }
 }
