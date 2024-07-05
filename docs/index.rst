@@ -1,61 +1,36 @@
 Pretty 🌸 Pretty
 ================
 
-This page documents prettypretty's Python code. However, it omits the most
-important module, ``prettypretty.color``. Unfortunately, there are no tools to
-generate documentation for Python extension modules. For now, please make do
-with the `type stub
-<https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi>`_
-and the `documentation for prettypretty's Rust code
-<https://apparebit.github.io/prettypretty/>`_. The latter does identify methods
-that are available in Python only. Also, you can pretty much ignore anything
-that is specific to Rust only.
+This is the entry page for the part of the documentation that focuses on
+prettypretty's pythonic side. Unfortunately, however, there are no tools to
+generate documentation for Python extension modules. So there also is no
+Python-specific documentation for what's clearly pretttypretty's most important
+module, ``prettypretty.color``. For now, please make do with the `type stub
+<https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi>`_,
+which should reassure you that most classes are just like enums, as well as the
+`documentation for prettypretty's Rust code
+<https://apparebit.github.io/prettypretty/>`_, which is comprehensive and
+includes even methods that are available in Python only. Also, you can pretty
+much ignore traits and lifetimes, since they have no relevance for code using
+Python extension modules from Python.
 
 
-prettypretty.ansi
------------------
+.. toctree::
+   :maxdepth: 1
+   :caption: Modules
 
-.. automodule:: prettypretty.ansi
-    :members:
+   prettypretty/ansi
+   prettypretty/darkmode
+   prettypretty/fidelity
+   prettypretty/ident
+   prettypretty/style
+   prettypretty/terminal
+   prettypretty/theme
 
+.. toctree::
+   :maxdepth: 1
+   :hidden:
+   :caption: Links
 
-prettypretty.darkmode
----------------------
-
-.. automodule:: prettypretty.darkmode
-    :members:
-
-
-prettypretty.fidelity
----------------------
-
-.. automodule:: prettypretty.fidelity
-    :members:
-
-
-prettypretty.ident
-------------------
-
-.. automodule:: prettypretty.ident
-    :members:
-
-
-prettypretty.style
-------------------
-
-.. automodule:: prettypretty.style
-    :members:
-
-
-prettypretty.terminal
----------------------
-
-.. automodule:: prettypretty.terminal
-    :members:
-
-
-prettypretty.theme
----------------------
-
-.. automodule:: prettypretty.theme
-    :members:
+   Documentation Home <https://apparebit.github.io/prettypretty/>
+   Repository <https://github.com/apparebit/prettypretty/>

@@ -18,6 +18,7 @@
         "pyffi",
         "pyfunction",
         "pymodule",
+        "pythonic",
         "recip",
         "repr",
         "rustfmt",

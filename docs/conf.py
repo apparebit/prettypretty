@@ -69,4 +69,4 @@ copybutton_exclude = '.linenos, .gp, .go'
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = 'sphinx_rtd_theme'
-html_baseurl = 'python'
+html_baseurl = 'https://apparebit.github.io/prettypretty/python/'
