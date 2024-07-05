@@ -185,7 +185,7 @@ class ColorPlotter:
             self._hues, self._chromas, self._colors, self._markers
         ):
             size = 80 if marker == "o" else 60
-            axes.scatter(
+            axes.scatter(  # type: ignore
                 [hue],
                 [chroma],
                 c=[color],
@@ -197,7 +197,7 @@ class ColorPlotter:
         if self._grays:
             gray = Color.oklab(sum(self._grays) / len(self._grays), 0.0, 0.0).to_hex_format()
 
-            axes.scatter(
+            axes.scatter(  # type: ignore
                 [0],
                 [0],
                 c=[gray],
@@ -206,7 +206,7 @@ class ColorPlotter:
                 edgecolors='#000',
             )
 
-        axes.set_rmin(0)
+        axes.set_rmin(0)  # type: ignore
         axes.set_rmax(self.effective_max_chroma())  # type: ignore
 
         # Don't show tick labels at angle
