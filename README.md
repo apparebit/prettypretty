@@ -40,7 +40,9 @@ library uses trait implementations, the Python module [uses dedicated
 methods](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi).
 Also, where the Rust library currently is BYO(T)IO, that is, bring your own
 (terminal) I/O, the Python library comes with a powerful terminal abstraction
-that makes, say, querying the terminal for the current color theme a breeze.
+that makes, say, querying the terminal [for the current color
+theme](https://github.com/apparebit/prettypretty/blob/61fb6d7c364c0d083e1073ead146834c1e0bc56d/prettypretty/terminal.py#L1039)
+a breeze.
 
 
 ## Scripts
