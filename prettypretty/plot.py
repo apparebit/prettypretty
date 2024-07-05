@@ -190,7 +190,7 @@ class ColorPlotter:
                 [chroma],
                 c=[color],
                 s=[size],
-                marker=marker,
+                marker=marker,  # type: ignore
                 edgecolors='#000',
             )
 
@@ -202,7 +202,7 @@ class ColorPlotter:
                 [0],
                 c=[gray],
                 s=[80],
-                marker=self._gray_marker,
+                marker=self._gray_marker,  # type: ignore
                 edgecolors='#000',
             )
 
@@ -213,7 +213,9 @@ class ColorPlotter:
         axes.set_rlabel_position(0)  # type: ignore
 
         # By default matplotlib puts a label every 0.05 units, 0.10 suffices
-        axes.yaxis.set_major_formatter(FuncFormatter(self.format_ytick_label))
+        axes.yaxis.set_major_formatter(  # type: ignore
+            FuncFormatter(self.format_ytick_label)
+        )
 
         # Center tick labels on tick
         plt.setp(axes.yaxis.get_majorticklabels(), ha="center")  # type: ignore
