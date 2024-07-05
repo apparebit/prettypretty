@@ -121,14 +121,14 @@ pub(crate) fn to_contrast(text_luminance: Float, background_luminance: Float) ->
 #[cfg(test)]
 mod test {
     use super::{to_contrast, to_contrast_luminance_srgb};
-    use crate::close_enough;
+    use crate::assert_close_enough;
 
     #[test]
     fn test_contrast() {
         let blue = to_contrast_luminance_srgb(&[104.0 / 255.0, 114.0 / 255.0, 1.0]);
 
         // Compare contrast of black vs white against a medium blue tone:
-        assert!(close_enough(to_contrast(0.0, blue), 0.38390416110716424));
-        assert!(close_enough(to_contrast(1.0, blue), -0.7119199952225724));
+        assert_close_enough!(to_contrast(0.0, blue), 0.38390416110716424);
+        assert_close_enough!(to_contrast(1.0, blue), -0.7119199952225724);
     }
 }

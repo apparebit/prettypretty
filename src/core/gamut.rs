@@ -131,48 +131,47 @@ pub(crate) fn to_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3
 #[cfg(test)]
 mod test {
     use super::to_gamut;
-    use crate::core::close_enough_colors;
-    use crate::core::{convert, ColorSpace};
+    use crate::core::{assert_same_color, convert, ColorSpace};
 
     #[test]
     fn test_gamut() {
         // A very green green.
         let p3 = [0.0, 1.0, 0.0];
         let srgb = convert(ColorSpace::DisplayP3, ColorSpace::Srgb, &p3);
-        assert!(close_enough_colors(
+        assert_same_color!(
             ColorSpace::Srgb,
             &srgb,
             &[-0.5116049825853448, 1.0182656579378029, -0.3106746212905826],
-        ));
+        );
 
         let srgb_mapped = to_gamut(ColorSpace::Srgb, &srgb);
-        assert!(close_enough_colors(
+        assert_same_color!(
             ColorSpace::Srgb,
             &srgb_mapped,
             &[0.0, 0.9857637107710327, 0.15974244397343723],
-        ));
+        );
 
         // A very yellow yellow.
         let p3 = [1.0, 1.0, 0.0];
         let srgb = convert(ColorSpace::DisplayP3, ColorSpace::Srgb, &p3);
-        assert!(close_enough_colors(
+        assert_same_color!(
             ColorSpace::Srgb,
             &srgb,
             &[0.9999999999999999, 0.9999999999999999, -0.3462679629331063],
-        ));
+        );
 
         let linear_srgb = convert(ColorSpace::DisplayP3, ColorSpace::LinearSrgb, &p3);
-        assert!(close_enough_colors(
+        assert_same_color!(
             ColorSpace::LinearSrgb,
             &linear_srgb,
             &[1.0, 1.0000000000000002, -0.09827360014096621],
-        ));
+        );
 
         let linear_srgb_mapped = to_gamut(ColorSpace::LinearSrgb, &linear_srgb);
-        assert!(close_enough_colors(
+        assert_same_color!(
             ColorSpace::LinearSrgb,
             &linear_srgb_mapped,
             &[0.9914525477996114, 0.9977581974546286, 0.0],
-        ));
+        );
     }
 }

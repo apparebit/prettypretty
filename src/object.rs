@@ -6,8 +6,8 @@ use pyo3::prelude::*;
 use crate::core::{
     clip, convert, delta_e_ok, format, from_24bit, in_gamut, interpolate, is_gray, normalize,
     parse, prepare_to_interpolate, scale_lightness, to_24bit, to_contrast,
-    to_contrast_luminance_p3, to_contrast_luminance_srgb, to_eq_bits, to_gamut, ColorFormatError,
-    ColorSpace, HueInterpolation,
+    to_contrast_luminance_p3, to_contrast_luminance_srgb, to_eq_coordinates, to_gamut,
+    ColorFormatError, ColorSpace, HueInterpolation,
 };
 
 use crate::Float;
@@ -585,14 +585,15 @@ impl Color {
     /// revised lightness Lr corrects the original's dark bias, we'd expect
     /// light colors to be more spread out in Oklrab. That is indeed the case.
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, OkVersion, ColorFormatError, close_enough};
+    /// # use prettypretty::{Color, ColorSpace, OkVersion, ColorFormatError};
+    /// # use prettypretty::assert_close_enough;
     /// # use std::str::FromStr;
     /// let honeydew = Color::from_str("#d4fb79")?;
     /// let cantaloupe = Color::from_str("#ffd479")?;
     /// let d1 = honeydew.distance(&cantaloupe, OkVersion::Original);
     /// let d2 = honeydew.distance(&cantaloupe, OkVersion::Revised);
-    /// assert!(close_enough(d1, 0.11174969799958659));
-    /// assert!(close_enough(d2, 0.11498895250174994));
+    /// assert_close_enough!(d1, 0.11174969799958659);
+    /// assert_close_enough!(d2, 0.11498895250174994);
     /// # Ok::<(), ColorFormatError>(())
     /// ```
     /// <div class=color-swatch>
@@ -1282,7 +1283,7 @@ impl std::hash::Hash for Color {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.space.hash(state);
 
-        let [n1, n2, n3] = to_eq_bits(self.space, &self.coordinates);
+        let [n1, n2, n3] = to_eq_coordinates(self.space, &self.coordinates);
         n1.hash(state);
         n2.hash(state);
         n3.hash(state);
@@ -1342,8 +1343,8 @@ impl PartialEq for Color {
             return true;
         }
 
-        let n1 = to_eq_bits(self.space, &self.coordinates);
-        let n2 = to_eq_bits(other.space, &other.coordinates);
+        let n1 = to_eq_coordinates(self.space, &self.coordinates);
+        let n2 = to_eq_coordinates(other.space, &other.coordinates);
         n1 == n2
     }
 }

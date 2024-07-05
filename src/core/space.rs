@@ -1,8 +1,6 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use crate::Float;
-
 /// The enumeration of supported color spaces.
 ///
 /// # RGB
@@ -150,38 +148,4 @@ impl std::fmt::Display for ColorSpace {
 
         f.write_str(s)
     }
-}
-
-/// Normalize the color coordinates.
-///
-/// This function ensures that coordinates are well-formed. In particular, it
-/// replaces not-a-number coordinates with zero. For the Oklab variations, it
-/// also ensures that (revised) lightness is in `0..=1` and chroma is in `0..`.
-/// For semantic consistency, if the hue in Oklch/Oklrch is not-a-number, it
-/// also replaces chroma with zero.
-#[inline]
-pub(crate) fn normalize(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3] {
-    let [mut c1, mut c2, mut c3] = *coordinates;
-
-    if c1.is_nan() {
-        c1 = 0.0;
-    }
-    if c2.is_nan() {
-        c2 = 0.0;
-    }
-    if c3.is_nan() {
-        c3 = 0.0;
-        if space.is_polar() {
-            c2 = 0.0;
-        }
-    }
-
-    if space.is_ok() {
-        c1 = c1.clamp(0.0, 1.0);
-        if space.is_polar() {
-            c2 = c2.max(0.0);
-        }
-    }
-
-    [c1, c2, c3]
 }
