@@ -49,20 +49,15 @@ jobs:
 
     - name: Create Python-based documentation
       run: |
-        ls -a docs
         sphinx-build -M html docs docs/_build
-        echo '$$$$$ mkdir target/doc/python'
         mkdir -v target/doc/python
-        echo '$$$$$ cp docs/_build/html/* target/doc/python'
-        cp -vr docs/_build/html/* target/doc/python/
-        echo '$$$$$ ls target/doc'
-        ls -a target/doc
-        echo '$$$$$ ls target/doc/python'
-        ls -a target/doc/python
+        cp docs/_build/html/* target/doc/python/
 
     - name: Create top-level redirect
       run: |
           echo '<meta http-equiv=refresh content=0;url=prettypretty/index.html>' > target/doc/index.html
+          echo "# ---- Contents of target/doc/:"
+          ls -a target/doc/*
 
     - name: Upload documentation
       uses: actions/upload-pages-artifact@v3
