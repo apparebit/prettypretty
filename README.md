@@ -28,7 +28,7 @@ and high-resolution colors alike, facilitates seamless conversion between them
 and common color spaces, and implements state-of-the-art algorithms for
 [gamut-mapping](https://www.w3.org/TR/css-color-4/#gamut-mapping), [color
 interpolation](https://www.w3.org/TR/css-color-4/#interpolation), [perceptual
-contrast](https://github.com/Myndex/apca-w3), and its own hue- and
+contrast](https://github.com/Myndex/apca-w3), as well as its own hue- and
 lightness-based downsampling for optimal selection of ANSI colors.
 
 
@@ -45,6 +45,9 @@ that makes, say, querying the terminal [for the current color
 theme](https://github.com/apparebit/prettypretty/blob/61fb6d7c364c0d083e1073ead146834c1e0bc56d/prettypretty/terminal.py#L1039)
 a breeze.
 
+The [Python documentation](https://apparebit.github.io/prettypretty/python/)
+covers the functionality that currently is Python-only. Over time, I expect to
+port those features to Rust as well.
 
 ## Scripts
 
@@ -93,4 +96,5 @@ spaces and implements several CSS Color 4 algorithms.
 ---
 
 Copyright 2024 Robert Grimm. The code in this repository has been released as
-open source under the [Apache 2.0](LICENSE) license.
+open source under the [Apache
+2.0](https://github.com/apparebit/prettypretty/blob/main/LICENSE) license.

@@ -4,15 +4,84 @@
 
 //! # Pretty 🌸 Pretty
 //!
-//! This library brings 2020s color science to 1970s terminals to help build
-//! awesome looking and adaptable terminal user interfaces. It supports
-//! high-resolution colors, accurate conversion between color spaces, finding
-//! the closest matching color, gamut testing and mapping, and computing text
-//! contrast.
+//! Prettypretty is a Rust library with optional Python integration that brings
+//! 2020s color science to 1970s terminals for building awesome terminal user
+//! interfaces (TUIs). The intended benefits are twofold:
+//!
+//!   * You get to design and build the TUI with all the expressivity and
+//!     convenience of high-resolution color and [color
+//!     spaces](https://lab.ardov.me/spaces-3d), including the perceptually
+//!     uniform [Oklab](https://bottosson.github.io/posts/oklab/) whether in
+//!     Cartesian or polar form, with original or [revised
+//!     lightness](https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab).
+//!   * Prettypretty takes care of reconciling the intended appearance with the
+//!     capabilities of the terminal, the current runtime context including
+//!     light or dark mode, and the user's preferences, whether they lean
+//!     [FORCE_COLOR](https://force-color.org) or
+//!     [NO_COLOR](https://no-color.org).
+//!
+//! To make that possible, prettypretty provides simple abstractions for
+//! terminal and high-resolution colors alike, facilitates seamless conversion
+//! between them and common color spaces, and implements state-of-the-art
+//! algorithms for
+//! [gamut-mapping](https://www.w3.org/TR/css-color-4/#gamut-mapping), [color
+//! interpolation](https://www.w3.org/TR/css-color-4/#interpolation),
+//! [perceptual contrast](https://github.com/Myndex/apca-w3), as well as its own
+//! hue- and lightness-based downsampling for optimal selection of ANSI colors.
 //!
 #![doc = include_str!("style.html")]
 //!
-//! ## 1. High-Resolution Colors
+//!
+//! ## 1. Python Integration
+//!
+//! The optional Python integration is enabled with the `pyffi` feature flag and
+//! relies on [PyO3](https://pyo3.rs/v0.22.0/) and
+//! [Maturin](https://www.maturin.rs) for building an extension module with the
+//! same functionality—only where the Rust library uses trait implementations,
+//! the Python module [uses dedicated
+//! methods](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi).
+//! Also, where the Rust library currently is BYO(T)IO, that is, bring your own
+//! (terminal) I/O, the Python library comes with a powerful terminal
+//! abstraction that makes, say, querying the terminal [for the current color
+//! theme](https://github.com/apparebit/prettypretty/blob/61fb6d7c364c0d083e1073ead146834c1e0bc56d/prettypretty/terminal.py#L1039)
+//! a breeze.
+//!
+//! The [Python documentation](https://apparebit.github.io/prettypretty/python/)
+//! covers the functionality that currently is Python-only. Over time, I expect
+//! to port those features to Rust as well.
+//!
+//!
+//! ### Scripts
+//!
+//! Prettypretty's Python distribution includes helpful scripts. They also are a
+//! great starting point for familiarizing yourself with this library:
+//!
+//!   * [prettypretty.progress](https://github.com/apparebit/prettypretty/blob/main/prettypretty/progress.py)
+//!     illustrates the library's use on the example of a progress bar in less
+//!     than 100 lines of Python. The finished progress bar is shown below for
+//!     the light theme.
+//!
+//!     <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/progress-bar-light.png"
+//!          alt="a complete, green progress bar" width=293>
+//!
+//!   * [prettypretty.plot](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
+//!     charts colors on the chroma/hue plane of Oklab. If you don't feed it
+//!     colors, it defaults to your terminal's current color scheme. Here's the
+//!     one for the basic theme in Apple's Terminal.app:
+//!
+//!     <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/terminal.app-basic.svg"
+//!          alt="colors from the basic theme for Apple's Terminal.app in Oklch" width=300px>
+//!
+//!   * [prettypretty.grid](https://github.com/apparebit/prettypretty/blob/main/prettypretty/grid.py)
+//!     visualizes perceptual contrast and color downsampling strategies,
+//!     exhaustively for the 6x6x6 RGB cube embedded in 8-bit color and selectively
+//!     for 32x32 slices through the much bigger 24-bit RGB cube.
+//!
+//!     <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/rgb6-background.png"
+//!          alt="a grid visualizing the 6x6x6 embedded RGB cube" width=300px>
+//!
+//!
+//! ## 2. High-Resolution Colors
 //!
 //! High-resolution colors from the 2020s have floating point coordinates and
 //! explicit color spaces:
@@ -82,7 +151,7 @@
 //! in gamut and clip or gamut map those that aren't.
 //!
 //!
-//! ## 2. Terminal Colors
+//! ## 3. Terminal Colors
 //!
 //! In contrast to high-resolution colors, which fit into a nicely uniform
 //! representation with three coordinates, terminal color formats from the 1970s
@@ -113,7 +182,8 @@
 //! 5, inclusive. Xterm's formula for converting to 24-bit RGB colors is widely
 //! accepted. The color swatch below shows all 216 colors, with blue cycling
 //! every column, green increasing every six columns, and red increasing every
-//! row.
+//! row. It's only the first of many color swatches throughout the
+//! documentation.
 //!
 //! <figure>
 //! <div class="small color-swatch">
@@ -447,7 +517,7 @@
 //! </div>
 //!
 //!
-//! ## 3. Integration of High-Resolution and Terminal Colors
+//! ## 4. Integration of High-Resolution and Terminal Colors
 //!
 //! To apply 2020s color science to terminal colors, we need to be able to
 //! easily translate between terminal and high-resolution colors:
@@ -529,7 +599,7 @@
 //! </div>
 //!
 //!
-//! ## 4. Features
+//! ## 5. Feature Flags
 //!
 //! This crate has two feature flags:
 //!
@@ -560,7 +630,7 @@
 //! methods as <span class=rust-only></span>.
 //!
 //!
-//! ## 5. BYOIO: Bring Your Own (Terminal) I/O
+//! ## 6. BYOIO: Bring Your Own (Terminal) I/O
 //!
 //! Unlike the Python version, the Rust version of prettypretty does not (yet?)
 //! include its own facilities for styled text or terminal I/O. Instead, it is
@@ -588,21 +658,16 @@
 //! backslash). Some terminals answer with `\x0b` (bell) instead of ST.
 //!
 //!
-//! ## 6. Et Cetera
+//! ## 7. Acknowledgements
 //!
-//! Just like the above examples, most code blocks in the documentation come
-//! with color swatches, which show the color values mentioned in the code.
-//! Where possible, swatches use the exact same color spaces as the code (sRGB,
-//! Display P3, Rec. 2020, Oklab, or Oklch). Otherwise, they fall back on an
-//! equivalent color in a comparable color space (Oklrab and Oklrch).
-//!
-//! Implementing this crate's color support was a breeze. In part, that was
-//! because I had built a prototype and a package in Python before and hence
-//! knew what I was going for. In part, that was because I copied many of the
-//! nitty-gritty color algorithms and conversion matrices from the most
-//! excellent [Color.js](https://colorjs.io) by [Lea
-//! Verou](http://lea.verou.me/) and [Chris Lilley](https://svgees.us/). Without
-//! their work, I could not have gotten as far as quickly. Thank you! 🌸
+//! Implementing prettypretty's color support was a breeze. In part, that was
+//! because I had been toying with different approaches to terminal styling for
+//! a while and knew what I wanted to build. In part, that was because I
+//! benefitted from [Lea Verou](http://lea.verou.me/)'s and [Chris
+//! Lilley](https://svgees.us/)'s work on the [Color.js](https://colorjs.io)
+//! library and [CSS Color 4](https://www.w3.org/TR/css-color-4/) specification.
+//! Prettypretty directly reuses Color.js' formulae for conversion between color
+//! spaces and implements several CSS Color 4 algorithms. Thank you! 🌸
 
 /// The floating point type in use.
 #[cfg(feature = "f64")]

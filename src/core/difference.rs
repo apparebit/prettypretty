@@ -18,8 +18,12 @@ fn to_eq_bits1(f: Float) -> Bits {
     f.to_bits()
 }
 
-/// Determine whether the floating point numbers are close enough to be
-/// considered as representing the same quantity.
+/// Determine whether the numbers are close enough to be considered the same.
+///
+/// This function normalizes the two numbers by replacing not-a-numbers and
+/// negative zeros with positive zeros as well as by rounding the last decimal
+/// digit. It is not suitable for testing color coordinates, which require
+/// additional normalization steps.
 #[cfg_attr(feature = "pyffi", pyfunction)]
 pub fn close_enough(f1: Float, f2: Float) -> bool {
     to_eq_bits1(f1) == to_eq_bits1(f2)
