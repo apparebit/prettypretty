@@ -1,3 +1,5 @@
+# PSA: Use actionlint (https://github.com/rhysd/actionlint) to check actions!
+
 name: Publish to GitHub Pages
 
 on:
@@ -35,6 +37,9 @@ jobs:
     - name: Set up stable Rust
       run: rustup toolchain install stable
 
+    - name: Build and install extension module
+      run: pip install '.[doc]'
+
     - name: Configure GitHub Pages
       id: pages
       uses: actions/configure-pages@v5
@@ -42,7 +47,13 @@ jobs:
     - name: Create Rust-based documentation
       run: cargo doc --no-deps --all-features
 
-    - name: Create redirect to prettypretty
+    - name: Create Python-based documentation
+      run: |
+        (cd docs; sphinx-build -M html . _build)
+        mkdir target/doc/python
+        cp docs/_build/html/ target/doc/python
+
+    - name: Create top-level redirect
       run: |
           echo '<meta http-equiv=refresh content=0;url=prettypretty/index.html>' > target/doc/index.html
 
