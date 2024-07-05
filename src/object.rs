@@ -345,6 +345,24 @@ impl Color {
 
     /// Determine whether this color is the default color, i.e., is the origin
     /// of the XYZ color space.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let black = Color::p3(0, 0, 0);
+    /// let default_black = Color::new(ColorSpace::Xyz, [0.0, 0.0, 0.0]);
+    /// assert!(black != default_black);
+    /// assert!(black.to(ColorSpace::Xyz) == default_black);
+    /// assert!(!black.is_default());
+    /// assert!(default_black.is_default());
+    /// assert!(Color::default() == default_black);
+    /// assert!(Color::default().is_default());
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: color(display-p3 0 0 0)"></div>
+    /// <div style="background-color: color(xyz 0 0 0)"></div>
+    /// </div>
     #[inline]
     pub fn is_default(&self) -> bool {
         self.space == ColorSpace::Xyz && self.coordinates == [0.0, 0.0, 0.0]
@@ -431,6 +449,25 @@ impl Color {
     /// the source color space, and finally matches on the target color space.
     /// Conveniently, a match during the first step also eliminates the need for
     /// the second and third match. See the source code for the full details.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace};
+    /// let gray = Color::from_24bit(0x6c, 0x74, 0x79);
+    /// assert_eq!(gray, Color::new(
+    ///     ColorSpace::Srgb,
+    ///     [108.0/255.0, 116.0/255.0, 121.0/255.0]
+    /// ));
+    /// let same_gray = gray.to(ColorSpace::Oklrch);
+    /// assert_eq!(same_gray, Color::new(
+    ///     ColorSpace::Oklrch,
+    ///     [0.4827939631351205, 0.012421260273578993, 234.98550533688365]
+    /// ));
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: rgb(108 116 121)"></div>
+    /// </div>
     #[inline]
     #[must_use = "method returns a new color and does not mutate original value"]
     pub fn to(&self, target: ColorSpace) -> Self {
@@ -1215,13 +1252,6 @@ impl AsRef<[Float; 3]> for Color {
     }
 }
 
-impl AsMut<[Float; 3]> for Color {
-    #[inline]
-    fn as_mut(&mut self) -> &mut [Float; 3] {
-        &mut self.coordinates
-    }
-}
-
 impl std::ops::Index<usize> for Color {
     type Output = f64;
 
@@ -1245,31 +1275,6 @@ impl std::ops::Index<usize> for Color {
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         &self.coordinates[index]
-    }
-}
-
-impl std::ops::IndexMut<usize> for Color {
-    /// Mutably access the coordinate with the given index.
-    ///
-    /// # Panics
-    ///
-    /// This method panics if `index > 2`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use prettypretty::{Color, ColorSpace};
-    /// let mut magenta = Color::srgb(0, 0.3, 0.8);
-    /// // Oops, we forgot to set the red coordinate. Let's fix that.
-    /// magenta[0] = 0.9;
-    /// assert_eq!(magenta.as_ref(), &[0.9_f64, 0.3_f64, 0.8_f64]);
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: color(srgb 0.9 0.3 0.8);"></div>
-    /// </div>
-    #[inline]
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.coordinates[index]
     }
 }
 
