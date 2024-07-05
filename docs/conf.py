@@ -11,7 +11,29 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath('..'))
+
+sys.path.insert(0, os.path.abspath('.'))
+
+def debug():
+    def header(h: str):
+        s = f"---- {h} "
+        s += "-" * (80 - len(s))
+        print(s)
+
+    print("=" * 80)
+    header("Current Directory")
+    print(os.getcwd())
+    header("Python Path")
+    for p in sys.path:
+        print(p)
+    header("Python Executable")
+    print(sys.executable)
+    header("Prefix")
+    print(f"{sys.prefix}")
+    print(f"{sys.base_prefix}")
+    print("=" * 80)
+
+debug()
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
