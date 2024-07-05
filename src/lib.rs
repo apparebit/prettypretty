@@ -683,25 +683,28 @@ pub type Bits = u64;
 #[cfg(not(feature = "f64"))]
 pub type Bits = u32;
 
-mod collection;
 mod core;
 mod error;
 mod object;
 mod term_color;
+mod translation;
 
-pub use collection::{Sampler, ThemeEntry, ThemeEntryIterator, VGA_COLORS};
-pub use core::{close_enough, ColorFormatError, ColorSpace, HueInterpolation};
+#[cfg(feature = "pyffi")]
+pub use core::close_enough;
+
+pub use core::{to_eq_bits, ColorFormatError, ColorSpace, HueInterpolation};
 pub use error::OutOfBoundsError;
 pub use object::{Color, Interpolator, OkVersion};
 pub use term_color::{
     AnsiColor, DefaultColor, EmbeddedRgb, Fidelity, GrayGradient, Layer, TerminalColor, TrueColor,
 };
+pub use translation::{Sampler, ThemeEntry, ThemeEntryIterator, VGA_COLORS};
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-/// Collect Python classes and functions implemented in Rust in the simulated
-/// `color` module. <span class=python-only></span>
+/// Collect Rust functions and classes in a Python in the `color` extension
+/// module. <span class=python-only></span>
 #[doc = include_str!("style.html")]
 #[cfg(feature = "pyffi")]
 #[pymodule]
