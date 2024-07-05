@@ -52,3 +52,4 @@ copybutton_exclude = '.linenos, .gp, .go'
 #html_theme = "sphinxawesome"
 html_static_path = ['_static']
 html_theme = 'sphinx_rtd_theme'
+html_baseurl = 'python'
