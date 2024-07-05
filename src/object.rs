@@ -1,15 +1,14 @@
+use std::str::FromStr;
+
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
 use crate::core::{
     clip, convert, delta_e_ok, format, from_24bit, in_gamut, interpolate, is_gray, normalize,
     parse, prepare_to_interpolate, scale_lightness, to_24bit, to_contrast,
-    to_contrast_luminance_p3, to_contrast_luminance_srgb, to_eq_bits, to_gamut, ColorSpace,
-    HueInterpolation,
+    to_contrast_luminance_p3, to_contrast_luminance_srgb, to_eq_bits, to_gamut, ColorFormatError,
+    ColorSpace, HueInterpolation,
 };
-
-#[cfg(feature = "pyffi")]
-use crate::core::ColorFormatError;
 
 use crate::Float;
 
@@ -1190,6 +1189,22 @@ impl std::str::FromStr for Color {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         parse(s).map(|(space, coordinates)| Self::new(space, coordinates))
+    }
+}
+
+impl TryFrom<&str> for Color {
+    type Error = ColorFormatError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Color::from_str(value)
+    }
+}
+
+impl TryFrom<String> for Color {
+    type Error = ColorFormatError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Color::from_str(value.as_str())
     }
 }
 
