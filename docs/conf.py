@@ -33,8 +33,6 @@ def debug():
     print(f"{sys.base_prefix}")
     print("=" * 80)
 
-debug()
-
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
