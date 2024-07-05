@@ -13,9 +13,10 @@ Prettypretty is a Rust library with optional Python integration that brings
 interfaces (TUIs). The intended benefits are twofold:
 
   * You get to design and build the TUI with all the expressivity and
-    convenience of high-resolution color and color spaces, including the
-    perceptually uniform [Oklab](https://bottosson.github.io/posts/oklab/)
-    whether in Cartesian or polar form, with original or [revised
+    convenience of high-resolution color and [color
+    spaces](https://lab.ardov.me/spaces-3d), including the perceptually uniform
+    [Oklab](https://bottosson.github.io/posts/oklab/) whether in Cartesian or
+    polar form, with original or [revised
     lightness](https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab).
   * Prettypretty takes care of reconciling the intended appearance with the
     capabilities of the terminal, the current runtime context including light or
