@@ -51,7 +51,7 @@ jobs:
       run: |
         sphinx-build -M html docs docs/_build
         mkdir -v target/doc/python
-        cp docs/_build/html/* target/doc/python/
+        cp -r docs/_build/html/* target/doc/python/
 
     - name: Create top-level redirect
       run: |
