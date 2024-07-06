@@ -5,9 +5,27 @@ for down-sampling colors and maximizing contrast.
 import argparse
 from typing import cast, Literal
 
-from .color import Color, EmbeddedRgb, Fidelity, Layer
+from .color import AnsiColor, Color, EmbeddedRgb, Fidelity, Layer, TerminalColor
 from .theme import MACOS_TERMINAL, VGA, XTERM, current_sampler
 from .terminal import Terminal
+
+
+def show_error(term: Terminal, msg: str) -> None:
+    """Show a big boxy red error message"""
+    def line(s: str) -> None:
+        (
+            term
+            .bold()
+            .fg(TerminalColor.Rgb6(EmbeddedRgb(5, 5, 5)))
+            .bg(TerminalColor.Ansi(AnsiColor.Red))
+            .write(s)
+            .reset_style()
+            .writeln()
+        )
+
+    line(" " * (len(msg) + 4))
+    line(f"  {msg}  ")
+    line(" " * (len(msg) + 4))
 
 
 class FramedBoxes:
@@ -117,6 +135,13 @@ def write_color_cube(
             components
     """
     sampler = current_sampler()
+    if not sampler.supports_hue_lightness() and strategy == 'hlr':
+        show_error(
+            term,
+            "Terminal theme violates requirements of hue/lightness algorithm. "
+            "Skipping frame."
+        )
+        return
 
     frame = FramedBoxes(term, 6)
 
