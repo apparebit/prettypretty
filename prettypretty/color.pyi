@@ -241,12 +241,14 @@ class OkVersion:
 class Color:
     """High-resolution colors."""
     def __new__(
-        cls, space: ColorSpace, coordinates: tuple[float, float, float]
+        cls, space: ColorSpace, coordinates: Sequence[float]
     ) -> Self:
-        ...
+        """
+        Create a new color with the color space and coordinates. The coordinates
+        must be a sequence with exactly three elements.
+        """
     @staticmethod
-    def parse(s: str) -> Color:
-        ...
+    def parse(s: str) -> Color: ...
     @staticmethod
     def srgb(r: float, g: float, b: float) -> Color: ...
     @staticmethod
