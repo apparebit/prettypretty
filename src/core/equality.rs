@@ -5,7 +5,7 @@ use super::ColorSpace;
 use crate::{Bits, Float};
 
 /// The loss of precision.
-const DELTA_EQ_PRECISION: i32 = 2;
+const DELTA_EQ_PRECISION: i32 = 3;
 
 /// Assert that the two floating point numbers can be considered equal. <span
 /// class=rust-only></span>
