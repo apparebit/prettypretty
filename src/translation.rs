@@ -605,7 +605,8 @@ impl Sampler {
         }
     }
 
-    /// Resolve the default color to a high-resolution color.
+    /// Resolve the default color to a high-resolution color. <span
+    /// class=python-only></span>
     pub fn resolve_default(&self, color: DefaultColor) -> Color {
         self.theme_colors[color as usize].clone()
     }
