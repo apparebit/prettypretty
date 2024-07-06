@@ -40,10 +40,10 @@ impl From<DefaultColor> for TerminalColor {
 /// The 16 extended ANSI colors.
 ///
 /// Rust code converts between 8-bit color codes and enumeration variants with
-/// [`TryFrom<u8> as
-/// AnsiColor`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) and
-/// [`From<AnsiColor> as
-/// u8`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8).
+/// [`AnsiColor as
+/// TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) and
+/// [`u8 as
+/// From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8).
 #[doc = include_str!("style.html")]
 #[cfg_attr(
     feature = "pyffi",
@@ -80,9 +80,9 @@ impl AnsiColor {
     /// Instantiate an ANSI color from its 8-bit code. <span
     /// class=python-only></span>
     ///
-    /// This method offers the same functionality as [`TryFrom<u8> as
-    /// AnsiColor`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) and
-    /// is available in Python only.
+    /// This method offers the same functionality as [`AnsiColor as
+    /// TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor)
+    /// and is available in Python only.
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn try_from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
@@ -91,9 +91,9 @@ impl AnsiColor {
 
     /// Get the 8-bit code for this ANSI color. <span class=python-only></span>
     ///
-    /// This method offers the same functionality as [`From<AnsiColor> as
-    /// u8`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8) and is
-    /// available in Python only.
+    /// This method offers the same functionality as [`u8 as
+    /// From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8)
+    /// and is available in Python only.
     #[cfg(feature = "pyffi")]
     pub fn to_8bit(&self) -> u8 {
         *self as u8
@@ -173,8 +173,8 @@ impl From<AnsiColor> for TerminalColor {
 /// # Examples
 ///
 /// Rust code can create a new embedded RGB color with either
-/// [`EmbeddedRgb::new`] or [`TryFrom<u8> as
-/// EmbeddedRgb`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb).
+/// [`EmbeddedRgb::new`] or [`EmbeddedRgb as
+/// TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb).
 ///
 #[doc = include_str!("style.html")]
 /// ```
@@ -189,10 +189,10 @@ impl From<AnsiColor> for TerminalColor {
 /// </div>
 /// <br>
 ///
-/// It can access the coordinates with [`AsRef<[u8; 3]> as
-/// EmbeddedRgb`](struct.EmbeddedRgb.html#impl-AsRef%3C%5Bu8;+3%5D%3E-for-EmbeddedRgb)
-/// or with [`Index<usize> as
-/// EmbeddedRgb`](struct.EmbeddedRgb.html#impl-Index%3Cusize%3E-for-EmbeddedRgb).
+/// It can access the coordinates with [`EmbeddedRgb as AsRef<[u8;
+/// 3]>`](struct.EmbeddedRgb.html#impl-AsRef%3C%5Bu8;+3%5D%3E-for-EmbeddedRgb)
+/// or with [`EmbeddedRgb as
+/// Index<usize>`](struct.EmbeddedRgb.html#impl-Index%3Cusize%3E-for-EmbeddedRgb).
 /// ```
 /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError};
 /// let blue = EmbeddedRgb::try_from(75)?;
@@ -205,13 +205,12 @@ impl From<AnsiColor> for TerminalColor {
 /// </div>
 /// <br>
 ///
-/// Finally, it can convert an embedded RGB color to `u8` with
-/// [`From<EmbeddedRgb> as
-/// u8`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8), to a true
-/// color with [`From<EmbeddedRgb> as
-/// TrueColor`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-TrueColor),
-/// or to a high-resolution color with [`From<EmbeddedRgb> as
-/// Color`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color).
+/// Finally, it can convert an embedded RGB color to `u8` with [`u8 as
+/// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8),
+/// to a true color with [`TrueColor as
+/// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-TrueColor),
+/// or to a high-resolution color with [`Color as
+/// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color).
 /// ```
 /// # use prettypretty::{Color, EmbeddedRgb, OutOfBoundsError, TrueColor};
 /// let rose = EmbeddedRgb::new(5, 4, 5)?;
@@ -264,8 +263,8 @@ impl EmbeddedRgb {
     /// Instantiate an embedded RGB color from its 8-bit code. <span
     /// class=python-only></span>
     ///
-    /// This method offers the same functionality as [`TryFrom<u8> as
-    /// EmbeddedRgb`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
+    /// This method offers the same functionality as [`EmbeddedRgb as
+    /// TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
     /// and is available in Python only.
     #[staticmethod]
     pub fn try_from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
@@ -275,9 +274,9 @@ impl EmbeddedRgb {
     /// Get the 8-bit code for this embedded RGB color. <span
     /// class=python-only></span>
     ///
-    /// This method offers the same functionality as [`From<EmbeddedRgb> as
-    /// u8`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8) and is
-    /// available in Python only.
+    /// This method offers the same functionality as [`u8 as
+    /// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8)
+    /// and is available in Python only.
     pub fn to_8bit(&self) -> u8 {
         u8::from(*self)
     }
@@ -285,8 +284,8 @@ impl EmbeddedRgb {
     /// Convert this embedded RGB color to a high-resolution color. <span
     /// class=python-only></span>
     ///
-    /// This method offers the same functionality as [`From<EmbeddedRgb> as
-    /// Color`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color)
+    /// This method offers the same functionality as [`Color as
+    /// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color)
     /// and is available in Python only.
     pub fn to_color(&self) -> Color {
         Color::from(*self)
@@ -433,8 +432,8 @@ impl From<EmbeddedRgb> for Color {
 /// # Examples
 ///
 /// Rust code can instantiate a new gray gradient color with either
-/// [`GrayGradient::new`] or [`TryFrom<u8> as
-/// GrayGradient`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient).
+/// [`GrayGradient::new`] or [`GrayGradient as
+/// TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient).
 ///
 #[doc = include_str!("style.html")]
 /// ```
@@ -461,13 +460,12 @@ impl From<EmbeddedRgb> for Color {
 /// </div>
 /// <br>
 ///
-/// Finally, it can convert a gray gradient color to `u8` with
-/// [`From<GrayGradient> as
-/// u8`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8), to a true
-/// color with [`From<GrayGradient> as
-/// TrueColor`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-TrueColor),
-/// or to a high-resolution color with [`From<GrayGradient> as
-/// Color`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Color).
+/// Finally, it can convert a gray gradient color to `u8` with [`u8 as
+/// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8),
+/// to a true color with [`TrueColor as
+/// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-TrueColor),
+/// or to a high-resolution color with [`Color as
+/// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Color).
 /// ```
 /// # use prettypretty::{Color, GrayGradient, OutOfBoundsError, TrueColor};
 /// let light_gray = GrayGradient::new(20)?;
@@ -515,8 +513,8 @@ impl GrayGradient {
     /// Instantiate a gray gradient from its 8-bit code. <span
     /// class=python-only></span>
     ///
-    /// This method offers the same functionality as [`TryFrom<u8> as
-    /// GrayGradient`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
+    /// This method offers the same functionality as [`GrayGradient as
+    /// TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
     /// and is available in Python only.
     #[staticmethod]
     pub fn try_from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
@@ -526,9 +524,9 @@ impl GrayGradient {
     /// Get the 8-bit code for this gray gradient color. <span
     /// class=python-only></span>
     ///
-    /// This method offers the same functionality as [`From<GrayGradient> as
-    /// u8`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8) and is
-    /// available in Python only.
+    /// This method offers the same functionality as [`u8 as
+    /// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8)
+    /// and is available in Python only.
     #[inline]
     pub fn to_8bit(&self) -> u8 {
         u8::from(*self)
@@ -537,8 +535,8 @@ impl GrayGradient {
     /// Convert this gray gradient to a high-resolution color. <span
     /// class=python-only></span>
     ///
-    /// This method offers the same functionality as [`From<GrayGradient> as
-    /// Color`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Color)
+    /// This method offers the same functionality as [`Color as
+    /// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Color)
     /// and is available in Python only.
     #[inline]
     pub fn to_color(&self) -> Color {
@@ -622,9 +620,9 @@ impl From<GrayGradient> for Color {
 ///
 /// # Examples
 ///
-/// Rust code can create a new true color with either
-/// [`TrueColor::new`] or [`From<&Color> as
-/// TrueColor`](struct.TrueColor.html#impl-From%3C%26Color%3E-for-TrueColor).
+/// Rust code can create a new true color with either [`TrueColor::new`] or
+/// [`TrueColor as
+/// From<&Color>`](struct.TrueColor.html#impl-From%3C%26Color%3E-for-TrueColor).
 ///
 #[doc = include_str!("style.html")]
 /// ```
@@ -638,10 +636,10 @@ impl From<GrayGradient> for Color {
 /// </div>
 /// <br>
 ///
-/// It can access the coordinates with [`AsRef<[u8; 3]> as
-/// TrueColor`](struct.TrueColor.html#impl-AsRef%3C%5Bu8;+3%5D%3E-for-TrueColor)
-/// or with [`Index<usize> as
-/// TrueColor`](struct.TrueColor.html#impl-Index%3Cusize%3E-for-TrueColor).
+/// It can access the coordinates with [`TrueColor as AsRef<[u8;
+/// 3]>`](struct.TrueColor.html#impl-AsRef%3C%5Bu8;+3%5D%3E-for-TrueColor) or
+/// with [`TrueColor as
+/// Index<usize>`](struct.TrueColor.html#impl-Index%3Cusize%3E-for-TrueColor).
 /// ```
 /// # use prettypretty::TrueColor;
 /// let sea_foam = TrueColor::new(0xb6, 0xeb, 0xd4);
@@ -653,11 +651,11 @@ impl From<GrayGradient> for Color {
 /// </div>
 /// <br>
 ///
-/// Finally, it can convert a true color to a high-resolution color with
-/// [`From<TrueColor> as
-/// Color`](struct.TrueColor.html#impl-From%3CTrueColor%3E-for-Color) or format
-/// it in hashed hexadecimal notation with [`Display as
-/// TrueColor`](struct.TrueColor.html#impl-Display-for-TrueColor).
+/// Finally, it can convert a true color to a high-resolution color with [`Color
+/// as
+/// From<TrueColor>`](struct.TrueColor.html#impl-From%3CTrueColor%3E-for-Color)
+/// or format it in hashed hexadecimal notation with [`TrueColor as
+/// Display`](struct.TrueColor.html#impl-Display-for-TrueColor).
 /// ```
 /// # use prettypretty::{Color, TrueColor};
 /// let sand = TrueColor::new(0xee, 0xdc, 0xad);
@@ -704,9 +702,9 @@ impl TrueColor {
     /// Convert this true color to a high-resolution color. <span
     /// class=python-only></span>
     ///
-    /// This method offers the same functionality as [`From<TrueColor> as
-    /// Color`](struct.TrueColor.html#impl-From%3CTrueColor%3E-for-Color) and is
-    /// available in Python only.
+    /// This method offers the same functionality as [`Color as
+    /// From<TrueColor>`](struct.TrueColor.html#impl-From%3CTrueColor%3E-for-Color)
+    /// and is available in Python only.
     pub fn to_color(&self) -> Color {
         Color::from(*self)
     }
