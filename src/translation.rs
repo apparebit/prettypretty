@@ -504,11 +504,12 @@ impl HueLightnessTable {
 /// for converting high-resolution colors to 8-bit and ANSI colors again. In
 /// Rust, the `Into<TerminalColor>` trait, which is implemented for
 /// [`DefaultColor`], [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`], and
-/// [`TrueColor`], means that the same method can accept instances of all these
-/// types, hence keeping the interface for translating from terminal to
-/// high-resolution colors nice and simple. In the other direction, [`Sampler`]
-/// never produces default colors and treats embedded RGB and gray gradient
-/// colors together as 8-bit colors, which helps keep variability manageable.
+/// [`TrueColor`](crate::TrueColor), means that the same method can accept
+/// instances of all these types, hence keeping the interface for translating
+/// from terminal to high-resolution colors nice and simple. In the other
+/// direction, [`Sampler`] never produces default colors and treats embedded RGB
+/// and gray gradient colors together as 8-bit colors, which helps keep
+/// variability manageable.
 ///
 /// Algorithmically, translation to terminal colors depends on the targeted
 /// colors:
