@@ -69,7 +69,7 @@ use crate::Float;
 ///
 /// Both Rust and Python code can access individual coordinates by indexing a
 /// color object with integers `0..2`.
-#[cfg_attr(feature = "pyffi", pyclass(eq, sequence))]
+#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, sequence))]
 #[derive(Clone)]
 pub struct Color {
     space: ColorSpace,
