@@ -253,7 +253,7 @@ def main() -> None:
 
             sampler = current_sampler()
             for index in range(16):
-                color = sampler.resolve_8bit(index)
+                color = sampler.resolve(index)
                 plotter.add(ThemeEntry.from_index(index + 2).name(), color)
 
     for color in [Color.parse("#" + c) for c in cast(list[str], options.colors) or []]:

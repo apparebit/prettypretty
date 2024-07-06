@@ -22,7 +22,7 @@ from typing import (
 )
 
 from .ansi import Ansi, RawAnsi
-from .color import Color, Fidelity, Layer, TerminalColor, ThemeEntry
+from .color import Color, Fidelity, IntoTerminalColor, Layer, TerminalColor, ThemeEntry
 from .theme import new_theme, current_sampler
 from .fidelity import environment_fidelity
 from .ident import identify_terminal, normalize_terminal_name
@@ -1229,11 +1229,11 @@ class Terminal:
     def fg(self, color: Color, /) -> Self:
         ...
     @overload
-    def fg(self, color: TerminalColor, /) -> Self:
+    def fg(self, color: IntoTerminalColor, /) -> Self:
         ...
     def fg(
         self,
-        c1: int | Color | TerminalColor,
+        c1: int | Color | IntoTerminalColor,
         c2: None | int = None,
         c3: None | int = None,
     ) -> Self:
@@ -1268,11 +1268,11 @@ class Terminal:
     def bg(self, color: Color, /) -> Self:
         ...
     @overload
-    def bg(self, color: TerminalColor, /) -> Self:
+    def bg(self, color: IntoTerminalColor, /) -> Self:
         ...
     def bg(
         self,
-        c1: int | Color | TerminalColor,
+        c1: int | Color | IntoTerminalColor,
         c2: None | int = None,
         c3: None | int = None,
     ) -> Self:

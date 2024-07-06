@@ -1,5 +1,7 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
+#[cfg(feature = "pyffi")]
+use pyo3::types::PyInt;
 
 use crate::core::is_gray_chroma_hue;
 
@@ -475,6 +477,21 @@ impl HueLightnessTable {
 // Sampler
 // ====================================================================================================================
 
+// Convert the constituent terminal colors to their wrapped versions.
+#[cfg(feature = "pyffi")]
+fn into_terminal_color(obj: &Bound<'_, PyAny>) -> PyResult<TerminalColor> {
+    if obj.is_instance_of::<PyInt>() {
+        return obj.extract::<u8>().map(|c| c.into());
+    }
+
+    obj.extract::<TerminalColor>()
+        .or_else(|_| obj.extract::<AnsiColor>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<EmbeddedRgb>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<crate::TrueColor>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<GrayGradient>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<DefaultColor>().map(|c| c.into()))
+}
+
 /// A color sampler.
 ///
 /// Instances of this struct translate between [`TerminalColor`] and [`Color`]
@@ -498,21 +515,26 @@ impl HueLightnessTable {
 ///     not the one from 16 million down to 256 colors but the one from 256 down
 ///     to 16 colors.
 ///
-/// Since default and ANSI colors are abstract, translation to high-resolution
-/// colors necessarily requires some form of lookup table, i.e., the so-called
-/// color theme. [`Sampler`] stores that table as well as all the derived state
-/// for converting high-resolution colors to 8-bit and ANSI colors again. In
-/// Rust, the `Into<TerminalColor>` trait, which is implemented for
-/// [`DefaultColor`], [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`], and
-/// [`TrueColor`](crate::TrueColor), means that the same method can accept
-/// instances of all these types, hence keeping the interface for translating
-/// from terminal to high-resolution colors nice and simple. In the other
-/// direction, [`Sampler`] never produces default colors and treats embedded RGB
-/// and gray gradient colors together as 8-bit colors, which helps keep
-/// variability manageable.
 ///
-/// Algorithmically, translation to terminal colors depends on the targeted
-/// colors:
+/// # Addressing the Challenges
+///
+/// Since the default and ANSI colors are abstract, translation to
+/// high-resolution colors necessarily requires some form of lookup table, i.e.,
+/// the so-called color theme. [`Sampler`] stores that table as well as all the
+/// derived state for converting high-resolution colors to 8-bit and ANSI colors
+/// again.
+///
+/// In Rust, the `Into<TerminalColor>` trait, which is implemented for
+/// [`DefaultColor`], [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`],
+/// [`TrueColor`](crate::TrueColor), and of course [`TerminalColor`] lets the
+/// same sampler methods accept instances of all these types, which keeps the
+/// interface for translating to high-resolution colors nice and simple. For
+/// Python, a custom type translation function achieves much the same.
+///
+/// In the other direction, [`Sampler`] never produces default colors and treats
+/// embedded RGB and gray gradient colors as 8-bit colors, which cuts down the
+/// variability to three kinds of colors. Those same three kinds also require
+/// different algorithmic approaches:
 ///
 ///   * For 24-bit colors, after gamut mapping to ensure that the source color
 ///     is representable, a simple numeric conversion suffices.
@@ -526,13 +548,13 @@ impl HueLightnessTable {
 ///     may also fail pretty badly.
 ///
 /// To enable high-quality conversion to ANSI colors, I developed a new
-/// algorithm that turns an oddity of the ANSI colors, their abstract nature,
-/// into a strength. It assumes that regular and bright versions of the same
-/// abstract color are closer to each other by hue than other colors and that
-/// the pairs of colors are arranged around the hue circle in their semantic
-/// order, i.e., red, yellow, green, cyan, blue, and magenta. To translate a
-/// color, it first finds the closest pair of regular and bright versions of the
-/// same color by hue and then uses lightness to pick the result.
+/// algorithm that turns an oddity of ANSI colors, their abstract nature, into a
+/// strength. It assumes that regular and bright versions of the same abstract
+/// color are closer to each other by hue than other colors and that the pairs
+/// of colors are arranged around the hue circle in their semantic order, i.e.,
+/// red, yellow, green, cyan, blue, and magenta. To translate a color, it first
+/// finds the closest pair of regular and bright versions of the same color by
+/// hue and then uses lightness to pick the result.
 ///
 /// The algorithm can easily check that a given color theme observes its
 /// invariants while preparing the hue lookup table. If that's not the case,
@@ -605,30 +627,12 @@ impl Sampler {
         }
     }
 
-    /// Resolve the default color to a high-resolution color. <span
-    /// class=python-only></span>
-    pub fn resolve_default(&self, color: DefaultColor) -> Color {
-        self.theme_colors[color as usize].clone()
-    }
-
-    /// Resolve the ANSI color to a high-resolution color. <span
-    /// class=python-only></span>
-    pub fn resolve_ansi(&self, color: AnsiColor) -> Color {
-        self.theme_colors[color as usize + 2].clone()
-    }
-
-    /// Resolve the 8-bit index to a high-resolution color. <span
-    /// class=python-only></span>
-    pub fn resolve_8bit(&self, index: u8) -> Color {
-        self.resolve(TerminalColor::from(index))
-    }
-
     /// Resolve the terminal color to a high-resolution color.
     ///
-    /// The Python class also includes [`Sampler::resolve_default`],
-    /// [`Sampler::resolve_ansi`] and [`Sampler::resolve_8bit`]. They are not
-    /// necessary in Rust because the Rust version of this method accepts an
-    /// `impl Into<TerminalColor>`.
+    /// A custom type conversion function provides the same functionality as
+    /// Rust's `impl Into<TerminalColor>`, with the result that this method can
+    /// be invoked with wrapped terminal colors as much as with their
+    /// constituent colors.
     ///
     /// # Examples
     ///
@@ -651,7 +655,10 @@ impl Sampler {
     /// <div style="background-color: #000000;"></div>
     /// <div style="background-color: #941751;"></div>
     /// </div>
-    pub fn resolve(&self, color: TerminalColor) -> Color {
+    pub fn resolve(
+        &self,
+        #[pyo3(from_py_with = "into_terminal_color")] color: TerminalColor,
+    ) -> Color {
         self.do_resolve(color)
     }
 
@@ -905,14 +912,7 @@ impl Sampler {
     /// [Chalk](https://github.com/chalk/chalk/blob/main/source/vendor/ansi-styles/index.js),
     /// only one of the most popular terminal color libraries for JavaScript.
     pub fn to_ansi_rgb(&self, color: &Color) -> AnsiColor {
-        let color = color.to(ColorSpace::LinearSrgb).clip();
-        let [r, g, b] = color.as_ref();
-        let mut index = ((b.round() as u8) << 2) + ((g.round() as u8) << 1) + (r.round() as u8);
-        if index >= 2 {
-            index += 8;
-        }
-
-        AnsiColor::try_from(index).unwrap()
+        self.do_to_ansi_rgb(color)
     }
 
     /// Find the 8-bit color that comes closest to the given color.
@@ -975,7 +975,15 @@ impl Sampler {
     ///   * Downsample 24-bit colors if the fidelity is 8-bit-colors;
     ///   * Pass through color if the fidelity is 24-bit-colors.
     ///
-    pub fn adjust(&self, color: TerminalColor, fidelity: Fidelity) -> Option<TerminalColor> {
+    /// A custom type conversion function provides the same functionality as
+    /// Rust's `impl Into<TerminalColor>`, with the result that this method can
+    /// be invoked with wrapped terminal colors as much as with their
+    /// constituent colors.
+    pub fn adjust(
+        &self,
+        #[pyo3(from_py_with = "into_terminal_color")] color: TerminalColor,
+        fidelity: Fidelity,
+    ) -> Option<TerminalColor> {
         self.do_adjust(color, fidelity)
     }
 
@@ -1008,8 +1016,8 @@ impl Sampler {
     ///
     /// Thanks to Rust's `Into<TerminalColor>` trait, the terminal color wrapper
     /// type appears exactly zero times in the actual source code, just as it
-    /// should be. Since Python does not support traits, the Python version of
-    /// this class has further `resolve_<color>` methods.
+    /// should be. The Python version uses a custom type conversion function to
+    /// achieve the same effect.
     ///
     /// ```
     /// # use prettypretty::{AnsiColor, Color, DefaultColor, OkVersion, Sampler, TrueColor};
@@ -1286,14 +1294,7 @@ impl Sampler {
     /// [Chalk](https://github.com/chalk/chalk/blob/main/source/vendor/ansi-styles/index.js),
     /// only one of the most popular terminal color libraries for JavaScript.
     pub fn to_ansi_rgb(&self, color: &Color) -> AnsiColor {
-        let color = color.to(ColorSpace::LinearSrgb).clip();
-        let [r, g, b] = color.as_ref();
-        let mut index = ((b.round() as u8) << 2) + ((g.round() as u8) << 1) + (r.round() as u8);
-        if index >= 2 {
-            index += 8;
-        }
-
-        AnsiColor::try_from(index).unwrap()
+        self.do_to_ansi_rgb(color)
     }
 
     /// Find the 8-bit color that comes closest to the given color.
@@ -1356,9 +1357,8 @@ impl Sampler {
     ///   * Downsample 24-bit colors if the fidelity is 8-bit-colors;
     ///   * Pass through color if the fidelity is 24-bit-colors.
     ///
-    /// Note that the Python version requires that the first argument is a
-    /// `TerminalColor`, whereas the Rust version takes an `impl
-    /// Into<TerminalColor>`.
+    /// The Python version has a custom type conversion function and thus also
+    /// accepts all kinds of terminal colors.
     pub fn adjust(
         &self,
         color: impl Into<TerminalColor>,
@@ -1378,6 +1378,22 @@ impl Sampler {
             TerminalColor::Gray { color: c } => c.into(),
             TerminalColor::Rgb256 { color: c } => c.into(),
         }
+    }
+
+    fn do_to_ansi_rgb(&self, color: &Color) -> AnsiColor {
+        let color = color.to(ColorSpace::LinearSrgb).clip();
+        let [r, g, b] = color.as_ref();
+        let mut index = ((b.round() as u8) << 2) + ((g.round() as u8) << 1) + (r.round() as u8);
+        // When we get to the threshold below, the color has already been
+        // selected and can only be brightened. A threshold of 2 or 3 produces
+        // the least bad results. In any case, prettypretty.grid's output shows
+        // large striped rectangles, with 4x24 cells black/blue and 2x24 cells
+        // green/cyan above 4x12 cells red/magenta and 2x12 cells yellow/white.
+        if index >= 3 {
+            index += 8;
+        }
+
+        AnsiColor::try_from(index).unwrap()
     }
 
     fn do_adjust(

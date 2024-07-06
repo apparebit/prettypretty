@@ -16,8 +16,8 @@ def is_dark_theme(theme_colors: None | list[Color] = None) -> bool:
     # Get default foreground and background colors
     if theme_colors is None:
         sampler = current_sampler()
-        foreground = sampler.resolve_default(DefaultColor.Foreground)
-        background = sampler.resolve_default(DefaultColor.Background)
+        foreground = sampler.resolve(DefaultColor.Foreground)
+        background = sampler.resolve(DefaultColor.Background)
     else:
         foreground = theme_colors[0]
         background = theme_colors[1]

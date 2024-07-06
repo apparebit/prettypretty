@@ -5,7 +5,7 @@ for down-sampling colors and maximizing contrast.
 import argparse
 from typing import cast, Literal
 
-from .color import AnsiColor, Color, EmbeddedRgb, Fidelity, Layer, TerminalColor
+from .color import AnsiColor, Color, EmbeddedRgb, Fidelity, Layer
 from .theme import MACOS_TERMINAL, VGA, XTERM, current_sampler
 from .terminal import Terminal
 
@@ -16,8 +16,8 @@ def show_error(term: Terminal, msg: str) -> None:
         (
             term
             .bold()
-            .fg(TerminalColor.Rgb6(EmbeddedRgb(5, 5, 5)))
-            .bg(TerminalColor.Ansi(AnsiColor.Red))
+            .fg(EmbeddedRgb(5, 5, 5))
+            .bg(AnsiColor.Red)
             .write(s)
             .reset_style()
             .writeln()
@@ -182,7 +182,7 @@ def write_color_cube(
                 else:
                     raise ValueError(f'invalid strategy "{strategy}"')
 
-                target = sampler.resolve_8bit(eight_bit)
+                target = sampler.resolve(eight_bit)
 
                 # Pick black or white for target, not source color.
                 if layer is Layer.Background:
@@ -262,7 +262,7 @@ def write_theme_test(term: Terminal, show_label: bool = True):
     sampler = current_sampler()
 
     for index in range(16):
-        color = sampler.resolve_8bit(index)
+        color = sampler.resolve(index)
         fg = 16 if color.use_black_text() else 231
         bg = color.to_24bit()
 
