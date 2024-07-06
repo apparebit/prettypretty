@@ -19,7 +19,7 @@ use pyo3::prelude::*;
 /// For all three color spaces as well as all three linear versions, in-gamut
 /// coordinates range from 0 to 1, inclusive.
 ///
-/// # Ok(l/lr)(ab/ch)
+/// # The Oklab Variations
 ///
 /// This crate supports the
 /// [Oklab/Oklch](https://bottosson.github.io/posts/oklab/) and
@@ -36,29 +36,45 @@ use pyo3::prelude::*;
 /// introduced nine months after Oklab/Oklch, feature a revised lightness Lr
 /// that closely resembles CIELAB's uniform lightness.
 ///
-/// Oklab/Oklrab use Cartesian coordinates a, b for colorness—with a varying
-/// red/green and b varying blue/yellow. That makes both color spaces
-/// well-suited to computing the relative distance between colors. In contrast,
-/// Oklch/Oklrch use polar coordinates C, h—with C expressing chroma and h or hº
-/// expressing hue. That makes both color spaces well-suited to modifying
-/// colors.
+/// Oklab/Oklrab use Cartesian coordinates a, b for colorness—with the a axis
+/// varying red/green and the b axis varying blue/yellow. Because they use
+/// Cartesian coordinates, computing color difference in Oklab/Oklrab is
+/// straight-forward: It simply is the Euclidian distance. In contrast,
+/// Oklch/Oklrch use polar coordinates C/h—with C expressing chroma and h or
+/// also hº expressing hue. That makes both color spaces well-suited to
+/// synthesizing and modifying colors.
 ///
-/// Compared to the conversion between XYZ and Oklab, conversions between the
-/// four variations are mathematically simpler and may not even involve all
-/// coordinates. After all, there are four three-dimensional color spaces but
-/// only six distinct quantities:
+/// Compared to the most other conversions between color spaces, conversions
+/// between the four Oklab variations are mathematically simpler and may not
+/// involve all coordinates. After all, there are four three-dimensional color
+/// spaces but only six distinct quantities:
 ///
 /// | Color space | Lightness | Colorness 1 | Colorness 2 |
-/// | :---------- | :-------: | :---------: | :---------: |
+/// | ----------- | :-------: | :---------: | :---------: |
 /// | Oklab       | L         | a           | b           |
 /// | Oklch       | L         | C           | hº          |
 /// | Oklrab      | Lr        | a           | b           |
 /// | Oklrch      | Lr        | C           | hº          |
 ///
-/// For all four color spaces, the (revised) lightness ranges `0..=1`. The a/b
-/// coordinates are not restricted but pragmatically bounded `-0.4..=0.4`.
-/// Chroma must be non-negative and is pragmatically bounded `0..=0.4`, which
-/// suggests that the bounds for a/b are rather loose.
+/// Valid coordinates observe the following invariants:
+///
+///   * The (revised) lightness for all four color spaces is limited to `0..=1`.
+///   * The a/b coordinates for Oklab/Oklrab have no set limits, but in practice
+///     can be bounded `-0.4..=0.4`.
+///   * The chroma for Oklch/Oklrch must be non-negative and in practice can be
+///     bounded `0..=0.4`.
+///   * The hue for Oklch/Oklrch may be not-a-number, which indicates that a
+///     powerless component, i.e., gray tone. In that case, the chroma must
+///     necessarily be zero.
+///
+/// Fundamentally, Oklab and Oklch are the *same* color space, only using
+/// different coordinate systems. Of course, that also is the case for Oklrab
+/// and Oklrch. The chroma bond corresponds to a circle with radius 0.4 that is
+/// centered at the origin. The a/b bounds correspond to a square with sides 0.8
+/// that is also centered at the origin. The circle just fits into the square
+/// and covers an area of π×0.4². Meanwhile, the square covers an area of
+/// (2×0.4)², i.e., it is 4/π or 1.273 times larger. In other words, the a/b
+/// bounds are somewhat looser than the chroma bound.
 ///
 /// There may or may not be another, still outstanding issue with Oklrab, namely
 /// that a and b need [to be scaled by a factor of around
@@ -70,7 +86,6 @@ use pyo3::prelude::*;
 /// foundational color space. Notably, all conversions between unrelated color
 /// spaces go through XYZ. This crate uses XYZ with the [D65 standard
 /// illuminant](https://en.wikipedia.org/wiki/Standard_illuminant), *not* D50.
-#[doc = include_str!("../style.html")]
 #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ColorSpace {
