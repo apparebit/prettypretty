@@ -1,0 +1,50 @@
+/* =================================================================================== *
+ * Color swatches:
+ *
+ * <div class=color-swatch>
+ *     <div style="background: ...;"></div>
+ *     <div style="background: ...;"></div>
+ * </div>
+ */
+
+ .color-swatch {
+    display: flex;
+}
+
+.color-swatch > div {
+    height: 4em;
+    width: 4em;
+    border: black 0.7pt solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.small.color-swatch > div {
+    height: 1em;
+    width: 1em;
+}
+
+/* =================================================================================== *
+ * Python-only and Rust-only labels: <span class=python-only></span>
+ */
+
+.python-only::before, .rust-only::before {
+    font-size: 0.8em;
+    display: inline-block;
+    border-radius: 0.5em;
+    padding: 0 0.6em;
+    font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
+        helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
+    font-weight: 600;
+}
+
+.python-only::before {
+    content: "Python only!";
+    background: #84c5fb;
+}
+
+.rust-only::before {
+    content: "Rust only!";
+    background: #f0ac84;
+}

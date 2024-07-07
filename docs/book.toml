@@ -1,0 +1,25 @@
+[book]
+title = "Pretty 🌸 Pretty"
+authors = ["Robert Grimm"]
+description = "2020s color science for 1970s terminals"
+
+[build]
+build-dir = "../target/doc"
+
+[output.html]
+additional-css = ["pretty.css"]
+smart-punctuation = true
+no-section-label = true
+git-repository-url = "https://github.com/rust-lang/mdBook"
+git-repository-icon = "fa-github"
+edit-url-template = "https://github.com/apparebit/prettypretty/edit/main/{path}"
+
+[output.html.fold]
+enable = true
+level = 0
+
+[output.html.code]
+hidelines = { python = "~" }
+
+#[preprocessor.pyextractor]
+#command = "python docs/pyextractor.py"
