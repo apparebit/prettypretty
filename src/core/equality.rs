@@ -19,7 +19,6 @@ const DELTA_EQ_PRECISION: i32 = 3;
 /// This macro panics if the normalized bit strings are not identical. Its
 /// message places the numbers below each other at the beginning of subsequent
 /// lines for easy comparability.
-#[doc = include_str!("../style.html")]
 #[macro_export]
 macro_rules! assert_close_enough {
     ($f1:expr, $f2:expr $(,)?) => {
@@ -75,7 +74,6 @@ pub(crate) use assert_same_coordinates;
 /// This macro panics if the normalized bit strings are not identical. Its
 /// message places either color spaces or the coordinates below each other at
 /// the beginning of subsequent lines for easy comparability.
-#[doc = include_str!("../style.html")]
 #[macro_export]
 macro_rules! assert_same_color {
     ($c1:expr, $c2:expr $(,)?) => {
@@ -177,7 +175,6 @@ pub(crate) fn to_eq_coordinates(space: ColorSpace, coordinates: &[Float; 3]) -> 
 /// sign of negative zeros and then compares the resulting bit strings. It
 /// **must not** be used for testing color coordinates; they require additional
 /// normalization steps, as implemented by [`Color::eq`](crate::Color::eq).
-#[doc = include_str!("../style.html")]
 #[cfg(feature = "pyffi")]
 #[pyfunction]
 pub fn close_enough(f1: Float, f2: Float) -> bool {

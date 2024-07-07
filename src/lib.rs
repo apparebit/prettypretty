@@ -42,7 +42,7 @@
 //! class=rust-only></span>.
 //!
 //!
-//! ## 6. BYOIO: Bring Your Own (Terminal) I/O
+//! ## BYOIO: Bring Your Own (Terminal) I/O
 //!
 //! Unlike the Python version, the Rust version of prettypretty does not (yet?)
 //! include its own facilities for styled text or terminal I/O. Instead, it is
@@ -70,7 +70,7 @@
 //! backslash). Some terminals answer with `\x0b` (bell) instead of ST.
 //!
 //!
-//! ## 7. Acknowledgements
+//! ## Acknowledgements
 //!
 //! Implementing prettypretty's color support was a breeze. In part, that was
 //! because I had been toying with different approaches to terminal styling for
@@ -117,7 +117,6 @@ use pyo3::prelude::*;
 
 /// Collect Rust functions and classes in a Python in the `color` extension
 /// module. <span class=python-only></span>
-#[doc = include_str!("style.html")]
 #[cfg(feature = "pyffi")]
 #[pymodule]
 pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {

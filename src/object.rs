@@ -15,7 +15,6 @@ use crate::Float;
 /// A high-resolution color object.
 ///
 /// Every color object has a [color space](ColorSpace) and three coordinates.
-#[doc = include_str!("style.html")]
 ///
 /// # Color Coordinates
 ///

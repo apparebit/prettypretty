@@ -25,7 +25,6 @@ pub type Theme = [Color; 18];
 ///
 /// This enumeration combines the default and ANSI colors to identify the 18
 /// entries of a color theme in order.
-#[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, ord))]
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ThemeEntry {
@@ -86,7 +85,6 @@ impl TryFrom<usize> for ThemeEntry {
 /// This iterator is fused, i.e., after returning `None` once, it will keep
 /// returning `None`. This iterator also is exact, i.e., its `size_hint()`
 /// returns the exact number of remaining items.
-#[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass)]
 #[derive(Debug)]
 pub struct ThemeEntryIterator {
@@ -436,7 +434,6 @@ fn into_terminal_color(obj: &Bound<'_, PyAny>) -> PyResult<TerminalColor> {
 ///
 /// Since a sampler incorporates theme colors, an application should regenerate
 /// its sampler if the current theme changes.
-#[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass)]
 pub struct Sampler {
     /// The theme colors. For converting *to* high-resolution colors.

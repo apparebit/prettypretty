@@ -57,7 +57,6 @@ impl From<DefaultColor> for TerminalColor {
 /// TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) and
 /// [`u8 as
 /// From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8).
-#[doc = include_str!("style.html")]
 #[cfg_attr(
     feature = "pyffi",
     doc = "In contrast, Python code uses the [`AnsiColor::try_from_8bit`] and
@@ -219,7 +218,6 @@ impl From<AnsiColor> for TerminalColor {
 /// [`EmbeddedRgb::new`] or [`EmbeddedRgb as
 /// TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb).
 ///
-#[doc = include_str!("style.html")]
 /// ```
 /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError};
 /// let orange = EmbeddedRgb::new(5, 2, 0)?;
@@ -489,7 +487,6 @@ impl From<EmbeddedRgb> for Color {
 /// [`GrayGradient::new`] or [`GrayGradient as
 /// TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient).
 ///
-#[doc = include_str!("style.html")]
 /// ```
 /// # use prettypretty::{GrayGradient, OutOfBoundsError};
 /// let almost_black = GrayGradient::new(4)?;
@@ -693,7 +690,6 @@ impl From<GrayGradient> for Color {
 /// [`TrueColor as
 /// From<&Color>`](struct.TrueColor.html#impl-From%3C%26Color%3E-for-TrueColor).
 ///
-#[doc = include_str!("style.html")]
 /// ```
 /// # use prettypretty::{Color,TrueColor};
 /// let blue = Color::from_24bit(0xae, 0xe8, 0xfb);
@@ -900,7 +896,6 @@ impl core::fmt::Display for TrueColor {
 /// verbose Rust patterns, but it also makes the Python classes much easier to
 /// use. The variants for the embedded RGB and 24-bit RGB colors derive their
 /// names from the number of levels per channel.
-#[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TerminalColor {
@@ -1147,7 +1142,6 @@ impl std::fmt::Display for Layer {
 /// capabilities of a terminal or runtime environment (such as CI) as well as
 /// the preferences of a user (notably, `NoColor`).
 ///
-#[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash, ord))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Fidelity {
