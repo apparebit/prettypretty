@@ -25,6 +25,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     if: ${{ github.repository == 'apparebit/prettypretty' }}
+    env:
+      MDBOOK_VERSION: '0.4.40'
     steps:
     - uses: actions/checkout@v4
 
@@ -37,27 +39,30 @@ jobs:
     - name: Set up stable Rust
       run: rustup toolchain install stable
 
-    - name: Build and install extension module
+    - name: Build and install prettypretty as extension module
       run: pip install '.[doc]'
+
+    - name: Install mdBook
+      run: |
+          mkdir ~/tools
+          curl -L https://github.com/rust-lang/mdBook/releases/download/v$MDBOOK_VERSION/mdbook-v$MDBOOK_VERSION-x86_64-unknown-linux-gnu.tar.gz | tar xz -C ~/tools
+          echo ~/tools >> $GITHUB_PATH
 
     - name: Configure GitHub Pages
       id: pages
       uses: actions/configure-pages@v5
 
-    - name: Create Rust-based documentation
+    - name: Build user guide
+      run: mdbook build docs
+
+    - name: Create Rust API documentation
       run: cargo doc --no-deps --all-features
 
-    - name: Create Python-based documentation
+    - name: Create Python API documentation
       run: |
-        sphinx-build -M html docs docs/_build
         mkdir -v target/doc/python
-        cp -r docs/_build/html/* target/doc/python/
-
-    - name: Create top-level redirect
-      run: |
-          echo '<meta http-equiv=refresh content=0;url=prettypretty/index.html>' > target/doc/index.html
-          echo "# ---- Contents of target/doc/:"
-          ls -a target/doc/*
+        sphinx-build -a -b html docs target/doc/python
+        rm -rf target/doc/python/.doctrees
 
     - name: Upload documentation
       uses: actions/upload-pages-artifact@v3
