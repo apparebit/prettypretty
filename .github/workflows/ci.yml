@@ -1,3 +1,5 @@
+# PSA: Use actionlint (https://github.com/rhysd/actionlint) to check actions!
+
 name: CI
 
 on:
