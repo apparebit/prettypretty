@@ -698,7 +698,7 @@ pub use object::{Color, Interpolator, OkVersion};
 pub use term_color::{
     AnsiColor, DefaultColor, EmbeddedRgb, Fidelity, GrayGradient, Layer, TerminalColor, TrueColor,
 };
-pub use translation::{Sampler, ThemeEntry, ThemeEntryIterator, VGA_COLORS};
+pub use translation::{Sampler, Theme, ThemeEntry, ThemeEntryIterator, VGA_COLORS};
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;

@@ -6,27 +6,90 @@ use pyo3::types::PyInt;
 use crate::core::is_gray_chroma_hue;
 
 use crate::{
-    AnsiColor, Bits, Color, ColorSpace, EmbeddedRgb, Fidelity, Float, GrayGradient, Layer,
-    OkVersion, TerminalColor,
+    AnsiColor, Bits, Color, ColorSpace, DefaultColor, EmbeddedRgb, Fidelity, Float, GrayGradient,
+    OkVersion, OutOfBoundsError, TerminalColor,
 };
-
-#[cfg(feature = "pyffi")]
-use crate::DefaultColor;
 
 // ====================================================================================================================
 // Color Themes
 // ====================================================================================================================
 
+/// A color theme
+///
+/// By now, a color theme is just an array with 18 colors. The implementation
+/// started out as a more elaborate struct but ended up being used just like a
+/// slice or vector. So here we are.
+pub type Theme = [Color; 18];
+
+/// A color theme entry.
+///
+/// This enumeration combines the default and ANSI colors to identify the 18
+/// entries of a color theme in order.
+#[doc = include_str!("style.html")]
+#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, ord))]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ThemeEntry {
+    Default(DefaultColor),
+    Ansi(AnsiColor),
+}
+
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl ThemeEntry {
+    /// Get this theme entry's human-readable name.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Default(color) => color.name(),
+            Self::Ansi(color) => color.name(),
+        }
+    }
+}
+
+impl From<DefaultColor> for ThemeEntry {
+    fn from(value: DefaultColor) -> Self {
+        ThemeEntry::Default(value)
+    }
+}
+
+impl From<AnsiColor> for ThemeEntry {
+    fn from(value: AnsiColor) -> Self {
+        ThemeEntry::Ansi(value)
+    }
+}
+
+impl TryFrom<usize> for ThemeEntry {
+    type Error = OutOfBoundsError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        if value == 0 {
+            Ok(ThemeEntry::Default(DefaultColor::Foreground))
+        } else if value == 1 {
+            Ok(ThemeEntry::Default(DefaultColor::Background))
+        } else if value <= 17 {
+            Ok(ThemeEntry::Ansi(
+                AnsiColor::try_from(value as u8 - 2).unwrap(),
+            ))
+        } else {
+            Err(OutOfBoundsError::new(value, 0..=17))
+        }
+    }
+}
+
 /// An iterator over theme entries.
 ///
-/// This iterator is returned by [`ThemeEntry::entries`] and is both fused and
-/// exact, i.e., it will keep returning `None` after returning `None` once and
-/// its `size_hint()` returns the exact number of remaining items.
+/// This iterator is fused, i.e., after returning `None` once, it will keep
+/// returning `None`. This iterator also is exact, i.e., its `size_hint()`
+/// returns the exact number of remaining items.
 #[doc = include_str!("style.html")]
 #[cfg_attr(feature = "pyffi", pyclass)]
 #[derive(Debug)]
 pub struct ThemeEntryIterator {
     index: usize,
+}
+
+impl ThemeEntryIterator {
+    fn new() -> Self {
+        Self { index: 0 }
+    }
 }
 
 impl Iterator for ThemeEntryIterator {
@@ -64,143 +127,9 @@ impl ThemeEntryIterator {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-macro_rules! count_ident {
-    () => { 0 };
-    ($odd:ident $($a:ident $b:ident)*) => { (count_ident!($($a)*) << 1) | 1 };
-    ($($a:ident $even:ident)*) => { count_ident!($($a)*) << 1 };
-}
-
-macro_rules! enriched_theme_entry {
-    (
-        $( #[$meta:meta] )*
-        enum $name:ident {
-            $( $variant:ident ),*,
-        }
-    ) => {
-        /// A color theme entry.
-        ///
-        /// This enumeration conveniently names the 18 entries of a color theme
-        /// in order. It effectively combines the variants of [`Layer`] and
-        /// [`AnsiColor`] into a new enumeration. [`From<Layer> as
-        /// ThemeEntry`](enum.ThemeEntry.html#impl-From%3CLayer%3E-for-ThemeEntry)
-        /// and [`From<AnsiColor> as
-        /// ThemeEntry`](enum.ThemeEntry.html#impl-From%3CAnsiColor%3E-for-ThemeEntry)
-        /// capture the semantic connection.
-        ///
-        /// [`ThemeEntry::entries`] returns an iterator over the theme entires.
-        /// [`ThemeEntry::name`] returns each theme entry's name.
-        #[doc = include_str!("style.html")]
-        #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
-        #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-        pub enum $name {
-            $($variant),*
-        }
-
-        #[cfg(feature = "pyffi")]
-        #[pymethods]
-        impl $name {
-            /// Get an iterator over all theme entries.
-            #[staticmethod]
-            pub fn entries() -> ThemeEntryIterator {
-                ThemeEntryIterator { index: 0 }
-            }
-
-            /// Convert an integer to a theme entry. <span
-            /// class=python-only></span>
-            #[staticmethod]
-            pub fn from_index(index: usize) -> Result<Self, $crate::OutOfBoundsError> {
-                $name::try_from(index)
-            }
-
-            /// Convert the ANSI color to a theme entry. <span
-            /// class=python-only></span>
-            #[staticmethod]
-            pub fn from_ansi_color(color: AnsiColor) -> Self {
-                    $name::from(color)
-            }
-
-            /// Get the variant name.
-            pub fn name(&self) -> &'static str {
-                match self {
-                   $($name::$variant => stringify!($variant)),*
-                }
-            }
-        }
-
-        #[cfg(not(feature = "pyffi"))]
-        impl $name {
-            /// Get an iterator over all theme entries.
-            pub fn entries() -> ThemeEntryIterator {
-                ThemeEntryIterator { index : 0 }
-            }
-
-            /// Get the variant name.
-            pub fn name(&self) -> &'static str {
-                match self {
-                   $($name::$variant => stringify!($variant)),*
-                }
-            }
-        }
-
-        impl ::std::convert::TryFrom<usize> for $name {
-            type Error = $crate::OutOfBoundsError;
-
-            fn try_from(value: usize) -> Result<Self, Self::Error> {
-                match value {
-                    $(x if x == $name::$variant as usize => Ok($name::$variant)),*,
-                    _ => Err(Self::Error::new(
-                        value,
-                        0..=(count_ident!($($variant)*) - 1)
-                    ))
-                }
-            }
-        }
-    }
-}
-
-enriched_theme_entry! {
-    enum ThemeEntry {
-        Foreground,
-        Background,
-        Black,
-        Red,
-        Green,
-        Yellow,
-        Blue,
-        Magenta,
-        Cyan,
-        White,
-        BrightBlack,
-        BrightRed,
-        BrightGreen,
-        BrightYellow,
-        BrightBlue,
-        BrightMagenta,
-        BrightCyan,
-        BrightWhite,
-    }
-}
-
-impl From<Layer> for ThemeEntry {
-    fn from(value: Layer) -> Self {
-        match value {
-            Layer::Foreground => ThemeEntry::Foreground,
-            Layer::Background => ThemeEntry::Background,
-        }
-    }
-}
-
-impl From<AnsiColor> for ThemeEntry {
-    fn from(value: AnsiColor) -> Self {
-        ThemeEntry::try_from(value as usize + 2).unwrap()
-    }
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
 /// The 2+16 colors of [VGA text
 /// mode](https://en.wikipedia.org/wiki/ANSI_escape_code#3-bit_and_4-bit).
-pub const VGA_COLORS: [Color; 18] = [
+pub const VGA_COLORS: Theme = [
     Color::new(ColorSpace::Srgb, [0.0, 0.0, 0.0]),
     Color::new(ColorSpace::Srgb, [1.0, 1.0, 1.0]),
     Color::new(ColorSpace::Srgb, [0.0, 0.0, 0.0]),
@@ -338,13 +267,13 @@ impl HueLightnessTable {
     ///
     /// This associated function returns `None` if the theme colors violate any
     /// of the invariants.
-    fn new(theme_colors: &[Color; 18]) -> Option<HueLightnessTable> {
+    fn new(theme: &Theme) -> Option<HueLightnessTable> {
         // Prep the grays
         let mut grays = Vec::with_capacity(4);
         for index in [0_usize, 7, 8, 15] {
             grays.push(GrayEntry::new(
                 AnsiColor::try_from(index as u8).unwrap(),
-                &theme_colors[index + 2],
+                &theme[index + 2],
             )?);
         }
         grays.sort_by_key(|entry| entry.key());
@@ -352,13 +281,11 @@ impl HueLightnessTable {
         // Prep the non-grays in hue order: red, yellow, green, cyan, blue, magenta.
         let mut colors = Vec::with_capacity(12);
         for index in [1_usize, 3, 2, 6, 4, 5] {
-            let regular = ColorEntry::new(
-                AnsiColor::try_from(index as u8).unwrap(),
-                &theme_colors[index + 2],
-            )?;
+            let regular =
+                ColorEntry::new(AnsiColor::try_from(index as u8).unwrap(), &theme[index + 2])?;
             let bright = ColorEntry::new(
                 AnsiColor::try_from(index as u8 + 8).unwrap(),
-                &theme_colors[index + 8 + 2],
+                &theme[index + 8 + 2],
             )?;
 
             // Order each color pair by hue
@@ -567,7 +494,7 @@ fn into_terminal_color(obj: &Bound<'_, PyAny>) -> PyResult<TerminalColor> {
 #[cfg_attr(feature = "pyffi", pyclass)]
 pub struct Sampler {
     /// The theme colors. For converting *to* high-resolution colors.
-    theme_colors: [Color; 18],
+    theme: Theme,
     /// The table for matching by hue and lightness.
     hue_lightness_table: Option<HueLightnessTable>,
     /// The color space for the ANSI and 8-bit color coordinates.
@@ -580,10 +507,10 @@ pub struct Sampler {
 
 /// Create the coordinates for the 16 extended ANSI colors in the given color
 /// space.
-fn ansi_coordinates(space: ColorSpace, colors: &[Color; 18]) -> [[Float; 3]; 16] {
+fn ansi_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 16] {
     let mut coordinates: [[Float; 3]; 16] = [[0.0; 3]; 16];
     for index in 0..=15 {
-        coordinates[index] = *colors[index + 2].to(space).as_ref();
+        coordinates[index] = *theme[index + 2].to(space).as_ref();
     }
 
     coordinates
@@ -612,19 +539,29 @@ fn eight_bit_coordinates(space: ColorSpace) -> [[Float; 3]; 240] {
 impl Sampler {
     /// Create a new sampler for the given Oklab version and theme colors.
     #[new]
-    pub fn new(version: OkVersion, theme_colors: [Color; 18]) -> Self {
-        let hue_lightness_table = HueLightnessTable::new(&theme_colors);
+    pub fn new(version: OkVersion, theme: Theme) -> Self {
+        let hue_lightness_table = HueLightnessTable::new(&theme);
         let space = version.cartesian_space();
-        let ansi = ansi_coordinates(space, &theme_colors);
+        let ansi = ansi_coordinates(space, &theme);
         let eight_bit = eight_bit_coordinates(space);
 
         Self {
-            theme_colors,
+            theme,
             hue_lightness_table,
             space,
             ansi,
             eight_bit,
         }
+    }
+
+    /// Create a new iterator over theme entries.
+    ///
+    /// Prettypretty started out with a struct for color themes, but it was
+    /// removed again when it effectively reimplemented the functionality of an
+    /// 18-entry slice. So that's exactly what a color theme is
+    #[staticmethod]
+    pub fn theme_entries() -> ThemeEntryIterator {
+        ThemeEntryIterator::new()
     }
 
     /// Resolve the terminal color to a high-resolution color.
@@ -995,19 +932,24 @@ impl Sampler {
 #[cfg(not(feature = "pyffi"))]
 impl Sampler {
     /// Create a new sampler for the given Oklab version and theme colors.
-    pub fn new(version: OkVersion, theme_colors: [Color; 18]) -> Self {
-        let hue_lightness_table = HueLightnessTable::new(&theme_colors);
+    pub fn new(version: OkVersion, theme: Theme) -> Self {
+        let hue_lightness_table = HueLightnessTable::new(&theme);
         let space = version.cartesian_space();
-        let ansi = ansi_coordinates(space, &theme_colors);
+        let ansi = ansi_coordinates(space, &theme);
         let eight_bit = eight_bit_coordinates(space);
 
         Self {
-            theme_colors,
+            theme,
             hue_lightness_table,
             space,
             ansi,
             eight_bit,
         }
+    }
+
+    /// Create a new iterator over theme entries.
+    pub fn theme_entries() -> ThemeEntryIterator {
+        ThemeEntryIterator::new()
     }
 
     /// Resolve the terminal color to a high-resolution color.
@@ -1372,8 +1314,8 @@ impl Sampler {
     #[inline]
     fn do_resolve(&self, color: impl Into<TerminalColor>) -> Color {
         match color.into() {
-            TerminalColor::Default { color: c } => self.theme_colors[c as usize].clone(),
-            TerminalColor::Ansi { color: c } => self.theme_colors[c as usize + 2].clone(),
+            TerminalColor::Default { color: c } => self.theme[c as usize].clone(),
+            TerminalColor::Ansi { color: c } => self.theme[c as usize + 2].clone(),
             TerminalColor::Rgb6 { color: c } => c.into(),
             TerminalColor::Gray { color: c } => c.into(),
             TerminalColor::Rgb256 { color: c } => c.into(),
@@ -1442,7 +1384,7 @@ impl std::fmt::Debug for Sampler {
             }
         )?;
 
-        for color in self.theme_colors.iter() {
+        for color in self.theme.iter() {
             writeln!(f, "    {:?},", color)?;
         }
 

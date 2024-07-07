@@ -8,11 +8,24 @@ use crate::{Color, ColorSpace, OutOfBoundsError};
 // ====================================================================================================================
 
 /// The default foreground and background colors.
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+///
+/// The default colors are ordered because they are ordered as theme colors.
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash, ord))]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum DefaultColor {
     Foreground,
     Background,
+}
+
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl DefaultColor {
+    /// Get the default color's human-readable name.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Foreground => "default foreground color",
+            Self::Background => "default background color",
+        }
+    }
 }
 
 impl TryFrom<usize> for DefaultColor {
@@ -53,8 +66,11 @@ impl From<DefaultColor> for TerminalColor {
 /// Since ANSI colors have no intrinsic color values, conversion from/to
 /// high-resolution colors requires additional machinery, as provided by
 /// [`Sampler`](crate::Sampler).
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+///
+/// The ANSI colors are ordered because they are ordered as theme colors and as
+/// indexed colors.
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash, ord))]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum AnsiColor {
     #[default]
     Black,
@@ -120,6 +136,33 @@ impl AnsiColor {
             index -= 8;
         }
         AnsiColor::try_from(index).unwrap()
+    }
+
+    /// Get this ANSI color's name.
+    ///
+    /// This method returns the human-readable name, e.g., `"bright green"` for
+    /// [`AnsiColor::BrightGreen`].
+    pub fn name(&self) -> &'static str {
+        use AnsiColor::*;
+
+        match self {
+            Black => "black",
+            Red => "red",
+            Green => "green",
+            Yellow => "yellow",
+            Blue => "blue",
+            Magenta => "magenta",
+            Cyan => "cyan",
+            White => "white",
+            BrightBlack => "bright black",
+            BrightRed => "bright red",
+            BrightGreen => "bright green",
+            BrightYellow => "bright yellow",
+            BrightBlue => "bright blue",
+            BrightMagenta => "bright magenta",
+            BrightCyan => "bright cyan",
+            BrightWhite => "bright white",
+        }
     }
 }
 
