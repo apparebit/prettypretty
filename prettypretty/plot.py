@@ -2,10 +2,13 @@
 Making sense of ANSI colors.
 """
 import sys
+from typing import Literal
 
 try:
     import matplotlib.pyplot as plt
     from matplotlib.ticker import FuncFormatter
+    #from matplotlib.path import Path as PlotPath
+    #import matplotlib.patches as patches
 except ImportError:
     print("prettypretty.plot requires matplotlib. Please install the package,")
     print("e.g., by executing `pip install matplotlib`, and then")
@@ -14,7 +17,7 @@ except ImportError:
 
 import argparse
 import math
-from pathlib import Path
+import pathlib
 from typing import Any, cast
 
 from .terminal import Terminal
@@ -36,9 +39,16 @@ def create_parser() -> argparse.ArgumentParser:
         """
     )
     parser.add_argument(
-        "--silent",
-        action="store_true",
+        "-q", "--quiet",
+        action="count",
+        default=0,
         help="run silently, without printing status updates"
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="count",
+        default=0,
+        help="run in verbose mode, which prints extra information to the console"
     )
     parser.add_argument(
         "--vga",
@@ -58,6 +68,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="read newline-separated colors from the named file"
     )
     parser.add_argument(
+        "-g", "--gamut",
+        action="append",
+        dest="gamuts",
+        help="also plot boundary of colorspace gamut; value must be sRGB, P3, or Rec2020"
+    )
+    parser.add_argument(
         "-o", "--output",
         help="write color plot to the named file"
     )
@@ -67,11 +83,12 @@ def create_parser() -> argparse.ArgumentParser:
 class ColorPlotter:
     def __init__(
         self,
-        silent: bool = False,
         figure_label: None | str = None,
         color_label: None | str = None,
+        gamut_step: None | int = None,
+        gamut_range: None | int = None,
+        volume: int = 1,
     ) -> None:
-        self._silent = silent
         self._figure_label = figure_label
         self._color_label = color_label
 
@@ -87,8 +104,18 @@ class ColorPlotter:
         self._base_count = 0
         self._extra_count = 0
 
+        self._gamut_step = gamut_step or 1
+        self._gamut_range = gamut_range or 100
+        self._largest_gamut: None | ColorSpace = None
+
+        self._volume = volume
+
     def status(self, msg: str) -> None:
-        if not self._silent:
+        if self._volume >= 1:
+            print(msg)
+
+    def detail(self, msg: str) -> None:
+        if self._volume >= 2:
             print(msg)
 
     def start_adding(self) -> None:
@@ -158,7 +185,11 @@ class ColorPlotter:
         return counts
 
     def effective_max_chroma(self) -> float:
-        if all(c < 0.3 for c in self._chromas):
+        if self._largest_gamut in (ColorSpace.Srgb, ColorSpace.DisplayP3):
+            return 0.4
+        elif self._largest_gamut is ColorSpace.Rec2020:
+            return 0.5
+        elif all(c < 0.3 for c in self._chromas):
             return 0.3
         else:
             return 0.4
@@ -169,15 +200,129 @@ class ColorPlotter:
         else:
             return f"{y:.2}"
 
+    def to_boundary_color(self, color: Color) -> tuple[float, float, str]:
+        lr, c, h = color.to(ColorSpace.Oklrch).coordinates()
+        hex_format = Color(ColorSpace.Oklrch, [lr / 1.5, c, h]).to_hex_format()
+
+        r, g, b = color.coordinates()
+        self.detail(f"{r:.2f}, {g:.2f}, {b:.2f} --> {c:.5f}, {h:5.1f} ({hex_format})")
+
+        h = h * math.pi / 180
+        return c, h, hex_format
+
+    def generate_boundary_points(
+        self, space: ColorSpace, template: list[int], index: int, sign: Literal[1, -1]
+    ) -> tuple[list[tuple[float, float]], list[int], list[str]]:
+        """
+        Generate points on the boundary of the given RGB color space.
+
+        This method varies the values of the component with the given index,
+        while using the given template's values for the other components. If the
+        sign is negative, this method varies the values from (1 - step_size)
+        down to 0. Otherwise, it varies the values from (step_size) to 1.
+        """
+        assert space.is_rgb()
+
+        # Pick the range of steps.
+        if sign < 0:
+            steps = range(self._gamut_range - self._gamut_step, -1, -self._gamut_step)
+        else:
+            steps = range(self._gamut_step, self._gamut_range + 1, self._gamut_step)
+
+        points: list[tuple[float, float]] = []
+        instructions: list[int] = []
+        colors: list[str] = []
+
+        # Iterate over the range.
+        for step in steps:
+            rgb = [t / self._gamut_range for t in template]
+            rgb[index] = step / self._gamut_range
+
+            # Compute the coordinates.
+            c, h, hex_format = self.to_boundary_color(Color(space, rgb))
+            points.append((c, h))
+            instructions.append(2)
+            colors.append(hex_format)
+
+        return points, instructions, colors
+
+    def trace_gamut(
+        self, space: ColorSpace
+    ) -> tuple[list[tuple[float, float]], list[int], list[str]]:
+        """
+        Trace the boundary of the gamut for the given color space.
+
+        This method traces the boundary by producing coordinates, matplotlib
+        path instructions, and gamut-mapped colors for a series of points from
+        the red primary to the green primary to the blue primary and back again.
+        """
+        self.detail(f"\nTracing {space} gamut:")
+
+        if self._largest_gamut is None:
+            self._largest_gamut = space
+
+        c, h, hex_format = self.to_boundary_color(Color(space, [1.0, 0.0, 0.0]))
+
+        all_points: list[tuple[float, float]]= [(c, h)]
+        all_instructions: list[int] = [1]
+        all_colors: list[str] = [hex_format]
+
+        def trace(template: list[None | int], index: int, sign: Literal[1, -1]) -> None:
+            """Trace primary to secondary or secondary to primary boundary segment."""
+            # Scale the template by the number of steps.
+            template = [(0 if t is None else t * self._gamut_range) for t in template]
+
+            # Generate the boundary points and add to the complete lists.
+            points, instructions, colors = self.generate_boundary_points(
+                space, cast(list[int], template), index, sign
+            )
+            all_points.extend(points)
+            all_instructions.extend(instructions)
+            all_colors.extend(colors)
+
+        trace([1, None, 0], 1, 1) # red to yellow
+        self.detail("---------------------------------------------")
+        trace([None, 1, 0], 0, -1) # yellow to green
+        self.detail("---------------------------------------------")
+        trace([0, 1, None], 2, 1) # green to cyan
+        self.detail("---------------------------------------------")
+        trace([0, None, 1], 1, -1) # cyan to blue
+        self.detail("---------------------------------------------")
+        trace([None, 0, 1], 0, 1) # blue to magenta
+        self.detail("---------------------------------------------")
+        trace([1, 0, None], 2, -1) # magenta to red
+
+        all_points[-1] = all_points[0]
+        all_instructions[-1] = 79
+
+        return all_points, all_instructions, all_colors
+
     def create_figure(
         self,
         figure_label: None | str = None,
         color_label: None | str = None,
+        gamuts: None | list[ColorSpace] = None,
     ) -> Any:
         fig, axes = plt.subplots(  # type: ignore
             figsize=(5, 5),
             subplot_kw={'projection': 'polar'},
         )
+
+        # Add gamut boundaries if so requested.
+        for space in gamuts or []:
+            points, _, colors = self.trace_gamut(space)
+            for (chroma, hue), color in zip(points, colors):
+                axes.scatter(  # type: ignore
+                    [hue],
+                    [chroma],
+                    c=[color],
+                    s=[3],
+                    marker='o',  # type: ignore
+                    #zorder=0,
+                ) #type:ignore
+
+            # patch = patches.PathPatch(path, facecolor=None, lw=1)
+            # axes.add_patch(patch)
 
         # Since marker can only be set for all marks in a series, we use a new
         # series for every single color.
@@ -234,8 +379,20 @@ class ColorPlotter:
 
 def main() -> None:
     options = create_parser().parse_args()
-    plotter = ColorPlotter(silent=options.silent)
+    plotter = ColorPlotter(volume=1-options.quiet+options.verbose)
     terminal_id = None
+
+    gamuts: list[ColorSpace] = []
+    for gamut in cast(list[str], options.gamuts or []):
+        gamut = gamut.casefold()
+        if gamut == 'srgb':
+            gamuts.append(ColorSpace.Srgb)
+        elif gamut == 'p3':
+            gamuts.append(ColorSpace.DisplayP3)
+        elif gamut == 'rec2020':
+            gamuts.append(ColorSpace.Rec2020)
+        else:
+            raise ValueError(f"invalid gamut name {gamut}")
 
     # ----------------------------------------------------------------------------------
     # Prepare Colors for Plotting
@@ -254,7 +411,7 @@ def main() -> None:
             sampler = current_sampler()
             for index in range(16):
                 color = sampler.resolve(index)
-                plotter.add(ThemeEntry.from_index(index + 2).name(), color)
+                plotter.add(ThemeEntry.try_from_index(index + 2).name(), color)
 
     for color in [Color.parse("#" + c) for c in cast(list[str], options.colors) or []]:
         plotter.add("<extra>", color, marker="d")
@@ -281,7 +438,7 @@ def main() -> None:
     if options.output is not None:
         file_name = options.output
     elif options.input is not None:
-        file_name = Path(options.input).with_suffix(".svg")
+        file_name = pathlib.Path(options.input).with_suffix(".svg")
     else:
         assert label is not None
         file_name = f'{label.replace(" ", "-").lower()}-colors.svg'
@@ -289,7 +446,11 @@ def main() -> None:
     # ----------------------------------------------------------------------------------
     # Create and save plot
 
-    fig = plotter.create_figure(figure_label=label, color_label=color_label)
+    fig = plotter.create_figure(
+        figure_label=label,
+        color_label=color_label,
+        gamuts=gamuts,
+    )
     plotter.status(f"Saving plot to `{file_name}`")
     fig.savefig(file_name, bbox_inches="tight")  # type: ignore
 
