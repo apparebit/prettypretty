@@ -30,7 +30,7 @@ macro_rules! assert_close_enough {
     };
 }
 
-/// Assert that the color coordinates identify the same color.
+/// Assert that two color coordinate slices describe the same color.
 ///
 /// Given a color space and two coordinate arrays, this macro normalizes the
 /// coordinates by zeroing out not-a-numbers, clamping the a/b/c components of
@@ -44,7 +44,7 @@ macro_rules! assert_close_enough {
 /// message places the coordinates below each other at the beginning of
 /// subsequent lines for easy comparability.
 #[cfg(test)]
-macro_rules! assert_same_color {
+macro_rules! assert_same_coordinates {
     ($space:expr , $cs1:expr , $cs2:expr $(,)?) => {
         let (space, cs1, cs2) = ($space, $cs1, $cs2);
         let bits1 = $crate::core::to_eq_coordinates(space, cs1);
@@ -58,7 +58,47 @@ macro_rules! assert_same_color {
 }
 
 #[cfg(test)]
-pub(crate) use assert_same_color;
+pub(crate) use assert_same_coordinates;
+
+/// Assert that two color objects describe the same color. <span
+/// class=rust-only></span>
+///
+/// This macro tests the color objects for equality using the `Eq` trait. The
+/// implementation, in turn, normalizes the coordinates of colors with the same
+/// color space by zeroing out not-a-numbers, clamping the a/b/c components of
+/// Oklab colors, scaling the hue of Oklch/Oklrch, reducing resolution, and
+/// dropping the sign of negative zeros before comparing the resulting bit
+/// strings.
+///
+/// # Panics
+///
+/// This macro panics if the normalized bit strings are not identical. Its
+/// message places either color spaces or the coordinates below each other at
+/// the beginning of subsequent lines for easy comparability.
+#[doc = include_str!("../style.html")]
+#[macro_export]
+macro_rules! assert_same_color {
+    ($c1:expr, $c2:expr $(,)?) => {
+        let (c1, c2) = ($c1, $c2);
+        if c1.space() != c2.space() {
+            assert_eq!(
+                c1,
+                c2,
+                "color spaces differ:\n{:?}\n{:?}",
+                c1.space(),
+                c2.space()
+            );
+        }
+
+        assert_eq!(
+            c1,
+            c2,
+            "color coordinates differ:\n{:?}\n{:?}",
+            c1.as_ref(),
+            c2.as_ref()
+        );
+    };
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 

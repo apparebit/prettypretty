@@ -13,7 +13,7 @@ pub(crate) use conversion::{convert, from_24bit, to_24bit};
 pub use difference::HueInterpolation;
 pub(crate) use difference::{delta_e_ok, find_closest, interpolate, prepare_to_interpolate};
 #[cfg(test)]
-pub(crate) use equality::assert_same_color;
+pub(crate) use equality::assert_same_coordinates;
 #[cfg(feature = "pyffi")]
 pub use equality::close_enough;
 pub use equality::to_eq_bits;
