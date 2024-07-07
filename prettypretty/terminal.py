@@ -22,7 +22,8 @@ from typing import (
 )
 
 from .ansi import Ansi, RawAnsi
-from .color import Color, Fidelity, IntoTerminalColor, Layer, TerminalColor, ThemeEntry
+from .color import Color, Fidelity, Layer, TerminalColor, ThemeEntry
+from .color_types import IntoTerminalColor
 from .theme import new_theme, current_sampler
 from .fidelity import environment_fidelity
 from .ident import identify_terminal, normalize_terminal_name

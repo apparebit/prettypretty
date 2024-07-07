@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import TypeAlias, Self
+from typing import Self
 
 
 class DefaultColor:
@@ -154,16 +154,6 @@ class TerminalColor:
     def __eq__(self, other: object) -> bool: ...
     def __ne__(self, other: object) -> bool: ...
     def __repr__(self) -> str: ...
-
-
-IntoTerminalColor: TypeAlias = (
-    # Terminal colors themselves
-    TerminalColor
-    # Their constituent colors
-    | DefaultColor | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor
-    # The index of 8-bit colors
-    | int
-)
 
 
 class Fidelity:
@@ -366,7 +356,10 @@ class Sampler:
     def __repr__(self) -> str: ...
 
     """Translate to high-resolution colors."""
-    def resolve(self, color: IntoTerminalColor) -> Color: ...
+    def resolve(
+        self,
+        color: TerminalColor|DefaultColor|AnsiColor|EmbeddedRgb|GrayGradient|TrueColor|int,
+    ) -> Color: ...
 
     """Translate to ANSI colors."""
     def to_ansi(self, color: Color) -> Color:
@@ -383,7 +376,11 @@ class Sampler:
     def to_closest_8bit(self, color: Color) -> TerminalColor: ...
 
     """Adjust terminal colors."""
-    def adjust(self, color: IntoTerminalColor, fidelity: Fidelity) -> None | TerminalColor: ...
+    def adjust(
+        self,
+        color: TerminalColor|DefaultColor|AnsiColor|EmbeddedRgb|GrayGradient|TrueColor|int,
+        fidelity: Fidelity
+    ) -> None | TerminalColor: ...
 
 
 def close_enough(f1: float, f2: float) -> bool: ...
