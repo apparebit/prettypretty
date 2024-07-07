@@ -44,12 +44,13 @@ To find out more, please keep reading this user guide and also leverage the
 following resources:
 
   * [This user guide](https://apparebit.github.io/prettypretty/)
-  * [Rust documentation](https://apparebit.github.io/prettypretty/prettypretty/)
-  * [Python documentation](https://apparebit.github.io/prettypretty/python/)
+  * [Rust API documentation](https://apparebit.github.io/prettypretty/prettypretty/)
+  * [Python API documentation](https://apparebit.github.io/prettypretty/python/)
   * [Python type stub](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi)
   * [Rust crate](https://crates.io/crates/prettypretty)
   * [Python package](https://pypi.org/project/prettypretty/)
   * [Repository](https://github.com/apparebit/prettypretty)
+  * [Changelog](https://github.com/apparebit/prettypretty/blob/main/CHANGELOG.md)
 
 
 ### Command Line Scripts

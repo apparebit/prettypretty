@@ -10,7 +10,7 @@ build-dir = "../target/doc"
 additional-css = ["pretty.css"]
 smart-punctuation = true
 no-section-label = true
-git-repository-url = "https://github.com/rust-lang/mdBook"
+git-repository-url = "https://github.com/apparebit/prettypretty"
 git-repository-icon = "fa-github"
 edit-url-template = "https://github.com/apparebit/prettypretty/edit/main/{path}"
 
