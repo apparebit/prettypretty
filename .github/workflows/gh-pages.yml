@@ -56,7 +56,7 @@ jobs:
       run: mdbook build docs
 
     - name: Create Rust API documentation
-      run: cargo doc --no-deps --all-features
+      run: cargo rustdoc --all-features -- -e $(realpath docs/pretty.css)
 
     - name: Create Python API documentation
       run: |
