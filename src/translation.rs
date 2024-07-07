@@ -35,6 +35,13 @@ pub enum ThemeEntry {
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl ThemeEntry {
+    /// Try getting the theme entry for the given index.
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn try_from_index(value: usize) -> Result<ThemeEntry, OutOfBoundsError> {
+        ThemeEntry::try_from(value)
+    }
+
     /// Get this theme entry's human-readable name.
     pub fn name(&self) -> &'static str {
         match self {
@@ -422,71 +429,10 @@ fn into_terminal_color(obj: &Bound<'_, PyAny>) -> PyResult<TerminalColor> {
 /// A color sampler.
 ///
 /// Instances of this struct translate between [`TerminalColor`] and [`Color`]
-/// and maintain the state for doing so efficiently. Compared to converting
-/// high-resolution colors between color spaces, translation between terminal
-/// and high-resolution colors is more complicated for three reasons:
-///
-///  1. Whereas all high-resolution colors fit into a uniform model of
-///     coordinates tagged by their color spaces, different kinds of terminal
-///     colors have different representations from each other and from
-///     high-resolution colors. In other words, there is little uniformity
-///     amongst terminal colors.
-///  2. Some of the differences between terminal colors are not just differences
-///     of representation but rather radically different color concepts. In
-///     particular, ANSI colors have no intrinsic color values. On top of that,
-///     the default colors are also context-sensitive and hence are of limited
-///     use.
-///  3. There are huge differences in the number of available colors: 16 ANSI
-///     colors versus 256 indexed colors versus 16 million true colors.
-///     Curiously, the bigger difference when it comes to translating colors is
-///     not the one from 16 million down to 256 colors but the one from 256 down
-///     to 16 colors.
-///
-///
-/// # Addressing the Challenges
-///
-/// Since the default and ANSI colors are abstract, translation to
-/// high-resolution colors necessarily requires some form of lookup table, i.e.,
-/// the so-called color theme. [`Sampler`] stores that table as well as all the
-/// derived state for converting high-resolution colors to 8-bit and ANSI colors
-/// again.
-///
-/// In Rust, the `Into<TerminalColor>` trait, which is implemented for
-/// [`DefaultColor`], [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`],
-/// [`TrueColor`](crate::TrueColor), and of course [`TerminalColor`] lets the
-/// same sampler methods accept instances of all these types, which keeps the
-/// interface for translating to high-resolution colors nice and simple. For
-/// Python, a custom type translation function achieves much the same.
-///
-/// In the other direction, [`Sampler`] never produces default colors and treats
-/// embedded RGB and gray gradient colors as 8-bit colors, which cuts down the
-/// variability to three kinds of colors. Those same three kinds also require
-/// different algorithmic approaches:
-///
-///   * For 24-bit colors, after gamut mapping to ensure that the source color
-///     is representable, a simple numeric conversion suffices.
-///   * For 8-bit colors, the small number of target colors makes brute force
-///     search for the closest color in Oklab/Oklrab feasible. It also produces
-///     reasonable results, as long as ANSI colors are *not* considered as well.
-///     The problem with also including ANSI colors is that they are irregularly
-///     placed around the color space and hence tend to stick out.
-///   * For ANSI colors, that same approach usually produces good results but,
-///     as illustrated in the documentation for [`Sampler::to_closest_ansi`],
-///     may also fail pretty badly.
-///
-/// To enable high-quality conversion to ANSI colors, I developed a new
-/// algorithm that turns an oddity of ANSI colors, their abstract nature, into a
-/// strength. It assumes that regular and bright versions of the same abstract
-/// color are closer to each other by hue than other colors and that the pairs
-/// of colors are arranged around the hue circle in their semantic order, i.e.,
-/// red, yellow, green, cyan, blue, and magenta. To translate a color, it first
-/// finds the closest pair of regular and bright versions of the same color by
-/// hue and then uses lightness to pick the result.
-///
-/// The algorithm can easily check that a given color theme observes its
-/// invariants while preparing the hue lookup table. If that's not the case,
-/// [`Sampler::to_ansi`] transparently falls back to brute force search for the
-/// closest color.
+/// and maintain the state for doing so efficiently. The [user
+/// guide](https://apparebit.github.io/prettypretty/overview/integration.html)
+/// includes a detailed discussion of challenges posed by translation, solution
+/// approaches, and sampler's interface.
 ///
 /// Since a sampler incorporates theme colors, an application should regenerate
 /// its sampler if the current theme changes.
@@ -664,11 +610,11 @@ impl Sampler {
     ///
     /// let orange1 = Color::from_str("#ffa563")?;
     /// let ansi = sampler.to_ansi_hue_lightness(&orange1);
-    /// assert_eq!(u8::from(ansi.unwrap()), 11);
+    /// assert_eq!(ansi.unwrap(), AnsiColor::BrightYellow);
     ///
     /// let orange2 = Color::from_str("#ff9600")?;
     /// let ansi = sampler.to_ansi_hue_lightness(&orange2);
-    /// assert_eq!(u8::from(ansi.unwrap()), 11);
+    /// assert_eq!(ansi.unwrap(), AnsiColor::BrightYellow);
     /// # Ok::<(), ColorFormatError>(())
     /// ```
     /// <div class=color-swatch>
@@ -705,20 +651,20 @@ impl Sampler {
     ///
     /// let orange1 = Color::from_str("#ffa563")?;
     /// let ansi = original_sampler.to_closest_ansi(&orange1);
-    /// assert_eq!(u8::from(ansi), 7);
+    /// assert_eq!(ansi, AnsiColor::White);
     ///
     /// let orange2 = Color::from_str("#ff9600")?;
     /// let ansi = original_sampler.to_closest_ansi(&orange2);
-    /// assert_eq!(u8::from(ansi), 9);
+    /// assert_eq!(ansi, AnsiColor::BrightRed);
     /// // ---------------------------------------------------------------------
     /// let revised_sampler = Sampler::new(
     ///     OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// let ansi = revised_sampler.to_closest_ansi(&orange1);
-    /// assert_eq!(u8::from(ansi), 7);
+    /// assert_eq!(ansi, AnsiColor::White);
     ///
     /// let ansi = revised_sampler.to_closest_ansi(&orange2);
-    /// assert_eq!(u8::from(ansi), 9);
+    /// assert_eq!(ansi, AnsiColor::BrightRed);
     /// # Ok::<(), ColorFormatError>(())
     /// ```
     /// <div class=color-swatch>
@@ -1044,18 +990,18 @@ impl Sampler {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Sampler};
-    /// # use prettypretty::{VGA_COLORS, OkVersion};
+    /// # use prettypretty::{VGA_COLORS, OkVersion, AnsiColor};
     /// # use std::str::FromStr;
     /// let sampler = Sampler::new(
     ///     OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// let orange1 = Color::from_str("#ffa563")?;
     /// let ansi = sampler.to_ansi_hue_lightness(&orange1);
-    /// assert_eq!(u8::from(ansi.unwrap()), 11);
+    /// assert_eq!(ansi.unwrap(), AnsiColor::BrightYellow);
     ///
     /// let orange2 = Color::from_str("#ff9600")?;
     /// let ansi = sampler.to_ansi_hue_lightness(&orange2);
-    /// assert_eq!(u8::from(ansi.unwrap()), 11);
+    /// assert_eq!(ansi.unwrap(), AnsiColor::BrightYellow);
     /// # Ok::<(), ColorFormatError>(())
     /// ```
     /// <div class=color-swatch>
@@ -1085,27 +1031,27 @@ impl Sampler {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Sampler};
-    /// # use prettypretty::{VGA_COLORS, OkVersion};
+    /// # use prettypretty::{VGA_COLORS, OkVersion, AnsiColor};
     /// # use std::str::FromStr;
     /// let original_sampler = Sampler::new(
     ///     OkVersion::Original, VGA_COLORS.clone());
     ///
     /// let orange1 = Color::from_str("#ffa563")?;
     /// let ansi = original_sampler.to_closest_ansi(&orange1);
-    /// assert_eq!(u8::from(ansi), 7);
+    /// assert_eq!(ansi, AnsiColor::White);
     ///
     /// let orange2 = Color::from_str("#ff9600")?;
     /// let ansi = original_sampler.to_closest_ansi(&orange2);
-    /// assert_eq!(u8::from(ansi), 9);
+    /// assert_eq!(ansi, AnsiColor::BrightRed);
     /// // ---------------------------------------------------------------------
     /// let revised_sampler = Sampler::new(
     ///     OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// let ansi = revised_sampler.to_closest_ansi(&orange1);
-    /// assert_eq!(u8::from(ansi), 7);
+    /// assert_eq!(ansi, AnsiColor::White);
     ///
     /// let ansi = revised_sampler.to_closest_ansi(&orange2);
-    /// assert_eq!(u8::from(ansi), 9);
+    /// assert_eq!(ansi, AnsiColor::BrightRed);
     /// # Ok::<(), ColorFormatError>(())
     /// ```
     /// <div class=color-swatch>

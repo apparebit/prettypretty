@@ -847,6 +847,12 @@ impl std::ops::Index<usize> for TrueColor {
     }
 }
 
+impl From<[u8; 3]> for TrueColor {
+    fn from(value: [u8; 3]) -> Self {
+        TrueColor::new(value[0], value[1], value[2])
+    }
+}
+
 impl From<&Color> for TrueColor {
     /// Convert the given color to a true color.
     ///

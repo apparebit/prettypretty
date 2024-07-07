@@ -953,7 +953,7 @@ class Terminal:
 
         return self._parse_color(
             color + 2,
-            ThemeEntry.from_index(color + 2).name(),
+            ThemeEntry.try_from_index(color + 2).name(),
             self.make_raw_request(Ansi.OSC, 4, color, ';?', Ansi.ST)
         )
 
@@ -975,7 +975,7 @@ class Terminal:
 
         return self._parse_color(
             code - 10,
-            ThemeEntry.from_index(code - 10).name(),
+            ThemeEntry.try_from_index(code - 10).name(),
             self.make_raw_request(Ansi.OSC, code, ';?', Ansi.ST),
         )
 
@@ -1006,7 +1006,7 @@ class Terminal:
             response = self.read_control()
             colors.append(self._parse_color(
                 index,
-                ThemeEntry.from_index(index).name(),
+                ThemeEntry.try_from_index(index).name(),
                 response,
             ))
 
@@ -1031,7 +1031,7 @@ class Terminal:
         for index, response in enumerate(responses):
             colors.append(self._parse_color(
                 index,
-                ThemeEntry.from_index(index).name(),
+                ThemeEntry.try_from_index(index).name(),
                 response,
             ))
 
