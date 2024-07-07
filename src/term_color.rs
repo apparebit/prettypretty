@@ -310,6 +310,7 @@ impl EmbeddedRgb {
     /// TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
     /// and is available in Python only.
     #[staticmethod]
+    #[inline]
     pub fn try_from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
         Self::try_from(value)
     }
@@ -320,8 +321,16 @@ impl EmbeddedRgb {
     /// This method offers the same functionality as [`u8 as
     /// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8)
     /// and is available in Python only.
+    #[inline]
     pub fn to_8bit(&self) -> u8 {
         u8::from(*self)
+    }
+
+    /// Convert this embedded RGB color to 24-bit. <span
+    /// class=python-only></span>
+    #[inline]
+    pub fn to_24bit(&self) -> [u8; 3] {
+        (*self).into()
     }
 
     /// Convert this embedded RGB color to a high-resolution color. <span
@@ -330,11 +339,13 @@ impl EmbeddedRgb {
     /// This method offers the same functionality as [`Color as
     /// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color)
     /// and is available in Python only.
+    #[inline]
     pub fn to_color(&self) -> Color {
         Color::from(*self)
     }
 
     /// Access this true color's coordinates. <span class=python-only></span>
+    #[inline]
     pub fn coordinates(&self) -> [u8; 3] {
         self.0
     }
@@ -344,6 +355,7 @@ impl EmbeddedRgb {
     ///
     /// This method improves integration with Python's runtime and hence is
     /// available in Python only.
+    #[inline]
     pub fn __len__(&self) -> usize {
         3
     }
@@ -364,6 +376,7 @@ impl EmbeddedRgb {
 
     /// Convert this embedded RGB color to its debug representation. <span
     /// class=python-only></span>
+    #[inline]
     pub fn __repr__(&self) -> String {
         format!("EmbeddedRgb({}, {}, {})", self.0[0], self.0[1], self.0[2])
     }
@@ -430,7 +443,7 @@ impl From<EmbeddedRgb> for u8 {
     }
 }
 
-impl From<EmbeddedRgb> for TrueColor {
+impl From<EmbeddedRgb> for [u8; 3] {
     fn from(value: EmbeddedRgb) -> Self {
         fn convert(value: u8) -> u8 {
             if value == 0 {
@@ -441,7 +454,14 @@ impl From<EmbeddedRgb> for TrueColor {
         }
 
         let [r, g, b] = *value.as_ref();
-        TrueColor::new(convert(r), convert(g), convert(b))
+        [convert(r), convert(g), convert(b)]
+    }
+}
+
+impl From<EmbeddedRgb> for TrueColor {
+    fn from(value: EmbeddedRgb) -> Self {
+        let [r, g, b] = value.into();
+        TrueColor::new(r, g, b)
     }
 }
 
@@ -453,16 +473,7 @@ impl From<EmbeddedRgb> for TerminalColor {
 
 impl From<EmbeddedRgb> for Color {
     fn from(value: EmbeddedRgb) -> Self {
-        fn convert(value: u8) -> u8 {
-            if value == 0 {
-                0
-            } else {
-                55 + 40 * value
-            }
-        }
-
-        let [r, g, b] = *value.as_ref();
-        Color::from_24bit(convert(r), convert(g), convert(b))
+        TrueColor::from(value).into()
     }
 }
 
@@ -560,6 +571,7 @@ impl GrayGradient {
     /// TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
     /// and is available in Python only.
     #[staticmethod]
+    #[inline]
     pub fn try_from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
         Self::try_from(value)
     }
@@ -573,6 +585,13 @@ impl GrayGradient {
     #[inline]
     pub fn to_8bit(&self) -> u8 {
         u8::from(*self)
+    }
+
+    /// Convert this gray gradient color to 24-bit. <span
+    /// class=python-only></span>
+    #[inline]
+    pub fn to_24bit(&self) -> [u8; 3] {
+        (*self).into()
     }
 
     /// Convert this gray gradient to a high-resolution color. <span
@@ -594,6 +613,7 @@ impl GrayGradient {
 
     /// Convert this gray gradient to its debug representation. <span
     /// class=python-only></span>
+    #[inline]
     pub fn __repr__(&self) -> String {
         format!("GrayGradient({})", self.0)
     }
@@ -635,10 +655,17 @@ impl From<GrayGradient> for u8 {
     }
 }
 
+impl From<GrayGradient> for [u8; 3] {
+    fn from(value: GrayGradient) -> Self {
+        let level = 8 + 10 * value.level();
+        [level, level, level]
+    }
+}
+
 impl From<GrayGradient> for TrueColor {
     fn from(value: GrayGradient) -> TrueColor {
-        let level = 8 + 10 * value.level();
-        TrueColor::new(level, level, level)
+        let [r, g, b] = value.into();
+        TrueColor::new(r, g, b)
     }
 }
 
@@ -650,8 +677,7 @@ impl From<GrayGradient> for TerminalColor {
 
 impl From<GrayGradient> for Color {
     fn from(value: GrayGradient) -> Self {
-        let level = 8 + 10 * value.level();
-        Color::from_24bit(level, level, level)
+        TrueColor::from(value).into()
     }
 }
 
@@ -914,6 +940,14 @@ impl TerminalColor {
         })
     }
 
+    /// Convert this terminal color to 24-bit.
+    #[cfg(feature = "pyffi")]
+    pub fn try_to_24bit(&self) -> PyResult<[u8; 3]> {
+        <[u8; 3]>::try_from(*self).map_err(|_| {
+            pyo3::exceptions::PyValueError::new_err("unable to convert to 24-bit coordinates")
+        })
+    }
+
     /// Determine whether this terminal color is the default color.
     pub fn is_default(&self) -> bool {
         matches!(self, Self::Default { .. })
@@ -1035,6 +1069,29 @@ impl TryFrom<TerminalColor> for u8 {
     }
 }
 
+impl TryFrom<TerminalColor> for [u8; 3] {
+    type Error = TerminalColor;
+
+    fn try_from(value: TerminalColor) -> Result<Self, Self::Error> {
+        match value {
+            TerminalColor::Default { .. } => Err(value),
+            TerminalColor::Ansi { .. } => Err(value),
+            TerminalColor::Rgb6 { color } => Ok(color.into()),
+            TerminalColor::Gray { color } => Ok(color.into()),
+            TerminalColor::Rgb256 { color } => Ok(*color.as_ref()),
+        }
+    }
+}
+
+impl TryFrom<TerminalColor> for Color {
+    type Error = TerminalColor;
+
+    fn try_from(value: TerminalColor) -> Result<Self, Self::Error> {
+        let [r, g, b] = value.try_into()?;
+        Ok(Color::from_24bit(r, g, b))
+    }
+}
+
 // ====================================================================================================================
 // Layer and Fidelity
 
@@ -1152,7 +1209,7 @@ impl std::fmt::Display for Fidelity {
 
 #[cfg(test)]
 mod test {
-    use super::{AnsiColor, EmbeddedRgb, GrayGradient, OutOfBoundsError, TerminalColor};
+    use super::{AnsiColor, EmbeddedRgb, GrayGradient, OutOfBoundsError, TerminalColor, TrueColor};
 
     #[test]
     fn test_conversion() -> Result<(), OutOfBoundsError> {
@@ -1161,9 +1218,11 @@ mod test {
 
         let green = EmbeddedRgb::new(0, 4, 0)?;
         assert_eq!(green.as_ref(), &[0, 4, 0]);
+        assert_eq!(TrueColor::from(green), TrueColor::new(0, 215, 0));
 
         let gray = GrayGradient::new(12)?;
         assert_eq!(gray.level(), 12);
+        assert_eq!(TrueColor::from(gray), TrueColor::new(128, 128, 128));
 
         let also_magenta = TerminalColor::Ansi {
             color: AnsiColor::Magenta,
@@ -1174,6 +1233,10 @@ mod test {
         assert_eq!(also_magenta, TerminalColor::from(5));
         assert_eq!(also_green, TerminalColor::from(40));
         assert_eq!(also_gray, TerminalColor::from(244));
+
+        assert!(<[u8; 3]>::try_from(also_magenta).is_err());
+        assert_eq!(<[u8; 3]>::try_from(also_green), Ok([0_u8, 215, 0]));
+        assert_eq!(<[u8; 3]>::try_from(also_gray), Ok([128_u8, 128, 128]));
 
         Ok(())
     }
