@@ -12,7 +12,6 @@ pub(crate) trait Environment {
             Some(s) => s.into_string().map_err(std::env::VarError::NotUnicode),
             None => Err(std::env::VarError::NotPresent),
         }
-
     }
 
     #[inline]

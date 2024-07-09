@@ -1269,8 +1269,7 @@ pub(crate) fn fidelity_from_environment(env: impl Environment, has_tty: bool) ->
         }
 
         return Fidelity::Plain;
-    } else if env.has_value("COLORTERM", "truecolor") || env.has_value("TERM", "xterm-kitty")
-    {
+    } else if env.has_value("COLORTERM", "truecolor") || env.has_value("TERM", "xterm-kitty") {
         return Fidelity::Full;
     } else if env.has_value("TERM_PROGRAM", "Apple_Terminal") {
         return Fidelity::EightBit;
