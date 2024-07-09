@@ -3,7 +3,7 @@
 #
 #    maturin generate-ci -o .github/workflows/wheel.yml github
 #
-name: CI
+name: Build Distributions
 
 on:
   push:
