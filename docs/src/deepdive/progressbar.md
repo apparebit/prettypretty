@@ -180,12 +180,12 @@ in Python even more ergonomic and is well worth the extra engineering effort.
 
 ### 4. Adjust Styles to Reality
 
-Once the terminal has been set up, the progress bar script uses
-[`is_dark_theme`] to pick the attendant style and then adjusts that style to the
-terminal's [`Terminal.fidelity`]:
+Once the terminal has been set up, the progress bar script uses the
+[`current_sampler`]'s [`is_dark_theme`] to pick the attendant style and then
+adjusts that style to the terminal's [`Terminal.fidelity`]:
 
 ```python
-style = DARK_MODE_BAR if is_dark_theme() else LIGHT_MODE_BAR
+style = DARK_MODE_BAR if current_sampler().is_dark_theme() else LIGHT_MODE_BAR
 style = style.prepare(term.fidelity)
 ```
 
@@ -291,6 +291,7 @@ a complete change of direction.
 
 </div>
 
+[`current_sampler`]: https://apparebit.github.io/prettypretty/python/prettypretty/theme.html#prettypretty.theme.current_sampler
 [`is_dark_theme`]: https://apparebit.github.io/prettypretty/python/prettypretty/darkmode.html#prettypretty.darkmode.is_dark_theme
 [`rich`]: https://apparebit.github.io/prettypretty/python/prettypretty/style.html#prettypretty.style.rich
 [`RichText`]: https://apparebit.github.io/prettypretty/python/prettypretty/style.html#prettypretty.style.RichText
