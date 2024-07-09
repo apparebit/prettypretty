@@ -8,6 +8,8 @@
  | [Repository](https://github.com/apparebit/prettypretty)
 \]
 
+🎖️ As featured on [Real Python #211](https://realpython.com/podcasts/rpp/211/)
+
 Prettypretty is a Rust library with optional Python integration that brings
 2020s color science to 1970s terminals for building awesome terminal user
 interfaces (TUIs). The intended benefits are twofold:
