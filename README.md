@@ -2,6 +2,8 @@
 
 [![Run Tests](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml)
 [![Publish to GitHub Pages](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml)
+[![Build Distributions](https://github.com/apparebit/prettypretty/actions/workflows/dist.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/dist.yml)
+
 \[ [Documentation](https://docs.rs/prettypretty/latest/prettypretty/)
  | [Rust Crate](https://crates.io/crates/prettypretty)
  | [Python Package](https://pypi.org/project/prettypretty/)
