@@ -10,4 +10,5 @@
 
 # Deep Dives
 
- - [Anatomy of a Progress Bar](deepdive/progressbar.md)
+ - [The Appearance of Progress](deepdive/progressbar.md)
+ - [Judgement Day: Color Themes](deepdive/colortheme.md)
