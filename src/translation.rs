@@ -445,7 +445,7 @@ pub struct Sampler {
     /// The ANSI color coordinates for matching to closest color.
     ansi: [[Float; 3]; 16],
     /// The 8-bit color coordinates for matching to closest color.
-    eight_bit: [[Float; 3]; 240],
+    eight_bit: [[Float; 3]; 256],
 }
 
 /// Create the coordinates for the 16 extended ANSI colors in the given color
@@ -459,17 +459,19 @@ fn ansi_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 16] {
     coordinates
 }
 
-/// Create the coordinates for the embedded RGB and gray gradient colors in the
-/// given color space.
-fn eight_bit_coordinates(space: ColorSpace) -> [[Float; 3]; 240] {
-    let mut coordinates: [[Float; 3]; 240] = [[0.0; 3]; 240];
+/// Create the coordinates for the 8-bit colors in the given color space.
+fn eight_bit_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 256] {
+    let mut coordinates: [[Float; 3]; 256] = [[0.0; 3]; 256];
+    for index in 0..=15 {
+        coordinates[index] = *theme[index].to(space).as_ref()
+    }
     for index in 16..=231 {
-        coordinates[index - 16] = *Color::from(EmbeddedRgb::try_from(index as u8).unwrap())
+        coordinates[index] = *Color::from(EmbeddedRgb::try_from(index as u8).unwrap())
             .to(space)
             .as_ref();
     }
     for index in 232..=255 {
-        coordinates[index - 16] = *Color::from(GrayGradient::try_from(index as u8).unwrap())
+        coordinates[index] = *Color::from(GrayGradient::try_from(index as u8).unwrap())
             .to(space)
             .as_ref();
     }
@@ -838,6 +840,24 @@ impl Sampler {
         use crate::core::{delta_e_ok, find_closest};
 
         let color = color.to(self.space);
+        let index = find_closest(
+            color.as_ref(),
+            self.eight_bit.last_chunk::<240>().unwrap(),
+            delta_e_ok,
+        )
+        .map(|idx| idx as u8 + 16)
+        .unwrap();
+
+        TerminalColor::from(index)
+    }
+
+    /// Find the 8-bit color that comes closest to the given color.
+    ///
+    /// This method comparse *all* 8-bit colors including ANSI colors.
+    pub fn to_closest_8bit_with_ansi(&self, color: &Color) -> TerminalColor {
+        use crate::core::{delta_e_ok, find_closest};
+
+        let color = color.to(self.space);
         let index = find_closest(color.as_ref(), &self.eight_bit, delta_e_ok)
             .map(|idx| idx as u8 + 16)
             .unwrap();
@@ -879,7 +899,7 @@ impl Sampler {
         let hue_lightness_table = HueLightnessTable::new(&theme);
         let space = version.cartesian_space();
         let ansi = ansi_coordinates(space, &theme);
-        let eight_bit = eight_bit_coordinates(space);
+        let eight_bit = eight_bit_coordinates(space, &theme);
 
         Self {
             theme,
@@ -1184,6 +1204,10 @@ impl Sampler {
 
     /// Find the 8-bit color that comes closest to the given color.
     ///
+    /// This method only compares to embedded RGB and gray gradient colors, not
+    /// ANSI colors. It also is the recommended version because the ANSI colors
+    /// can be visually disruptive amongst translated graduated peers.
+    ///
     /// # Examples
     ///
     /// The example below converts every color of the RGB cube embedded in 8-bit
@@ -1222,6 +1246,24 @@ impl Sampler {
     /// # Ok::<(), OutOfBoundsError>(())
     /// ```
     pub fn to_closest_8bit(&self, color: &Color) -> TerminalColor {
+        use crate::core::{delta_e_ok, find_closest};
+
+        let color = color.to(self.space);
+        let index = find_closest(
+            color.as_ref(),
+            self.eight_bit.last_chunk::<240>().unwrap(),
+            delta_e_ok,
+        )
+        .map(|idx| idx as u8 + 16)
+        .unwrap();
+
+        TerminalColor::from(index)
+    }
+
+    /// Find the 8-bit color that comes closest to the given color.
+    ///
+    /// This method comparse *all* 8-bit colors including ANSI colors.
+    pub fn to_closest_8bit_with_ansi(&self, color: &Color) -> TerminalColor {
         use crate::core::{delta_e_ok, find_closest};
 
         let color = color.to(self.space);
