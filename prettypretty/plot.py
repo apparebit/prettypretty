@@ -86,18 +86,19 @@ def create_parser() -> argparse.ArgumentParser:
 class ColorPlotter:
     def __init__(
         self,
-        figure_label: None | str = None,
-        color_label: None | str = None,
+        collection_name: None | str = None,
+        color_kind: None | str = None,
         gamut_step: None | int = None,
         gamut_range: None | int = None,
         volume: int = 1,
     ) -> None:
-        self._figure_label = figure_label
-        self._color_label = color_label
+        self._collection_name = collection_name
+        self._color_kind = color_kind
 
         self._hues: list[float] = []
         self._chromas: list[float] = []
-        self._colors: list[str] = []
+        self._colors: set[Color] = set()
+        self._hex_colors: list[str] = []
         self._markers: list[str] = []
 
         self._grays: list[float] = []
@@ -129,15 +130,15 @@ class ColorPlotter:
         # Matplotlib is sRGB only
         hex_color = color.to_hex_format()
 
-        # Convert to Oklch
-        oklch = color.to(ColorSpace.Oklch)
-        l, c, h = oklch[0], oklch[1], oklch[2]
+        # Convert to Oklrch
+        oklrch = color.to(ColorSpace.Oklrch)
+        lr, c, h = oklrch
         c = round(c, 14)  # Chop off one digit of precision.
 
         # Update status
-        light = f'{l:.5}'
+        light = f'{lr:.5}'
         if len(light) > 7:
-            light = f'{l:.5f}'
+            light = f'{lr:.5f}'
         chroma = f'{c:.5}'
         if len(chroma) > 7:
             chroma = f'{c:.5f}'
@@ -146,7 +147,7 @@ class ColorPlotter:
 
         # Handle grays
         if c < 1e-9 or math.isnan(h):
-            self._grays.append(l)
+            self._grays.append(lr)
             if self._gray_marker is None:
                 self._gray_marker = marker
             elif marker != self._gray_marker:
@@ -156,7 +157,7 @@ class ColorPlotter:
             return
 
         # Skip duplicates
-        if hex_color in self._colors:
+        if oklrch in self._colors:
             self._duplicate_count += 1
             return
 
@@ -164,7 +165,8 @@ class ColorPlotter:
         h = h * math.pi / 180
         self._hues.append(h)
         self._chromas.append(c)
-        self._colors.append(hex_color)
+        self._colors.add(oklrch)
+        self._hex_colors.append(hex_color)
         self._markers.append(marker)
         if marker == "o":
             self._base_count += 1
@@ -211,7 +213,7 @@ class ColorPlotter:
 
     def to_point_and_color(self, color: Color) -> tuple[float, float, str]:
         _, c, h = color.to(ColorSpace.Oklrch).coordinates()
-        hex_format = Color(ColorSpace.Oklrch, [0.85, c / 3, h]).to_hex_format()
+        hex_format = Color(ColorSpace.Oklrch, [0.75, c / 3, h]).to_hex_format()
 
         r, g, b = color.coordinates()
         self.detail(
@@ -367,8 +369,8 @@ class ColorPlotter:
 
     def create_figure(
         self,
-        figure_label: None | str = None,
-        color_label: None | str = None,
+        collection_name: None | str = None,
+        color_kind: None | str = None,
         gamuts: None | list[ColorSpace] = None,
         spectrum: bool = False,
     ) -> Any:
@@ -385,7 +387,7 @@ class ColorPlotter:
         # Since markers are shared for all marks in a series, we use a new
         # series for every single color.
         for hue, chroma, color, marker in zip(
-            self._hues, self._chromas, self._colors, self._markers
+            self._hues, self._chromas, self._hex_colors, self._markers
         ):
             size = 80 if marker == "o" else 60
             axes.scatter(  # type: ignore
@@ -395,6 +397,7 @@ class ColorPlotter:
                 s=[size],
                 marker=marker,  # type: ignore
                 edgecolors='#000',
+                zorder=5,
             )
 
         if self._grays:
@@ -433,16 +436,16 @@ class ColorPlotter:
 
         # Add label for gamut boundaries
         if ColorSpace.Srgb in gamuts:
-            self.add_gamut_label(axes, ColorSpace.Srgb, "sRGB", 1.0, 0.85, 0.12, -1)
+            self.add_gamut_label(axes, ColorSpace.Srgb, "sRGB", 1.0, 0.85, 0.12, 0)
         if ColorSpace.DisplayP3 in gamuts:
             self.add_gamut_label(axes, ColorSpace.DisplayP3, "P3", 1.0, 0.95, 0.07, 0)
         if ColorSpace.Rec2020 in gamuts:
             self.add_gamut_label(axes, ColorSpace.Rec2020, "Rec. 2020", 0.95, 1.0, 0.18, 1)
 
-        figure_label = figure_label or self._figure_label
-        color_label = color_label or self._color_label or "Colors"
-        title = f"{figure_label}: " if figure_label else ""
-        title += f"Hue & Chroma for {self.format_counts()} {color_label} in Oklab"
+        collection_name = collection_name or self._collection_name
+        color_kind = color_kind or self._color_kind or "Colors"
+        title = f"{collection_name}: " if collection_name else ""
+        title += f"Hue & Chroma for {self.format_counts()} {color_kind} in Oklab"
         axes.set_title(title, pad=15, weight="bold")  # type: ignore
 
         return fig
@@ -493,33 +496,33 @@ def main() -> None:
     # Labels and file names
 
     if options.theme:
-        label = "VGA"
+        collection_name = "VGA"
     elif options.input:
-        label = None
+        collection_name = None
     elif terminal_id:
-        label = terminal_id[0]
+        collection_name = terminal_id[0]
     else:
-        label = "Unknown Terminal"
+        collection_name = "Unknown Terminal"
 
     if options.input:
-        color_label = "Colors"
+        color_kind = "Colors"
     else:
-        color_label = "ANSI Colors"
+        color_kind = "ANSI Colors"
 
     if options.output is not None:
         file_name = options.output
     elif options.input is not None:
         file_name = pathlib.Path(options.input).with_suffix(".svg")
     else:
-        assert label is not None
-        file_name = f'{label.replace(" ", "-").lower()}-colors.svg'
+        assert collection_name is not None
+        file_name = f'{collection_name.replace(" ", "-").lower()}-colors.svg'
 
     # ----------------------------------------------------------------------------------
     # Create and save plot
 
     fig = plotter.create_figure(
-        figure_label=label,
-        color_label=color_label,
+        collection_name=collection_name,
+        color_kind=color_kind,
         gamuts=gamuts,
         spectrum=options.spectrum,
     )
