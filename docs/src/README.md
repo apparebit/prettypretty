@@ -24,20 +24,6 @@ contrast](https://github.com/Myndex/apca-w3), as well as its own hue- and
 lightness-based downsampling for optimal selection of ANSI colors.
 
 
-## Python Integration
-
-The optional Python integration, enabled with the `pyffi` feature flag, relies
-on [PyO3](https://pyo3.rs/v0.22.0/) and [Maturin](https://www.maturin.rs) for
-building an extension module with the same functionality—only where the Rust
-library uses trait implementations, the Python module [uses dedicated
-methods](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi).
-Also, where the Rust library currently is BYO(T)IO, that is, bring your own
-(terminal) I/O, the Python library comes with a powerful terminal abstraction
-that makes, say, querying the terminal [for the current color
-theme](https://github.com/apparebit/prettypretty/blob/61fb6d7c364c0d083e1073ead146834c1e0bc56d/prettypretty/terminal.py#L1039)
-a breeze.
-
-
 ## Resources
 
 To find out more, please keep reading this user guide and also leverage the
@@ -51,6 +37,20 @@ following resources:
   * [Python package](https://pypi.org/project/prettypretty/)
   * [Repository](https://github.com/apparebit/prettypretty)
   * [Changelog](https://github.com/apparebit/prettypretty/blob/main/CHANGELOG.md)
+
+
+## Python Integration
+
+The optional Python integration, enabled with the `pyffi` feature flag, relies
+on [PyO3](https://pyo3.rs/v0.22.0/) and [Maturin](https://www.maturin.rs) for
+building an extension module with the same functionality—only where the Rust
+library uses trait implementations, the Python module [uses dedicated
+methods](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi).
+Also, where the Rust library currently is BYO(T)IO, that is, bring your own
+(terminal) I/O, the Python library comes with a powerful terminal abstraction
+that makes, say, querying the terminal [for the current color
+theme](https://github.com/apparebit/prettypretty/blob/61fb6d7c364c0d083e1073ead146834c1e0bc56d/prettypretty/terminal.py#L1039)
+a breeze.
 
 
 ### Command Line Scripts
