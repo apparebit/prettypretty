@@ -95,19 +95,27 @@ class ColorPlotter:
         self._collection_name = collection_name
         self._color_kind = color_kind
 
+        # Scattered colors
         self._hues: list[float] = []
         self._chromas: list[float] = []
-        self._colors: set[Color] = set()
-        self._hex_colors: list[str] = []
-        self._markers: list[str] = []
+        self._marks: list[str] = []
+        self._mark_colors: list[str] = []
 
+        # Averaged grays as one
         self._grays: list[float] = []
-        self._gray_marker = None
+        self._gray_mark = None
 
+        # Lightness bars
+        self._lightness: list[float] = []
+        self._bar_color: list[str] = []
+
+        # Counts
+        self._colors: set[Color] = set()
         self._duplicate_count = 0
         self._base_count = 0
         self._extra_count = 0
 
+        # Gamut boundaries
         self._gamut_step = gamut_step or 1
         self._gamut_range = gamut_range or 20
         self._largest_gamut: None | ColorSpace = None
@@ -148,11 +156,11 @@ class ColorPlotter:
         # Handle grays
         if c < 1e-9 or math.isnan(h):
             self._grays.append(lr)
-            if self._gray_marker is None:
-                self._gray_marker = marker
-            elif marker != self._gray_marker:
+            if self._gray_mark is None:
+                self._gray_mark = marker
+            elif marker != self._gray_mark:
                 raise ValueError(
-                    f"inconsistent markers for gray: {marker} vs {self._gray_marker}"
+                    f"inconsistent markers for gray: {marker} vs {self._gray_mark}"
                 )
             return
 
@@ -162,12 +170,16 @@ class ColorPlotter:
             return
 
         # Record hue, chroma, color, marker
-        h = h * math.pi / 180
-        self._hues.append(h)
+        h_radian = h * math.pi / 180
+        self._hues.append(h_radian)
         self._chromas.append(c)
+        self._marks.append(marker)
+        self._mark_colors.append(hex_color)
+
+        self._lightness.append(lr)
+        self._bar_color.append(Color(ColorSpace.Oklrch, [lr, c, h]).to_hex_format())
+
         self._colors.add(oklrch)
-        self._hex_colors.append(hex_color)
-        self._markers.append(marker)
         if marker == "o":
             self._base_count += 1
         else:
@@ -374,10 +386,9 @@ class ColorPlotter:
         gamuts: None | list[ColorSpace] = None,
         spectrum: bool = False,
     ) -> Any:
-        fig, axes = plt.subplots(  # type: ignore
-            figsize=(5, 5),
-            subplot_kw={'projection': 'polar'},
-        )
+        fig: Any = plt.figure(layout="constrained", figsize=(5, 6.5))  # type: ignore
+        axes: Any = fig.add_subplot(6, 10, (1, 50), polar=True)
+        light_axes: Any = fig.add_subplot(6, 10, (52, 59))
 
         # Add gamut boundaries if so requested.
         gamuts = gamuts or []
@@ -387,10 +398,10 @@ class ColorPlotter:
         # Since markers are shared for all marks in a series, we use a new
         # series for every single color.
         for hue, chroma, color, marker in zip(
-            self._hues, self._chromas, self._hex_colors, self._markers
+            self._hues, self._chromas, self._mark_colors, self._marks
         ):
             size = 80 if marker == "o" else 60
-            axes.scatter(  # type: ignore
+            axes.scatter(
                 [hue],
                 [chroma],
                 c=[color],
@@ -403,27 +414,28 @@ class ColorPlotter:
         if self._grays:
             gray = Color.oklab(sum(self._grays) / len(self._grays), 0.0, 0.0).to_hex_format()
 
-            axes.scatter(  # type: ignore
+            axes.scatter(
                 [0],
                 [0],
                 c=[gray],
                 s=[80],
-                marker=self._gray_marker,  # type: ignore
+                marker=self._gray_mark,
                 edgecolors='#000',
             )
 
-        axes.set_rmin(0)  # type: ignore
-        axes.set_rmax(self.effective_max_chroma())  # type: ignore
+        axes.set_aspect(1)
+        axes.set_rmin(0)
+        axes.set_rmax(self.effective_max_chroma())
 
         # Don't show tick labels at angle
-        axes.set_rlabel_position(0)  # type: ignore
+        axes.set_rlabel_position(0)
 
         # If max chroma is 0.3 or 0.4: matplotlib puts grid circles every 0.05.
         #     To reduce clutter and maximize label utility, place label every
         #     0.10, but start at 0.05. Max chroma at 0.5, matplotlib puts grid
         # If max chroma is 0.5: matplotlib puts grid circles every 0.1. Only
         #     suppress labels for origin and max chroma.
-        axes.yaxis.set_major_formatter(FuncFormatter(  # type: ignore
+        axes.yaxis.set_major_formatter(FuncFormatter(
                 self.format_ytick_label_10 if self.effective_max_chroma() == 0.5
                 else self.format_ytick_label_05
         ))
@@ -442,11 +454,28 @@ class ColorPlotter:
         if ColorSpace.Rec2020 in gamuts:
             self.add_gamut_label(axes, ColorSpace.Rec2020, "Rec. 2020", 0.95, 1.0, 0.18, 1)
 
+        axes.set_title("Hue & Chroma", style="italic", size=13, x=0.11, y=1.01)
+
+        light_axes.set_yticks([0, 0.5, 1], minor=False)
+        light_axes.set_yticks([0.25, 0.75], minor=True)
+        light_axes.yaxis.grid(True, which="major")
+        light_axes.yaxis.grid(True, which="minor")
+
+        light_axes.bar(
+            [x for x in range(len(self._lightness))],
+            self._lightness,
+            color=self._bar_color,
+            zorder=5,
+        )
+        light_axes.set_ylim(0, 1)
+        light_axes.get_xaxis().set_visible(False)
+
         collection_name = collection_name or self._collection_name
         color_kind = color_kind or self._color_kind or "Colors"
         title = f"{collection_name}: " if collection_name else ""
-        title += f"Hue & Chroma for {self.format_counts()} {color_kind} in Oklab"
-        axes.set_title(title, pad=15, weight="bold")  # type: ignore
+        title += f"{self.format_counts()} {color_kind} in Oklab"
+        fig.suptitle(title, ha="left", x=0.044, weight="bold", size=13)
+        fig.text(0.045, 0.085, "Lr", fontdict=dict(style="italic", size=13))
 
         return fig
 
@@ -483,9 +512,11 @@ def main() -> None:
                 terminal_id = term.request_terminal_identity()
 
             sampler = current_sampler()
-            for index in range(16):
+            for index in [1, 3, 2, 6, 4, 5]:
                 color = sampler.resolve(index)
                 plotter.add(ThemeEntry.try_from_index(index + 2).name(), color)
+                color = sampler.resolve(index + 8)
+                plotter.add(ThemeEntry.try_from_index(index + 8 + 2).name(), color)
 
     for color in [Color.parse("#" + c) for c in cast(list[str], options.colors) or []]:
         plotter.add("<extra>", color, marker="d")
