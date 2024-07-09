@@ -21,7 +21,6 @@ Python extension modules from Python.
 
    prettypretty/ansi
    prettypretty/darkmode
-   prettypretty/fidelity
    prettypretty/ident
    prettypretty/style
    prettypretty/terminal

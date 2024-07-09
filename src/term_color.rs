@@ -1,6 +1,7 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
+use super::util::Env;
 use crate::{Color, ColorSpace, OutOfBoundsError};
 
 // ====================================================================================================================
@@ -1167,6 +1168,31 @@ impl Fidelity {
         color.into()
     }
 
+    /// Determine the fidelity level for terminal output based on environment
+    /// variables.
+    ///
+    /// This method determines fidelity based on heuristics about environment
+    /// variables. Its primary sources are [NO_COLOR](https://no-color.org) and
+    /// [FORCE_COLOR](https://force-color.org). Its secondary source is Chalk's
+    /// [supports-color](https://github.com/chalk/supports-color/blob/main/index.js).
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn from_environment(has_tty: bool) -> Self {
+        Self::do_from_environment(has_tty)
+    }
+
+    /// Determine the fidelity level for terminal output based on environment
+    /// variables.
+    ///
+    /// This method determines fidelity based on heuristics about environment
+    /// variables. Its primary sources are [NO_COLOR](https://no-color.org) and
+    /// [FORCE_COLOR](https://force-color.org). Its secondary source is Chalk's
+    /// [supports-color](https://github.com/chalk/supports-color/blob/main/index.js).
+    #[cfg(not(feature = "pyffi"))]
+    pub fn from_environment(has_tty: bool) -> Self {
+        Self::do_from_environment(has_tty)
+    }
+
     /// Determine whether this fidelity level suffices for rendering the
     /// terminal color.
     pub fn covers(&self, color: TerminalColor) -> bool {
@@ -1178,6 +1204,111 @@ impl Fidelity {
     #[cfg(feature = "pyffi")]
     pub fn __str__(&self) -> String {
         format!("{}", self)
+    }
+}
+
+impl Fidelity {
+    pub fn do_from_environment(has_tty: bool) -> Fidelity {
+        if Env::is_non_empty("NO_COLOR") {
+            return Fidelity::NoColor;
+        } else if Env::is_non_empty("FORCE_COLOR") {
+            return Fidelity::Ansi;
+        } else if Env::is_defined("TF_BUILD") || Env::is_defined("AGENT_NAME") {
+            // Supports-color states that this test must come before TTY test.
+            return Fidelity::Ansi;
+        } else if !has_tty {
+            return Fidelity::Plain;
+        } else if Env::has_value("TERM", "dumb") {
+            return Fidelity::Plain; // FIXME Check Windows version!
+        } else if Env::is_defined("CI") {
+            if Env::is_defined("GITHUB_ACTIONS") || Env::is_defined("GITEA_ACTIONS") {
+                return Fidelity::Full;
+            }
+
+            for ci in [
+                "TRAVIS",
+                "CIRCLECI",
+                "APPVEYOR",
+                "GITLAB_CI",
+                "BUILDKITE",
+                "DRONE",
+            ] {
+                if Env::is_defined(ci) {
+                    return Fidelity::Ansi;
+                }
+            }
+
+            if Env::has_value("CI_NAME", "codeship") {
+                return Fidelity::Ansi;
+            }
+
+            return Fidelity::Plain;
+        }
+
+        let teamcity = std::env::var("TEAMCITY_VERSION");
+        if teamcity.is_ok() {
+            // Apparently, Teamcity 9.x and later support ANSI colors.
+            let teamcity = teamcity.unwrap();
+            let mut charity = teamcity.chars();
+            let c1 = charity.next();
+            let c2 = charity.next();
+
+            if c1.is_some() && c2.is_some() {
+                let (c1, c2) = (c1.unwrap(), c2.unwrap());
+                if c1 == '9' && c2 == '.' {
+                    return Fidelity::Ansi;
+                } else if c1.is_ascii_digit() && c1 != '0' && c2.is_ascii_digit() {
+                    let c3 = charity.next();
+                    if c3.is_some() && c3.unwrap() == '.' {
+                        return Fidelity::Ansi;
+                    }
+                }
+            }
+
+            return Fidelity::Plain;
+        } else if Env::has_value("COLORTERM", "truecolor") || Env::has_value("TERM", "xterm-kitty")
+        {
+            return Fidelity::Full;
+        } else if Env::has_value("TERM_PROGRAM", "Apple_Terminal") {
+            return Fidelity::EightBit;
+        } else if Env::has_value("TERM_PROGRAM", "iTerm.app") {
+            let version = std::env::var("TERMINAL_PROGRAM_VERSION");
+            if version.is_ok() {
+                let version = version.unwrap();
+                let mut charity = version.chars();
+                let c1 = charity.next();
+                let c2 = charity.next();
+                if c1.is_some() && c2.is_some() && c1.unwrap() == '3' && c2.unwrap() == '.' {
+                    return Fidelity::Full;
+                }
+            }
+            return Fidelity::EightBit;
+        }
+
+        let term = std::env::var("TERM");
+        if term.is_ok() {
+            let mut term = term.unwrap();
+            term.make_ascii_lowercase();
+
+            if term.ends_with("-256") || term.ends_with("-256color") {
+                return Fidelity::EightBit;
+            } else if term.starts_with("screen")
+                || term.starts_with("xterm")
+                || term.starts_with("vt100")
+                || term.starts_with("vt220")
+                || term.starts_with("rxvt")
+                || term == "color"
+                || term == "ansi"
+                || term == "cygwin"
+                || term == "linux"
+            {
+                return Fidelity::Ansi;
+            }
+        } else if Env::is_defined("COLORTERM") {
+            return Fidelity::Ansi;
+        }
+
+        Fidelity::Plain
     }
 }
 

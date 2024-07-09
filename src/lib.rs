@@ -100,6 +100,7 @@ mod error;
 mod object;
 mod term_color;
 mod translation;
+mod util;
 
 #[cfg(feature = "pyffi")]
 pub use core::close_enough;

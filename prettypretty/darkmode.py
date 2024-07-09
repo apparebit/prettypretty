@@ -1,34 +1,6 @@
 import os
 import sys
 
-from .color import Color, ColorSpace, DefaultColor
-from .theme import current_sampler
-
-def is_dark_theme(theme_colors: None | list[Color] = None) -> bool:
-    """
-    Determine whether the given terminal theme is a dark theme. If not theme is
-    provided, this function uses the current theme. To detect dark themes, this
-    function converts the default foreground and background colors to the XYZ
-    color space and then compares their Y or luminance components. If the
-    foreground has higher luminance than the background, the theme is a dark
-    theme.
-    """
-    # Get default foreground and background colors
-    if theme_colors is None:
-        sampler = current_sampler()
-        foreground = sampler.resolve(DefaultColor.Foreground)
-        background = sampler.resolve(DefaultColor.Background)
-    else:
-        foreground = theme_colors[0]
-        background = theme_colors[1]
-
-    # Convert to XYZ
-    foreground = foreground.to(ColorSpace.Xyz)
-    background = background.to(ColorSpace.Xyz)
-
-    # Compare luminance components
-    return foreground[1] > background[1]
-
 
 def is_dark_mode() -> None | bool:
     """

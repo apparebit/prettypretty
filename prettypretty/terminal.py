@@ -25,7 +25,6 @@ from .ansi import Ansi, RawAnsi
 from .color import Color, Fidelity, Layer, TerminalColor, ThemeEntry
 from .color_types import IntoTerminalColor
 from .theme import new_theme, current_sampler
-from .fidelity import environment_fidelity
 from .ident import identify_terminal, normalize_terminal_name
 from .style import RichText, RichTextElement
 
@@ -387,7 +386,7 @@ class Terminal:
         self._all_tty = self._input.isatty() and self._output.isatty()
 
         if fidelity is None:
-            fidelity = environment_fidelity(self._output.isatty())
+            fidelity = Fidelity.from_environment(self._output.isatty())
         self._fidelity = fidelity
 
         self._width, self._height = self.request_size() or (80, 24)

@@ -460,6 +460,7 @@ fn ansi_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 16] {
 }
 
 /// Create the coordinates for the 8-bit colors in the given color space.
+#[allow(clippy::needless_range_loop)]
 fn eight_bit_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 256] {
     let mut coordinates: [[Float; 3]; 256] = [[0.0; 3]; 256];
     for index in 0..=15 {
@@ -488,7 +489,7 @@ impl Sampler {
         let hue_lightness_table = HueLightnessTable::new(&theme);
         let space = version.cartesian_space();
         let ansi = ansi_coordinates(space, &theme);
-        let eight_bit = eight_bit_coordinates(space);
+        let eight_bit = eight_bit_coordinates(space, &theme);
 
         Self {
             theme,
@@ -507,6 +508,13 @@ impl Sampler {
     #[staticmethod]
     pub fn theme_entries() -> ThemeEntryIterator {
         ThemeEntryIterator::new()
+    }
+
+    /// Determine whether this sampler's color theme is a dark theme.
+    pub fn is_dark_theme(&self) -> bool {
+        let yf = self.theme[0].to(ColorSpace::Xyz)[1];
+        let yb = self.theme[1].to(ColorSpace::Xyz)[1];
+        yf > yb
     }
 
     /// Resolve the terminal color to a high-resolution color.
@@ -913,6 +921,13 @@ impl Sampler {
     /// Create a new iterator over theme entries.
     pub fn theme_entries() -> ThemeEntryIterator {
         ThemeEntryIterator::new()
+    }
+
+    /// Determine whether this sampler's color theme is a dark theme.
+    pub fn is_dark_theme(&self) -> bool {
+        let yf = self.theme[0].to(ColorSpace::Xyz)[1];
+        let yb = self.theme[1].to(ColorSpace::Xyz)[1];
+        yf > yb
     }
 
     /// Resolve the terminal color to a high-resolution color.
