@@ -3,11 +3,22 @@ A script to visualize 8-bit terminal colors as well as prettypretty's support
 for down-sampling colors and maximizing contrast.
 """
 import argparse
+import enum
+import math
 from typing import cast, Literal
 
-from .color import AnsiColor, Color, EmbeddedRgb, Fidelity, Layer
+from .color import AnsiColor, Color, EmbeddedRgb, Fidelity, Layer, TrueColor
 from .theme import MACOS_TERMINAL, VGA, XTERM, current_sampler
 from .terminal import Terminal
+
+
+class AnsiConversion(enum.Enum):
+    """The strategy for converting embedded RGB to ANSI colors."""
+    NoConversion = enum.auto()
+    HueLightness = enum.auto()
+    OklabDistance = enum.auto()
+    RgbDistance = enum.auto()
+    RgbRounding = enum.auto()
 
 
 def show_error(term: Terminal, msg: str) -> None:
@@ -118,7 +129,7 @@ def write_color_cube(
     term: Terminal,
     *,
     layer: Layer = Layer.Background,
-    strategy: Literal['none', 'hlr', 'closest', 'rgb'] = 'none',
+    strategy: AnsiConversion = AnsiConversion.NoConversion,
     show_label: bool = True,
 ) -> None:
     """
@@ -135,7 +146,7 @@ def write_color_cube(
             components
     """
     sampler = current_sampler()
-    if not sampler.supports_hue_lightness() and strategy == 'hlr':
+    if not sampler.supports_hue_lightness() and strategy is AnsiConversion.HueLightness:
         show_error(
             term,
             "Terminal theme violates requirements of hue/lightness algorithm. "
@@ -143,19 +154,36 @@ def write_color_cube(
         )
         return
 
+    theme_colors: list[TrueColor] = [
+        TrueColor.from_color(sampler.resolve(i)) for i in range(16)
+    ]
+
+    def closest_theme_color(color: TrueColor) -> int:
+        min_distance = math.inf
+        min_index = -1
+
+        for index, theme_color in enumerate(theme_colors):
+            distance = color.weighted_euclidian_distance(theme_color)
+            if distance < min_distance:
+                min_distance = distance
+                min_index = index
+
+        return min_index
+
     frame = FramedBoxes(term, 6)
 
     suffix = (
-        '' if strategy == 'none'
-        else ' (Hue/Lightness)' if strategy == 'hlr'
-        else ' (Min Search)' if strategy == 'closest'
-        else ' (3+1-Bit RGB)'
+        '' if strategy == AnsiConversion.NoConversion
+        else ' (Hue/Lightness)' if strategy == AnsiConversion.HueLightness
+        else ' (Oklab Distance)' if strategy == AnsiConversion.OklabDistance
+        else ' (RGB Distance)' if strategy == AnsiConversion.RgbDistance
+        else ' (Round to 1-bit)'
     )
 
     frame.top(
         str(layer)
         + ': '
-        + ('Original ' if strategy == 'none' else 'Compressed ')
+        + ('Original ' if strategy == AnsiConversion.NoConversion else 'Compressed ')
         + '6•6•6 RGB Cube'
         + suffix
     )
@@ -168,16 +196,18 @@ def write_color_cube(
                 embedded = EmbeddedRgb(r, g, b)
                 source = embedded.to_color()
 
-                if strategy == 'none':
+                if strategy == AnsiConversion.NoConversion:
                     eight_bit = embedded.to_8bit()
-                elif strategy == 'hlr':
+                elif strategy == AnsiConversion.HueLightness:
                     maybe_value = sampler.to_ansi_hue_lightness(source)
                     if maybe_value is None:
                         raise ValueError('hue/lightness reduction unavailable')
                     eight_bit = maybe_value.to_8bit()
-                elif strategy == 'closest':
+                elif strategy == AnsiConversion.OklabDistance:
                     eight_bit = sampler.to_closest_ansi(source).to_8bit()
-                elif strategy == 'rgb':
+                elif strategy == AnsiConversion.RgbDistance:
+                    eight_bit = closest_theme_color(TrueColor(*embedded.to_24bit()))
+                elif strategy == AnsiConversion.RgbRounding:
                     eight_bit = sampler.to_ansi_rgb(source).to_8bit()
                 else:
                     raise ValueError(f'invalid strategy "{strategy}"')
@@ -349,9 +379,10 @@ if __name__ == '__main__':
         term.writeln()
 
         write_color_cube(term, show_label=options.label)
-        write_color_cube(term, strategy='hlr', show_label=options.label)
-        write_color_cube(term, strategy='closest', show_label=options.label)
-        write_color_cube(term, strategy='rgb', show_label=options.label)
+        write_color_cube(term, strategy=AnsiConversion.HueLightness, show_label=options.label)
+        write_color_cube(term, strategy=AnsiConversion.OklabDistance, show_label=options.label)
+        write_color_cube(term, strategy=AnsiConversion.RgbDistance, show_label=options.label)
+        write_color_cube(term, strategy=AnsiConversion.RgbRounding, show_label=options.label)
         write_color_cube(term, layer=Layer.Foreground)
 
         if term.fidelity == Fidelity.Full:

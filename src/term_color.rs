@@ -803,6 +803,14 @@ impl TrueColor {
         }
     }
 
+    /// Calculate the weighted Euclidian distance between the two colors.
+    ///
+    /// This method reimplements the distance metric used by the [anstyle
+    /// crate](https://github.com/rust-cli/anstyle/blob/main/crates/anstyle-lossy/src/lib.rs).
+    pub fn weighted_euclidian_distance(&self, other: &TrueColor) -> u32 {
+        self.do_weighted_euclidian_distance(other)
+    }
+
     /// Convert this true color to its debug representation. <span
     /// class=python-only></span>
     pub fn __repr__(&self) -> String {
@@ -821,6 +829,36 @@ impl TrueColor {
     /// Create a new true color from its coordinates.
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self([r, g, b])
+    }
+
+    /// Calculate the weighted Euclidian distance between the two colors.
+    ///
+    /// This method reimplements the distance metric used by the [anstyle
+    /// crate](https://github.com/rust-cli/anstyle/blob/main/crates/anstyle-lossy/src/lib.rs).
+    pub fn weighted_euclidian_distance(&self, other: &TrueColor) -> u32 {
+        self.do_weighted_euclidian_distance(other)
+    }
+}
+
+impl TrueColor {
+    fn do_weighted_euclidian_distance(&self, other: &TrueColor) -> u32 {
+        let r1 = self.0[0] as i32;
+        let g1 = self.0[1] as i32;
+        let b1 = self.0[2] as i32;
+        let r2 = other.0[0] as i32;
+        let g2 = other.0[1] as i32;
+        let b2 = other.0[2] as i32;
+
+        let r_sum = r1 + r2;
+        let r_delta = r1 - r2;
+        let g_delta = g1 - g2;
+        let b_delta = b1 - b2;
+
+        let r = (2 * 512 + r_sum) * r_delta * r_delta;
+        let g = 4 * g_delta * g_delta * (1 << 8);
+        let b = (2 * 767 - r_sum) * b_delta * b_delta;
+
+        (r + g + b) as u32
     }
 }
 
