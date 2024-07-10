@@ -213,16 +213,15 @@ def print_summary(stream: TextIO) -> ResultPrinter:
 
         broken = len(failures) + len(errors)
         if broken:
-            stream.write("\n")
             for test, trace in failures:
                 print1("FAIL", test, trace)
             for test, trace in errors:
                 print1("ERROR", test, trace)
 
-            stream.write(styled.h0(f"{broken}/{tests} Tests Failed"))
+            stream.write(styled.strong(f"{broken}/{tests} Tests Failed"))
         else:
-            stream.write(styled.h0(f"All {tests} Tests Passed!"))
-        stream.write("\n\n")
+            stream.write(styled.strong(f"All {tests} Tests Passed!"))
+        stream.write("\n")
         stream.flush()
 
     return print_summary
