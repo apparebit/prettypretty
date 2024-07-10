@@ -12,15 +12,19 @@ use crate::core::{
 
 use crate::Float;
 
-/// Create a new sRGB color. <span class=rust-only></span>
+/// Create a new sRGB color from 24-bit integer coordinates. <span
+/// class=rust-only></span>
+///
+/// Like [`Color::from_24bit`], this macro creates a new color from 24-bit
+/// integer coordinates. However, it also is safe to use in const expressions.
 ///
 /// Rust currently does not allow floating point operations in const functions.
 /// That makes it impossible to write a const function that constructs a new
 /// high-resolution color object from integer coordinates. However, Rust does
 /// currently allow floating point operations in const expressions, notably as
-/// arguments to a const function invocation. As a result, we *can* write a
-/// macro that creates a new high-resolution color object from integer
-/// coordinates. Once more, Rust is saved by its macro system.
+/// arguments to a const function such as a constructor. Hence, a macro can
+/// convert and normalize the integer coordinates before passing them to the
+/// const function. That's just what this macro does.
 #[macro_export]
 macro_rules! rgb {
     ($r:expr, $g:expr, $b:expr) => {
@@ -279,7 +283,8 @@ impl Color {
     /// Instantiate a new sRGB color from its 24-bit representation.
     ///
     /// This function returns a new sRGB color with the given red, green, and
-    /// blue coordinates scaled by 1/255.
+    /// blue coordinates scaled by 1/255. The [`rgb`] macro does the same thing
+    /// but is safe to use inside const expressions.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
@@ -299,7 +304,8 @@ impl Color {
     /// Instantiate a new sRGB color from its 24-bit representation.
     ///
     /// This function returns a new sRGB color with the given red, green, and
-    /// blue coordinates scaled by 1/255.
+    /// blue coordinates scaled by 1/255. The [`rgb`] macro does the same thing
+    /// but is safe to use inside const expressions.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
