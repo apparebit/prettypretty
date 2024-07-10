@@ -1,6 +1,18 @@
 # Changelog
 
-## v0.9.0
+## --
+
+### New Features
+
+  * Like [`Color::from_24bit`], the `rgb` macro creates sRGB colors from 24-bit
+    integer coordinates. Unlike the method, the macro can appear in const
+    expressions.
+
+### Changes
+
+  * Rename `Sampler::adjust` to `Sampler::cap`
+
+## v0.9.0 (2024-07-09)
 
 As it turns out, v0.9.0 is the new v0.1.0. At least, it feels that way writing
 up the changes. Thankfully, minor version numbers are not limited to single
