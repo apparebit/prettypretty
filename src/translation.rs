@@ -6,8 +6,8 @@ use pyo3::types::PyInt;
 use crate::core::is_gray_chroma_hue;
 
 use crate::{
-    AnsiColor, Bits, Color, ColorSpace, DefaultColor, EmbeddedRgb, Fidelity, Float, GrayGradient,
-    OkVersion, OutOfBoundsError, TerminalColor,
+    rgb, AnsiColor, Bits, Color, ColorSpace, DefaultColor, EmbeddedRgb, Fidelity, Float,
+    GrayGradient, OkVersion, OutOfBoundsError, TerminalColor,
 };
 
 // ====================================================================================================================
@@ -135,48 +135,24 @@ impl ThemeEntryIterator {
 /// The 2+16 colors of [VGA text
 /// mode](https://en.wikipedia.org/wiki/ANSI_escape_code#3-bit_and_4-bit).
 pub const VGA_COLORS: Theme = [
-    Color::new(ColorSpace::Srgb, [0.0, 0.0, 0.0]),
-    Color::new(ColorSpace::Srgb, [1.0, 1.0, 1.0]),
-    Color::new(ColorSpace::Srgb, [0.0, 0.0, 0.0]),
-    Color::new(ColorSpace::Srgb, [0.666666666666667, 0.0, 0.0]),
-    Color::new(ColorSpace::Srgb, [0.0, 0.666666666666667, 0.0]),
-    Color::new(
-        ColorSpace::Srgb,
-        [0.666666666666667, 0.333333333333333, 0.0],
-    ),
-    Color::new(ColorSpace::Srgb, [0.0, 0.0, 0.666666666666667]),
-    Color::new(
-        ColorSpace::Srgb,
-        [0.666666666666667, 0.0, 0.666666666666667],
-    ),
-    Color::new(
-        ColorSpace::Srgb,
-        [0.0, 0.666666666666667, 0.666666666666667],
-    ),
-    Color::new(
-        ColorSpace::Srgb,
-        [0.666666666666667, 0.666666666666667, 0.666666666666667],
-    ),
-    Color::new(
-        ColorSpace::Srgb,
-        [0.333333333333333, 0.333333333333333, 0.333333333333333],
-    ),
-    Color::new(
-        ColorSpace::Srgb,
-        [1.0, 0.333333333333333, 0.333333333333333],
-    ),
-    Color::new(
-        ColorSpace::Srgb,
-        [0.333333333333333, 1.0, 0.333333333333333],
-    ),
-    Color::new(ColorSpace::Srgb, [1.0, 1.0, 0.333333333333333]),
-    Color::new(
-        ColorSpace::Srgb,
-        [0.333333333333333, 0.333333333333333, 1.0],
-    ),
-    Color::new(ColorSpace::Srgb, [1.0, 0.333333333333333, 1.0]),
-    Color::new(ColorSpace::Srgb, [0.333333333333333, 1.0, 1.0]),
-    Color::new(ColorSpace::Srgb, [1.0, 1.0, 1.0]),
+    rgb!(0, 0, 0),
+    rgb!(255, 255, 255),
+    rgb!(0, 0, 0),
+    rgb!(170, 0, 0),
+    rgb!(0, 170, 0),
+    rgb!(170, 85, 0),
+    rgb!(0, 0, 170),
+    rgb!(170, 0, 170),
+    rgb!(0, 170, 170),
+    rgb!(170, 170, 170),
+    rgb!(85, 85, 85),
+    rgb!(255, 85, 85),
+    rgb!(85, 255, 85),
+    rgb!(255, 255, 85),
+    rgb!(85, 85, 255),
+    rgb!(255, 85, 255),
+    rgb!(85, 255, 255),
+    rgb!(255, 255, 255),
 ];
 
 // ====================================================================================================================

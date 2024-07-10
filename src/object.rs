@@ -12,6 +12,29 @@ use crate::core::{
 
 use crate::Float;
 
+/// Create a new sRGB color. <span class=rust-only></span>
+///
+/// Rust currently does not allow floating point operations in const functions.
+/// That makes it impossible to write a const function that constructs a new
+/// high-resolution color object from integer coordinates. However, Rust does
+/// currently allow floating point operations in const expressions, notably as
+/// arguments to a const function invocation. As a result, we *can* write a
+/// macro that creates a new high-resolution color object from integer
+/// coordinates. Once more, Rust is saved by its macro system.
+#[macro_export]
+macro_rules! rgb {
+    ($r:expr, $g:expr, $b:expr) => {
+        $crate::Color::new(
+            $crate::ColorSpace::Srgb,
+            [
+                $r as $crate::Float / 255.0,
+                $g as $crate::Float / 255.0,
+                $b as $crate::Float / 255.0,
+            ],
+        )
+    };
+}
+
 /// A high-resolution color object.
 ///
 /// Every color object has a [color space](ColorSpace) and three coordinates.
