@@ -32,17 +32,12 @@ pub(crate) trait Environment {
     }
 }
 
+#[derive(Debug, Default)]
 pub(crate) struct Env();
 
 impl Environment for Env {
     #[inline]
     fn get_os(&self, key: &str) -> Option<std::ffi::OsString> {
         std::env::var_os(key)
-    }
-}
-
-impl Default for Env {
-    fn default() -> Self {
-        Env()
     }
 }
