@@ -191,7 +191,7 @@ style = style.prepare(term.fidelity)
 
 Doing so once during startup means that the resulting styles are ready for
 (repeated) display and incurs the overhead of color conversion only once.
-Between [`Style.prepare`] and [`Sampler.adjust`], updating styles and colors to
+Between [`Style.prepare`] and [`Sampler.cap`], updating styles and colors to
 match a given fidelity level also is positively easy.
 
 In other words, "reality," as far as this progress bar is concerned, has two
@@ -295,7 +295,7 @@ a complete change of direction.
 [`is_dark_theme`]: https://apparebit.github.io/prettypretty/python/prettypretty/darkmode.html#prettypretty.darkmode.is_dark_theme
 [`rich`]: https://apparebit.github.io/prettypretty/python/prettypretty/style.html#prettypretty.style.rich
 [`RichText`]: https://apparebit.github.io/prettypretty/python/prettypretty/style.html#prettypretty.style.RichText
-[`Sampler.adjust`]: https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.adjust
+[`Sampler.cap`]: https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.cap
 [`Style.prepare`]: https://apparebit.github.io/prettypretty/python/prettypretty/style.html#prettypretty.style.Style.prepare
 [`Terminal`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal
 [`Terminal.alternate_screen`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.alternate_screen

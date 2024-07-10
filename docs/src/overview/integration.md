@@ -105,10 +105,8 @@ transparently picks the best possible method.
 
 ## Sampler Methods
 
-Now that we understand the general approach, we are ready to review
-[`Sampler`]'s interface. Given its critical role, it's important that the
-interface be straight-forward. I believe you'll agree with me that that is the
-case indeed.
+Now that we understand the challenges and the algorithms for overcoming them, we
+turn to [`Sampler`]'s interface. We group its method by task:
 
  1. [`Sampler::resolve`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.resolve)
     translates terminal colors to high-resolution colors. Thanks to the
@@ -130,26 +128,30 @@ case indeed.
     [`Sampler::to_closest_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_closest_ansi),
     and
     [`Sampler::to_ansi_rgb`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_ansi_rgb)
-    methods provide more direct control over the choice of algorithm for
-    converting to ANSI colors. For instance, I use these methods to compare the
-    effectiveness of different approaches. But your code is better off using
+    methods provide direct access to individual algorithms for converting to
+    ANSI colors. For instance, I use these methods for comparing the
+    effectiveness of different approaches. But your code is probably better off
+    using
     [`Sampler::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_ansi),
     which automatically picks `to_ansi_hue_lightness` or `to_closest_ansi`. In
     any case, I strongly recommend avoiding `to_ansi_rgb`. It only exists to
     evaluate the approach taken by the popular JavaScript library
-    [Chalk](https://github.com/chalk/chalk) and reliably produces terrible
+    [Chalk](https://github.com/chalk/chalk) and reliably produces subpar
     results. Ironically, Chalk's tagline is "Terminal string styling done
     right."
- 3. [`Sampler::adjust`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.adjust)
+ 3. [`Sampler::cap`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.cap)
     tanslates terminal colors to terminal colors. Under the hood, it may very
     well translate a terminal color to a high-resolution color and then match
     against that color to produce a terminal color again. This is the method to
     use for adjusting terminal colors to the runtime environment and user
     preferences, which can be concisely expressed by the [`Fidelity`] level.
+ 4. [`Sampler::is_dark_theme`]() determines whether the color theme used by this
+    sampler instance is a dark theme.
+
 
 [`Sampler`] eagerly creates the necessary tables with colors for brute force and
 hue-lightness search in the constructor. Altogether, an instance of this struct
-owns 290 colors, which take up 6,776 bytes on macOS. As long as the terminal
+owns 306 colors, which take up 7,160 bytes on macOS. As long as the terminal
 color theme doesn't change, a sampler need not be regenerated. That also means
 that it can be used concurrently without locking—as long as threads have their
 own references.
@@ -175,7 +177,7 @@ assert_eq!(red, also_red);
 let black = sampler.to_ansi(&Color::srgb(0.15, 0.15, 0.15));
 assert_eq!(black, AnsiColor::Black);
 
-let maroon = sampler.adjust(TrueColor::new(148, 23, 81), Fidelity::EightBit);
+let maroon = sampler.cap(TrueColor::new(148, 23, 81), Fidelity::EightBit);
 assert_eq!(maroon, Some(EmbeddedRgb::new(2,0,1).unwrap().into()));
 # Ok::<(), ColorFormatError>(())
 ```
@@ -202,7 +204,7 @@ assert red == also_red
 black = sampler.to_ansi(Color.srgb(0.15, 0.15, 0.15))
 assert black == AnsiColor.Black
 
-maroon = sampler.adjust(TrueColor(148, 23, 81), Fidelity.EightBit)
+maroon = sampler.cap(TrueColor(148, 23, 81), Fidelity.EightBit)
 assert maroon == TerminalColor.Rgb6(EmbeddedRgb(2, 0, 1))
 ```
 <div class=color-swatch>

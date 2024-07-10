@@ -344,12 +344,12 @@ class Style(Instruction):
         if self.foreground is None:
             fg = None
         else:
-            fg = sampler.adjust(self.foreground, fidelity)
+            fg = sampler.cap(self.foreground, fidelity)
 
         if self.background is None:
             bg = None
         else:
-            bg = sampler.adjust(self.background, fidelity)
+            bg = sampler.cap(self.background, fidelity)
 
         return dataclasses.replace(self, foreground=fg, background=bg)
 

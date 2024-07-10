@@ -18,7 +18,7 @@ use crate::{
 ///
 /// By now, a color theme is just an array with 18 colors. The implementation
 /// started out as a more elaborate struct but ended up being used just like a
-/// slice or vector. So here we are.
+/// slice or vector. So, here we are.
 pub type Theme = [Color; 18];
 
 /// A color theme entry.
@@ -849,26 +849,32 @@ impl Sampler {
         TerminalColor::from(index)
     }
 
-    /// Adjust the terminal color to the fidelity.
+    /// Cap the terminal color by the fidelity.
     ///
-    /// This method ensures that the given color can be displayed with the given
-    /// fidelity, downsampling it if necessary. In particular:
+    /// This method ensures that the terminal color can be rendered by a
+    /// terminal with the given fidelity level. Depending on fidelity, it
+    /// returns the following result:
     ///
-    ///   * Return `None` if the fidelity is plain-text or no-color ;
-    ///   * Downsample 24-bit and 8-bit colors if the fidelity is ANSI-colors;
-    ///   * Downsample 24-bit colors if the fidelity is 8-bit-colors;
-    ///   * Pass through color if the fidelity is 24-bit-colors.
+    ///   * Plain-text or no-color
+    ///         * `None`
+    ///   * ANSI colors
+    ///         * Downsampled 8-bit and 24-bit colors
+    ///         * Unmodified ANSI colors
+    ///   * 8-bit
+    ///         * Downsampled 24-bit colors
+    ///         * Unmodified ANSI and 8-bit colors
+    ///   * Full
+    ///         * Unmodified colors
     ///
-    /// A custom type conversion function provides the same functionality as
-    /// Rust's `impl Into<TerminalColor>`, with the result that this method can
-    /// be invoked with wrapped terminal colors as much as with their
-    /// constituent colors.
-    pub fn adjust(
+    /// A custom type conversion function ensures that this method can be
+    /// invoked on default, ANSI, 8-bit, 24-bit and terminal colors without
+    /// prior conversion.
+    pub fn cap(
         &self,
         #[pyo3(from_py_with = "into_terminal_color")] color: TerminalColor,
         fidelity: Fidelity,
     ) -> Option<TerminalColor> {
-        self.do_adjust(color, fidelity)
+        self.do_cap(color, fidelity)
     }
 
     pub fn __repr__(&self) -> String {
@@ -900,6 +906,10 @@ impl Sampler {
     }
 
     /// Determine whether this sampler's color theme is a dark theme.
+    ///
+    /// The Y component of a color in XYZ represents it luminance. This method
+    /// exploits that property of XYZ and checks whether the default foreground
+    /// has a larger luminance than the default background color.
     pub fn is_dark_theme(&self) -> bool {
         let yf = self.theme[0].to(ColorSpace::Xyz)[1];
         let yb = self.theme[1].to(ColorSpace::Xyz)[1];
@@ -1265,24 +1275,31 @@ impl Sampler {
         TerminalColor::from(index)
     }
 
-    /// Adjust the terminal color to the fidelity.
+    /// Cap the terminal color by the fidelity.
     ///
-    /// This method ensures that the given color can be displayed with the given
-    /// fidelity, downsampling it if necessary. In particular:
+    /// This method ensures that the terminal color can be rendered by a
+    /// terminal with the given fidelity level. Depending on fidelity, it
+    /// returns the following result:
     ///
-    ///   * Return `None` if the fidelity is plain-text or no-color ;
-    ///   * Downsample 24-bit and 8-bit colors if the fidelity is ANSI-colors;
-    ///   * Downsample 24-bit colors if the fidelity is 8-bit-colors;
-    ///   * Pass through color if the fidelity is 24-bit-colors.
+    ///   * Plain-text or no-color
+    ///         * `None`
+    ///   * ANSI colors
+    ///         * Downsampled 8-bit and 24-bit colors
+    ///         * Unmodified ANSI colors
+    ///   * 8-bit
+    ///         * Downsampled 24-bit colors
+    ///         * Unmodified ANSI and 8-bit colors
+    ///   * Full
+    ///         * Unmodified colors
     ///
-    /// The Python version has a custom type conversion function and thus also
-    /// accepts all kinds of terminal colors.
-    pub fn adjust(
+    /// The Python version has a custom type conversion function and also
+    /// accepts all kinds of terminal colors, whether wrapper or not.
+    pub fn cap(
         &self,
         color: impl Into<TerminalColor>,
         fidelity: Fidelity,
     ) -> Option<TerminalColor> {
-        self.do_adjust(color, fidelity)
+        self.do_cap(color, fidelity)
     }
 }
 
@@ -1314,11 +1331,7 @@ impl Sampler {
         AnsiColor::try_from(index).unwrap()
     }
 
-    fn do_adjust(
-        &self,
-        color: impl Into<TerminalColor>,
-        fidelity: Fidelity,
-    ) -> Option<TerminalColor> {
+    fn do_cap(&self, color: impl Into<TerminalColor>, fidelity: Fidelity) -> Option<TerminalColor> {
         let color = color.into();
         match fidelity {
             Fidelity::Plain | Fidelity::NoColor => None,

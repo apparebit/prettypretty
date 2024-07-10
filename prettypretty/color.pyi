@@ -386,8 +386,8 @@ class Sampler:
     def to_closest_8bit(self, color: Color) -> TerminalColor: ...
     def to_closest_8bit_with_ansi(self, color: Color) -> TerminalColor: ...
 
-    """Adjust terminal colors."""
-    def adjust(
+    """Cap terminal colors."""
+    def cap(
         self,
         color: TerminalColor|DefaultColor|AnsiColor|EmbeddedRgb|GrayGradient|TrueColor|int,
         fidelity: Fidelity

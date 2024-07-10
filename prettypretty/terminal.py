@@ -1249,7 +1249,7 @@ class Terminal:
             c1 = TerminalColor.from_color(c1)
 
         sampler = current_sampler()
-        color = sampler.adjust(c1, self._fidelity)
+        color = sampler.cap(c1, self._fidelity)
         if color is not None:
             self.write_control(
                 Ansi.CSI,
@@ -1288,7 +1288,7 @@ class Terminal:
             c1 = TerminalColor.from_color(c1)
 
         sampler = current_sampler()
-        color = sampler.adjust(c1, self._fidelity)
+        color = sampler.cap(c1, self._fidelity)
         if color is not None:
             self.write_control(
                 Ansi.CSI,
