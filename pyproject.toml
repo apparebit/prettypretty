@@ -12,7 +12,30 @@ requires-python = ">=3.11"
 license = {text = "Apache 2.0"}
 authors = [{name = "Robert Grimm", email="rgrimm@alum.mit.edu"}]
 dynamic = ["version"]
-
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Adaptive Technologies",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering :: Human Machine Interfaces",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: User Interfaces",
+    "Topic :: System :: Shells",
+    "Topic :: Terminals",
+    "Topic :: Terminals :: Terminal Emulators/X Terminals",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
 
 [project.optional-dependencies]
 dev = ["matplotlib", "pyright"]
