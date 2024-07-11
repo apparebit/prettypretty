@@ -8,13 +8,16 @@
     integer coordinates. Unlike the method, the macro can appear in const
     expressions.
 
+
 ### Changes
 
-  * Rename `Sampler::adjust` to `Sampler::cap`
+  * Rename `Sampler::adjust` to [`Sampler::cap`]
+
 
 ### Bug Fixes
 
-  * iTerm 3.x is now correctly classified as having full fidelity.
+  * [`Fidelity::from_environment`] now correctly classifies iTerm 3.x as having
+    full fidelity.
 
 
 ## v0.9.0 (2024-07-09)
