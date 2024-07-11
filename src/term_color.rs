@@ -1216,7 +1216,7 @@ impl Fidelity {
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn from_environment(has_tty: bool) -> Self {
-        fidelity_from_environment(Env::default(), has_tty)
+        fidelity_from_environment(&Env::default(), has_tty)
     }
 
     /// Determine the fidelity level for terminal output based on environment
