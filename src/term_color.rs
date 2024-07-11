@@ -1379,7 +1379,9 @@ impl std::fmt::Display for Fidelity {
 
 #[cfg(test)]
 mod test {
-    use super::{AnsiColor, EmbeddedRgb, Fidelity, GrayGradient, OutOfBoundsError, TerminalColor, TrueColor};
+    use super::{
+        AnsiColor, EmbeddedRgb, Fidelity, GrayGradient, OutOfBoundsError, TerminalColor, TrueColor,
+    };
     use crate::{term_color::fidelity_from_environment, util::FakeEnv};
 
     #[test]

@@ -49,8 +49,8 @@ impl Environment for Env {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
     use super::Environment;
+    use std::collections::HashMap;
 
     pub(crate) struct FakeEnv {
         bindings: HashMap<String, String>,
@@ -59,12 +59,15 @@ mod test {
     impl FakeEnv {
         /// Create a new fake environment.
         pub(crate) fn new() -> FakeEnv {
-            FakeEnv { bindings: HashMap::new() }
+            FakeEnv {
+                bindings: HashMap::new(),
+            }
         }
 
         /// Set the fake environment variable.
         pub(crate) fn set(&mut self, key: impl AsRef<str>, value: impl AsRef<str>) -> &mut Self {
-            self.bindings.insert(key.as_ref().to_string(), value.as_ref().to_string());
+            self.bindings
+                .insert(key.as_ref().to_string(), value.as_ref().to_string());
             self
         }
     }
