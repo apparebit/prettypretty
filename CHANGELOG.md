@@ -12,6 +12,11 @@
 
   * Rename `Sampler::adjust` to `Sampler::cap`
 
+### Bug Fixes
+
+  * iTerm 3.x is now correctly classified as having full fidelity.
+
+
 ## v0.9.0 (2024-07-09)
 
 As it turns out, v0.9.0 is the new v0.1.0. At least, it feels that way writing

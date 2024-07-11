@@ -1228,7 +1228,7 @@ impl Fidelity {
     /// [supports-color](https://github.com/chalk/supports-color/blob/main/index.js).
     #[cfg(not(feature = "pyffi"))]
     pub fn from_environment(has_tty: bool) -> Self {
-        fidelity_from_environment(Env::default(), has_tty)
+        fidelity_from_environment(&Env::default(), has_tty)
     }
 
     /// Determine whether this fidelity level suffices for rendering the
@@ -1249,7 +1249,7 @@ impl Fidelity {
 // accessing environment variables already. So, when I thought about how to test
 // this rather gnarly function, the answer offered itself: Mock the environment!
 // But we do this civilized way, with a trait and an impl argument 😈
-pub(crate) fn fidelity_from_environment(env: impl Environment, has_tty: bool) -> Fidelity {
+pub(crate) fn fidelity_from_environment(env: &impl Environment, has_tty: bool) -> Fidelity {
     if env.is_non_empty("NO_COLOR") {
         return Fidelity::NoColor;
     } else if env.is_non_empty("FORCE_COLOR") {
@@ -1286,7 +1286,7 @@ pub(crate) fn fidelity_from_environment(env: impl Environment, has_tty: bool) ->
         return Fidelity::Plain;
     }
 
-    let teamcity = env.get("TEAMCITY_VERSION");
+    let teamcity = env.read("TEAMCITY_VERSION");
     if teamcity.is_ok() {
         // Apparently, Teamcity 9.x and later support ANSI colors.
         let teamcity = teamcity.unwrap();
@@ -1312,7 +1312,7 @@ pub(crate) fn fidelity_from_environment(env: impl Environment, has_tty: bool) ->
     } else if env.has_value("TERM_PROGRAM", "Apple_Terminal") {
         return Fidelity::EightBit;
     } else if env.has_value("TERM_PROGRAM", "iTerm.app") {
-        let version = env.get("TERMINAL_PROGRAM_VERSION");
+        let version = env.read("TERM_PROGRAM_VERSION");
         if version.is_ok() {
             let version = version.unwrap();
             let mut charity = version.chars();
@@ -1325,7 +1325,7 @@ pub(crate) fn fidelity_from_environment(env: impl Environment, has_tty: bool) ->
         return Fidelity::EightBit;
     }
 
-    let term = env.get("TERM");
+    let term = env.read("TERM");
     if term.is_ok() {
         let mut term = term.unwrap();
         term.make_ascii_lowercase();
@@ -1379,7 +1379,8 @@ impl std::fmt::Display for Fidelity {
 
 #[cfg(test)]
 mod test {
-    use super::{AnsiColor, EmbeddedRgb, GrayGradient, OutOfBoundsError, TerminalColor, TrueColor};
+    use super::{AnsiColor, EmbeddedRgb, Fidelity, GrayGradient, OutOfBoundsError, TerminalColor, TrueColor};
+    use crate::{term_color::fidelity_from_environment, util::FakeEnv};
 
     #[test]
     fn test_conversion() -> Result<(), OutOfBoundsError> {
@@ -1435,5 +1436,28 @@ mod test {
         assert_eq!(u8::from(white_gray), 255);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_fidelity() {
+        let env = &mut FakeEnv::new();
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Plain);
+        env.set("TERM", "cygwin");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
+        env.set("TERM_PROGRAM", "iTerm.app");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::EightBit);
+        env.set("TERM_PROGRAM_VERSION", "3.5");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Full);
+        env.set("COLORTERM", "truecolor");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Full);
+        env.set("CI", "");
+        env.set("APPVEYOR", "");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
+        env.set("TF_BUILD", "");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
+        env.set("NO_COLOR", "");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
+        env.set("NO_COLOR", "1");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::NoColor);
     }
 }
