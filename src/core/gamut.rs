@@ -7,8 +7,8 @@ use crate::{ColorSpace, Float};
 /// neither color space, this function first converts the coordinates.
 pub(crate) fn is_gray(space: ColorSpace, coordinates: &[Float; 3]) -> bool {
     let coordinates = match space {
-        ColorSpace::Oklch | ColorSpace::Oklrch => coordinates,
-        _ => &convert(space, ColorSpace::Oklch, coordinates),
+        ColorSpace::Oklch | ColorSpace::Oklrch => *coordinates,
+        _ => convert(space, ColorSpace::Oklch, coordinates),
     };
 
     is_gray_chroma_hue(coordinates[1], coordinates[2])
