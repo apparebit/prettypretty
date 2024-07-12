@@ -1,6 +1,6 @@
 # Changelog
 
-## --
+## v0.10.0 (2024-07-12)
 
 ### New Features
 
@@ -12,6 +12,8 @@
 ### Changes
 
   * Rename `Sampler::adjust` to [`Sampler::cap`]
+  * Improve documentation with many small edits, new overview and summary,
+    and disabling the `pyffi` feature flag on docs.rs
 
 
 ### Bug Fixes
