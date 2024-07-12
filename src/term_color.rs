@@ -947,6 +947,16 @@ pub enum TerminalColor {
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl TerminalColor {
+    /// The default foreground color.
+    pub const FOREGROUND: TerminalColor = TerminalColor::Default {
+        color: DefaultColor::Foreground,
+    };
+
+    /// The default background color.
+    pub const BACKGROUND: TerminalColor = TerminalColor::Default {
+        color: DefaultColor::Background,
+    };
+
     /// Convert the high-resolution color to a terminal color. <span
     /// class=python-only></span>
     #[cfg(feature = "pyffi")]
