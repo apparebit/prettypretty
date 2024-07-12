@@ -7,8 +7,8 @@ use crate::{Bits, Float};
 /// The loss of precision.
 const DELTA_EQ_PRECISION: i32 = 3;
 
-/// Assert that the two floating point numbers can be considered equal. <span
-/// class=rust-only></span>
+/// Test macro for asserting that two floating point numbers can be considered
+/// equal. <span class=rust-only></span>
 ///
 /// This macro relies on [`to_eq_bits`] to normalize the two floating point
 /// numbers by zeroing out not-a-numbers, reducing resolution, and dropping the
@@ -29,7 +29,8 @@ macro_rules! assert_close_enough {
     };
 }
 
-/// Assert that two color coordinate slices describe the same color.
+/// Test macro for asserting that two color coordinate slices describe the same
+/// color.
 ///
 /// Given a color space and two coordinate arrays, this macro normalizes the
 /// coordinates by zeroing out not-a-numbers, clamping the a/b/c components of
@@ -59,8 +60,8 @@ macro_rules! assert_same_coordinates {
 #[cfg(test)]
 pub(crate) use assert_same_coordinates;
 
-/// Assert that two color objects describe the same color. <span
-/// class=rust-only></span>
+/// Test macro for asserting that two color objects describe the same color.
+/// <span class=rust-only></span>
 ///
 /// This macro tests the color objects for equality using the `Eq` trait. The
 /// implementation, in turn, normalizes the coordinates of colors with the same
@@ -181,11 +182,13 @@ pub fn close_enough(f1: Float, f2: Float) -> bool {
     to_eq_bits(f1) == to_eq_bits(f2)
 }
 
-/// Normalize the floating point number before hashing or equality testing.
+/// Helper function to normalize a floating point number before hashing or
+/// equality testing.
 ///
 /// This function zeros out not-a-number, reduces significant digits after the
 /// decimal, and drops the sign of negative zero and returns the result as a bit
-/// string.
+/// string. It is only public because the [`assert_close_enough`] test macro
+/// uses it.
 #[inline]
 pub fn to_eq_bits(f: Float) -> Bits {
     // Eliminate not-a-number.

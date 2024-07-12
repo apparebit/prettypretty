@@ -1145,7 +1145,7 @@ impl TryFrom<TerminalColor> for Color {
 // ====================================================================================================================
 // Layer and Fidelity
 
-/// The layer for rendering to the terminal.
+/// The layer for rendering to the terminal: Foreground or background.
 #[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Layer {

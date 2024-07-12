@@ -13,6 +13,26 @@
 //! for Python are separate as well.
 //!
 //!
+//! ## Overview
+//!
+//!   * [`Color`] is prettypretty's high-resolution color object. It combines a
+//!     [`ColorSpace`] with three [`Float`] coordinates. Its methods expose much
+//!     of prettypretty's functionality, including conversion between color
+//!     spaces, interpolation between colors, calculation of perceptual
+//!     contrast, as well as gamut testing, clipping, and mapping.
+//!   * [`TerminalColor`] combines [`DefaultColor`], [`AnsiColor`],
+//!     [`EmbeddedRgb`], [`GrayGradient`], and [`TrueColor`] to represent the
+//!     different kinds of terminal colors.
+//!   * A fair number of `From<T>` and `TryFrom<T>` implementations cover
+//!     lossless and partial conversions between color representations
+//!     including, for example, conversion from EmbeddedRgb to `u8` index values
+//!     as well true, terminal, and high-resolution colors.
+//!   * [`Sampler`] performs the more difficult translation from ANSI to
+//!     high-resolution colors, from high-resolution to 8-bit or ANSI colors,
+//!     and the downgrading of terminal colors based on terminal capabilities
+//!     and user preferences.
+//!
+//!
 //! ## Feature Flags
 //!
 //! This crate has two feature flags:
@@ -37,9 +57,7 @@
 //! Despite these warts, the Python version offers the same functionality as the
 //! Rust version. Since Python does not support traits such as `From` and
 //! `TryFrom`, prettypretty includes additional methods that make the same
-//! functionality available. The documentation tags such Python-only methods as
-//! <span class=python-only></span> and the few Rust-only methods as <span
-//! class=rust-only></span>.
+//! functionality available.
 //!
 //!
 //! ## BYOIO: Bring Your Own (Terminal) I/O
@@ -98,7 +116,7 @@ pub type Bits = u32;
 mod core;
 mod error;
 mod object;
-mod style;
+pub mod style;
 mod term_color;
 mod translation;
 mod util;

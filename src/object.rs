@@ -1479,7 +1479,7 @@ impl OkVersion {
 
 // ====================================================================================================================
 
-/// A color interpolator.
+/// Helper struct returned by [`Color::interpolate`].
 ///
 /// An interpolator performs linear interpolation between the coordinates of two
 /// colors according to [CSS Color
@@ -1491,8 +1491,6 @@ impl OkVersion {
 /// work for every interpolation, this struct can perform an arbitrary number of
 /// interpolations for the its two source colors and thus potentially amortize
 /// the cost of preparation.
-///
-/// See [`Color::interpolate`] for detailed examples.
 #[cfg_attr(feature = "pyffi", pyclass)]
 #[derive(Clone, Debug)]
 pub struct Interpolator {

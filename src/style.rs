@@ -4,6 +4,15 @@ use crate::{Layer, TerminalColor};
 
 pub trait TextAttribute: Copy + Default + PartialEq {
     /// Determine whether the variant is the default.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::style::*;
+    /// assert!(Reverse::NotReversed.is_default());
+    /// assert!(Reverse::default().is_default());
+    /// assert!(!Reverse::Reversed.is_default());
+    /// ```
     fn is_default(&self) -> bool {
         *self == Self::default()
     }
@@ -23,10 +32,10 @@ pub trait TextAttribute: Copy + Default + PartialEq {
     ///
     /// ```
     /// # use prettypretty::style::*;
-    /// assert_eq!(Blink::Blinking::negate(), Some(Blink::NotBlinking));
-    /// assert_eq!(Blink::default().subtract(Blink::Blinking), Some(Blink::NotBlinking));
-    /// assert_eq!(Blink::NotBlinking::negate(), None);
-    /// assert_eq!(Blink::default().subtract(Blink::NotBlinking), None);
+    /// assert_eq!(Blink::Blinking.negate(), Some(Blink::NotBlinking));
+    /// assert_eq!(Blink::default().subtract(Some(Blink::Blinking)), Some(Blink::NotBlinking));
+    /// assert_eq!(Blink::NotBlinking.negate(), None);
+    /// assert_eq!(Blink::default().subtract(Some(Blink::NotBlinking)), None);
     /// ```
     fn negate(&self) -> Option<Self> {
         if !self.is_default() {
@@ -49,20 +58,24 @@ pub trait TextAttribute: Copy + Default + PartialEq {
     ///
     /// ```
     /// # use prettypretty::style::*;
-    /// assert_eq!(Weight::Bold.subtract(Weight::Thin), Some(Weight::Bold));
-    /// assert_eq!(Weight::Regular.subtract(Weight::Regular), None);
+    /// assert_eq!(Weight::Bold.subtract(Some(Weight::Thin)), Some(Weight::Bold));
+    /// assert_eq!(Weight::Regular.subtract(Some(Weight::Regular)), None);
     /// ```
     fn subtract(&self, other: Option<Self>) -> Option<Self> {
         match other {
-            Some(other) => if *self != other {
-                Some(*self)
-            } else {
-                None
+            Some(other) => {
+                if *self != other {
+                    Some(*self)
+                } else {
+                    None
+                }
             }
-            None => if !self.is_default() {
-                Some(*self)
-            } else {
-                None
+            None => {
+                if !self.is_default() {
+                    Some(*self)
+                } else {
+                    None
+                }
             }
         }
     }
@@ -169,6 +182,14 @@ impl Style {
     /// Determine whether this style is empty.
     ///
     /// A style is empty if it has no text attributes or colors.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::style::*;
+    /// assert!(Style::default().is_empty());
+    /// assert!(!Style::default().bold().is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.weight.is_none()
             && self.slant.is_none()
@@ -216,15 +237,19 @@ impl Style {
     pub fn subtract(&self, other: &Self) -> Self {
         fn subtract(color: TerminalColor, other: Option<TerminalColor>) -> Option<TerminalColor> {
             match other {
-                Some(other) => if color != other {
-                    Some(color)
-                } else {
-                    None
+                Some(other) => {
+                    if color != other {
+                        Some(color)
+                    } else {
+                        None
+                    }
                 }
-                None => if !color.is_default() {
-                    Some(color)
-                } else {
-                    None
+                None => {
+                    if !color.is_default() {
+                        Some(color)
+                    } else {
+                        None
+                    }
                 }
             }
         }
@@ -246,7 +271,6 @@ impl Style {
             ),
         }
     }
-
 
     /// Determine the combined style.
     ///
@@ -279,19 +303,19 @@ impl Style {
         self
     }
     pub fn underlined(&mut self) -> &mut Self {
-        self.underline= Some(Underline::Underlined);
+        self.underline = Some(Underline::Underlined);
         self
     }
     pub fn blink(&mut self) -> &mut Self {
-        self.blink= Some(Blink::Blinking);
+        self.blink = Some(Blink::Blinking);
         self
     }
     pub fn reverse(&mut self) -> &mut Self {
-        self.reverse= Some(Reverse::Reversed);
+        self.reverse = Some(Reverse::Reversed);
         self
     }
     pub fn strike(&mut self) -> &mut Self {
-        self.strike= Some(Strike::Stricken);
+        self.strike = Some(Strike::Stricken);
         self
     }
 

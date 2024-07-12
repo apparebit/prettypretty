@@ -14,14 +14,14 @@ use crate::{
 // Color Themes
 // ====================================================================================================================
 
-/// A color theme
+/// A color theme provides color values for default and ANSI colors.
 ///
 /// By now, a color theme is just an array with 18 colors. The implementation
-/// started out as a more elaborate struct but ended up being used just like a
-/// slice or vector. So, here we are.
+/// started out as a more elaborate and encapsulated struct but ended up being
+/// used just like a slice or vector. So, here we are.
 pub type Theme = [Color; 18];
 
-/// A color theme entry.
+/// A helper for naming the slots of color themes.
 ///
 /// This enumeration combines the default and ANSI colors to identify the 18
 /// entries of a color theme in order.
