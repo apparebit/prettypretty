@@ -30,6 +30,9 @@ To find out more, please keep reading this user guide and also leverage the
 following resources:
 
   * [Rust API documentation](https://apparebit.github.io/prettypretty/prettypretty/)
+    on GitHub, with Python integration
+  * [Rust API documentation](https://docs.rs/prettypretty/latest/prettypretty/)
+    on docs.rs, without Python integration
   * [Python API documentation](https://apparebit.github.io/prettypretty/python/)
   * [Python type stub](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi)
   * [Rust crate](https://crates.io/crates/prettypretty)

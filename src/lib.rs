@@ -12,6 +12,13 @@
 //! and [API documentation](https://apparebit.github.io/prettypretty/python/)
 //! for Python are separate as well.
 //!
+#![cfg_attr(not(feature = "pyffi"), doc = " **This version of prettypretty's API
+documentation covers native Rust interfaces only, without Python integration,
+i.e., the `pyffi` feature flag is disabled.**")]
+#![cfg_attr(feature = "pyffi", doc = "**This version of prettypretty's API
+documentation covers Rust interfaces as well as Python ingration, with the
+`pyffi` feature flag enabled.**")]
+//!
 //!
 //! ## Overview
 //!
@@ -53,6 +60,9 @@
 //! necessitating full separation into distinct blocks, one for
 //! `feature="pyffi"`, one for `not(feature="pyffi")`, and sometimes a third one
 //! for shared helper methods.
+#![cfg_attr(feature = "pyffi", doc = "The documentation tags Python-only
+methods as <span class=python-only></span> and Rust-only methods as
+<span class=rust-only></span>.")]
 //!
 //! Despite these warts, the Python version offers the same functionality as the
 //! Rust version. Since Python does not support traits such as `From` and
@@ -98,6 +108,8 @@
 //! library and [CSS Color 4](https://www.w3.org/TR/css-color-4/) specification.
 //! Prettypretty directly reuses Color.js' formulae for conversion between color
 //! spaces and implements several CSS Color 4 algorithms. Thank you! 🌸
+//!
+//!
 
 /// The floating point type in use.
 #[cfg(feature = "f64")]

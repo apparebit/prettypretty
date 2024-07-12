@@ -31,6 +31,26 @@ I expect that, as the project matures, the version lag between minimum and
 latest versions will grow, as it should.
 
 
+## Feature Flags
+
+Prettypretty has two feature flags:
+
+  * `f64` selects the eponymous type as floating point type [`Float`] and `u64`
+    as [`Bits`] instead of `f32` as [`Float`] and `u32` as [`Bits`]. This
+    feature flag is enabled by default.
+  * `pyffi` enables Python integration through [PyO3](https://pyo3.rs/),
+    changing some method signatures as well as adding several other methods. It
+    is disabled by default.
+
+The API documentation on
+[docs.rs](https://docs.rs/prettypretty/latest/prettypretty/) is built without
+`pyffi` and hence is Rust-only. The API documentation on
+[GitHub](https://apparebit.github.io/prettypretty/prettypretty/) is built with
+`pyffi` and hence covers Python integration as well. It tags Python-only methods
+as <span class=python-only></span> and Rust-only methods as <span
+class=rust-only></span>.
+
+
 ## Installation
 
 With Rust installed or updated, you are ready to go and can use your favorite
@@ -40,13 +60,16 @@ package manager for installing prettypretty. For Rust, that is `cargo`:
 $ cargo install prettypretty
 ```
 
-For Python, `uv`, `pip, or whatever else strikes your fancy are all good. To
+For Python, `uv`, `pip`, or whatever else strikes your fancy are all good. To
 namespace package management functionality, the incantation for `uv` even
 mentions `pip`:
 
 ```sh
 $ uv pip install prettypretty
 ```
+
+The package's `pyproject.toml` configures the Python build to also enable the
+`pyffi` feature flag.
 
 When building the extension module from source, installation may take a moment.
 It also involves one more tool, [`maturin`](https://github.com/PyO3/maturin). It
@@ -120,3 +143,6 @@ repository includes `rr.sh` (for RunneR), a simple script to:
 
 The highlighted word also is the (only) argument to `rr.sh` for executing the
 described job.
+
+
+{{#include links.md}}
