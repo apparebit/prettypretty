@@ -80,7 +80,7 @@ impl TryFrom<usize> for ThemeEntry {
     }
 }
 
-/// An iterator over theme entries.
+/// A helper for iterating over the slot names of theme entries.
 ///
 /// This iterator is fused, i.e., after returning `None` once, it will keep
 /// returning `None`. This iterator also is exact, i.e., its `size_hint()`
