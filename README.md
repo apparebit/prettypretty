@@ -4,10 +4,10 @@
 [![Publish to GitHub Pages](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml)
 [![Build Wheels](https://github.com/apparebit/prettypretty/actions/workflows/dist.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/dist.yml)
 
-\[ [Documentation](https://docs.rs/prettypretty/latest/prettypretty/)
- | [Rust Crate](https://crates.io/crates/prettypretty)
- | [Python Package](https://pypi.org/project/prettypretty/)
- | [Repository](https://github.com/apparebit/prettypretty)
+\[ [**Documentation**](https://docs.rs/prettypretty/latest/prettypretty/)
+ | [**Rust Crate**](https://crates.io/crates/prettypretty)
+ | [**Python Package**](https://pypi.org/project/prettypretty/)
+ | [**Repository**](https://github.com/apparebit/prettypretty)
 \]
 
 🎖️ As featured on [Real Python #211](https://realpython.com/podcasts/rpp/211/)
@@ -38,10 +38,10 @@ lightness-based downsampling for optimal selection of ANSI colors.
 
 ## Python Integration
 
-The optional Python integration, enabled with the `pyffi` feature flag, relies
-on [PyO3](https://pyo3.rs/v0.22.0/) and [Maturin](https://www.maturin.rs) for
-building an extension module with the same functionality—only where the Rust
-library uses trait implementations, the Python module [uses dedicated
+The optional Python integration is enabled with the `pyffi` feature flag and
+relies on [PyO3](https://pyo3.rs/v0.22.0/) and [Maturin](https://www.maturin.rs)
+for building an extension module with the same functionality. Only where the
+Rust library uses trait implementations, the Python module [uses dedicated
 methods](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi).
 Also, where the Rust library currently is BYO(T)IO, that is, bring your own
 (terminal) I/O, the Python library comes with a powerful terminal abstraction
@@ -52,6 +52,21 @@ a breeze.
 The [Python documentation](https://apparebit.github.io/prettypretty/python/)
 covers the functionality that currently is Python-only. Over time, I expect to
 port those features to Rust as well.
+
+
+## Minimum Supported Rust and Python Versions
+
+Prettypretty leverages both programming languages to their fullest and hence
+requires relatively recent versions:
+
+  * According to [cargo-msrv](https://github.com/foresterre/cargo-msrv), **the
+    minimum supported Rust version is 1.77.2**.
+  * According to [vermin](https://github.com/netromdk/vermin), **the minimum
+    supported Python version is 3.11.0.**
+
+I expect that, as the project matures, the version lag between minimum and
+latest versions will grow, as it should.
+
 
 ## Scripts
 

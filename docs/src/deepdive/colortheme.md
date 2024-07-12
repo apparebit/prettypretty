@@ -88,7 +88,7 @@ in dimensionality collapses all grays onto the origin, the single marker takes
 on the average lightness of the four grays. In addition to the 12+4 colors, the
 larger plot on top also shows the boundary of the sRGB gamut. Meanwhile, the
 smaller plot on bottom is a bar graph for the [revised lightness
-Lr]()https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab
+Lr](https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab)
 of the 12 theme colors. Technically, that makes the color space Oklrch. But the
 chroma/hue plane of Oklrch is identical to the chroma/hue plane of Oklch, the
 a/b plane of Oklrab, and the a/b plane of Oklab.

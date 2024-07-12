@@ -2,6 +2,10 @@
 
 [Introduction](README.md)
 
+# Getting Started
+
+ - [Installing and Building Prettypretty](installation.md)
+
 # Overview
 
  - [2020s High-Resolution Colors](overview/2020s.md)

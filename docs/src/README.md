@@ -17,7 +17,7 @@ interfaces (TUIs). The intended benefits are twofold:
 
 To make that possible, prettypretty provides simple abstractions for terminal
 and high-resolution colors alike, facilitates seamless conversion between them
-and common color spaces, and implements state-of-the-art algorithms for
+and common color spaces, and implements state-of-the-art algorithms for, say,
 [gamut-mapping](https://www.w3.org/TR/css-color-4/#gamut-mapping), [color
 interpolation](https://www.w3.org/TR/css-color-4/#interpolation), [perceptual
 contrast](https://github.com/Myndex/apca-w3), as well as its own hue- and
@@ -29,7 +29,6 @@ lightness-based downsampling for optimal selection of ANSI colors.
 To find out more, please keep reading this user guide and also leverage the
 following resources:
 
-  * [This user guide](https://apparebit.github.io/prettypretty/)
   * [Rust API documentation](https://apparebit.github.io/prettypretty/prettypretty/)
   * [Python API documentation](https://apparebit.github.io/prettypretty/python/)
   * [Python type stub](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi)
@@ -49,7 +48,7 @@ methods](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.
 Also, where the Rust library currently is BYO(T)IO, that is, bring your own
 (terminal) I/O, the Python library comes with a powerful terminal abstraction
 that makes, say, querying the terminal [for the current color
-theme](https://github.com/apparebit/prettypretty/blob/61fb6d7c364c0d083e1073ead146834c1e0bc56d/prettypretty/terminal.py#L1039)
+theme](https://github.com/apparebit/prettypretty/blob/32993d95fba3b24a5cb88103884bd37e6a30f290/prettypretty/terminal.py#L1039)
 a breeze.
 
 
