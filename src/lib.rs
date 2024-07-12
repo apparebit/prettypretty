@@ -98,6 +98,7 @@ pub type Bits = u32;
 mod core;
 mod error;
 mod object;
+mod style;
 mod term_color;
 mod translation;
 mod util;
