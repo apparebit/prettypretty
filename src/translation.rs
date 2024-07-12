@@ -14,7 +14,7 @@ use crate::{
 // Color Themes
 // ====================================================================================================================
 
-/// A color theme provides color values for default and ANSI colors.
+/// An 18-entry slice with the color values for default and ANSI colors.
 ///
 /// By now, a color theme is just an array with 18 colors. The implementation
 /// started out as a more elaborate and encapsulated struct but ended up being
@@ -132,7 +132,7 @@ impl ThemeEntryIterator {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// The 2+16 colors of [VGA text
+/// The color theme with the 2+16 colors of [VGA text
 /// mode](https://en.wikipedia.org/wiki/ANSI_escape_code#3-bit_and_4-bit).
 pub const VGA_COLORS: Theme = [
     rgb!(0, 0, 0),

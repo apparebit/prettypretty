@@ -189,6 +189,7 @@ pub fn close_enough(f1: Float, f2: Float) -> bool {
 /// decimal, and drops the sign of negative zero and returns the result as a bit
 /// string. It is only public because the [`assert_close_enough`] test macro
 /// uses it.
+#[doc(hidden)]
 #[inline]
 pub fn to_eq_bits(f: Float) -> Bits {
     // Eliminate not-a-number.

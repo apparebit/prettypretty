@@ -135,6 +135,7 @@ pub type Bits = u32;
 mod core;
 mod error;
 mod object;
+#[doc(hidden)]
 pub mod style;
 mod term_color;
 mod translation;
@@ -143,7 +144,10 @@ mod util;
 #[cfg(feature = "pyffi")]
 pub use core::close_enough;
 
-pub use core::{to_eq_bits, ColorFormatError, ColorSpace, HueInterpolation};
+#[doc(hidden)]
+pub use core::to_eq_bits;
+
+pub use core::{ColorFormatError, ColorSpace, HueInterpolation};
 pub use error::OutOfBoundsError;
 pub use object::{Color, Interpolator, OkVersion};
 pub use term_color::{
