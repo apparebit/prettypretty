@@ -17,6 +17,20 @@ both directions. I see three major reasons why doing just that is difficult:
     bigger difference when it comes to translating colors is not the one from 16
     million down to 256 colors but the one from 256 down to 16 colors.
 
+Despite these substantial differences, many terminal color representations can
+at least be partially and losslessly converted into a few other color
+representations. For example, with exception of the ANSI colors, 8-bit colors,
+as represented by [`EmbeddedRgb`] and [`GrayGradient`], have well-defined
+formulas for converting to index values, i.e., `u8`, as well as 24-bit color,
+i.e., [`TrueColor`]. True colors, in turn, are easily convertible to
+high-resolution [`Color`]. Meanwhile, [`DefaultColor`], [`AnsiColor`],
+[`EmbeddedRgb`], [`GrayGradient`], and [`TrueColor`] are all trivially
+convertible to [`TerminalColor`]. They should be because [`TerminalColor`]'s
+very purpose is being the unifying wrapper type. Prettypretty accommodates the
+stateless conversions by implementations of the `From<T>` and `TryFrom<T>`
+traits in Rust and static methods in Python. Alas, those can't help translate
+default and ANSI colors.
+
 
 ## Translation Is Necessarily Stateful
 
