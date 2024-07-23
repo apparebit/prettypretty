@@ -1,8 +1,7 @@
 # Pretty 🌸 Pretty
 
-[![Run Tests](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml)
+[![Run Tests, Build Wheels, & Publish to PyPI](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml)
 [![Publish to GitHub Pages](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml)
-[![Build Wheels](https://github.com/apparebit/prettypretty/actions/workflows/dist.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/dist.yml)
 
 \[ [**Documentation**](https://docs.rs/prettypretty/latest/prettypretty/)
  | [**Rust Crate**](https://crates.io/crates/prettypretty)
