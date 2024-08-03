@@ -1225,9 +1225,9 @@ impl std::str::FromStr for Color {
     ///
     /// By implementing the `FromStr` trait, `str::parse` works just the same
     /// for parsing color formats—that is, as long as type inference can
-    /// determine what type to parse. For that reason, the definition of
-    /// `orange` below includes a type whereas the definition of `blue` does
-    /// not.
+    /// determine what type to parse. Hence, the definition of `rose` in the
+    /// code example below explicitly declares the type of that variable,
+    /// whereas the definition of `navy` gets by without such an annotation.
     ///
     /// Don't forget the `use` statement bringing `FromStr` into scope.
     ///
