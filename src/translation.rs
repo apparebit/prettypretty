@@ -202,7 +202,7 @@ impl ColorEntry {
     /// concrete color value is gray.
     fn new(spec: AnsiColor, value: &Color) -> Option<Self> {
         let [lr, c, mut h] = *value.to(ColorSpace::Oklrch).as_ref();
-        if is_gray_chroma_hue(c, h) {
+        if spec.is_gray() || is_gray_chroma_hue(c, h) {
             return None;
         }
         h = h.rem_euclid(360.0); // Critical for correctness!
@@ -294,7 +294,8 @@ impl HueLightnessTable {
             colors.rotate_left(min_index);
         }
 
-        // Now, if hues are some rotation of standard order, hues are sorted.
+        // We added the each regular/bright pair by smaller hue first. So if
+        // pairs are in standard order, all hues are sorted as well.
         min_hue = -1.0;
         for entry in colors.iter() {
             if entry.h < min_hue {
@@ -486,13 +487,6 @@ impl Sampler {
         ThemeEntryIterator::new()
     }
 
-    /// Determine whether this sampler's color theme is a dark theme.
-    pub fn is_dark_theme(&self) -> bool {
-        let yf = self.theme[0].to(ColorSpace::Xyz)[1];
-        let yb = self.theme[1].to(ColorSpace::Xyz)[1];
-        yf > yb
-    }
-
     /// Resolve the terminal color to a high-resolution color.
     ///
     /// A custom type conversion function provides the same functionality as
@@ -526,327 +520,6 @@ impl Sampler {
         #[pyo3(from_py_with = "into_terminal_color")] color: TerminalColor,
     ) -> Color {
         self.do_resolve(color)
-    }
-
-    /// Convert the high-resolution color into an ANSI color.
-    ///
-    /// If available, this method utilizes [`Sampler::to_ansi_hue_lightness`] to
-    /// find a suitable ANSI color based on hue and lightness. If the current
-    /// theme does not meet the requirements for that search, this method falls
-    /// back onto [`Sampler::to_closest_ansi`], which searches for the closest
-    /// matching ANSI color.
-    pub fn to_ansi(&self, color: &Color) -> AnsiColor {
-        self.to_ansi_hue_lightness(color)
-            .unwrap_or_else(|| self.to_closest_ansi(color))
-    }
-
-    /// Determine whether this sampler instance supports color translation with
-    /// hue/lightness algorithm.
-    pub fn supports_hue_lightness(&self) -> bool {
-        self.hue_lightness_table.is_some()
-    }
-
-    /// Convert the high-resolution color to ANSI based on hue and lightness.
-    ///
-    /// For grays, this method finds the ANSI gray with the closest lightness.
-    /// For colors, this method first finds the pair of regular and bright ANSI
-    /// colors with the closest hue and then selects the one with the closest
-    /// lightness.
-    ///
-    /// This method requires that concrete theme colors and abstract ANSI colors
-    /// are (loosely) aligned. Notably, the color values for pairs of regular
-    /// and bright ANSI colors must be in order red, yellow, green, cyan, blue,
-    /// and magenta when traversing hues counter-clockwise, i.e., with
-    /// increasing hue magnitude. Note that this does allow hues to be
-    /// arbitrarily shifted along the circle. Furthermore, it does not prescribe
-    /// an order for regular and bright versions of the same abstract ANSI
-    /// color. If the theme colors passed to this sampler's constructor did not
-    /// meet this requirement, this method returns `None`.
-    ///
-    /// # Examples
-    ///
-    /// The documentation for [`Sampler::to_closest_ansi`] gives the example of
-    /// two colors that yield subpar results with an exhaustive search for the
-    /// closest color and then sketches an alternative approach that searches
-    /// for the closest hue.
-    ///
-    /// The algorithm implemented by this method goes well beyond that sketch by
-    /// not only leveraging color pragmatics (i.e., their coordinates) but also
-    /// their semantics. Hence, it first searches for one out of six pairs of
-    /// regular and bright ANSI colors with the closest hue and then picks the
-    /// one out of two colors with the closest lightness.
-    ///
-    /// As this example illustrates, that strategy works well for the light
-    /// orange colors from [`Sampler::to_closest_ansi`]. They both match the
-    /// yellow pair by hue and then bright yellow by lightness. Alas, it is no
-    /// panacea because color themes may not observe the necessary semantic
-    /// constraints. This method detects such cases and returns `None`.
-    /// [`Sampler::to_ansi`] instead automatically falls back onto searching for
-    /// the closest color.
-    ///
-    /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Sampler};
-    /// # use prettypretty::{VGA_COLORS, OkVersion};
-    /// # use std::str::FromStr;
-    /// let sampler = Sampler::new(
-    ///     OkVersion::Revised, VGA_COLORS.clone());
-    ///
-    /// let orange1 = Color::from_str("#ffa563")?;
-    /// let ansi = sampler.to_ansi_hue_lightness(&orange1);
-    /// assert_eq!(ansi.unwrap(), AnsiColor::BrightYellow);
-    ///
-    /// let orange2 = Color::from_str("#ff9600")?;
-    /// let ansi = sampler.to_ansi_hue_lightness(&orange2);
-    /// assert_eq!(ansi.unwrap(), AnsiColor::BrightYellow);
-    /// # Ok::<(), ColorFormatError>(())
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: #ffa563;"></div>
-    /// <div style="background-color: #ffff55;"></div>
-    /// <div style="background-color: #ff9600;"></div>
-    /// <div style="background-color: #ffff55;"></div>
-    /// </div>
-    pub fn to_ansi_hue_lightness(&self, color: &Color) -> Option<AnsiColor> {
-        self.hue_lightness_table
-            .as_ref()
-            .map(|t| t.find_match(color))
-    }
-
-    /// Find the ANSI color that comes closest to the given color.
-    ///
-    /// # Examples
-    ///
-    /// The example code below matches the shades of orange `#ffa563` and
-    /// `#ff9600` to ANSI colors under the default VGA theme in both Oklab and
-    /// Oklrab. In both versions of the color space, the first orange
-    /// consistently matches ANSI white and the second orange consistently
-    /// matches bright red. Visually, the second match seems reasonable given
-    /// that there are at most 12 colors and 4 grays to pick from. But the first
-    /// match seems off. Gray simply isn't a satisfactory replacement for a
-    /// (more or less) saturated color.
-    ///
-    /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Sampler};
-    /// # use prettypretty::{VGA_COLORS, OkVersion};
-    /// # use std::str::FromStr;
-    /// let original_sampler = Sampler::new(
-    ///     OkVersion::Original, VGA_COLORS.clone());
-    ///
-    /// let orange1 = Color::from_str("#ffa563")?;
-    /// let ansi = original_sampler.to_closest_ansi(&orange1);
-    /// assert_eq!(ansi, AnsiColor::White);
-    ///
-    /// let orange2 = Color::from_str("#ff9600")?;
-    /// let ansi = original_sampler.to_closest_ansi(&orange2);
-    /// assert_eq!(ansi, AnsiColor::BrightRed);
-    /// // ---------------------------------------------------------------------
-    /// let revised_sampler = Sampler::new(
-    ///     OkVersion::Revised, VGA_COLORS.clone());
-    ///
-    /// let ansi = revised_sampler.to_closest_ansi(&orange1);
-    /// assert_eq!(ansi, AnsiColor::White);
-    ///
-    /// let ansi = revised_sampler.to_closest_ansi(&orange2);
-    /// assert_eq!(ansi, AnsiColor::BrightRed);
-    /// # Ok::<(), ColorFormatError>(())
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: #ffa563;"></div>
-    /// <div style="background-color: #aaaaaa;"></div>
-    /// <div style="background-color: #ff9600;"></div>
-    /// <div style="background-color: #ff5555;"></div>
-    /// <div style="background-color: #ffa563;"></div>
-    /// <div style="background-color: #aaaaaa;"></div>
-    /// <div style="background-color: #ff9600;"></div>
-    /// <div style="background-color: #ff5555;"></div>
-    /// </div>
-    /// <br>
-    ///
-    /// That isn't just my subjective judgement, but human color perception is
-    /// more sensitive to changes in hue than chroma or lightness. By that
-    /// standard, the match actually is pretty poor. To see that, consider the
-    /// figure below showing the chroma/hue plane. It plots the 12 ANSI colors
-    /// (as circles), the 4 ANSI grays (as one circle with averaged lightness),
-    /// and the 2 orange tones (as narrow diamonds) on that plane (hence the
-    /// 12+4+2 in the title). As it turns out, `#ffa563` is located right next
-    /// to the default theme's ANSI yellow, which really is a dark orange or
-    /// brown. The primary difference between the two colors are neither chroma
-    /// (0.13452 vs 0.1359) nor hue (55.6 vs 54.1) but lightness only (0.79885
-    /// vs 0.54211). Depending on the use case, the theme's yellow may be an
-    /// acceptable match. Otherwise the bright red probably is a better match
-    /// than a chromaless gray tone.
-    ///
-    /// ![The colors plotted on Oklab's chroma and hue plane](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/vga-colors.svg)
-    ///
-    /// Reflecting that same observation about color perception, the [CSS Color
-    /// 4](https://www.w3.org/TR/css-color-4/#gamut-mapping) gamut-mapping
-    /// algorithm improves on MINDE algorithms (Minimum Delta-E) such as this
-    /// method's closest match in Oklab by systematically reducing chroma and
-    /// tolerating small lightness and hue variations (caused by clipping).
-    /// Given the extremely limited color repertoire, we can't use a similar,
-    /// directed search. But we should do better than brute-force search.
-    ///
-    /// Let's explore that idea a little further. Since the revised lightness is
-    /// more accurate, we'll be comparing colors in Oklrch. We start by
-    /// preparing a list with the color values for the 16 extended ANSI colors
-    /// in that color space. That, by the way, is pretty much what
-    /// [`Sampler::new`] does as well.
-    /// ```
-    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, VGA_COLORS};
-    /// # use std::str::FromStr;
-    /// let ansi_colors: Vec<Color> = (0..=15)
-    ///     .map(|n| VGA_COLORS[n + 2].to(ColorSpace::Oklrch))
-    ///     .collect();
-    /// ```
-    ///
-    /// Next, we need a function that calculates the distance between the
-    /// coordinates of two colors in Oklrch. Since we are exploring non-MINDE
-    /// approaches, we focus on hue alone and use the minimum degree of
-    /// separation as a metric. Degrees being circular, computing the remainder
-    /// of the difference is not enough. We need to consider both differences.
-    ///
-    /// The function uses prettypretty's [`Float`], which serves as alias to
-    /// either `f64` (the default) or `f32` (when the `f32` feature is enabled).
-    ///
-    /// ```
-    /// use prettypretty::Float;
-    /// fn minimum_degrees_of_separation(c1: &[Float; 3], c2: &[Float; 3]) -> Float {
-    ///     (c1[2] - c2[2]).rem_euclid(360.0)
-    ///         .min((c2[2] - c1[2]).rem_euclid(360.0))
-    /// }
-    /// ```
-    ///
-    /// That's it. We have everything we need. All that's left to do is to
-    /// instantiate the same orange again and find the closest matching color on
-    /// our list with the new distance metric.
-    ///
-    /// ```
-    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, VGA_COLORS, Float};
-    /// # use std::str::FromStr;
-    /// # let ansi_colors: Vec<Color> = (0..=15)
-    /// #     .map(|n| VGA_COLORS[n + 2].to(ColorSpace::Oklrch))
-    /// #     .collect();
-    /// # fn minimum_degrees_of_separation(c1: &[Float; 3], c2: &[Float; 3]) -> Float {
-    /// #     (c1[2] - c2[2]).rem_euclid(360.0)
-    /// #         .min((c2[2] - c1[2]).rem_euclid(360.0))
-    /// # }
-    /// let orange = Color::from_str("#ffa563")?;
-    /// let closest = orange.find_closest(
-    ///     &ansi_colors,
-    ///     ColorSpace::Oklrch,
-    ///     minimum_degrees_of_separation,
-    /// ).unwrap();
-    /// assert_eq!(closest, 3);
-    /// # Ok::<(), ColorFormatError>(())
-    /// ```
-    /// <div class=color-swatch>
-    /// <div style="background-color: #ffa563;"></div>
-    /// <div style="background-color: #a50;"></div>
-    /// </div>
-    /// <br>
-    ///
-    /// The hue-based comparison picks ANSI color 3, VGA's orange yellow, just
-    /// as expected. It appears that our hue-based proof-of-concept works.
-    /// However, a production-ready version does need to account for lightness,
-    /// too. The method to do so is [`Sampler::to_ansi_hue_lightness`].
-    pub fn to_closest_ansi(&self, color: &Color) -> AnsiColor {
-        use crate::core::{delta_e_ok, find_closest};
-
-        let color = color.to(self.space);
-        find_closest(color.as_ref(), &self.ansi, delta_e_ok)
-            .map(|idx| AnsiColor::try_from(idx as u8).unwrap())
-            .unwrap()
-    }
-
-    /// Convert the high-resolution color to an ANSI color in RGB.
-    ///
-    /// This method performs a conversion from high-resolution color to ANSI
-    /// color solely based on linear RGB coordinates. Since the ANSI colors
-    /// essentially are 3-bit RGB colors with an additional bit for brightness,
-    /// it converts the given color to linear sRGB, clipping out of gamut
-    /// coordinates, and then rounds each coordinate to 0 or 1. It determines
-    /// whether to set the brightness bit based on a heuristically weighted sum
-    /// of the individual coordinates.
-    ///
-    /// The above algorithm uses *linear* sRGB because gamma-corrected sRGB, by
-    /// definition, skews the coordinate space and hence is ill-suited to
-    /// manipulation based on component magnitude. Alas, that is a common
-    /// mistake.
-    ///
-    /// While the algorithm does seem a bit odd, it is an improved version of
-    /// the approach implemented by
-    /// [Chalk](https://github.com/chalk/chalk/blob/main/source/vendor/ansi-styles/index.js),
-    /// only one of the most popular terminal color libraries for JavaScript.
-    pub fn to_ansi_rgb(&self, color: &Color) -> AnsiColor {
-        self.do_to_ansi_rgb(color)
-    }
-
-    /// Find the 8-bit color that comes closest to the given color.
-    ///
-    /// # Examples
-    ///
-    /// The example below converts every color of the RGB cube embedded in 8-bit
-    /// colors to a high-resolution color in sRGB, which is validated by the
-    /// first two assertions, and then uses a sampler to convert that color back
-    /// to an embedded RGB color. The result is the original color, now wrapped
-    /// as a terminal color, which is validated by the third assertion. The
-    /// example demonstrates that the 216 colors in the embedded RGB cube still
-    /// are closest to themselves after conversion to Oklrch.
-    ///
-    /// ```
-    /// # use prettypretty::{Color, ColorSpace, VGA_COLORS, TerminalColor, Float};
-    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Sampler, OkVersion};
-    /// # use prettypretty::assert_close_enough;
-    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
-    ///
-    /// for r in 0..5 {
-    ///     for g in 0..5 {
-    ///         for b in 0..5 {
-    ///             let embedded = EmbeddedRgb::new(r, g, b)?;
-    ///             let color = Color::from(embedded);
-    ///             assert_eq!(color.space(), ColorSpace::Srgb);
-    ///
-    ///             let c1 = if r == 0 {
-    ///                 0.0
-    ///             } else {
-    ///                 (55.0 + 40.0 * (r as Float)) / 255.0
-    ///             };
-    ///             assert_close_enough!(color[0], c1);
-    ///
-    ///             let result = sampler.to_closest_8bit(&color);
-    ///             assert_eq!(result, TerminalColor::Rgb6 { color: embedded });
-    ///         }
-    ///     }
-    /// }
-    /// # Ok::<(), OutOfBoundsError>(())
-    /// ```
-    pub fn to_closest_8bit(&self, color: &Color) -> TerminalColor {
-        use crate::core::{delta_e_ok, find_closest};
-
-        let color = color.to(self.space);
-        let index = find_closest(
-            color.as_ref(),
-            self.eight_bit.last_chunk::<240>().unwrap(),
-            delta_e_ok,
-        )
-        .map(|idx| idx as u8 + 16)
-        .unwrap();
-
-        TerminalColor::from(index)
-    }
-
-    /// Find the 8-bit color that comes closest to the given color.
-    ///
-    /// This method comparse *all* 8-bit colors including ANSI colors.
-    pub fn to_closest_8bit_with_ansi(&self, color: &Color) -> TerminalColor {
-        use crate::core::{delta_e_ok, find_closest};
-
-        let color = color.to(self.space);
-        let index = find_closest(color.as_ref(), &self.eight_bit, delta_e_ok)
-            .map(|idx| idx as u8 + 16)
-            .unwrap();
-
-        TerminalColor::from(index)
     }
 
     /// Cap the terminal color by the fidelity.
@@ -905,17 +578,6 @@ impl Sampler {
         ThemeEntryIterator::new()
     }
 
-    /// Determine whether this sampler's color theme is a dark theme.
-    ///
-    /// The Y component of a color in XYZ represents it luminance. This method
-    /// exploits that property of XYZ and checks whether the default foreground
-    /// has a larger luminance than the default background color.
-    pub fn is_dark_theme(&self) -> bool {
-        let yf = self.theme[0].to(ColorSpace::Xyz)[1];
-        let yb = self.theme[1].to(ColorSpace::Xyz)[1];
-        yf > yb
-    }
-
     /// Resolve the terminal color to a high-resolution color.
     ///
     /// # Examples
@@ -949,31 +611,72 @@ impl Sampler {
         self.do_resolve(color)
     }
 
+    /// Cap the terminal color by the fidelity.
+    ///
+    /// This method ensures that the terminal color can be rendered by a
+    /// terminal with the given fidelity level. Depending on fidelity, it
+    /// returns the following result:
+    ///
+    ///   * Plain-text or no-color
+    ///         * `None`
+    ///   * ANSI colors
+    ///         * Downsampled 8-bit and 24-bit colors
+    ///         * Unmodified ANSI colors
+    ///   * 8-bit
+    ///         * Downsampled 24-bit colors
+    ///         * Unmodified ANSI and 8-bit colors
+    ///   * Full
+    ///         * Unmodified colors
+    ///
+    /// The Python version has a custom type conversion function and also
+    /// accepts all kinds of terminal colors, whether wrapper or not.
+    pub fn cap(
+        &self,
+        color: impl Into<TerminalColor>,
+        fidelity: Fidelity,
+    ) -> Option<TerminalColor> {
+        self.do_cap(color, fidelity)
+    }
+}
+
+impl Sampler {
+    /// Determine whether this sampler's color theme is a dark theme.
+    ///
+    /// The Y component of a color in XYZ represents it luminance. This method
+    /// exploits that property of XYZ and checks whether the default foreground
+    /// has a larger luminance than the default background color.
+    pub fn is_dark_theme(&self) -> bool {
+        let yf = self.theme[0].to(ColorSpace::Xyz)[1];
+        let yb = self.theme[1].to(ColorSpace::Xyz)[1];
+        yf > yb
+    }
+
     /// Convert the high-resolution color into an ANSI color.
     ///
-    /// If available, this method utilizes [`Sampler::to_ansi_hue_lightness`] to
-    /// find a suitable ANSI color based on hue and lightness. If the current
-    /// theme does not meet the requirements for that search, this method falls
-    /// back onto [`Sampler::to_closest_ansi`], which searches for the closest
-    /// matching ANSI color.
+    /// If the current theme meets the requirements for hue/lightness search,
+    /// this method forwards to [`Sampler::to_ansi_hue_lightness`]. Otherwise,
+    /// it falls back on [`Sampler::to_closest_ansi`]. Use
+    /// [`Sampler::supports_hue_lightness`] to test whether the current theme
+    /// supports hue-lightness search.
     pub fn to_ansi(&self, color: &Color) -> AnsiColor {
         self.to_ansi_hue_lightness(color)
             .unwrap_or_else(|| self.to_closest_ansi(color))
     }
 
     /// Determine whether this sampler instance supports color translation with
-    /// hue/lightness algorithm.
+    /// the hue/lightness search algorithm.
     pub fn supports_hue_lightness(&self) -> bool {
         self.hue_lightness_table.is_some()
     }
 
-    /// Convert the high-resolution color to ANSI based on hue (h) and lightness
-    /// revised (lr).
+    /// Convert the high-resolution color to ANSI based on Oklab's hue (h) and
+    /// revised lightness (Lr).
     ///
-    /// For grays, this method finds the ANSI gray with the closest lightness.
-    /// For colors, this method first finds the pair of regular and bright ANSI
-    /// colors with the closest hue and then selects the color with the closest
-    /// lightness.
+    /// This method performs all color comparisons in the cylindrical version of
+    /// the revised Oklab color space. For grays, it finds the ANSI gray with
+    /// the closest revised lightness. For colors, this method first finds the
+    /// pair of regular and bright ANSI colors with the closest hue and then
+    /// selects the color with the closest lightness.
     ///
     /// This method requires that concrete theme colors and abstract ANSI colors
     /// are (loosely) aligned. Notably, the color values for pairs of regular
@@ -1200,7 +903,19 @@ impl Sampler {
     /// [Chalk](https://github.com/chalk/chalk/blob/main/source/vendor/ansi-styles/index.js),
     /// only one of the most popular terminal color libraries for JavaScript.
     pub fn to_ansi_rgb(&self, color: &Color) -> AnsiColor {
-        self.do_to_ansi_rgb(color)
+        let color = color.to(ColorSpace::LinearSrgb).clip();
+        let [r, g, b] = color.as_ref();
+        let mut index = ((b.round() as u8) << 2) + ((g.round() as u8) << 1) + (r.round() as u8);
+        // When we get to the threshold below, the color has already been
+        // selected and can only be brightened. A threshold of 2 or 3 produces
+        // the least bad results. In any case, prettypretty.grid's output shows
+        // large striped rectangles, with 4x24 cells black/blue and 2x24 cells
+        // green/cyan above 4x12 cells red/magenta and 2x12 cells yellow/white.
+        if index >= 3 {
+            index += 8;
+        }
+
+        AnsiColor::try_from(index).unwrap()
     }
 
     /// Find the 8-bit color that comes closest to the given color.
@@ -1275,35 +990,6 @@ impl Sampler {
         TerminalColor::from(index)
     }
 
-    /// Cap the terminal color by the fidelity.
-    ///
-    /// This method ensures that the terminal color can be rendered by a
-    /// terminal with the given fidelity level. Depending on fidelity, it
-    /// returns the following result:
-    ///
-    ///   * Plain-text or no-color
-    ///         * `None`
-    ///   * ANSI colors
-    ///         * Downsampled 8-bit and 24-bit colors
-    ///         * Unmodified ANSI colors
-    ///   * 8-bit
-    ///         * Downsampled 24-bit colors
-    ///         * Unmodified ANSI and 8-bit colors
-    ///   * Full
-    ///         * Unmodified colors
-    ///
-    /// The Python version has a custom type conversion function and also
-    /// accepts all kinds of terminal colors, whether wrapper or not.
-    pub fn cap(
-        &self,
-        color: impl Into<TerminalColor>,
-        fidelity: Fidelity,
-    ) -> Option<TerminalColor> {
-        self.do_cap(color, fidelity)
-    }
-}
-
-impl Sampler {
     #[inline]
     fn do_resolve(&self, color: impl Into<TerminalColor>) -> Color {
         match color.into() {
@@ -1313,22 +999,6 @@ impl Sampler {
             TerminalColor::Gray { color: c } => c.into(),
             TerminalColor::Rgb256 { color: c } => c.into(),
         }
-    }
-
-    fn do_to_ansi_rgb(&self, color: &Color) -> AnsiColor {
-        let color = color.to(ColorSpace::LinearSrgb).clip();
-        let [r, g, b] = color.as_ref();
-        let mut index = ((b.round() as u8) << 2) + ((g.round() as u8) << 1) + (r.round() as u8);
-        // When we get to the threshold below, the color has already been
-        // selected and can only be brightened. A threshold of 2 or 3 produces
-        // the least bad results. In any case, prettypretty.grid's output shows
-        // large striped rectangles, with 4x24 cells black/blue and 2x24 cells
-        // green/cyan above 4x12 cells red/magenta and 2x12 cells yellow/white.
-        if index >= 3 {
-            index += 8;
-        }
-
-        AnsiColor::try_from(index).unwrap()
     }
 
     fn do_cap(&self, color: impl Into<TerminalColor>, fidelity: Fidelity) -> Option<TerminalColor> {
