@@ -277,9 +277,9 @@ impl From<AnsiColor> for TerminalColor {
     doc = "Since there is no Python feature equivalent to trait implementations in
     Rust, the Python class for `EmbeddedRgb` provides equivalent functionality
     through [`EmbeddedRgb::try_from_8bit`], [`EmbeddedRgb::to_8bit`],
-    [`EmbeddedRgb::to_color`], [`EmbeddedRgb::coordinates`], [`EmbeddedRgb::__len__`],
-    [`EmbeddedRgb::__getitem__`], and [`EmbeddedRgb::__repr__`].
-    These methods are not available in Rust."
+    [`EmbeddedRgb::to_24bit`], [`EmbeddedRgb::to_color`], [`EmbeddedRgb::coordinates`],
+    [`EmbeddedRgb::__len__`], [`EmbeddedRgb::__getitem__`], and
+    [`EmbeddedRgb::__repr__`]. These methods are not available in Rust."
 )]
 #[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, sequence))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
