@@ -20,7 +20,7 @@ from typing import Any, cast
 
 from .terminal import Terminal
 from .color import close_enough, Color, ColorSpace, ThemeEntry
-from .theme import current_sampler, VGA
+from .theme import current_translator, VGA
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -511,11 +511,11 @@ def main() -> None:
             if not options.theme:
                 terminal_id = term.request_terminal_identity()
 
-            sampler = current_sampler()
+            translator = current_translator()
             for index in [0, 1, 3, 2, 6, 4, 5, 7]:
-                color = sampler.resolve(index)
+                color = translator.resolve(index)
                 plotter.add(ThemeEntry.try_from_index(index + 2).name(), color)
-                color = sampler.resolve(index + 8)
+                color = translator.resolve(index + 8)
                 plotter.add(ThemeEntry.try_from_index(index + 8 + 2).name(), color)
 
     for color in [Color.parse("#" + c) for c in cast(list[str], options.colors) or []]:

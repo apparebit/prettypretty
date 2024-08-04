@@ -2,6 +2,178 @@
 
 use crate::{Layer, TerminalColor};
 
+// mod bit {
+//     pub(super) type Flags = u16;
+
+//     pub(super) const NONE: Flags = 0;
+
+//     pub(super) const REGULAR: Flags = 1 << 1;
+//     pub(super) const BOLD: Flags = 1 << 2;
+//     pub(super) const THIN: Flags = 1 << 3;
+//     pub(super) const CLEAR_WEIGHT: Flags = !(REGULAR | BOLD | THIN);
+
+//     pub(super) const UPRIGHT: Flags = 1 << 4;
+//     pub(super) const ITALIC: Flags = 1 << 5;
+//     pub(super) const CLEAR_SLANT: Flags = !(UPRIGHT | ITALIC);
+
+//     pub(super) const NOT_UNDERLINED: Flags = 1 << 6;
+//     pub(super) const UNDERLINED: Flags = 1 << 7;
+//     pub(super) const CLEAR_UNDERLINE: Flags = !(NOT_UNDERLINED | UNDERLINED);
+
+//     pub(super) const NOT_BLINKING: Flags = 1 << 8;
+//     pub(super) const BLINKING: Flags = 1 << 9;
+//     pub(super) const CLEAR_BLINKING: Flags = !(NOT_BLINKING | BLINKING);
+
+//     pub(super) const NOT_REVERSED: Flags = 1 << 10;
+//     pub(super) const REVERSED: Flags = 1 << 11;
+
+//     pub(super) const NOT_HIDDEN: Flags = 1 << 12;
+//     pub(super) const HIDDEN: Flags = 1 << 13;
+
+//     pub(super) const NOT_STRICKEN: Flags = 1 << 14;
+//     pub(super) const STRICKEN: Flags = 1 << 15;
+
+//     pub(super) const ALL_NON_DEFAULT: [Flags; 8] = [
+//         BOLD, THIN, ITALIC, UNDERLINED, BLINKING, REVERSED, HIDDEN, STRICKEN,
+//     ];
+
+//     pub(super) const SIMPLE_NON_DEFAULT: [Flags; 6] = [
+//         ITALIC, UNDERLINED, BLINKING, REVERSED, HIDDEN, STRICKEN,
+//     ];
+
+//     pub(super) fn negate(flag: Flags) -> Flags {
+//         match flag {
+//             BOLD | THIN => REGULAR,
+//             ITALIC => UPRIGHT,
+//             UNDERLINED => NOT_UNDERLINED,
+//             BLINKING => NOT_BLINKING,
+//             REVERSED => NOT_REVERSED,
+//             HIDDEN => NOT_HIDDEN,
+//             STRICKEN => NOT_STRICKEN,
+//             _ => 0,
+//         }
+//     }
+// }
+
+// struct Attr(bit::Flags);
+
+// impl Attr {
+//     pub fn new() -> Self {
+//         Self(0)
+//     }
+
+//     #[inline]
+//     fn test(&self, flags: bit::Flags) -> bool {
+//         self.0 & flags != 0
+//     }
+
+//     pub fn bold(self) -> Self {
+//         Self(self.0 & bit::CLEAR_WEIGHT | bit::BOLD)
+//     }
+
+//     pub fn thin(self) -> Self {
+//         Self(self.0 & bit::CLEAR_WEIGHT | bit::THIN)
+//     }
+
+//     pub fn italic(self) -> Self {
+//         Self(self.0 & bit::CLEAR_SLANT | bit::ITALIC)
+//     }
+
+//     pub fn blink(self) -> Self {
+//         Self(self.0 & bit::CLEAR_BLINKING | bit::BLINKING)
+//     }
+
+//     pub fn negate(self) -> Self {
+//         let mut result: bit::Flags = 0;
+
+//         for flag in bit::ALL_NON_DEFAULT {
+//             if self.test(flag) {
+//                 result |= bit::negate(flag);
+//             }
+//         }
+
+//         Self(result)
+//     }
+
+//     pub fn subtract_flag(&self, other: &Self) -> Self {
+//         let mut result: bit::Flags = 0;
+
+//         if self.test(bit::BOLD) {
+//             if !other.test(bit::BOLD) {
+//                 result |= bit::BOLD;
+//             }
+//         } else if self.test(bit::THIN) {
+//             if !other.test(bit::THIN) {
+//                 result |= bit::THIN;
+//             }
+//         } else if other.test(bit::BOLD | bit::THIN) {
+//             result |= bit::REGULAR;
+//         }
+
+//         for flag in bit::SIMPLE_NON_DEFAULT {
+//             if self.test(flag) {
+//                 if !other.test(flag) {
+//                     result |= flag;
+//                 }
+//             } else if other.test(flag) {
+//                 result |= bit::negate(flag)
+//             }
+//         }
+
+//         Self(result)
+//     }
+
+//     pub fn sgr_parameters(&self) -> Vec<u8> {
+//         let mut parameters = Vec::new();
+
+//         if self.0 & bit::REGULAR != 0 {
+//             parameters.push(22);
+//         } else if self.0 & bit::BOLD != 0 {
+//             parameters.push(1);
+//         } else if self.0 & bit::ITALIC != 0 {
+//             parameters.push(2);
+//         }
+
+//         if self.0 & bit::UPRIGHT != 0 {
+//             parameters.push(23);
+//         } else if self.0 & bit::ITALIC != 0 {
+//             parameters.push(3);
+//         }
+
+//         if self.0 & bit::NOT_UNDERLINED != 0 {
+//             parameters.push(24);
+//         } else if self.0 & bit::UNDERLINED != 0 {
+//             parameters.push(4);
+//         }
+
+//         if self.0 & bit::NOT_BLINKING != 0 {
+//             parameters.push(25);
+//         } else if self.0 & bit::BLINKING != 0 {
+//             parameters.push(5);
+//         }
+
+//         if self.0 & bit::NOT_REVERSED != 0 {
+//             parameters.push(27);
+//         } else if self.0 & bit::REVERSED != 0 {
+//             parameters.push(7);
+//         }
+
+//         if self.0 & bit::NOT_HIDDEN != 0 {
+//             parameters.push(28);
+//         } else if self.0 & bit::BLINKING != 0 {
+//             parameters.push(8);
+//         }
+
+//         if self.0 & bit::NOT_STRICKEN != 0 {
+//             parameters.push(29);
+//         } else if self.0 & bit::STRICKEN != 0 {
+//             parameters.push(9);
+//         }
+
+//         parameters
+//     }
+// }
+
 pub trait TextAttribute: Copy + Default + PartialEq {
     /// Determine whether the variant is the default.
     ///

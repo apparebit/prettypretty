@@ -65,7 +65,7 @@ impl From<DefaultColor> for TerminalColor {
 )]
 /// Since ANSI colors have no intrinsic color values, conversion from/to
 /// high-resolution colors requires additional machinery, as provided by
-/// [`Sampler`](crate::Sampler).
+/// [`Translator`](crate::Translator).
 ///
 /// The ANSI colors are ordered because they are ordered as theme colors and as
 /// indexed colors.
@@ -982,7 +982,8 @@ impl TerminalColor {
         }
     }
 
-    /// Convert this terminal color to an 8-bit index color.
+    /// Convert this terminal color to an 8-bit index color. <span
+    /// class=python-only></span>
     #[cfg(feature = "pyffi")]
     pub fn try_to_8bit(&self) -> PyResult<u8> {
         u8::try_from(*self).map_err(|_| {
@@ -990,7 +991,7 @@ impl TerminalColor {
         })
     }
 
-    /// Convert this terminal color to 24-bit.
+    /// Convert this terminal color to 24-bit. <span class=python-only></span>
     #[cfg(feature = "pyffi")]
     pub fn try_to_24bit(&self) -> PyResult<[u8; 3]> {
         <[u8; 3]>::try_from(*self).map_err(|_| {
@@ -1083,6 +1084,14 @@ impl From<u8> for TerminalColor {
             Self::Gray {
                 color: GrayGradient::try_from(value).unwrap(),
             }
+        }
+    }
+}
+
+impl From<[u8; 3]> for TerminalColor {
+    fn from(value: [u8; 3]) -> Self {
+        Self::Rgb256 {
+            color: TrueColor(value),
         }
     }
 }

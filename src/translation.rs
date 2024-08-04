@@ -383,7 +383,7 @@ impl HueLightnessTable {
 }
 
 // ====================================================================================================================
-// Sampler
+// Translator
 // ====================================================================================================================
 
 // Convert the constituent terminal colors to their wrapped versions.
@@ -401,18 +401,18 @@ fn into_terminal_color(obj: &Bound<'_, PyAny>) -> PyResult<TerminalColor> {
         .or_else(|_| obj.extract::<DefaultColor>().map(|c| c.into()))
 }
 
-/// A color sampler.
+/// A color translator.
 ///
 /// Instances of this struct translate between [`TerminalColor`] and [`Color`]
 /// and maintain the state for doing so efficiently. The [user
 /// guide](https://apparebit.github.io/prettypretty/overview/integration.html)
 /// includes a detailed discussion of challenges posed by translation, solution
-/// approaches, and sampler's interface.
+/// approaches, and translator's interface.
 ///
-/// Since a sampler incorporates theme colors, an application should regenerate
-/// its sampler if the current theme changes.
+/// Since a translator incorporates theme colors, an application should
+/// regenerate its translator if the current theme changes.
 #[cfg_attr(feature = "pyffi", pyclass)]
-pub struct Sampler {
+pub struct Translator {
     /// The theme colors. For converting *to* high-resolution colors.
     theme: Theme,
     /// The table for matching by hue and lightness.
@@ -459,8 +459,8 @@ fn eight_bit_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 256] 
 
 #[cfg(feature = "pyffi")]
 #[pymethods]
-impl Sampler {
-    /// Create a new sampler for the given Oklab version and theme colors.
+impl Translator {
+    /// Create a new translator for the given Oklab version and theme colors.
     #[new]
     pub fn new(version: OkVersion, theme: Theme) -> Self {
         let hue_lightness_table = HueLightnessTable::new(&theme);
@@ -487,7 +487,7 @@ impl Sampler {
         ThemeEntryIterator::new()
     }
 
-    /// Determine whether this sampler's color theme is a dark theme.
+    /// Determine whether this translator's color theme is a dark theme.
     pub fn is_dark_theme(&self) -> bool {
         let yf = self.theme[0].to(ColorSpace::Xyz)[1];
         let yb = self.theme[1].to(ColorSpace::Xyz)[1];
@@ -504,15 +504,15 @@ impl Sampler {
     /// # Examples
     ///
     /// ```
-    /// # use prettypretty::{AnsiColor, Color, DefaultColor, OkVersion, Sampler, TrueColor};
+    /// # use prettypretty::{AnsiColor, Color, DefaultColor, OkVersion, Translator, TrueColor};
     /// # use prettypretty::{VGA_COLORS};
-    /// let black = sampler.resolve(DefaultColor::Foreground);
+    /// let black = Translator.resolve(DefaultColor::Foreground);
     /// assert_eq!(black, Color::srgb(0.0, 0.0, 0.0));
     ///
-    /// let blue = sampler.resolve(AnsiColor::Blue);
+    /// let blue = Translator.resolve(AnsiColor::Blue);
     /// assert_eq!(blue, Color::srgb(0.0, 0.0, 0.666666666666667));
     ///
-    /// let maroon = sampler.resolve(TrueColor::new(148, 23, 81));
+    /// let maroon = Translator.resolve(TrueColor::new(148, 23, 81));
     /// assert_eq!(maroon, Color::srgb(
     ///     0.5803921568627451, 0.09019607843137255, 0.3176470588235294
     /// ));
@@ -532,17 +532,17 @@ impl Sampler {
     /// Convert the high-resolution color into an ANSI color.
     ///
     /// If the current theme meets the requirements for hue/lightness search,
-    /// this method forwards to [`Sampler::to_ansi_hue_lightness`]. Otherwise,
-    /// it falls back on [`Sampler::to_closest_ansi`]. Use
-    /// [`Sampler::supports_hue_lightness`] to test whether the current theme
+    /// this method forwards to [`Translator::to_ansi_hue_lightness`].
+    /// Otherwise, it falls back on [`Translator::to_closest_ansi`]. Use
+    /// [`Translator::supports_hue_lightness`] to test whether the current theme
     /// supports hue-lightness search.
     pub fn to_ansi(&self, color: &Color) -> AnsiColor {
         self.to_ansi_hue_lightness(color)
             .unwrap_or_else(|| self.to_closest_ansi(color))
     }
 
-    /// Determine whether this sampler instance supports color translation with
-    /// the hue/lightness search algorithm.
+    /// Determine whether this translator instance supports color translation
+    /// with the hue/lightness search algorithm.
     pub fn supports_hue_lightness(&self) -> bool {
         self.hue_lightness_table.is_some()
     }
@@ -563,15 +563,15 @@ impl Sampler {
     /// increasing hue magnitude. Note that this does allow hues to be
     /// arbitrarily shifted along the circle. Furthermore, it does not prescribe
     /// an order for regular and bright versions of the same abstract ANSI
-    /// color. If the theme colors passed to this sampler's constructor did not
-    /// meet this requirement, this method returns `None`.
+    /// color. If the theme colors passed to this translator's constructor did
+    /// not meet this requirement, this method returns `None`.
     ///
     /// # Examples
     ///
-    /// The documentation for [`Sampler::to_closest_ansi`] gives the example of
-    /// two colors that yield subpar results with an exhaustive search for the
-    /// closest color and then sketches an alternative approach that searches
-    /// for the closest hue.
+    /// The documentation for [`Translator::to_closest_ansi`] gives the example
+    /// of two colors that yield subpar results with an exhaustive search for
+    /// the closest color and then sketches an alternative approach that
+    /// searches for the closest hue.
     ///
     /// The algorithm implemented by this method goes well beyond that sketch by
     /// not only leveraging color pragmatics (i.e., their coordinates) but also
@@ -580,26 +580,26 @@ impl Sampler {
     /// one out of two colors with the closest lightness.
     ///
     /// As this example illustrates, that strategy works well for the light
-    /// orange colors from [`Sampler::to_closest_ansi`]. They both match the
+    /// orange colors from [`Translator::to_closest_ansi`]. They both match the
     /// yellow pair by hue and then bright yellow by lightness. Alas, it is no
     /// panacea because color themes may not observe the necessary semantic
     /// constraints. This method detects such cases and returns `None`.
-    /// [`Sampler::to_ansi`] instead automatically falls back onto searching for
-    /// the closest color.
+    /// [`Translator::to_ansi`] instead automatically falls back onto searching
+    /// for the closest color.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Sampler};
+    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Translator};
     /// # use prettypretty::{VGA_COLORS, OkVersion};
     /// # use std::str::FromStr;
-    /// let sampler = Sampler::new(
+    /// let translator = Translator::new(
     ///     OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// let orange1 = Color::from_str("#ffa563")?;
-    /// let ansi = sampler.to_ansi_hue_lightness(&orange1);
+    /// let ansi = translator.to_ansi_hue_lightness(&orange1);
     /// assert_eq!(ansi.unwrap(), AnsiColor::BrightYellow);
     ///
     /// let orange2 = Color::from_str("#ff9600")?;
-    /// let ansi = sampler.to_ansi_hue_lightness(&orange2);
+    /// let ansi = translator.to_ansi_hue_lightness(&orange2);
     /// assert_eq!(ansi.unwrap(), AnsiColor::BrightYellow);
     /// # Ok::<(), ColorFormatError>(())
     /// ```
@@ -629,27 +629,27 @@ impl Sampler {
     /// (more or less) saturated color.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Sampler};
+    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Translator};
     /// # use prettypretty::{VGA_COLORS, OkVersion};
     /// # use std::str::FromStr;
-    /// let original_sampler = Sampler::new(
+    /// let original_translator = Translator::new(
     ///     OkVersion::Original, VGA_COLORS.clone());
     ///
     /// let orange1 = Color::from_str("#ffa563")?;
-    /// let ansi = original_sampler.to_closest_ansi(&orange1);
+    /// let ansi = original_translator.to_closest_ansi(&orange1);
     /// assert_eq!(ansi, AnsiColor::White);
     ///
     /// let orange2 = Color::from_str("#ff9600")?;
-    /// let ansi = original_sampler.to_closest_ansi(&orange2);
+    /// let ansi = original_translator.to_closest_ansi(&orange2);
     /// assert_eq!(ansi, AnsiColor::BrightRed);
     /// // ---------------------------------------------------------------------
-    /// let revised_sampler = Sampler::new(
+    /// let revised_translator = Translator::new(
     ///     OkVersion::Revised, VGA_COLORS.clone());
     ///
-    /// let ansi = revised_sampler.to_closest_ansi(&orange1);
+    /// let ansi = revised_translator.to_closest_ansi(&orange1);
     /// assert_eq!(ansi, AnsiColor::White);
     ///
-    /// let ansi = revised_sampler.to_closest_ansi(&orange2);
+    /// let ansi = revised_translator.to_closest_ansi(&orange2);
     /// assert_eq!(ansi, AnsiColor::BrightRed);
     /// # Ok::<(), ColorFormatError>(())
     /// ```
@@ -693,7 +693,7 @@ impl Sampler {
     /// more accurate, we'll be comparing colors in Oklrch. We start by
     /// preparing a list with the color values for the 16 extended ANSI colors
     /// in that color space. That, by the way, is pretty much what
-    /// [`Sampler::new`] does as well.
+    /// [`Translator::new`] does as well.
     /// ```
     /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, VGA_COLORS};
     /// # use std::str::FromStr;
@@ -751,7 +751,7 @@ impl Sampler {
     /// The hue-based comparison picks ANSI color 3, VGA's orange yellow, just
     /// as expected. It appears that our hue-based proof-of-concept works.
     /// However, a production-ready version does need to account for lightness,
-    /// too. The method to do so is [`Sampler::to_ansi_hue_lightness`].
+    /// too. The method to do so is [`Translator::to_ansi_hue_lightness`].
     pub fn to_closest_ansi(&self, color: &Color) -> AnsiColor {
         use crate::core::{delta_e_ok, find_closest};
 
@@ -790,17 +790,17 @@ impl Sampler {
     ///
     /// The example below converts every color of the RGB cube embedded in 8-bit
     /// colors to a high-resolution color in sRGB, which is validated by the
-    /// first two assertions, and then uses a sampler to convert that color back
-    /// to an embedded RGB color. The result is the original color, now wrapped
-    /// as a terminal color, which is validated by the third assertion. The
-    /// example demonstrates that the 216 colors in the embedded RGB cube still
-    /// are closest to themselves after conversion to Oklrch.
+    /// first two assertions, and then uses a translator to convert that color
+    /// back to an embedded RGB color. The result is the original color, now
+    /// wrapped as a terminal color, which is validated by the third assertion.
+    /// The example demonstrates that the 216 colors in the embedded RGB cube
+    /// still are closest to themselves after conversion to Oklrch.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace, VGA_COLORS, TerminalColor, Float};
-    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Sampler, OkVersion};
+    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Translator, OkVersion};
     /// # use prettypretty::assert_close_enough;
-    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
+    /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// for r in 0..5 {
     ///     for g in 0..5 {
@@ -816,7 +816,7 @@ impl Sampler {
     ///             };
     ///             assert_close_enough!(color[0], c1);
     ///
-    ///             let result = sampler.to_closest_8bit(&color);
+    ///             let result = translator.to_closest_8bit(&color);
     ///             assert_eq!(result, TerminalColor::Rgb6 { color: embedded });
     ///         }
     ///     }
@@ -886,8 +886,8 @@ impl Sampler {
 }
 
 #[cfg(not(feature = "pyffi"))]
-impl Sampler {
-    /// Create a new sampler for the given Oklab version and theme colors.
+impl Translator {
+    /// Create a new translator for the given Oklab version and theme colors.
     pub fn new(version: OkVersion, theme: Theme) -> Self {
         let hue_lightness_table = HueLightnessTable::new(&theme);
         let space = version.cartesian_space();
@@ -908,7 +908,7 @@ impl Sampler {
         ThemeEntryIterator::new()
     }
 
-    /// Determine whether this sampler's color theme is a dark theme.
+    /// Determine whether this translator's color theme is a dark theme.
     ///
     /// The Y component of a color in XYZ represents it luminance. This method
     /// exploits that property of XYZ and checks whether the default foreground
@@ -929,16 +929,16 @@ impl Sampler {
     /// achieve the same effect.
     ///
     /// ```
-    /// # use prettypretty::{AnsiColor, Color, DefaultColor, OkVersion, Sampler, TrueColor};
+    /// # use prettypretty::{AnsiColor, Color, DefaultColor, OkVersion, Translator, TrueColor};
     /// # use prettypretty::{VGA_COLORS};
-    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
-    /// let blue = sampler.resolve(AnsiColor::Blue);
+    /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
+    /// let blue = translator.resolve(AnsiColor::Blue);
     /// assert_eq!(blue, Color::srgb(0.0, 0.0, 0.666666666666667));
     ///
-    /// let black = sampler.resolve(DefaultColor::Foreground);
+    /// let black = translator.resolve(DefaultColor::Foreground);
     /// assert_eq!(black, Color::srgb(0.0, 0.0, 0.0));
     ///
-    /// let maroon = sampler.resolve(TrueColor::new(148, 23, 81));
+    /// let maroon = translator.resolve(TrueColor::new(148, 23, 81));
     /// assert_eq!(maroon, Color::srgb(
     ///     0.5803921568627451, 0.09019607843137255, 0.3176470588235294
     /// ));
@@ -955,17 +955,17 @@ impl Sampler {
     /// Convert the high-resolution color into an ANSI color.
     ///
     /// If the current theme meets the requirements for hue/lightness search,
-    /// this method forwards to [`Sampler::to_ansi_hue_lightness`]. Otherwise,
-    /// it falls back on [`Sampler::to_closest_ansi`]. Use
-    /// [`Sampler::supports_hue_lightness`] to test whether the current theme
+    /// this method forwards to [`Translator::to_ansi_hue_lightness`].
+    /// Otherwise, it falls back on [`Translator::to_closest_ansi`]. Use
+    /// [`Translator::supports_hue_lightness`] to test whether the current theme
     /// supports hue-lightness search.
     pub fn to_ansi(&self, color: &Color) -> AnsiColor {
         self.to_ansi_hue_lightness(color)
             .unwrap_or_else(|| self.to_closest_ansi(color))
     }
 
-    /// Determine whether this sampler instance supports color translation with
-    /// the hue/lightness search algorithm.
+    /// Determine whether this translator instance supports color translation
+    /// with the hue/lightness search algorithm.
     pub fn supports_hue_lightness(&self) -> bool {
         self.hue_lightness_table.is_some()
     }
@@ -986,15 +986,15 @@ impl Sampler {
     /// increasing hue magnitude. Note that this does allow hues to be
     /// arbitrarily shifted along the circle. Furthermore, it does not prescribe
     /// an order for regular and bright versions of the same abstract ANSI
-    /// color. If the theme colors passed to this sampler's constructor did not
-    /// meet this requirement, this method returns `None`.
+    /// color. If the theme colors passed to this translator's constructor did
+    /// not meet this requirement, this method returns `None`.
     ///
     /// # Examples
     ///
-    /// The documentation for [`Sampler::to_closest_ansi`] gives the example of
-    /// two colors that yield subpar results with an exhaustive search for the
-    /// closest color and then sketches an alternative approach that searches
-    /// for the closest hue.
+    /// The documentation for [`Translator::to_closest_ansi`] gives the example
+    /// of two colors that yield subpar results with an exhaustive search for
+    /// the closest color and then sketches an alternative approach that
+    /// searches for the closest hue.
     ///
     /// The algorithm implemented by this method goes well beyond that sketch by
     /// not only leveraging color pragmatics (i.e., their coordinates) but also
@@ -1003,26 +1003,26 @@ impl Sampler {
     /// one out of two colors with the closest lightness.
     ///
     /// As this example illustrates, that strategy works well for the light
-    /// orange colors from [`Sampler::to_closest_ansi`]. They both match the
+    /// orange colors from [`Translator::to_closest_ansi`]. They both match the
     /// yellow pair by hue and then bright yellow by lightness. Alas, it is no
     /// panacea because color themes may not observe the necessary semantic
     /// constraints. This method detects such cases and returns `None`.
-    /// [`Sampler::to_ansi`] instead automatically falls back onto searching for
-    /// the closest color.
+    /// [`Translator::to_ansi`] instead automatically falls back onto searching
+    /// for the closest color.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Sampler};
+    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Translator};
     /// # use prettypretty::{VGA_COLORS, OkVersion, AnsiColor};
     /// # use std::str::FromStr;
-    /// let sampler = Sampler::new(
+    /// let translator = Translator::new(
     ///     OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// let orange1 = Color::from_str("#ffa563")?;
-    /// let ansi = sampler.to_ansi_hue_lightness(&orange1);
+    /// let ansi = translator.to_ansi_hue_lightness(&orange1);
     /// assert_eq!(ansi.unwrap(), AnsiColor::BrightYellow);
     ///
     /// let orange2 = Color::from_str("#ff9600")?;
-    /// let ansi = sampler.to_ansi_hue_lightness(&orange2);
+    /// let ansi = translator.to_ansi_hue_lightness(&orange2);
     /// assert_eq!(ansi.unwrap(), AnsiColor::BrightYellow);
     /// # Ok::<(), ColorFormatError>(())
     /// ```
@@ -1052,27 +1052,27 @@ impl Sampler {
     /// (more or less) saturated color.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Sampler};
+    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Translator};
     /// # use prettypretty::{VGA_COLORS, OkVersion, AnsiColor};
     /// # use std::str::FromStr;
-    /// let original_sampler = Sampler::new(
+    /// let original_translator = Translator::new(
     ///     OkVersion::Original, VGA_COLORS.clone());
     ///
     /// let orange1 = Color::from_str("#ffa563")?;
-    /// let ansi = original_sampler.to_closest_ansi(&orange1);
+    /// let ansi = original_translator.to_closest_ansi(&orange1);
     /// assert_eq!(ansi, AnsiColor::White);
     ///
     /// let orange2 = Color::from_str("#ff9600")?;
-    /// let ansi = original_sampler.to_closest_ansi(&orange2);
+    /// let ansi = original_translator.to_closest_ansi(&orange2);
     /// assert_eq!(ansi, AnsiColor::BrightRed);
     /// // ---------------------------------------------------------------------
-    /// let revised_sampler = Sampler::new(
+    /// let revised_translator = Translator::new(
     ///     OkVersion::Revised, VGA_COLORS.clone());
     ///
-    /// let ansi = revised_sampler.to_closest_ansi(&orange1);
+    /// let ansi = revised_translator.to_closest_ansi(&orange1);
     /// assert_eq!(ansi, AnsiColor::White);
     ///
-    /// let ansi = revised_sampler.to_closest_ansi(&orange2);
+    /// let ansi = revised_translator.to_closest_ansi(&orange2);
     /// assert_eq!(ansi, AnsiColor::BrightRed);
     /// # Ok::<(), ColorFormatError>(())
     /// ```
@@ -1116,7 +1116,7 @@ impl Sampler {
     /// more accurate, we'll be comparing colors in Oklrch. We start by
     /// preparing a list with the color values for the 16 extended ANSI colors
     /// in that color space. That, by the way, is pretty much what
-    /// [`Sampler::new`] does as well.
+    /// [`Translator::new`] does as well.
     /// ```
     /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, VGA_COLORS};
     /// # use std::str::FromStr;
@@ -1174,7 +1174,7 @@ impl Sampler {
     /// The hue-based comparison picks ANSI color 3, VGA's orange yellow, just
     /// as expected. It appears that our hue-based proof-of-concept works.
     /// However, a production-ready version does need to account for lightness,
-    /// too. The method to do so is [`Sampler::to_ansi_hue_lightness`].
+    /// too. The method to do so is [`Translator::to_ansi_hue_lightness`].
     pub fn to_closest_ansi(&self, color: &Color) -> AnsiColor {
         use crate::core::{delta_e_ok, find_closest};
 
@@ -1217,17 +1217,17 @@ impl Sampler {
     ///
     /// The example below converts every color of the RGB cube embedded in 8-bit
     /// colors to a high-resolution color in sRGB, which is validated by the
-    /// first two assertions, and then uses a sampler to convert that color back
-    /// to an embedded RGB color. The result is the original color, now wrapped
-    /// as a terminal color, which is validated by the third assertion. The
-    /// example demonstrates that the 216 colors in the embedded RGB cube still
-    /// are closest to themselves after conversion to Oklrch.
+    /// first two assertions, and then uses a translator to convert that color
+    /// back to an embedded RGB color. The result is the original color, now
+    /// wrapped as a terminal color, which is validated by the third assertion.
+    /// The example demonstrates that the 216 colors in the embedded RGB cube
+    /// still are closest to themselves after conversion to Oklrch.
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace, VGA_COLORS, TerminalColor, Float};
-    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Sampler, OkVersion};
+    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Translator, OkVersion};
     /// # use prettypretty::assert_close_enough;
-    /// let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
+    /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// for r in 0..5 {
     ///     for g in 0..5 {
@@ -1243,7 +1243,7 @@ impl Sampler {
     ///             };
     ///             assert_close_enough!(color[0], c1);
     ///
-    ///             let result = sampler.to_closest_8bit(&color);
+    ///             let result = translator.to_closest_8bit(&color);
     ///             assert_eq!(result, TerminalColor::Rgb6 { color: embedded });
     ///         }
     ///     }
@@ -1307,7 +1307,7 @@ impl Sampler {
     }
 }
 
-impl Sampler {
+impl Translator {
     #[inline]
     fn do_resolve(&self, color: impl Into<TerminalColor>) -> Color {
         match color.into() {
@@ -1365,11 +1365,11 @@ impl Sampler {
     }
 }
 
-impl std::fmt::Debug for Sampler {
+impl std::fmt::Debug for Translator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,
-            "Sampler({}, [",
+            "Translator({}, [",
             if self.space == ColorSpace::Oklab {
                 "OkVersion.Original"
             } else {
@@ -1389,14 +1389,14 @@ impl std::fmt::Debug for Sampler {
 
 #[cfg(test)]
 mod test {
-    use super::{Sampler, VGA_COLORS};
+    use super::{Translator, VGA_COLORS};
     use crate::{AnsiColor, Color, OkVersion, OutOfBoundsError};
 
     #[test]
-    fn test_sampler() -> Result<(), OutOfBoundsError> {
-        let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
+    fn test_translator() -> Result<(), OutOfBoundsError> {
+        let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
 
-        let result = sampler.to_closest_ansi(&Color::srgb(1.0, 1.0, 0.0));
+        let result = translator.to_closest_ansi(&Color::srgb(1.0, 1.0, 0.0));
         assert_eq!(result, AnsiColor::BrightYellow);
 
         Ok(())

@@ -181,17 +181,17 @@ in Python even more ergonomic and is well worth the extra engineering effort.
 ### 4. Adjust Styles to Reality
 
 Once the terminal has been set up, the progress bar script uses the
-[`current_sampler`]'s [`is_dark_theme`] to pick the attendant style and then
+[`current_translator`]'s [`is_dark_theme`] to pick the attendant style and then
 adjusts that style to the terminal's [`Terminal.fidelity`]:
 
 ```python
-style = DARK_MODE_BAR if current_sampler().is_dark_theme() else LIGHT_MODE_BAR
+style = DARK_MODE_BAR if current_translator().is_dark_theme() else LIGHT_MODE_BAR
 style = style.prepare(term.fidelity)
 ```
 
 Doing so once during startup means that the resulting styles are ready for
 (repeated) display and incurs the overhead of color conversion only once.
-Between [`Style.prepare`] and [`Sampler.cap`], updating styles and colors to
+Between [`Style.prepare`] and [`Translator.cap`], updating styles and colors to
 match a given fidelity level also is positively easy.
 
 In other words, "reality," as far as this progress bar is concerned, has two
@@ -291,11 +291,10 @@ a complete change of direction.
 
 </div>
 
-[`current_sampler`]: https://apparebit.github.io/prettypretty/python/prettypretty/theme.html#prettypretty.theme.current_sampler
+[`current_translator`]: https://apparebit.github.io/prettypretty/python/prettypretty/theme.html#prettypretty.theme.current_translator
 [`is_dark_theme`]: https://apparebit.github.io/prettypretty/python/prettypretty/darkmode.html#prettypretty.darkmode.is_dark_theme
 [`rich`]: https://apparebit.github.io/prettypretty/python/prettypretty/style.html#prettypretty.style.rich
 [`RichText`]: https://apparebit.github.io/prettypretty/python/prettypretty/style.html#prettypretty.style.RichText
-[`Sampler.cap`]: https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.cap
 [`Style.prepare`]: https://apparebit.github.io/prettypretty/python/prettypretty/style.html#prettypretty.style.Style.prepare
 [`Terminal`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal
 [`Terminal.alternate_screen`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.alternate_screen
@@ -303,3 +302,4 @@ a complete change of direction.
 [`Terminal.bracketed_paste`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.bracketed_paste
 [`Terminal.fidelity`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.fidelity
 [`Terminal.window_title`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.window_title
+[`Translator.cap`]: https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.cap

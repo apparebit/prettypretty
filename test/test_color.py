@@ -4,7 +4,7 @@ import unittest
 from prettypretty.color import (
     AnsiColor, Color, ColorSpace, EmbeddedRgb, TerminalColor, TrueColor
 )
-from prettypretty.theme import current_sampler
+from prettypretty.theme import current_translator
 
 
 class ColorValues:
@@ -134,8 +134,8 @@ class TestColor(unittest.TestCase):
         self.assertEqual(green_too.space(), ColorSpace.Srgb)
         self.assertEqual(green_too.coordinates(), [0.0, 1.0, 0.0])
 
-        sampler = current_sampler()
-        green3 = sampler.resolve(also_green)
+        translator = current_translator()
+        green3 = translator.resolve(also_green)
         self.assertEqual(green_too, green3)
 
 

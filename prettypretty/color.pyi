@@ -356,38 +356,34 @@ class ThemeEntryIterator:
     def __next__(self) -> None | ThemeEntry: ...
 
 
-class Sampler:
-    """A color sampler for translating between terminal and high-resolution colors."""
+class Translator:
+    """A class for translating between terminal and high-resolution colors."""
     @staticmethod
     def theme_entries() -> Iterator[ThemeEntry]: ...
     def __new__(cls, version: OkVersion, theme_colors: Sequence[Color]) -> Self: ...
     def __repr__(self) -> str: ...
 
-    """Interrogate color theme."""
+    # Interrogate the color theme
     def is_dark_theme(self) -> bool: ...
 
-    """Translate to high-resolution colors."""
+    # Translate terminal to high-resolution colors
     def resolve(
         self,
         color: TerminalColor|DefaultColor|AnsiColor|EmbeddedRgb|GrayGradient|TrueColor|int,
     ) -> Color: ...
 
-    """Translate to ANSI colors."""
-    def to_ansi(self, color: Color) -> Color:
-        """
-        Translate high-resolution to ANSI colors using the best available
-        algorithm.
-        """
+    # Translate high-resolution to ANSI colors
+    def to_ansi(self, color: Color) -> Color: ...
     def supports_hue_lightness(self) -> bool: ...
     def to_ansi_hue_lightness(self, color: Color) -> None | AnsiColor: ...
     def to_closest_ansi(self, color: Color) -> AnsiColor: ...
     def to_ansi_rgb(self, color: Color) -> AnsiColor: ...
 
-    """Translate to 8-bit colors."""
+    # Translate high-resolution to 8-bit colors
     def to_closest_8bit(self, color: Color) -> TerminalColor: ...
     def to_closest_8bit_with_ansi(self, color: Color) -> TerminalColor: ...
 
-    """Cap terminal colors."""
+    # Cap terminal colors
     def cap(
         self,
         color: TerminalColor|DefaultColor|AnsiColor|EmbeddedRgb|GrayGradient|TrueColor|int,

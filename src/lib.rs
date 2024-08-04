@@ -38,7 +38,7 @@ interfaces as well as Python ingration, with the `pyffi` feature flag enabled.**
 //!     lossless and partial conversions between color representations
 //!     including, for example, conversion from EmbeddedRgb to `u8` index values
 //!     as well true, terminal, and high-resolution colors.
-//!   * [`Sampler`] performs the more difficult translation from ANSI to
+//!   * [`Translator`] performs the more difficult translation from ANSI to
 //!     high-resolution colors, from high-resolution to 8-bit or ANSI colors,
 //!     and the downgrading of terminal colors based on terminal capabilities
 //!     and user preferences.
@@ -83,7 +83,7 @@ interfaces as well as Python ingration, with the `pyffi` feature flag enabled.**
 //! include its own facilities for styled text or terminal I/O. Instead, it is
 //! designed to be a lightweight addition that focuses on color management only.
 //! To use this crate, an application should create its own instance of
-//! [`Sampler`] with the colors of the current terminal theme.
+//! [`Translator`] with the colors of the current terminal theme.
 //!
 //! An application should use the ANSI escape sequences
 //! ```text
@@ -153,7 +153,7 @@ pub use object::{Color, Interpolator, OkVersion};
 pub use term_color::{
     AnsiColor, DefaultColor, EmbeddedRgb, Fidelity, GrayGradient, Layer, TerminalColor, TrueColor,
 };
-pub use translation::{Sampler, Theme, ThemeEntry, ThemeEntryIterator, VGA_COLORS};
+pub use translation::{Theme, ThemeEntry, ThemeEntryIterator, Translator, VGA_COLORS};
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
@@ -175,7 +175,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Interpolator>()?;
     m.add_class::<Layer>()?;
     m.add_class::<OkVersion>()?;
-    m.add_class::<Sampler>()?;
+    m.add_class::<Translator>()?;
     m.add_class::<TerminalColor>()?;
     m.add_class::<ThemeEntry>()?;
     m.add_class::<ThemeEntryIterator>()?;

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.11.0 (2024-xx-xx)
+
+### Changes
+
+  * Rename `Sampler` to `Translator`.
+  * Edit documentation for correctness and clarity.
+
+
 ## v0.10.0 (2024-07-12)
 
 ### New Features

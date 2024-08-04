@@ -1090,7 +1090,7 @@ impl Color {
     ///
     /// Because it is generic, this method is available in Rust only. A
     /// specialized version is available in Python through
-    /// [`Sampler`](crate::Sampler).
+    /// [`Translator`](crate::Translator).
     ///
     /// # Examples
     ///
@@ -1138,7 +1138,7 @@ impl Color {
     ///
     /// Because it is generic, this method is available in Rust only. A
     /// specialized version is available in Python through
-    /// [`Sampler`](crate::Sampler).
+    /// [`Translator`](crate::Translator).
     pub fn find_closest<'c, C, F>(
         &self,
         candidates: C,

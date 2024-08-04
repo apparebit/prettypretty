@@ -8,7 +8,7 @@ import math
 from typing import cast, Literal
 
 from .color import AnsiColor, Color, EmbeddedRgb, Fidelity, Layer, TrueColor
-from .theme import MACOS_TERMINAL, VGA, XTERM, current_sampler
+from .theme import MACOS_TERMINAL, VGA, XTERM, current_translator
 from .terminal import Terminal
 
 
@@ -145,8 +145,11 @@ def write_color_cube(
         label: determines whether boxes are labelled with their color
             components
     """
-    sampler = current_sampler()
-    if not sampler.supports_hue_lightness() and strategy is AnsiConversion.HueLightness:
+    translator = current_translator()
+    if (
+        not translator.supports_hue_lightness()
+        and strategy is AnsiConversion.HueLightness
+    ):
         show_error(
             term,
             "Terminal theme violates requirements of hue/lightness algorithm. "
@@ -155,7 +158,7 @@ def write_color_cube(
         return
 
     theme_colors: list[TrueColor] = [
-        TrueColor.from_color(sampler.resolve(i)) for i in range(16)
+        TrueColor.from_color(translator.resolve(i)) for i in range(16)
     ]
 
     def closest_theme_color(color: TrueColor) -> int:
@@ -199,20 +202,20 @@ def write_color_cube(
                 if strategy == AnsiConversion.NoConversion:
                     eight_bit = embedded.to_8bit()
                 elif strategy == AnsiConversion.HueLightness:
-                    maybe_value = sampler.to_ansi_hue_lightness(source)
+                    maybe_value = translator.to_ansi_hue_lightness(source)
                     if maybe_value is None:
                         raise ValueError('hue/lightness reduction unavailable')
                     eight_bit = maybe_value.to_8bit()
                 elif strategy == AnsiConversion.OklabDistance:
-                    eight_bit = sampler.to_closest_ansi(source).to_8bit()
+                    eight_bit = translator.to_closest_ansi(source).to_8bit()
                 elif strategy == AnsiConversion.RgbDistance:
                     eight_bit = closest_theme_color(TrueColor(*embedded.to_24bit()))
                 elif strategy == AnsiConversion.RgbRounding:
-                    eight_bit = sampler.to_ansi_rgb(source).to_8bit()
+                    eight_bit = translator.to_ansi_rgb(source).to_8bit()
                 else:
                     raise ValueError(f'invalid strategy "{strategy}"')
 
-                target = sampler.resolve(eight_bit)
+                target = translator.resolve(eight_bit)
 
                 # Pick black or white for target, not source color.
                 if layer is Layer.Background:
@@ -249,11 +252,11 @@ def write_hires_slice(
         + label
     )
 
-    sampler = current_sampler()
+    translator = current_translator()
 
     def emit_box(r: int, g: int, b: int) -> None:
         if eight_bit_only:
-            color = sampler.to_closest_8bit(Color.from_24bit(r, g, b)).try_to_8bit(),
+            color = translator.to_closest_8bit(Color.from_24bit(r, g, b)).try_to_8bit(),
         else:
             color = r, g, b
 
@@ -289,10 +292,10 @@ def write_theme_test(term: Terminal, show_label: bool = True):
     frame = FramedBoxes(term, 2, max_width=40)
     frame.top('Actual vs Claimed Color')
 
-    sampler = current_sampler()
+    translator = current_translator()
 
     for index in range(16):
-        color = sampler.resolve(index)
+        color = translator.resolve(index)
         fg = 16 if color.use_black_text() else 231
         bg = color.to_24bit()
 

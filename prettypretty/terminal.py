@@ -24,7 +24,7 @@ from typing import (
 from .ansi import Ansi, RawAnsi
 from .color import Color, Fidelity, Layer, TerminalColor, ThemeEntry
 from .color_types import IntoTerminalColor
-from .theme import new_theme, current_sampler
+from .theme import new_theme, current_translator
 from .ident import identify_terminal, normalize_terminal_name
 from .style import RichText, RichTextElement
 
@@ -1248,8 +1248,8 @@ class Terminal:
         elif isinstance(c1, Color):
             c1 = TerminalColor.from_color(c1)
 
-        sampler = current_sampler()
-        color = sampler.cap(c1, self._fidelity)
+        translator = current_translator()
+        color = translator.cap(c1, self._fidelity)
         if color is not None:
             self.write_control(
                 Ansi.CSI,
@@ -1287,8 +1287,8 @@ class Terminal:
         elif isinstance(c1, Color):
             c1 = TerminalColor.from_color(c1)
 
-        sampler = current_sampler()
-        color = sampler.cap(c1, self._fidelity)
+        translator = current_translator()
+        color = translator.cap(c1, self._fidelity)
         if color is not None:
             self.write_control(
                 Ansi.CSI,

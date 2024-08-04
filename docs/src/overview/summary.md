@@ -21,10 +21,10 @@ In more detail:
     lossless and partial conversions between color representations
     including, for example, conversion from EmbeddedRgb to `u8` index values
     as well true, terminal, and high-resolution colors.
-  * [`Sampler`] performs the more difficult translation from ANSI to
-    high-resolution colors, from high-resolution to 8-bit or ANSI colors,
-    and the downgrading of terminal colors based on terminal capabilities
-    and user preferences.
+  * [`Translator`] performs the more difficult translation from ANSI to
+    high-resolution colors, from high-resolution to 8-bit or ANSI colors, and
+    the downgrading of terminal colors based on terminal capabilities and user
+    preferences.
 
 
 {{#include ../links.md}}

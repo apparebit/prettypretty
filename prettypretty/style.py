@@ -22,7 +22,7 @@ from typing import cast, Literal, overload, Self, TypeAlias, TypeVar
 
 from .ansi import Ansi
 from .color import Color, DefaultColor, Fidelity, Layer, TerminalColor
-from .theme import current_sampler
+from .theme import current_translator
 
 
 class TextAttribute(enum.Enum):
@@ -339,17 +339,17 @@ class Style(Instruction):
             # Erase all styles
             return type(self)()
 
-        sampler = current_sampler()
+        translator = current_translator()
 
         if self.foreground is None:
             fg = None
         else:
-            fg = sampler.cap(self.foreground, fidelity)
+            fg = translator.cap(self.foreground, fidelity)
 
         if self.background is None:
             bg = None
         else:
-            bg = sampler.cap(self.background, fidelity)
+            bg = translator.cap(self.background, fidelity)
 
         return dataclasses.replace(self, foreground=fg, background=bg)
 

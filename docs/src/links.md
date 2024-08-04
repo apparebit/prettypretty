@@ -17,9 +17,9 @@
 [`Layer`]: https://apparebit.github.io/prettypretty/prettypretty/enum.Layer.html
 [`OkVersion`]: https://apparebit.github.io/prettypretty/prettypretty/enum.OkVersion.html
 [`OutOfBoundsError`]: https://apparebit.github.io/prettypretty/prettypretty/struct.OutOfBoundsError.html
-[`Sampler`]: https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html
 [`TerminalColor`]: https://apparebit.github.io/prettypretty/prettypretty/enum.TerminalColor.html
 [`ThemeEntry`]: https://apparebit.github.io/prettypretty/prettypretty/enum.ThemeEntry.html
 [`ThemeEntryIterator`]: https://apparebit.github.io/prettypretty/prettypretty/struct.ThemeEntryIterator.html
+[`Translator`]: https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html
 [`TrueColor`]: https://apparebit.github.io/prettypretty/prettypretty/struct.TrueColor.html
 [`VGA_COLORS`]: https://apparebit.github.io/prettypretty/prettypretty/constant.VGA_COLORS.html

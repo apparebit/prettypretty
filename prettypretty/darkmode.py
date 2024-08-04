@@ -10,12 +10,13 @@ def is_dark_mode() -> None | bool:
         ``True`` for dark mode, ``False`` for light mode, and ``None`` if the
         mode could not be determined.
 
-    The implementation builds on answers to [this StackOverflow
-    question](https://stackoverflow.com/questions/65294987/detect-os-dark-mode-in-python)
-    and [the darkdetect package](https://github.com/albertosottile/darkdetect).
-    The latter seems both over- and under-engineered. In contrast, this module
-    provides the one interesting bit, whether the system is in dark mode, if
-    available and nothing else.
+    The implementation builds on answers to `this StackOverflow question
+    <https://stackoverflow.com/questions/65294987/detect-os-dark-mode-in-python>`_
+    and `the darkdetect package
+    <https://github.com/albertosottile/darkdetect>`_. The latter seems both
+    over- and under-engineered. In contrast, this module provides the one
+    interesting bit, whether the system is in dark mode, if available and
+    nothing else.
     """
     try:
         if sys.platform == "darwin":

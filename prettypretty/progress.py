@@ -6,7 +6,7 @@ import time
 from prettypretty.color import Color
 from prettypretty.style import rich, RichText, Style
 from prettypretty.terminal import Terminal
-from prettypretty.theme import current_sampler
+from prettypretty.theme import current_translator
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -72,7 +72,7 @@ def main() -> None:
         .hidden_cursor()
         .scoped_style()
     ) as term:
-        style = DARK_MODE_BAR if current_sampler().is_dark_theme() else LIGHT_MODE_BAR
+        style = DARK_MODE_BAR if current_translator().is_dark_theme() else LIGHT_MODE_BAR
         style = style.prepare(term.fidelity)
 
         fg = style.foreground

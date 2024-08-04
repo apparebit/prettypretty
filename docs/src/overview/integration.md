@@ -35,28 +35,28 @@ default and ANSI colors.
 ## Translation Is Necessarily Stateful
 
 Since the default and ANSI colors are abstract, translation to high-resolution
-colors necessarily requires some form of lookup table, i.e., the so-called color
-theme. Prettypretty relies on the same abstraction to store that table as well
-as the derived state for translating high-resolution colors to terminal colors
-again:
+colors necessarily requires some form of lookup table, i.e., a color theme.
+Prettypretty relies on the same abstraction to store that table as well as the
+derived state for translating high-resolution colors to terminal colors again:
 
-  * [`Sampler`] provides the logic and state for translating between
+  * [`Translator`] provides the logic and state for translating between
     terminal and high-resolution colors.
 
 There is ample precedent for the use of color themes to provide concrete values
-for abstract colors. Most terminal emulators feature robust support for the
-[plethora of such themes](https://gogh-co.github.io/Gogh/) readily available on
-the web. However, asking users to configure theme colors yet again most
-certainly is the wrong approach. Luckily, ANSI escape codes include sequences
-for querying a terminal for its current theme colors, making it possible to
-automatically and transparently adjust to the runtime environment.
+for abstract colors. In fact, most terminal emulators feature robust support for
+the [plethora of such themes](https://gogh-co.github.io/Gogh/) readily available
+on the web. However, asking users to configure theme colors after they already
+configured their terminals decidedly is the wrong approach. Luckily, ANSI escape
+codes include sequences for querying a terminal for its current theme colors,
+making it possible to automatically and transparently adjust to the runtime
+environment.
 
 
 ## The Fall From High-Resolution
 
 Theme colors turn the translation of terminal to high-resolution colors into a
-simple lookup. The difficulty of translation in the other direction, from
-high-resolution to terminal colors, very much depends on the target colors:
+simple lookup. The level of difficulty when translating in the other direction,
+from high-resolution to terminal colors, very much depends on the target colors:
 
 
 ### 24-Bit Colors
@@ -64,9 +64,10 @@ high-resolution to terminal colors, very much depends on the target colors:
 In the best case, when the source color is in-gamut for sRGB and the target are
 24-bit "true" colors, a loss of numeric resolution is the only concern. It
 probably is imperceptible as well. However, if the source color is out of sRGB
-gamut, even when still targeting 24-bit colors and, like [`Sampler`], using
-gamut-mapping, the difference between source and target colors becomes clearly
-noticeable. It only becomes more obvious when targeting 8-bit or ANSI colors.
+gamut, even when still targeting 24-bit colors and, like [`Translator`], using
+gamut-mapping, the difference between source and target colors may become
+clearly noticeable. It only becomes more obvious when targeting 8-bit or ANSI
+colors.
 
 
 ### 8-Bit Colors
@@ -97,7 +98,7 @@ time*. But because there are so few candidates, the closest matching color may
 just violate basic human expectations about what is a match, e.g., that warm
 tones remain warm, cold tones remain cold, light tones remain light, dark tones
 remain dark, and last but not least color remains color.
-[`Sampler::to_closest_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_closest_ansi)'s
+[`Translator::to_closest_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_closest_ansi)'s
 documentation provides an example that violates the latter expectation, with a
 light orange tone turning into a light gray. That is jarring, especially in
 context of other colors that are *not* mapped to gray.
@@ -107,91 +108,91 @@ leverages not only uses color pragmatics, i.e., the coordinates of theme colors,
 but also color semantics, i.e., their intended appearance. In other words, the
 algorithm leverages the very fact that ANSI colors are abstract colors to
 improve the quality of matches. As implemented by
-[`Sampler::to_ansi_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_ansi_hue_lightness),
+[`Translator::to_ansi_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_ansi_hue_lightness),
 the algorithm first uses hue in Oklrch to find a pair of regular and bright
 colors and second uses lightness to pick the closer one. In my evaluation so
 far, it is indeed more robust than brute force search. But it also won't work if
-the theme colors themselves are inconsistent with theme semantics. Since that is
-detectable,
-[`Sampler::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_ansi)
+the theme colors themselves are inconsistent with theme semantics. Since that
+can be automatically checked,
+[`Translator::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_ansi)
 transparently picks the best possible method.
 
 
-## Sampler Methods
+## Translator Methods
 
 Now that we understand the challenges and the algorithms for overcoming them, we
-turn to [`Sampler`]'s interface. We group its method by task:
+turn to [`Translator`]'s interface. We group its method by task:
 
- 1. [`Sampler::resolve`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.resolve)
+ 1. [`Translator::resolve`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.resolve)
     translates terminal colors to high-resolution colors. Thanks to the
     `Into<TerminalColor>` trait, Rust code can invoke the method with an
     instance of `u8`, [`DefaultColor`], [`AnsiColor`], [`EmbeddedRgb`],
     [`GrayGradient`], [`TrueColor`], or [`TerminalColor`]. Thanks to a custom
     PyO3 conversion function, Python code can do the exact same.
- 2. [`Sampler::to_closest_8bit`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_closest_8bit)
+ 2. [`Translator::to_closest_8bit`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_closest_8bit)
     and
-    [`Sampler::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_ansi)
+    [`Translator::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_ansi)
     translate high-resolution colors to low-resolution terminal colors.
     Prettypretty does not support conversion to the default colors and
     high-resolution colors can be directly converted to true colors, without
-    requiring mediation through [`Sampler`].
+    requiring mediation through [`Translator`].
 
     The
-    [`Sampler::supports_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.supports_hue_lightness),
-    [`Sampler::to_ansi_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_ansi_hue_lightness),
-    [`Sampler::to_closest_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_closest_ansi),
+    [`Translator::supports_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.supports_hue_lightness),
+    [`Translator::to_ansi_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_ansi_hue_lightness),
+    [`Translator::to_closest_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_closest_ansi),
     and
-    [`Sampler::to_ansi_rgb`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_ansi_rgb)
+    [`Translator::to_ansi_rgb`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_ansi_rgb)
     methods provide direct access to individual algorithms for converting to
     ANSI colors. For instance, I use these methods for comparing the
     effectiveness of different approaches. But your code is probably better off
     using
-    [`Sampler::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_ansi),
+    [`Translator::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_ansi),
     which automatically picks `to_ansi_hue_lightness` or `to_closest_ansi`. In
     any case, I strongly recommend avoiding `to_ansi_rgb`. It only exists to
     evaluate the approach taken by the popular JavaScript library
     [Chalk](https://github.com/chalk/chalk) and reliably produces subpar
     results. Ironically, Chalk's tagline is "Terminal string styling done
     right."
- 3. [`Sampler::cap`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.cap)
+ 3. [`Translator::cap`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.cap)
     tanslates terminal colors to terminal colors. Under the hood, it may very
     well translate a terminal color to a high-resolution color and then match
-    against that color to produce a terminal color again. This is the method to
-    use for adjusting terminal colors to the runtime environment and user
-    preferences, which can be concisely expressed by the [`Fidelity`] level.
- 4. [`Sampler::is_dark_theme`]() determines whether the color theme used by this
-    sampler instance is a dark theme.
+    against that color to produce a terminal color again. Use this method to
+    adjust terminal colors to the runtime environment and user preferences,
+    which can be concisely expressed by a [`Fidelity`] level.
+ 4. [`Translator::is_dark_theme`]() determines whether the color theme used by this
+    translator instance is a dark theme.
 
 
-[`Sampler`] eagerly creates the necessary tables with colors for brute force and
+[`Translator`] eagerly creates the necessary tables with colors for brute force and
 hue-lightness search in the constructor. Altogether, an instance of this struct
 owns 306 colors, which take up 7,160 bytes on macOS. As long as the terminal
-color theme doesn't change, a sampler need not be regenerated. That also means
+color theme doesn't change, a translator need not be regenerated. That also means
 that it can be used concurrently without locking—as long as threads have their
 own references.
 
 
-## Sampler Samples
+## Translator
 
 The example code below illustrates the use of each major entry point besides
 `to_closest_8bit`, which isn't that different from `to_ansi`:
 
 ```rust
 # extern crate prettypretty;
-# use prettypretty::{AnsiColor, Color, ColorFormatError, Sampler, VGA_COLORS};
+# use prettypretty::{AnsiColor, Color, ColorFormatError, Translator, VGA_COLORS};
 # use prettypretty::{OkVersion, TrueColor, Fidelity, EmbeddedRgb};
 # use std::str::FromStr;
 let red = &VGA_COLORS[AnsiColor::BrightRed as usize + 2];
 assert_eq!(red, &Color::srgb(1.0, 0.333333333333333, 0.333333333333333));
 
-let sampler = Sampler::new(OkVersion::Revised, VGA_COLORS.clone());
-let also_red = &sampler.resolve(AnsiColor::BrightRed);
+let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
+let also_red = &translator.resolve(AnsiColor::BrightRed);
 assert_eq!(red, also_red);
 
-let black = sampler.to_ansi(&Color::srgb(0.15, 0.15, 0.15));
+let black = translator.to_ansi(&Color::srgb(0.15, 0.15, 0.15));
 assert_eq!(black, AnsiColor::Black);
 
-let maroon = sampler.cap(TrueColor::new(148, 23, 81), Fidelity::EightBit);
+let maroon = translator.cap(TrueColor::new(148, 23, 81), Fidelity::EightBit);
 assert_eq!(maroon, Some(EmbeddedRgb::new(2,0,1).unwrap().into()));
 # Ok::<(), ColorFormatError>(())
 ```
@@ -206,19 +207,19 @@ assert_eq!(maroon, Some(EmbeddedRgb::new(2,0,1).unwrap().into()));
 The Python version is a close match:
 
 ```python
-~from prettypretty.color import AnsiColor, Color, OkVersion, Sampler, Fidelity
+~from prettypretty.color import AnsiColor, Color, OkVersion, Translator, Fidelity
 ~from prettypretty.theme import VGA
 red = VGA[AnsiColor.BrightRed.to_8bit() + 2]
 assert red == Color.srgb(1.0, 0.333333333333333, 0.333333333333333)
 
-sampler = Sampler(OkVersion.Revised, VGA)
-also_red = sampler.resolve(AnsiColor.BrightRed)
+translator = Translator(OkVersion.Revised, VGA)
+also_red = translator.resolve(AnsiColor.BrightRed)
 assert red == also_red
 
-black = sampler.to_ansi(Color.srgb(0.15, 0.15, 0.15))
+black = translator.to_ansi(Color.srgb(0.15, 0.15, 0.15))
 assert black == AnsiColor.Black
 
-maroon = sampler.cap(TrueColor(148, 23, 81), Fidelity.EightBit)
+maroon = translator.cap(TrueColor(148, 23, 81), Fidelity.EightBit)
 assert maroon == TerminalColor.Rgb6(EmbeddedRgb(2, 0, 1))
 ```
 <div class=color-swatch>
