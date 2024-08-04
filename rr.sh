@@ -44,7 +44,7 @@ trace() {
 }
 
 run-python-tests() {
-    python -c '
+    ./.venv/bin/python -c '
 import sys
 import unittest
 from test.runtime import ResultAdapter
@@ -67,7 +67,7 @@ check() {
     trace cargo clippy --all-features
     trace cargo test
     if [ -d prettypretty ]; then
-        trace npm run pyright
+        trace npm run pyright -- --pythonpath ./.venv/bin/python
     fi
     if [ -d test ]; then
         trace run-python-tests
@@ -87,7 +87,7 @@ docs() {
     trace cargo rustdoc --all-features -- -e $(realpath docs/pretty.css)
 
     if [ -d docs ]; then
-        trace sphinx-build -a -b html docs target/doc/python
+        trace ./.venv/bin/sphinx-build -a -b html docs target/doc/python
         trace rm -rf target/doc/python/.doctrees
     fi
 }
