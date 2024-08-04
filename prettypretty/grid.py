@@ -130,7 +130,7 @@ def write_color_cube(
     *,
     layer: Layer = Layer.Background,
     strategy: AnsiConversion = AnsiConversion.NoConversion,
-    show_label: bool = True,
+    show_detail: Literal[0, 1, 2] = 2,
 ) -> None:
     """
     Format a framed grid with 216 cells, where each cell displays a distinct
@@ -173,63 +173,64 @@ def write_color_cube(
 
         return min_index
 
-    frame = FramedBoxes(term, 6)
+    min_width = 5 if show_detail > 0 else 8
+    max_width = 1_000 if show_detail > 0 else 48
+    frame = FramedBoxes(term, box_count=6, min_width=min_width, max_width=max_width)
 
-    suffix = (
-        '' if strategy == AnsiConversion.NoConversion
-        else ' (Hue/Lightness)' if strategy == AnsiConversion.HueLightness
-        else ' (Oklab Distance)' if strategy == AnsiConversion.OklabDistance
-        else ' (RGB Distance)' if strategy == AnsiConversion.RgbDistance
-        else ' (Round to 1-bit)'
+    title = (
+        'Original' if strategy == AnsiConversion.NoConversion
+        else 'Hue/Lightness' if strategy == AnsiConversion.HueLightness
+        else 'Oklab Distance' if strategy == AnsiConversion.OklabDistance
+        else 'RGB Distance' if strategy == AnsiConversion.RgbDistance
+        else 'Round to 1-bit'
     )
 
-    frame.top(
-        str(layer)
-        + ': '
-        + ('Original ' if strategy == AnsiConversion.NoConversion else 'Compressed ')
-        + '6•6•6 RGB Cube'
-        + suffix
-    )
+    if show_detail > 0:
+        title = f'{layer}: 6•6•6 RGB Cube ({title})'
+    frame.top(title)
 
     for r in range(6):
         for b in range(6):
-            frame.left()
+            for _ in range(1 if show_detail > 0 else 4):
+                frame.left()
 
-            for g in range(6):
-                embedded = EmbeddedRgb(r, g, b)
-                source = embedded.to_color()
+                for g in range(6):
+                    embedded = EmbeddedRgb(r, g, b)
+                    source = embedded.to_color()
 
-                if strategy == AnsiConversion.NoConversion:
-                    eight_bit = embedded.to_8bit()
-                elif strategy == AnsiConversion.HueLightness:
-                    maybe_value = translator.to_ansi_hue_lightness(source)
-                    if maybe_value is None:
-                        raise ValueError('hue/lightness reduction unavailable')
-                    eight_bit = maybe_value.to_8bit()
-                elif strategy == AnsiConversion.OklabDistance:
-                    eight_bit = translator.to_closest_ansi(source).to_8bit()
-                elif strategy == AnsiConversion.RgbDistance:
-                    eight_bit = closest_theme_color(TrueColor(*embedded.to_24bit()))
-                elif strategy == AnsiConversion.RgbRounding:
-                    eight_bit = translator.to_ansi_rgb(source).to_8bit()
-                else:
-                    raise ValueError(f'invalid strategy "{strategy}"')
+                    if strategy == AnsiConversion.NoConversion:
+                        eight_bit = embedded.to_8bit()
+                    elif strategy == AnsiConversion.HueLightness:
+                        maybe_value = translator.to_ansi_hue_lightness(source)
+                        if maybe_value is None:
+                            raise ValueError('hue/lightness reduction unavailable')
+                        eight_bit = maybe_value.to_8bit()
+                    elif strategy == AnsiConversion.OklabDistance:
+                        eight_bit = translator.to_closest_ansi(source).to_8bit()
+                    elif strategy == AnsiConversion.RgbDistance:
+                        eight_bit = closest_theme_color(TrueColor(*embedded.to_24bit()))
+                    elif strategy == AnsiConversion.RgbRounding:
+                        eight_bit = translator.to_ansi_rgb(source).to_8bit()
+                    else:
+                        raise ValueError(f'invalid strategy "{strategy}"')
 
-                target = translator.resolve(eight_bit)
+                    target = translator.resolve(eight_bit)
 
-                # Pick black or white for target, not source color.
-                if layer is Layer.Background:
-                    foreground = 16 if target.use_black_text() else 231,
-                    background = eight_bit,
-                else:
-                    foreground = eight_bit,
-                    background = 16 if target.use_black_background() else 231,
+                    # Pick black or white for target, not source color.
+                    if layer is Layer.Background:
+                        foreground = 16 if target.use_black_text() else 231,
+                        background = eight_bit,
+                    else:
+                        foreground = eight_bit,
+                        background = 16 if target.use_black_background() else 231,
 
-                frame.box(
-                    f'{r}•{g}•{b}' if show_label else ' ', foreground, background
-                )
+                    frame.box(
+                        f'{r}•{g}•{b}' if show_detail == 2 else ' ',
+                        foreground,
+                        background,
+                    )
 
-            frame.right()
+                frame.right()
 
     frame.bottom()
     term.writeln()
@@ -288,7 +289,7 @@ def write_hires_slice(
     term.writeln()
 
 
-def write_theme_test(term: Terminal, show_label: bool = True):
+def write_theme_test(term: Terminal, show_detail: Literal[0, 1, 2] = 2):
     frame = FramedBoxes(term, 2, max_width=40)
     frame.top('Actual vs Claimed Color')
 
@@ -302,8 +303,12 @@ def write_theme_test(term: Terminal, show_label: bool = True):
         label = ', '.join(f'{c:3d}' for c in bg)
 
         frame.left()
-        frame.box(f'{index:>2}' if show_label else ' ', (fg,), (index,))
-        frame.box(label if show_label else ' ', (fg,), cast(tuple[int, int, int], bg))
+        frame.box(f'{index:>2}' if show_detail == 2 else ' ', (fg,), (index,))
+        frame.box(
+            label if show_detail == 2 else ' ',
+            (fg,),
+            cast(tuple[int, int, int], bg)
+        )
         frame.right()
 
     frame.bottom()
@@ -357,9 +362,18 @@ def create_parser() -> argparse.ArgumentParser:
         help='show slices through 24-bit RGB cube (in truecolor mode only)'
     )
     parser.add_argument(
+        '--abstract',
+        action='store_const',
+        const=0,
+        dest='detail',
+        default=2,
+        help='show smaller, label-free color grids',
+    )
+    parser.add_argument(
         '--no-label',
-        action='store_false',
-        dest='label',
+        action='store_const',
+        const=1,
+        dest='detail',
         help='do not display color labels',
     )
 
@@ -381,11 +395,11 @@ if __name__ == '__main__':
     ):
         term.writeln()
 
-        write_color_cube(term, show_label=options.label)
-        write_color_cube(term, strategy=AnsiConversion.HueLightness, show_label=options.label)
-        write_color_cube(term, strategy=AnsiConversion.OklabDistance, show_label=options.label)
-        write_color_cube(term, strategy=AnsiConversion.RgbDistance, show_label=options.label)
-        write_color_cube(term, strategy=AnsiConversion.RgbRounding, show_label=options.label)
+        write_color_cube(term, show_detail=options.detail)
+        write_color_cube(term, strategy=AnsiConversion.HueLightness, show_detail=options.detail)
+        write_color_cube(term, strategy=AnsiConversion.OklabDistance, show_detail=options.detail)
+        write_color_cube(term, strategy=AnsiConversion.RgbDistance, show_detail=options.detail)
+        write_color_cube(term, strategy=AnsiConversion.RgbRounding, show_detail=options.detail)
         write_color_cube(term, layer=Layer.Foreground)
 
         if term.fidelity == Fidelity.Full:
@@ -400,7 +414,7 @@ if __name__ == '__main__':
                                 eight_bit_only=downsample,
                             )
 
-            write_theme_test(term, show_label=options.label)
+            write_theme_test(term, show_detail=options.detail)
 
             term.write_paragraph("""
                 The frame showing actual vs claimed colors has two columns. The
