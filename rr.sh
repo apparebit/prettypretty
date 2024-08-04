@@ -60,6 +60,7 @@ unittest.main(
 }
 
 check() {
+    trace cargo fmt --check
     trace cargo check
     trace cargo check --all-features
     trace cargo clippy
