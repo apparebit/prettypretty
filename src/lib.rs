@@ -76,6 +76,12 @@ interfaces as well as Python ingration, with the `pyffi` feature flag enabled.**
 //! `TryFrom`, prettypretty includes additional methods that make the same
 //! functionality available.
 //!
+//! There likely won't ever be a `no_std` version of this crate. While use of
+//! the occasional `std` trait such as `Error` would be fixable, there is no
+//! good solution for prettypretty's use of floating point operations. Yet those
+//! same operations also are needed for fundamental functionality of this crate,
+//! including conversion between color spaces.
+//!
 //!
 //! ## BYOIO: Bring Your Own (Terminal) I/O
 //!
