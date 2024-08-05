@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 
 set -e
 
@@ -11,7 +11,8 @@ INFO="\e[1;35m"
 RESET="\e[0m"
 
 terminal=$(tty)
-columns=$(stty -a <"$terminal" | egrep -Eo '\d+ columns;' | egrep -Eo '\d+')
+# Don't use \d; it doesn't work on Linux.
+columns=$(stty -a <"$terminal" | egrep -Eo '; ([0-9]+ )?columns( [0-9]+)?;' | egrep -Eo '[0-9]+')
 
 h1() {
     hx "━" "$1"
@@ -22,25 +23,35 @@ h2() {
 }
 
 hx() {
-    printf "$1%.0s" {1..4}
+    # {1..20} works, too. But not with variables.
+    printf "$1%.0s" $(seq 1 4)
     printf " $2 "
-    printf "$1%.0s" {1..$((80 - ${#2}))}
+    printf "$1%.0s" $(seq 1 $((80 - ${#2})))
     printf "\n"
 }
 
 log() {
     eval "STYLE=\"\${$1}\""
-    print -u 2 "${STYLE}$1: ${@:2}${RESET}"
+    # Bash doesn't have print, only printf
+    >&2 printf "${STYLE}$1: ${@:2}${RESET}\n"
 }
 
 trace() {
-    printf "━%.0s" {1..$columns}
+    printf "━%.0s" $(seq 1 $columns)
     printf "\n"
     echo "$*"
-    printf "─%.0s" {1..$columns}
+    printf "─%.0s" $(seq 1 $columns)
     printf "\n"
     $1 "${@:2}"
     echo
+}
+
+install() {
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    brew install mdbook
+    brew install maturin
+    brew install node
+    brew install python
 }
 
 run-python-tests() {
@@ -115,6 +126,9 @@ fi
 case $target in
     "-h" | "--help" )
         help
+        ;;
+    install )
+        install
         ;;
     check )
         check
