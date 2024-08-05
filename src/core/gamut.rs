@@ -2,24 +2,33 @@ use crate::core::conversion::okxch_to_okxab;
 use crate::core::{convert, delta_e_ok, normalize};
 use crate::{ColorSpace, Float};
 
-/// Determine whether the color is a gray. For maximally consistent results,
-/// this functions tests chroma and hue in Oklch/Oklrch. If the color is in
-/// neither color space, this function first converts the coordinates.
-pub(crate) fn is_gray(space: ColorSpace, coordinates: &[Float; 3]) -> bool {
+/// Determine whether the color is gray-ish.
+///
+/// For maximally consistent results, this functions tests chroma and hue in
+/// Oklch/Oklrch. If the color is in neither color space, this function first
+/// converts the coordinates.
+pub(crate) fn is_gray(space: ColorSpace, coordinates: &[Float; 3], threshold: Float) -> bool {
     let coordinates = match space {
         ColorSpace::Oklch | ColorSpace::Oklrch => *coordinates,
         _ => convert(space, ColorSpace::Oklch, coordinates),
     };
 
-    is_gray_chroma_hue(coordinates[1], coordinates[2])
+    is_gray_chroma_hue(coordinates[1], coordinates[2], threshold)
 }
 
-const MAX_GRAY_CHROMA: Float = 0.01;
+/// A fairly loose threshold for gray chroma
+pub(crate) const LOOSE_GRAY_THRESHOLD: Float = 0.05;
 
-/// Determine whether the chroma and hue are gray.
+/// A fairly tight threshold for gray chroma
+pub(crate) const TIGHT_GRAY_THRESHOLD: Float = 0.01;
+
+/// Determine whether the chroma and hue are gray-ish.
+///
+/// This function treats the chroma and hue as gray-ish if either the hue is
+/// not-a-number or the chroma is smaller than the given threshold.
 #[inline]
-pub(crate) fn is_gray_chroma_hue(chroma: Float, hue: Float) -> bool {
-    hue.is_nan() || chroma < MAX_GRAY_CHROMA
+pub(crate) fn is_gray_chroma_hue(chroma: Float, hue: Float, threshold: Float) -> bool {
+    hue.is_nan() || chroma < threshold
 }
 
 /// Determine whether the coordinates are in gamut for their color space.

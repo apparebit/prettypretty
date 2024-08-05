@@ -18,7 +18,10 @@ pub(crate) use equality::assert_same_coordinates;
 pub use equality::close_enough;
 pub use equality::to_eq_bits;
 pub(crate) use equality::{normalize, to_eq_coordinates};
-pub(crate) use gamut::{clip, in_gamut, is_gray, is_gray_chroma_hue, to_gamut};
+pub(crate) use gamut::{
+    clip, in_gamut, is_gray, is_gray_chroma_hue, to_gamut, LOOSE_GRAY_THRESHOLD,
+    TIGHT_GRAY_THRESHOLD,
+};
 pub use space::ColorSpace;
 pub use string::ColorFormatError;
 pub(crate) use string::{format, parse};

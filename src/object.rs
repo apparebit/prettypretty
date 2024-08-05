@@ -7,7 +7,7 @@ use crate::core::{
     clip, convert, delta_e_ok, format, from_24bit, in_gamut, interpolate, is_gray, normalize,
     parse, prepare_to_interpolate, scale_lightness, to_24bit, to_contrast,
     to_contrast_luminance_p3, to_contrast_luminance_srgb, to_eq_coordinates, to_gamut,
-    ColorFormatError, ColorSpace, HueInterpolation,
+    ColorFormatError, ColorSpace, HueInterpolation, TIGHT_GRAY_THRESHOLD,
 };
 
 use crate::Float;
@@ -396,7 +396,7 @@ impl Color {
         self.space == ColorSpace::Xyz && self.coordinates == [0.0, 0.0, 0.0]
     }
 
-    /// Determine whether this color is a gray.
+    /// Determine whether this color is gray-ish.
     ///
     /// For consistent, high-quality results, this method tests for hue being
     /// not-a-number or chroma being close to zero in Oklch or Oklrch. If this
@@ -414,7 +414,7 @@ impl Color {
     ///
     /// ```
     /// # use prettypretty::Color;
-    /// let gray_enough = Color::srgb(0.5, 0.5, 0.51);
+    /// let gray_enough = Color::srgb(0.5, 0.5, 0.52);
     /// assert!(gray_enough.is_gray());
     /// ```
     /// <div class=color-swatch>
@@ -422,7 +422,7 @@ impl Color {
     /// </div>
     #[inline]
     pub fn is_gray(&self) -> bool {
-        is_gray(self.space, &self.coordinates)
+        is_gray(self.space, &self.coordinates, TIGHT_GRAY_THRESHOLD)
     }
 
     // ----------------------------------------------------------------------------------------------------------------

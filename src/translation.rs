@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 #[cfg(feature = "pyffi")]
 use pyo3::types::PyInt;
 
-use crate::core::is_gray_chroma_hue;
+use crate::core::{is_gray_chroma_hue, LOOSE_GRAY_THRESHOLD};
 
 use crate::{
     rgb, AnsiColor, Bits, Color, ColorSpace, DefaultColor, EmbeddedRgb, Fidelity, Float,
@@ -173,7 +173,8 @@ impl GrayEntry {
     /// value is not gray.
     fn new(spec: AnsiColor, value: &Color) -> Option<GrayEntry> {
         let [lr, c, h] = *value.to(ColorSpace::Oklrch).as_ref();
-        if !spec.is_gray() || !is_gray_chroma_hue(c, h) {
+        if !spec.is_gray() || !is_gray_chroma_hue(c, h, LOOSE_GRAY_THRESHOLD) {
+            println!("{}, {}, {} is too colorful for GrayEntry", lr, c, h);  // FIXME
             return None;
         }
 
@@ -202,7 +203,8 @@ impl ColorEntry {
     /// concrete color value is gray.
     fn new(spec: AnsiColor, value: &Color) -> Option<Self> {
         let [lr, c, mut h] = *value.to(ColorSpace::Oklrch).as_ref();
-        if spec.is_gray() || is_gray_chroma_hue(c, h) {
+        if spec.is_gray() || is_gray_chroma_hue(c, h, LOOSE_GRAY_THRESHOLD) {
+            println!("{}, {}, {} is too grey for ColorEntry", lr, c, h);  // FIXME
             return None;
         }
         h = h.rem_euclid(360.0); // Critical for correctness!
@@ -259,6 +261,8 @@ impl HueLightnessTable {
         }
         grays.sort_by_key(|entry| entry.key());
 
+        println!("Done setting up gray tones!");  // FIXME
+
         // Prep the non-grays in hue order: red, yellow, green, cyan, blue, magenta.
         let mut colors = Vec::with_capacity(12);
         for index in [1_usize, 3, 2, 6, 4, 5] {
@@ -298,11 +302,15 @@ impl HueLightnessTable {
         // pairs are in standard order, all hues are sorted as well.
         min_hue = -1.0;
         for entry in colors.iter() {
+            println!("hue {}  spec {:?}", entry.h, entry.spec); // FIXME
             if entry.h < min_hue {
+                println!("bad min_hue {} ABORT", min_hue); // FIXME
                 return None;
             }
             min_hue = entry.h;
         }
+
+        println!("All good"); // FIXME
 
         Some(HueLightnessTable { grays, colors })
     }
@@ -317,7 +325,7 @@ impl HueLightnessTable {
         let [lr, c, h] = *color.to(ColorSpace::Oklrch).as_ref();
 
         // Select gray index by lr only. Not that there is anything else to go by...
-        if is_gray_chroma_hue(c, h) {
+        if is_gray_chroma_hue(c, h, LOOSE_GRAY_THRESHOLD) {
             for index in 0..(self.grays.len() - 1) {
                 let entry1 = &self.grays[index];
                 let entry2 = &self.grays[index + 1];
