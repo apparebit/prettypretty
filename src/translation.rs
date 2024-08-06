@@ -174,7 +174,7 @@ impl GrayEntry {
     fn new(spec: AnsiColor, value: &Color) -> Option<GrayEntry> {
         let [lr, c, h] = *value.to(ColorSpace::Oklrch).as_ref();
         if !spec.is_gray() || !is_gray_chroma_hue(c, h, LOOSE_GRAY_THRESHOLD) {
-            println!("{}, {}, {} is too colorful for GrayEntry", lr, c, h);  // FIXME
+            println!("{}, {}, {} is too colorful for GrayEntry", lr, c, h); // FIXME
             return None;
         }
 
@@ -204,7 +204,7 @@ impl ColorEntry {
     fn new(spec: AnsiColor, value: &Color) -> Option<Self> {
         let [lr, c, mut h] = *value.to(ColorSpace::Oklrch).as_ref();
         if spec.is_gray() || is_gray_chroma_hue(c, h, LOOSE_GRAY_THRESHOLD) {
-            println!("{}, {}, {} is too grey for ColorEntry", lr, c, h);  // FIXME
+            println!("{}, {}, {} is too grey for ColorEntry", lr, c, h); // FIXME
             return None;
         }
         h = h.rem_euclid(360.0); // Critical for correctness!
@@ -261,7 +261,7 @@ impl HueLightnessTable {
         }
         grays.sort_by_key(|entry| entry.key());
 
-        println!("Done setting up gray tones!");  // FIXME
+        println!("Done setting up gray tones!"); // FIXME
 
         // Prep the non-grays in hue order: red, yellow, green, cyan, blue, magenta.
         let mut colors = Vec::with_capacity(12);
