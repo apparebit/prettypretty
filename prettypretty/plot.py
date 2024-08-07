@@ -16,12 +16,15 @@ except ImportError:
 import argparse
 import math
 import pathlib
-from typing import Any, cast
+from typing import Any, cast, TypeAlias
 
 from .terminal import Terminal
 from .color import close_enough, Color, ColorSpace, ThemeEntry
+from .observer import STANDARD_OBSERVER_1931
 from .theme import current_translator, VGA
 
+
+ChromaHue: TypeAlias = tuple[float, float]
 
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -119,6 +122,7 @@ class ColorPlotter:
         self._gamut_step = gamut_step or 1
         self._gamut_range = gamut_range or 20
         self._largest_gamut: None | ColorSpace = None
+        self._with_spectrum = False
 
         self._volume = volume
 
@@ -202,7 +206,9 @@ class ColorPlotter:
         return counts
 
     def effective_max_chroma(self) -> float:
-        if self._largest_gamut in (ColorSpace.Srgb, ColorSpace.DisplayP3):
+        if self._with_spectrum:
+            return 0.6
+        elif self._largest_gamut in (ColorSpace.Srgb, ColorSpace.DisplayP3):
             return 0.4
         elif self._largest_gamut is ColorSpace.Rec2020:
             return 0.5
@@ -239,7 +245,7 @@ class ColorPlotter:
 
     def generate_boundary_points(
         self, space: ColorSpace, template: list[int], index: int, sign: Literal[1, -1]
-    ) -> tuple[list[tuple[float, float]], list[str]]:
+    ) -> tuple[list[ChromaHue], list[str]]:
         """
         Generate points on the boundary of the given RGB color space.
 
@@ -372,12 +378,66 @@ class ColorPlotter:
             ),
         )
 
-    def trace_spectrum_boundary(self) -> list[tuple[float, float]]:
+    def trace_spectrum_locus(self) -> tuple[list[ChromaHue], list[ChromaHue]]:
         points: list[tuple[float, float]] = []
 
-        # FIXME
+        # Collect the points for the entire standard observer data.
+        for λ, (x, y, z) in STANDARD_OBSERVER_1931:
+            _, c, h = Color(ColorSpace.Xyz, [x, y, z]).to(ColorSpace.Oklch)
+            radian = h * math.pi / 180
+            points.append((c, radian))
 
-        return points
+            self.detail(f"spectrum locus λ={λ}: {c:.5f}, {h:5.1f}º")
+
+        # Find local chroma maximum from start.
+        start_index = None
+        max_chroma = None
+        for index, (c, h) in enumerate(points):
+            if max_chroma is not None and max_chroma > c:
+                break
+
+            start_index = index
+            max_chroma = c
+
+        # Find local chroma maximum from stop.
+        stop_index = None
+        max_chroma = None
+        for index, (c, h) in enumerate(reversed(points)):
+            if max_chroma is not None and max_chroma > c:
+                break
+
+            stop_index = index
+            max_chroma = c
+
+        assert start_index is not None and stop_index is not None
+        return points, [points[start_index - 1], points[-stop_index]]
+
+    def add_spectrum_locus(self, axes: Any) -> None:
+        self._with_spectrum = True
+
+        points, more_points = self.trace_spectrum_locus()
+
+        previous_chroma: None | float = None
+        previous_hue: None | float = None
+        for chroma, hue in points:
+            if previous_chroma is not None:
+                assert previous_hue is not None
+                axes.plot(  # type: ignore
+                    [previous_hue, hue],
+                    [previous_chroma, chroma],
+                    c = "#aa0000",
+                    lw = 1.5,
+                )
+
+            previous_chroma = chroma
+            previous_hue = hue
+
+        axes.plot(
+            [more_points[0][1], more_points[1][1]],
+            [more_points[0][0], more_points[1][0]],
+            c = "#aa0000",
+            lw = 1.5,
+        )
 
     def create_figure(
         self,
@@ -394,6 +454,9 @@ class ColorPlotter:
         gamuts = gamuts or []
         for space in gamuts:
             self.add_gamut(axes, space)
+
+        if spectrum:
+            self.add_spectrum_locus(axes)
 
         # Since markers are shared for all marks in a series, we use a new
         # series for every single color.
