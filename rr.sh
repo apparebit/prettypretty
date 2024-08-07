@@ -25,7 +25,7 @@ columns=$(stty -a <"$terminal" | egrep -Eo '; ([0-9]+ )?columns( [0-9]+)?;' | eg
 log() {
     eval "STYLE=\"\${$1}\""
     # Use printf only, since Bash doesn't have print
-    >&2 printf "${STYLE}$1: ${@:2}${RESET}\n"
+    >&2 printf "${STYLE}[r²]$1: ${@:2}${RESET}\n"
 }
 
 trace_header() {
@@ -46,10 +46,7 @@ trace() {
 help() {
     >&2 printf "${BOLD}$0 [install|build|check|docs|all|help]${RESET}\n"
     >&2 printf "\n"
-    >&2 printf "${BOLD}install${REGULAR} : Install or update required tools as follows:\n"
-    >&2 printf "              rustup   : cargo, rustc\n"
-    >&2 printf "              cargo    : maturin, mdbook\n"
-    >&2 printf "              apt/brew : curl, git, node, python\n"
+    >&2 printf "${BOLD}install${REGULAR} : Install or update required tools using apt or brew.\n"
     >&2 printf "${BOLD}build${REGULAR}   : Build and locally install the Python extenion module.\n"
     >&2 printf "${BOLD}check${REGULAR}   : Check that the source code is well-formatted,\n"
     >&2 printf "          free of lint, and altogether in good shape.\n"
@@ -61,57 +58,61 @@ help() {
 }
 
 # ===========================================================================================================
-# Between the Rust project's rustup, Homebrew's brew, and Ubuntu's apt, there
-# are at least two ways of installing Rust on macOS and three on Linux. So
-# what's the right approach? To keep installation *lightweight*, this script
-# uses Homebrew on macOS and the distro's package manager on Linux for
-# installing arbitrary tools such as curl and git. To keep it *reliable*, it
-# uses Rust's own rustup for installing Rust and cargo for installing mdbook and
-# maturin.
+# For simplicity and uniformity, use the same package manager for all dependencies!
 
 install_prepare() {
     if [ -x "$(command -v brew)" ]; then
-        installer="brew install"
-        installer_update="brew update && brew upgrade"
+        installer="brew"
+        installer_update="brew update"
+        installer_upgrade="brew upgrade"
+        installer_install="brew install"
     elif [ -x "$(command -v apt)" ]; then
-        installer="sudo apt install"
-        installer_update="sudo apt update && sudo apt upgrade"
+        installer="apt"
+        installer_update="sudo apt update"
+        installer_upgrade="sudo apt upgrade"
+        installer_install="sudo apt install"
     else
         log ERROR "Could not find apt or brew package manager!"
         exit 1
     fi
 }
 
+get_package_name() {
+    case $1 in
+        cargo)
+            if [ "$installer" = "apt" ]; then
+                echo "rust-all"
+            else
+                echo "rust"
+            fi
+            ;;
+        *)  echo "$1" ;;
+    esac
+}
+
 install_tool() {
-    tool="$1"
-    if [ -x "$(command -v $tool)" ]; then
-        log TRACE "Skipping already installed ${BOLD}${tool}${REGULAR}"
+    tool_name="$1"
+    pkg_name="$(get_package_name $tool_name)"
+
+    if [ -x "$(command -v $tool_name)" ]; then
+        log TRACE "Skipping ${BOLD}${pkg_name}${REGULAR}, since it is already installed."
     else
-        trace $installer "$tool"
+        trace $installer_install "$pkg_name"
     fi
 }
 
 install() {
     install_prepare
     trace $installer_update
-    install_tool git
-    install_tool curl
+    trace $installer_upgrade
 
-    if [ -x "$(command -v rustup)" ]; then
-        log TRACE "Skipping already installed ${BOLD}${tool}${REGULAR}"
+    for tool in git curl cargo maturin mdbook node python; do
+        install_tool "$tool"
+    done
+
+    if [ -d ./.venv ]; then
+        log TRACE "Skipping creation of virtual env in ${UNDERLINE}.venv${NOLINE}, since it already exists."
     else
-        trace_header "Installing rustup"
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-    fi
-
-    trace rustup update
-    trace cargo install --locked maturin
-    trace cargo install --locked mdbook
-
-    install_tool node
-    install_tool python
-
-    if [ ! -d ./.venv ]; then
         trace python -m venv .venv
     fi
 }
