@@ -443,6 +443,30 @@ impl Color {
         Self::new(self.space, normalize(self.space, &self.coordinates))
     }
 
+    /// Determine the hue (in radians) and chroma of this color.
+    ///
+    /// If this color is not in the Oklch or Oklrch color space, this method
+    /// converts the color and then returns the hue in radians and the chroma.
+    pub fn hue_chroma(&self) -> (Float, Float) {
+        let [_, c, h] = match self.space {
+            ColorSpace::Oklch | ColorSpace::Oklrch => self.coordinates,
+            ColorSpace::Oklrab => self.to(ColorSpace::Oklrch).coordinates,
+            _ => self.to(ColorSpace::Oklch).coordinates,
+        };
+
+        (h.to_radians(), c)
+    }
+
+    /// Determine the x, y chromaticity coordinates of this color.
+    ///
+    /// This method determines the x, y coordinates for the 1931 version of the
+    /// CIE chromaticity diagram.
+    pub fn xy_chromaticity(&self) -> (Float, Float) {
+        let [x, y, z] = self.to(ColorSpace::Xyz).coordinates;
+        let sum = x + y + z;
+        (x / sum, y / sum)
+    }
+
     /// Convert this color to the target color space.
     ///
     /// This method normalizes the color before conversion.
