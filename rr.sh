@@ -1,86 +1,99 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 set -e
 
 # Simple styles
-BOLD="\e[1m"
-REGULAR="\e[22m"
-
-UNDERLINE="\e[4m"
-NOLINE="\e[24m"
-
-RESET="\e[m"
-
-# Log styles
-TRACE=""
-INFO="\e[1;35m"
-SUCCESS="\e[1;32m"
-WARNING="\e[1;38;5;208m"
-ERROR="\e[1;31m"
-
-terminal=$(tty)
-# Don't use \d; it doesn't work on Linux.
-columns=$(stty -a <"$terminal" | egrep -Eo '; ([0-9]+ )?columns( [0-9]+)?;' | egrep -Eo '[0-9]+')
-
-log() {
-    eval "STYLE=\"\${$1}\""
-    # Use printf only, since Bash doesn't have print
-    >&2 printf "${STYLE}[r²]$1: ${@:2}${RESET}\n"
-}
-
-trace_header() {
-    >&2 printf "━%.0s" $(seq 1 $columns)
-    >&2 printf "\n"
-    >&2 echo "$*"
-    >&2 printf "─%.0s" $(seq 1 $columns)
-    >&2 printf "\n"
-}
-
-
-trace() {
-    trace_header "$*"
-    "$@"
-    >&2 echo
-}
+BOLD=$(printf "\e[1m")
+REGULAR=$(printf "\e[22m")
+UNDERLINE=$(printf "\e[4m")
+NOLINE=$(printf "\e[24m")
+RESET=$(printf "\e[m")
 
 help() {
-    >&2 printf "${BOLD}$0 [install|build|check|docs|all|help]${RESET}\n"
+    >&2 printf "%s\n" "${BOLD}$(basename "$0") [install|build|check|docs|all|help]${RESET}"
     >&2 printf "\n"
-    >&2 printf "${BOLD}install${REGULAR} : Install or update required tools using apt or brew.\n"
-    >&2 printf "${BOLD}build${REGULAR}   : Build and locally install the Python extenion module.\n"
-    >&2 printf "${BOLD}check${REGULAR}   : Check that the source code is well-formatted,\n"
-    >&2 printf "          free of lint, and altogether in good shape.\n"
-    >&2 printf "${BOLD}docs${REGULAR}    : Build the user guide, the Rust API documentation,\n"
-    >&2 printf "          and the Python API documentation in ${UNDERLINE}target/doc${NOLINE} dir.\n"
-    >&2 printf "${BOLD}all${REGULAR}     : Perform build, check, and docs tasks in that order.\n"
-    >&2 printf "${BOLD}help${REGULAR}    : Show this help message and exit.\n"
+    >&2 printf "%s\n" "${BOLD}install${REGULAR} : Install or update required tools using apt or brew."
+    >&2 printf "%s\n" "${BOLD}build${REGULAR}   : Build and locally install the Python extenion module."
+    >&2 printf "%s\n" "${BOLD}check${REGULAR}   : Check that the source code is well-formatted,"
+    >&2 printf "%s\n" "          free of lint, and altogether in good shape."
+    >&2 printf "%s\n" "${BOLD}docs${REGULAR}    : Build the user guide, the Rust API documentation,"
+    >&2 printf "%s\n" "          and the Python API documentation in ${UNDERLINE}target/doc${NOLINE} dir."
+    >&2 printf "%s\n" "${BOLD}all${REGULAR}     : Perform build, check, and docs tasks in that order."
+    >&2 printf "%s\n" "${BOLD}help${REGULAR}    : Show this help message and exit."
     exit 1
+}
+
+# shellcheck disable=SC2034
+TRACE=""
+# shellcheck disable=SC2034
+INFO=$(printf "\e[1;35m")
+# shellcheck disable=SC2034
+SUCCESS=$(printf "\e[1;32m")
+# shellcheck disable=SC2034
+WARNING=$(printf "\e[1;38;5;208m")
+# shellcheck disable=SC2034
+ERROR=$(printf "\e[1;31m")
+
+terminal=$(tty)
+# The joys of Unix: On macOS, stty -a prints the number of columns before the
+# word "columns", whereas on Linux it does just the opposite. Meanwhile, the BSD
+# version of grep accepts \d in an extended regex, whereas POSIX and Linux do
+# not.
+columns=$(stty -a <"$terminal" | grep -Eo '; ([0-9]+ )?columns( [0-9]+)?;' | grep -Eo '[0-9]+')
+
+log() {
+    LEVEL="$1"
+    shift
+    eval "STYLE=\"\${$LEVEL}\""
+    # Don't use print, it's zsh only.
+    >&2 printf "%s\n" "${STYLE}〔r²〕${LEVEL}: ${*}${RESET}"
+}
+
+print_run_header() {
+    # Don't use {1..$columns}. Bash does not expand variables.
+    >&2 printf "━%.0s" $(seq 1 "$columns")
+    >&2 printf "\n"
+    >&2 echo "$@"
+    >&2 printf "─%.0s" $(seq 1 "$columns")
+    >&2 printf "\n"
+}
+
+run() {
+    print_run_header "$@"
+    "$@"
+    >&2 echo
 }
 
 # ===========================================================================================================
 # For simplicity and uniformity, use the same package manager for all dependencies!
 
-install_prepare() {
-    if [ -x "$(command -v brew)" ]; then
-        installer="brew"
-        installer_update="brew update"
-        installer_upgrade="brew upgrade"
-        installer_install="brew install"
-    elif [ -x "$(command -v apt)" ]; then
-        installer="apt"
-        installer_update="sudo apt update"
-        installer_upgrade="sudo apt upgrade"
-        installer_install="sudo apt install"
-    else
-        log ERROR "Could not find apt or brew package manager!"
-        exit 1
-    fi
-}
+if [ -x "$(command -v brew)" ]; then
+    INSTALLER=Homebrew
+    installer_update() {
+        brew update
+        brew upgrade
+    }
+    installer_install() {
+        brew install "$1"
+    }
+elif [ -x "$(command -v apt)" ]; then
+    INSTALLER="APT"
+    installer_update() {
+        sudo apt update
+        sudo apt upgrade
+    }
+    installer_install() {
+        sudo apt install "$1"
+    }
+else
+    log ERROR "Could not find apt or brew package manager!"
+    exit 1
+fi
 
 get_package_name() {
     case $1 in
         cargo)
-            if [ "$installer" = "apt" ]; then
+            if [ "$INSTALLER" = "APT" ]; then
                 echo "rust-all"
             else
                 echo "rust"
@@ -92,19 +105,19 @@ get_package_name() {
 
 install_tool() {
     tool_name="$1"
-    pkg_name="$(get_package_name $tool_name)"
+    pkg_name="$(get_package_name "$tool_name")"
 
-    if [ -x "$(command -v $tool_name)" ]; then
+    if [ -x "$(command -v "$tool_name")" ]; then
         log TRACE "Skipping ${BOLD}${pkg_name}${REGULAR}, since it is already installed."
     else
-        trace $installer_install "$pkg_name"
+        installer_install "$pkg_name"
     fi
 }
 
 install() {
-    install_prepare
-    trace $installer_update
-    trace $installer_upgrade
+    print_run_header "Update $INSTALLER and its packages"
+    installer_update
+    echo
 
     for tool in git curl cargo maturin mdbook node python; do
         install_tool "$tool"
@@ -113,29 +126,29 @@ install() {
     if [ -d ./.venv ]; then
         log TRACE "Skipping creation of virtual env in ${UNDERLINE}.venv${NOLINE}, since it already exists."
     else
-        trace python -m venv .venv
+        run python -m venv .venv
     fi
 }
 
 # ===========================================================================================================
 
 build() {
-    trace cargo fmt
-    trace maturin dev --all-features
+    run cargo fmt
+    run maturin dev --all-features
 }
 
 check() {
-    trace cargo fmt --check
-    trace cargo check
-    trace cargo check --all-features
-    trace cargo clippy
-    trace cargo clippy --all-features
-    trace cargo test
+    run cargo fmt --check
+    run cargo check
+    run cargo check --all-features
+    run cargo clippy
+    run cargo clippy --all-features
+    run cargo test
     if [ -d prettypretty ]; then
-        trace npm run pyright -- --pythonpath ./.venv/bin/python
+        run npm run pyright -- --pythonpath ./.venv/bin/python
     fi
     if [ -d test ]; then
-        trace run_python_tests
+        run run_python_tests
     fi
 }
 
@@ -157,14 +170,14 @@ unittest.main(
 
 docs() {
     if [ -d docs ]; then
-        trace mdbook build docs
+        run mdbook build docs
     fi
 
-    trace cargo rustdoc --all-features -- -e "$(realpath docs/pretty.css)"
+    run cargo rustdoc --all-features -- -e "$(realpath docs/pretty.css)"
 
     if [ -d docs ]; then
-        trace ./.venv/bin/sphinx-build -a -b html docs target/doc/python
-        trace rm -rf target/doc/python/.doctrees
+        run ./.venv/bin/sphinx-build -a -b html docs target/doc/python
+        run rm -rf target/doc/python/.doctrees
     fi
 }
 
