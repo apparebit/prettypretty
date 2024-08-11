@@ -1,6 +1,9 @@
+#[cfg(feature = "pyffi")]
+use pyo3::prelude::*;
+
 use crate::core::conversion::okxch_to_okxab;
 use crate::core::{convert, delta_e_ok, normalize};
-use crate::{ColorSpace, Float};
+use crate::{Color, ColorSpace, Float};
 
 /// Determine whether the color is gray-ish.
 ///
@@ -137,10 +140,345 @@ pub(crate) fn to_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3
     clipped_as_target
 }
 
+// ====================================================================================================================
+
+/// A step while traversing gamut boundaries.
+///
+/// Determining the gamut boundaries for an RGB color space is the same as
+/// traversing the edges of the corresponding RGB cube. This enum defines the
+/// corresponding operations. A traversal comprises several paths, each of which
+/// starts with a `MoveTo` and ends with either a `LineTo` or `CloseWith`. The
+/// latter repeats the color of the path's `MoveTo`.
+#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum GamutTraversalStep {
+    /// Move to the color's coordinates to start a new path.
+    MoveTo(Color),
+    /// Continue the current path with a line to the color's coordinates.
+    LineTo(Color),
+    /// Close the current path with a line to its starting color.
+    CloseWith(Color),
+}
+
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl GamutTraversalStep {
+    /// Get this step's color.
+    pub fn color(&self) -> Color {
+        match self {
+            Self::MoveTo(color) => color.clone(),
+            Self::LineTo(color) => color.clone(),
+            Self::CloseWith(color) => color.clone(),
+        }
+    }
+
+    /// Get a debug representation. <span class=python-only></span>
+    #[cfg(feature = "pyffi")]
+    pub fn __repr__(&self) -> String {
+        match self {
+            Self::MoveTo(ref color) => format!("GamutTraversalStep.MoveTo({:?}", color),
+            Self::LineTo(ref color) => format!("GamutTraversalStep.LineTo({:?}", color),
+            Self::CloseWith(ref color) => format!("GamutTraversalStep.CloseWith({:?}", color),
+        }
+    }
+}
+
+/// The gamut traversal's segment.
+#[derive(Copy, Clone, Debug)]
+enum GamutTraversalSegment {
+    Start,
+    Blue2Cyan,
+    Cyan2Green,
+    Green2Yellow,
+    Yellow2Red,
+    Red2Magenta,
+    Magenta2Blue,
+    Blue2Black,
+    Cyan2White,
+    Green2Black,
+    Yellow2White,
+    Red2Black,
+    Magenta2White,
+    Done,
+}
+
+/// An iterator to traverse RGB gamut boundaries.
+///
+/// Every RGB color space forms a cube. Consequently, traversing its gamut
+/// boundaries is the same as traversing the edges of the cube. This iterator
+/// yields [`GamutTraversalStep`] instances for seven paths that cover the
+/// cube's twelve edges as follows, in that order:
+///
+///   * the closed path from blue to cyan to green to yellow to red to magenta
+///     to blue again;
+///   * the path from blue to black;
+///   * the path from cyan to white;
+///   * the path from green to black;
+///   * the path from yellow to white;
+///   * the path from red to black;
+///   * the path from magenta to white.
+///
+/// Since the first path traverses six edges of the cube and the six remaining
+/// paths traverse a single edge each, the seven paths together cover all twelve
+/// edges of the cube.
+///
+/// Each path starts with a `MoveTo` step and ends with either `LineTo` if open
+/// or `CloseWith` if closed. The color field of each step is a color in that
+/// color space and is in-gamut if barely.
+#[cfg_attr(feature = "pyffi", pyclass)]
+#[derive(Debug)]
+pub struct GamutTraversal {
+    space: ColorSpace,
+    max_component: usize,
+    segment: GamutTraversalSegment,
+    r: usize,
+    g: usize,
+    b: usize,
+}
+
+impl GamutTraversal {
+    pub(crate) fn new(space: ColorSpace, segment_size: usize) -> Option<Self> {
+        if !space.is_rgb() || segment_size < 2 {
+            None
+        } else {
+            Some(Self {
+                space,
+                max_component: segment_size - 1,
+                segment: GamutTraversalSegment::Start,
+                r: 0,
+                g: 0,
+                b: segment_size - 1,
+            })
+        }
+    }
+}
+
+impl Iterator for GamutTraversal {
+    type Item = GamutTraversalStep;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        use GamutTraversalSegment::*;
+        use GamutTraversalStep::*;
+
+        if matches!(self.segment, Done) {
+            return None;
+        }
+
+        let denominator = self.max_component as Float;
+        let color = Color::new(
+            self.space,
+            [
+                self.r as Float / denominator,
+                self.g as Float / denominator,
+                self.b as Float / denominator,
+            ],
+        );
+
+        let result = match self.segment {
+            Start => {
+                self.g += 1;
+                self.segment = Blue2Cyan;
+
+                MoveTo(color)
+            }
+            Blue2Cyan => {
+                if self.g < self.max_component {
+                    self.g += 1;
+                } else {
+                    self.segment = Cyan2Green;
+                    self.b -= 1;
+                }
+
+                LineTo(color)
+            }
+            Cyan2Green => {
+                if self.b > 0 {
+                    self.b -= 1;
+                } else {
+                    self.segment = Green2Yellow;
+                    self.r += 1;
+                }
+
+                LineTo(color)
+            }
+            Green2Yellow => {
+                if self.r < self.max_component {
+                    self.r += 1;
+                } else {
+                    self.segment = Yellow2Red;
+                    self.g -= 1;
+                }
+
+                LineTo(color)
+            }
+            Yellow2Red => {
+                if self.g > 0 {
+                    self.g -= 1;
+                } else {
+                    self.segment = Red2Magenta;
+                    self.b += 1;
+                }
+
+                LineTo(color)
+            }
+            Red2Magenta => {
+                if self.b < self.max_component {
+                    self.b += 1;
+                } else {
+                    self.segment = Magenta2Blue;
+                    self.r -= 1;
+                }
+
+                LineTo(color)
+            }
+            Magenta2Blue => {
+                if self.r > 0 {
+                    self.r -= 1;
+
+                    LineTo(color)
+                } else {
+                    self.segment = Blue2Black;
+
+                    CloseWith(color)
+                }
+            }
+            Blue2Black => {
+                if self.b == self.max_component {
+                    self.b -= 1;
+
+                    MoveTo(color)
+                } else if self.b > 0 {
+                    self.b -= 1;
+
+                    LineTo(color)
+                } else {
+                    self.segment = Cyan2White;
+                    self.g = self.max_component;
+                    self.b = self.max_component;
+
+                    LineTo(color)
+                }
+            }
+            Cyan2White => {
+                if self.r == 0 {
+                    self.r += 1;
+
+                    MoveTo(color)
+                } else if self.r < self.max_component {
+                    self.r += 1;
+
+                    LineTo(color)
+                } else {
+                    self.segment = Green2Black;
+                    self.r = 0;
+                    self.b = 0;
+
+                    LineTo(color)
+                }
+            }
+            Green2Black => {
+                if self.g == self.max_component {
+                    self.g -= 1;
+
+                    MoveTo(color)
+                } else if self.g > 0 {
+                    self.g -= 1;
+
+                    LineTo(color)
+                } else {
+                    self.segment = Yellow2White;
+                    self.r = self.max_component;
+                    self.g = self.max_component;
+
+                    LineTo(color)
+                }
+            }
+            Yellow2White => {
+                if self.b == 0 {
+                    self.b += 1;
+
+                    MoveTo(color)
+                } else if self.b < self.max_component {
+                    self.b += 1;
+
+                    LineTo(color)
+                } else {
+                    self.segment = Red2Black;
+                    self.g = 0;
+                    self.b = 0;
+
+                    LineTo(color)
+                }
+            }
+            Red2Black => {
+                if self.r == self.max_component {
+                    self.r -= 1;
+
+                    MoveTo(color)
+                } else if self.r > 0 {
+                    self.r -= 1;
+
+                    LineTo(color)
+                } else {
+                    self.segment = Magenta2White;
+                    self.r = self.max_component;
+                    self.b = self.max_component;
+
+                    LineTo(color)
+                }
+            }
+            Magenta2White => {
+                if self.g == 0 {
+                    self.g += 1;
+
+                    MoveTo(color)
+                } else if self.g < self.max_component {
+                    self.g += 1;
+
+                    LineTo(color)
+                } else {
+                    self.segment = Done;
+
+                    LineTo(color)
+                }
+            }
+            Done => unreachable!(),
+        };
+
+        Some(result)
+    }
+}
+
+impl std::iter::FusedIterator for GamutTraversal {}
+
+#[cfg(feature = "pyffi")]
+#[pymethods]
+impl GamutTraversal {
+    /// Get this iterator. <span class=python-only></span>
+    pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    /// Get the next gamut traversal step. <span class=python-only></span>
+    pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<GamutTraversalStep> {
+        slf.next()
+    }
+
+    /// Get a debug representation. <span class=python-only></span>
+    pub fn __repr__(&self) -> String {
+        format!(
+            "GamutTraversal([{}, {}, {}] / {}, {:?}, {:?})",
+            self.r, self.g, self.b, self.max_component, self.segment, self.space
+        )
+    }
+}
+
+// ====================================================================================================================
+
 #[cfg(test)]
 mod test {
-    use super::to_gamut;
+    use super::{to_gamut, GamutTraversal, GamutTraversalStep};
     use crate::core::{assert_same_coordinates, convert, ColorSpace};
+    use crate::Color;
 
     #[test]
     fn test_gamut() {
@@ -181,6 +519,38 @@ mod test {
             ColorSpace::LinearSrgb,
             &linear_srgb_mapped,
             &[0.9914525477996114, 0.9977581974546286, 0.0],
+        );
+    }
+
+    #[test]
+    fn test_gamut_iterator() {
+        use GamutTraversalStep::*;
+
+        let boundaries: Vec<GamutTraversalStep> =
+            GamutTraversal::new(ColorSpace::Srgb, 2).unwrap().collect();
+        assert_eq!(
+            boundaries,
+            vec![
+                MoveTo(Color::srgb(0, 0, 1)),
+                LineTo(Color::srgb(0, 1, 1)),
+                LineTo(Color::srgb(0, 1, 0)),
+                LineTo(Color::srgb(1, 1, 0)),
+                LineTo(Color::srgb(1, 0, 0)),
+                LineTo(Color::srgb(1, 0, 1)),
+                CloseWith(Color::srgb(0, 0, 1)),
+                MoveTo(Color::srgb(0, 0, 1)),
+                LineTo(Color::srgb(0, 0, 0)),
+                MoveTo(Color::srgb(0, 1, 1)),
+                LineTo(Color::srgb(1, 1, 1)),
+                MoveTo(Color::srgb(0, 1, 0)),
+                LineTo(Color::srgb(0, 0, 0)),
+                MoveTo(Color::srgb(1, 1, 0)),
+                LineTo(Color::srgb(1, 1, 1)),
+                MoveTo(Color::srgb(1, 0, 0)),
+                LineTo(Color::srgb(0, 0, 0)),
+                MoveTo(Color::srgb(1, 0, 1)),
+                LineTo(Color::srgb(1, 1, 1)),
+            ]
         );
     }
 }

@@ -1,6 +1,8 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
+use super::gamut::GamutTraversal;
+
 /// The enumeration of supported color spaces.
 ///
 /// # RGB
@@ -80,6 +82,13 @@ use pyo3::prelude::*;
 /// that a and b need [to be scaled by a factor of around
 /// 2.1](https://github.com/w3c/csswg-drafts/issues/6642#issuecomment-945714988).
 ///
+/// There also is an extended Oklab, which behaves better for [imaginary
+/// colors](https://github.com/w3c/csswg-drafts/issues/9449). As shown in the
+/// [corresponding
+/// notebook](https://colab.research.google.com/drive/1_uoLM95LJKTiI7MECG_PjBrd32v-3W3o),
+/// the implementation compresses and shifts the LMS coordinates during
+/// conversion.
+///
 /// # XYZ
 ///
 /// [XYZ](https://en.wikipedia.org/wiki/CIE_1931_color_space) serves as
@@ -104,15 +113,17 @@ pub enum ColorSpace {
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl ColorSpace {
-    /// Determine whether this color space is polar. Oklch and Oklrch currently
-    /// are the only polar color spaces.
+    /// Determine whether this color space is polar.
+    ///
+    /// Oklch and Oklrch currently are the only polar color spaces.
     pub const fn is_polar(&self) -> bool {
         matches!(*self, Self::Oklch | Self::Oklrch)
     }
 
-    /// Determine whether this color space is RGB, that is, has red, green, and
-    /// blue coordinates. In-gamut colors for RGB color spaces have coordinates
-    /// in unit range `0..=1`.
+    /// Determine whether this color space is RGB.
+    ///
+    /// RGB color spaces are additive and have red, green, and blue coordinates.
+    /// In-gamut colors have coordinates in unit range `0..=1`.
     pub const fn is_rgb(&self) -> bool {
         use ColorSpace::*;
         matches!(
@@ -127,13 +138,33 @@ impl ColorSpace {
         matches!(*self, Oklab | Oklch | Oklrab | Oklrch)
     }
 
-    /// Determine whether this color space is bounded. XYZ and the Oklab
-    /// variations are *unbounded* and hence can model any color, whereas the
-    /// RGB color spaces are *bounded* and hence colors may be in-gamut or
-    /// out-of-gamut. Conveniently, the coordinates of in-gamut RGB colors range
-    /// `0..=1`.
+    /// Determine whether this color space is bounded.
+    ///
+    /// XYZ and the Oklab variations are *unbounded* and hence can model any
+    /// color. By contrast, RGB color spaces are *bounded*, with coordinates
+    /// of in-gamut colors ranging `0..=1`.
     pub const fn is_bounded(&self) -> bool {
         self.is_rgb()
+    }
+
+    /// Create an iterator over this color space's gamut boundaries.
+    ///
+    /// For bounded or RGB color spaces, this method returns an iterator that
+    /// traces the boundaries of the color space's gamut. As described in detail
+    /// for [`GamutTraversal`], the iterator does so by yielding
+    /// [`GamutTraversalStep`](crate::GamutTraversalStep)s that trace paths
+    /// along the edges of this color space's RGB cube.
+    ///
+    /// Altogether, the iterator yields steps for a closed path covering six
+    /// edges followed by another six paths each covering one edge. Each step
+    /// includes exactly one in-gamut color that also is in this color space.
+    /// There are `segment_size` steps per edge, though the first path yields
+    /// corners other than the blue primary only once.
+    ///
+    /// If this color space is not bounded or the segment size is 0 or 1, this
+    /// method returns `None`.
+    pub fn boundaries(&self, segment_size: usize) -> Option<GamutTraversal> {
+        GamutTraversal::new(*self, segment_size)
     }
 
     /// Create a human-readable representation for this color space.
