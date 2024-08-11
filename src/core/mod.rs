@@ -3,6 +3,7 @@ mod conversion;
 mod difference;
 mod equality;
 mod gamut;
+mod math;
 mod space;
 mod string;
 
@@ -22,6 +23,8 @@ pub(crate) use gamut::{
     clip, in_gamut, is_gray, is_gray_chroma_hue, to_gamut, LOOSE_GRAY_THRESHOLD,
     TIGHT_GRAY_THRESHOLD,
 };
+pub use gamut::{GamutTraversal, GamutTraversalStep};
+pub(crate) use math::Accumulator;
 pub use space::ColorSpace;
 pub use string::ColorFormatError;
 pub(crate) use string::{format, parse};
