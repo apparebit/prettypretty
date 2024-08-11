@@ -160,7 +160,7 @@ pub const VGA_COLORS: Theme = [
 // ====================================================================================================================
 
 /// A gray ANSI color and its concrete lightness value.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct GrayEntry {
     spec: AnsiColor,
     lr: Float,
@@ -189,7 +189,7 @@ impl GrayEntry {
 }
 
 /// A non-gray ANSI color and its concrete chroma and hue.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct ColorEntry {
     spec: AnsiColor,
     lr: Float,
