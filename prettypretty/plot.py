@@ -2,7 +2,6 @@
 Making sense of ANSI colors.
 """
 import sys
-from typing import Literal
 
 try:
     import matplotlib.pyplot as plt
@@ -14,17 +13,18 @@ except ImportError:
     sys.exit(1)
 
 import argparse
+from collections.abc import Sequence
 import math
 import pathlib
-from typing import Any, cast, TypeAlias
+from typing import Any, cast
 
 from .terminal import Terminal
-from .color import close_enough, Color, ColorSpace, ThemeEntry
-from .observer import STANDARD_OBSERVER_1931
+from .color import (
+    CIE_ILLUMINANT_D65, CIE_OBSERVER_2DEG_1931, close_enough, Color, ColorSpace,
+    GamutTraversalStep, sum_luminance, ThemeEntry
+)
 from .theme import current_translator, VGA
 
-
-ChromaHue: TypeAlias = tuple[float, float]
 
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -75,9 +75,24 @@ def create_parser() -> argparse.ArgumentParser:
         help="also plot boundary of colorspace gamut; value must be sRGB, P3, or Rec2020",
     )
     parser.add_argument(
+        "--strong-gamut",
+        action="store_true",
+        help="use darker, more intense colors for gamut boundaries",
+    )
+    parser.add_argument(
         "--spectrum",
         action="store_true",
-        help="also plot boundary of visible spectrum",
+        help="also plot boundary of visible spectrum (experimental)",
+    )
+    parser.add_argument(
+        "--chromaticity",
+        action="store_true",
+        help="create xy chromaticity diagram"
+    )
+    parser.add_argument(
+        "--illuminant",
+        action="store_true",
+        help="scale color matching function by D65 illuminant",
     )
     parser.add_argument(
         "-o", "--output",
@@ -91,16 +106,17 @@ class ColorPlotter:
         self,
         collection_name: None | str = None,
         color_kind: None | str = None,
-        gamut_step: None | int = None,
-        gamut_range: None | int = None,
+        segment_size: None | int = None,
+        strong_gamut: bool = False,
+        chromaticity: bool = False,
         volume: int = 1,
     ) -> None:
         self._collection_name = collection_name
         self._color_kind = color_kind
 
         # Scattered colors
-        self._hues: list[float] = []
-        self._chromas: list[float] = []
+        self._xs: list[float] = []
+        self._ys: list[float] = []
         self._marks: list[str] = []
         self._mark_colors: list[str] = []
 
@@ -119,10 +135,11 @@ class ColorPlotter:
         self._extra_count = 0
 
         # Gamut boundaries
-        self._gamut_step = gamut_step or 1
-        self._gamut_range = gamut_range or 20
+        self._segment_size = segment_size or 20
         self._largest_gamut: None | ColorSpace = None
+        self._strong_gamut = strong_gamut
         self._with_spectrum = False
+        self._chromaticity = chromaticity
 
         self._volume = volume
 
@@ -173,15 +190,15 @@ class ColorPlotter:
             self._duplicate_count += 1
             return
 
-        # Record hue, chroma, color, marker
-        h_radian = h * math.pi / 180
-        self._hues.append(h_radian)
-        self._chromas.append(c)
+        # Add lightness bar and chroma/hue mark
+        self._lightness.append(lr)
+        self._bar_color.append(hex_color)
+
+        x, y = self.to_2d(color)
+        self._xs.append(x)
+        self._ys.append(y)
         self._marks.append(marker)
         self._mark_colors.append(hex_color)
-
-        self._lightness.append(lr)
-        self._bar_color.append(Color(ColorSpace.Oklrch, [lr, c, h]).to_hex_format())
 
         self._colors.add(oklrch)
         if marker == "o":
@@ -205,6 +222,305 @@ class ColorPlotter:
             counts += f"+{self._extra_count}"
         return counts
 
+    def trace_spectrum(
+        self,
+        axes: Any,
+        with_pulses: bool = True,
+        with_illuminant: bool = False,
+    ) -> None:
+        self._with_spectrum = True
+
+        total_luminance = sum_luminance(CIE_OBSERVER_2DEG_1931)
+        sample_count = len(CIE_OBSERVER_2DEG_1931)
+        pulse_increment = 11
+        line_count = 44 if with_pulses else 1
+        max_width = sample_count if with_pulses else 1
+
+        markwaves = {380, 460, 480, 490, 500, 520, 540, 560, 580, 600, 700}
+        marks: dict[int, tuple[float, float]] = {}
+
+        all_points: list[list[float]] = [[], [], []]
+        all_series: list[list[tuple[float, float]]] = [list() for _ in range(line_count)]
+        for index in range(sample_count):
+            total_xyz = [0.0, 0.0, 0.0]
+            series_index = 0
+
+            wave = CIE_OBSERVER_2DEG_1931.start() + index
+
+            for width in range(max_width):
+                xyz = CIE_OBSERVER_2DEG_1931[index + width]
+
+                if with_illuminant:
+                    d65 = CIE_ILLUMINANT_D65[index + width]
+                    for c in range(3):
+                        total_xyz[c] += d65 * xyz[c]
+                else:
+                    for c in range(3):
+                        total_xyz[c] += xyz[c]
+
+                emit_point = width % pulse_increment == 0 or width == sample_count - 1
+                emit_mark = self._chromaticity and not with_pulses and wave in markwaves
+                if emit_point or emit_mark:
+                    coordinates = [
+                        total_xyz[0] / total_luminance,
+                        total_xyz[1] / total_luminance,
+                        total_xyz[2] / total_luminance,
+                    ]
+                    two_dee = self.to_2d(Color(ColorSpace.Xyz, coordinates))
+
+                    if emit_point:
+                        all_points[0].append(coordinates[0])
+                        all_points[1].append(coordinates[1])
+                        all_points[2].append(coordinates[2])
+
+                        all_series[series_index].append(two_dee)
+                        series_index += 1
+
+                    if emit_mark:
+                        marks[wave] = two_dee
+
+        if with_pulses:
+            f3d: Any
+            a3d: Any
+            f3d, a3d = plt.subplots(subplot_kw={"projection": "3d"})  # type: ignore
+            a3d.scatter(*all_points)
+            f3d.savefig("spectrum-3d.svg")
+            plt.close(f3d)
+            #plt.show(f3d) # type: ignore
+
+        color = "#bbb" if with_pulses else "#000"
+        width = 1.0 if with_pulses else 2.0
+        for series in all_series:
+            self.add_line(axes, series, color = color, width = width)
+
+        if marks:
+            xs = [x for x, _ in marks.values()]
+            ys = [y for _, y in marks.values()]
+            axes.scatter(xs, ys, c="#f00")
+
+    def trace_gamut(self, space: ColorSpace, axes: Any) -> None:
+        """Trace the boundary of the gamut for the given color space."""
+        if (
+            self._largest_gamut is None
+            or space is ColorSpace.Rec2020
+            or space is ColorSpace.DisplayP3 and self._largest_gamut is ColorSpace.Srgb
+        ):
+            self._largest_gamut = space
+
+        all_points: list[tuple[float, float]]= []
+        all_colors: list[str] = []
+
+        iter = space.boundaries(self._segment_size)
+        assert iter is not None
+        for step in iter:
+            color = step.color()
+
+            _, c, h = color.to(ColorSpace.Oklrch)
+            if self._strong_gamut:
+                hex_format = Color(ColorSpace.Oklrch, [0.6, c, h]).to_hex_format()
+            else:
+                hex_format = Color(ColorSpace.Oklrch, [0.75, c / 3, h]).to_hex_format()
+
+            pt = self.to_2d(color)
+
+            self.detail(
+                f"{color.space()} gamut: {color[0]:.2f}, {color[1]:.2f}, {color[2]:.2f} --> "
+                f"{self.format_2d(*pt)} ({hex_format})"
+            )
+
+            all_points.append(pt)
+            all_colors.append(hex_format)
+
+            if isinstance(step, GamutTraversalStep.CloseWith):
+                break
+
+        assert close_enough(all_points[0][0], all_points[-1][0])
+        assert close_enough(all_points[0][1], all_points[-1][1])
+
+        self.add_line(axes, all_points, all_colors)
+
+    def add_gamut_label(
+        self,
+        axes: Any,
+        space: ColorSpace,
+        label: str,
+        green: float,
+        blue: float,
+        dtext: float,
+        pad: int,
+    ) -> None:
+        x, y = self.to_2d(Color(space, [0.0, green, blue]))
+        axes.annotate(  # type: ignore
+            label, xy=(x, y), xytext=(x, y + dtext), textcoords="data",
+            bbox=dict(
+                pad=pad,
+                facecolor="none",
+                edgecolor="none"
+            ),
+            arrowprops=dict(
+                arrowstyle="-",
+                connectionstyle="arc3",
+                shrinkA=0,
+                shrinkB=0,
+            ),
+        )
+
+    def add_line(
+        self,
+        axes: Any,
+        points: Sequence[tuple[float, float]],
+        color: str | Sequence[str],
+        width: float = 1.5,
+    ) -> None:
+        should_index_color = not isinstance(color, str)
+
+        x0: None | float = None
+        y0: None | float = None
+        for index, (x1, y1) in enumerate(points):
+            if x0 is not None:
+                assert y0 is not None
+                c = color[index] if should_index_color else color
+
+                axes.plot(
+                    [x0, x1],
+                    [y0, y1],
+                    c = c,
+                    lw = width,
+                )
+
+            x0 = x1
+            y0 = y1
+
+    def to_2d(self, color: Color) -> tuple[float, float]:
+        return color.xy_chromaticity() if self._chromaticity else color.hue_chroma()
+
+    def format_2d(self, x: float, y: float) -> str:
+        if not self._chromaticity:
+            return f'h={x:.5f}  c={y:.5f}'
+        else:
+            return f'x={x:.5f}  y={y:.5f}'
+
+    def create_figure(
+        self,
+        collection_name: None | str = None,
+        color_kind: None | str = None,
+        gamuts: None | list[ColorSpace] = None,
+        spectrum: bool = False,
+        with_illuminant: bool = False,
+    ) -> Any:
+        if self._chromaticity:
+            fig: Any = plt.figure(figsize=(5, 5.5)) # type: ignore
+            axes: Any = fig.add_subplot()
+            light_axes = None
+        else:
+            fig: Any = plt.figure(layout="constrained", figsize=(5, 6.5))  # type: ignore
+            axes: Any = fig.add_subplot(6, 10, (1, 50), polar=True)
+            light_axes: Any = fig.add_subplot(6, 10, (52, 59))
+
+        # Add spectrum and gamut boundaries if so requested.
+        if spectrum:
+            self.trace_spectrum(axes, with_illuminant=with_illuminant)
+        if self._chromaticity:
+            self.trace_spectrum(axes, with_pulses=False)
+
+        gamuts = gamuts or []
+        for space in gamuts:
+            self.trace_gamut(space, axes)
+
+        # Since markers are shared for all marks in a series, we use a new
+        # series for every single color.
+        for x, y, color, marker in zip(
+            self._xs, self._ys, self._mark_colors, self._marks
+        ):
+            size = 80 if marker == "o" else 60
+            axes.scatter(
+                [x],
+                [y],
+                c=[color],
+                s=[size],
+                marker=marker,  # type: ignore
+                edgecolors='#000',
+                zorder=5,
+            )
+
+        if self._grays and not self._chromaticity:
+            gray = Color.oklab(sum(self._grays) / len(self._grays), 0.0, 0.0).to_hex_format()
+
+            axes.scatter(
+                [0],
+                [0],
+                c=[gray],
+                s=[80],
+                marker=self._gray_mark,
+                edgecolors='#000',
+            )
+
+        if self._chromaticity:
+            axes.set_xlim([0, 0.8])
+            axes.set_ylim([0, 0.9])
+            axes.grid()
+
+        else:
+            axes.set_aspect(1)
+            axes.set_rmin(0)
+            axes.set_rmax(self.effective_max_chroma())
+
+            # Don't show tick labels at angle
+            axes.set_rlabel_position(0)
+
+            # When max chroma is 0.3 or 0.4, matplotlib generates grid circles every
+            # 0.05 units and, for larger max chroma, every 0.1 units. Always
+            # generate labels every 0.1 units, but shift them by 0.05 in the former
+            # case. Never generate labels for origin or max chroma.
+            axes.yaxis.set_major_formatter(FuncFormatter(
+                    self.format_ytick_label_10 if self.effective_max_chroma() >= 0.5
+                    else self.format_ytick_label_05
+            ))
+
+            # Center tick labels on tick
+            plt.setp(axes.yaxis.get_majorticklabels(), ha="center")  # type: ignore
+
+        # Make grid appear below points
+        axes.set_axisbelow(True)
+
+        if not self._chromaticity:
+            # Add label for gamut boundaries
+            if ColorSpace.Srgb in gamuts:
+                self.add_gamut_label(axes, ColorSpace.Srgb, "sRGB", 1.0, 0.85, 0.12, 0)
+            if ColorSpace.DisplayP3 in gamuts:
+                self.add_gamut_label(axes, ColorSpace.DisplayP3, "P3", 1.0, 0.95, 0.07, 0)
+            if ColorSpace.Rec2020 in gamuts:
+                self.add_gamut_label(axes, ColorSpace.Rec2020, "Rec. 2020", 0.95, 1.0, 0.18, 1)
+
+            light_axes.set_yticks([0, 0.5, 1], minor=False)
+            light_axes.set_yticks([0.25, 0.75], minor=True)
+            light_axes.yaxis.grid(True, which="major")
+            light_axes.yaxis.grid(True, which="minor")
+
+            light_axes.bar(
+                [x for x in range(len(self._lightness))],
+                self._lightness,
+                color=self._bar_color,
+                zorder=5,
+            )
+            light_axes.set_ylim(0, 1)
+            light_axes.get_xaxis().set_visible(False)
+
+        collection_name = collection_name or self._collection_name
+        color_kind = color_kind or self._color_kind or "Colors"
+        title = f"{collection_name}: " if collection_name else ""
+        title += f"{self.format_counts()} {color_kind}"
+        title += "" if self._chromaticity else " in Oklab"
+        if self._chromaticity:
+            fig.suptitle("CIE 1931 xy Chromaticity", weight="bold", size=13)
+            axes.set_title(title, style="italic", size=13)
+        else:
+            fig.suptitle(title, ha="left", x=0.044, weight="bold", size=13)
+            axes.set_title("Hue & Chroma", style="italic", size=13, x=0.11, y=1.01)
+            fig.text(0.045, 0.085, "Lr", fontdict=dict(style="italic", size=13))
+
+        return fig
+
     def effective_max_chroma(self) -> float:
         if self._with_spectrum:
             return 0.6
@@ -212,7 +528,7 @@ class ColorPlotter:
             return 0.4
         elif self._largest_gamut is ColorSpace.Rec2020:
             return 0.5
-        elif all(c < 0.3 for c in self._chromas):
+        elif all(c < 0.3 for c in self._ys):
             return 0.3
         else:
             return 0.4
@@ -229,323 +545,14 @@ class ColorPlotter:
         else:
             return ""
 
-    def to_point_and_color(self, color: Color) -> tuple[float, float, str]:
-        _, c, h = color.to(ColorSpace.Oklrch).coordinates()
-        hex_format = Color(ColorSpace.Oklrch, [0.75, c / 3, h]).to_hex_format()
-
-        r, g, b = color.coordinates()
-        self.detail(
-            f"{color.space()} gamut: "
-            f"{r:.2f}, {g:.2f}, {b:.2f} --> "
-            f"{c:.5f}, {h:5.1f}º ({hex_format})"
-        )
-
-        h = h * math.pi / 180
-        return c, h, hex_format
-
-    def generate_boundary_points(
-        self, space: ColorSpace, template: list[int], index: int, sign: Literal[1, -1]
-    ) -> tuple[list[ChromaHue], list[str]]:
-        """
-        Generate points on the boundary of the given RGB color space.
-
-        This method varies the values of the component with the given index,
-        while using the given template's values for the other components. If the
-        sign is negative, this method varies the values from (1 - step_size)
-        down to 0. Otherwise, it varies the values from (step_size) to 1.
-        """
-        assert space.is_rgb()
-
-        # Pick the range of steps.
-        if sign < 0:
-            steps = range(self._gamut_range - self._gamut_step, -1, -self._gamut_step)
-        else:
-            steps = range(self._gamut_step, self._gamut_range + 1, self._gamut_step)
-
-        points: list[tuple[float, float]] = []
-        colors: list[str] = []
-
-        # Iterate over the range.
-        for step in steps:
-            rgb = [t / self._gamut_range for t in template]
-            rgb[index] = step / self._gamut_range
-
-            # Compute the coordinates.
-            c, h, hex_format = self.to_point_and_color(Color(space, rgb))
-            points.append((c, h))
-            colors.append(hex_format)
-
-        return points, colors
-
-    def trace_gamut(
-        self, space: ColorSpace
-    ) -> tuple[list[tuple[float, float]], list[str]]:
-        """
-        Trace the boundary of the gamut for the given color space.
-
-        This method traces the boundary by producing coordinates, matplotlib
-        path instructions, and gamut-mapped colors for a series of points from
-        the red primary to the green primary to the blue primary and back again.
-        """
-        if (
-            self._largest_gamut is None
-            or space is ColorSpace.Rec2020
-            or space is ColorSpace.DisplayP3 and self._largest_gamut is ColorSpace.Srgb
-        ):
-            self._largest_gamut = space
-
-        all_points: list[tuple[float, float]]= []
-        all_colors: list[str] = []
-
-        def trace(template: list[None | int], index: int, sign: Literal[1, -1]) -> None:
-            """Trace primary to secondary or secondary to primary boundary segment."""
-            # Scale the template by the number of steps.
-            template = [(0 if t is None else t * self._gamut_range) for t in template]
-
-            # Generate the boundary points and add to the complete lists.
-            points, colors = self.generate_boundary_points(
-                space, cast(list[int], template), index, sign
-            )
-            all_points.extend(points)
-            all_colors.extend(colors)
-
-        hr = "-" * (len(f"{space}") + 54)
-
-        self.detail(hr)
-        c, h, hex_format = self.to_point_and_color(Color(space, [1.0, 0.0, 0.0]))
-        all_points.append((c, h))
-        all_colors.append(hex_format)
-
-        trace([1, None, 0], 1, 1) # red to yellow
-        self.detail(hr)
-        trace([None, 1, 0], 0, -1) # yellow to green
-        self.detail(hr)
-        trace([0, 1, None], 2, 1) # green to cyan
-        self.detail(hr)
-        trace([0, None, 1], 1, -1) # cyan to blue
-        self.detail(hr)
-        trace([None, 0, 1], 0, 1) # blue to magenta
-        self.detail(hr)
-        trace([1, 0, None], 2, -1) # magenta to red
-        self.detail(hr)
-
-        assert close_enough(all_points[0][0], all_points[-1][0])
-        assert close_enough(all_points[0][1], all_points[-1][1])
-        return all_points, all_colors
-
-    def add_gamut(self, axes: Any, space: ColorSpace) -> None:
-        points, colors = self.trace_gamut(space)
-
-        previous_chroma: None | float = None
-        previous_hue: None | float = None
-        for (chroma, hue), color in zip(points, colors):
-            if previous_chroma is not None:
-                assert previous_hue is not None
-                axes.plot(  # type: ignore
-                    [previous_hue, hue],
-                    [previous_chroma, chroma],
-                    c = color,
-                    lw = 1.5,
-                )
-
-            previous_chroma = chroma
-            previous_hue = hue
-
-    def add_gamut_label(
-        self,
-        axes: Any,
-        space: ColorSpace,
-        label: str,
-        green: float,
-        blue: float,
-        dtext: float,
-        pad: int,
-    ) -> None:
-        _, c, h = Color(space, [0.0, green , blue]).to(ColorSpace.Oklch)
-        h = h * math.pi / 180
-        axes.annotate(  # type: ignore
-            label, xy=(h, c), xytext=(h, c + dtext), textcoords="data",
-            bbox=dict(
-                pad=pad,
-                facecolor="none",
-                edgecolor="none"
-            ),
-            arrowprops=dict(
-                arrowstyle="-",
-                connectionstyle="arc3",
-                shrinkA=0,
-                shrinkB=0,
-            ),
-        )
-
-    def trace_spectrum_locus(self) -> tuple[list[ChromaHue], list[ChromaHue]]:
-        points: list[tuple[float, float]] = []
-
-        # Collect the points for the entire standard observer data.
-        for λ, (x, y, z) in STANDARD_OBSERVER_1931:
-            _, c, h = Color(ColorSpace.Xyz, [x, y, z]).to(ColorSpace.Oklch)
-            radian = h * math.pi / 180
-            points.append((c, radian))
-
-            self.detail(f"spectrum locus λ={λ}: {c:.5f}, {h:5.1f}º")
-
-        # Find local chroma maximum from start.
-        start_index = None
-        max_chroma = None
-        for index, (c, h) in enumerate(points):
-            if max_chroma is not None and max_chroma > c:
-                break
-
-            start_index = index
-            max_chroma = c
-
-        # Find local chroma maximum from stop.
-        stop_index = None
-        max_chroma = None
-        for index, (c, h) in enumerate(reversed(points)):
-            if max_chroma is not None and max_chroma > c:
-                break
-
-            stop_index = index
-            max_chroma = c
-
-        assert start_index is not None and stop_index is not None
-        return points, [points[start_index - 1], points[-stop_index]]
-
-    def add_spectrum_locus(self, axes: Any) -> None:
-        self._with_spectrum = True
-
-        points, more_points = self.trace_spectrum_locus()
-
-        previous_chroma: None | float = None
-        previous_hue: None | float = None
-        for chroma, hue in points:
-            if previous_chroma is not None:
-                assert previous_hue is not None
-                axes.plot(  # type: ignore
-                    [previous_hue, hue],
-                    [previous_chroma, chroma],
-                    c = "#aa0000",
-                    lw = 1.5,
-                )
-
-            previous_chroma = chroma
-            previous_hue = hue
-
-        axes.plot(
-            [more_points[0][1], more_points[1][1]],
-            [more_points[0][0], more_points[1][0]],
-            c = "#aa0000",
-            lw = 1.5,
-        )
-
-    def create_figure(
-        self,
-        collection_name: None | str = None,
-        color_kind: None | str = None,
-        gamuts: None | list[ColorSpace] = None,
-        spectrum: bool = False,
-    ) -> Any:
-        fig: Any = plt.figure(layout="constrained", figsize=(5, 6.5))  # type: ignore
-        axes: Any = fig.add_subplot(6, 10, (1, 50), polar=True)
-        light_axes: Any = fig.add_subplot(6, 10, (52, 59))
-
-        # Add gamut boundaries if so requested.
-        gamuts = gamuts or []
-        for space in gamuts:
-            self.add_gamut(axes, space)
-
-        if spectrum:
-            self.add_spectrum_locus(axes)
-
-        # Since markers are shared for all marks in a series, we use a new
-        # series for every single color.
-        for hue, chroma, color, marker in zip(
-            self._hues, self._chromas, self._mark_colors, self._marks
-        ):
-            size = 80 if marker == "o" else 60
-            axes.scatter(
-                [hue],
-                [chroma],
-                c=[color],
-                s=[size],
-                marker=marker,  # type: ignore
-                edgecolors='#000',
-                zorder=5,
-            )
-
-        if self._grays:
-            gray = Color.oklab(sum(self._grays) / len(self._grays), 0.0, 0.0).to_hex_format()
-
-            axes.scatter(
-                [0],
-                [0],
-                c=[gray],
-                s=[80],
-                marker=self._gray_mark,
-                edgecolors='#000',
-            )
-
-        axes.set_aspect(1)
-        axes.set_rmin(0)
-        axes.set_rmax(self.effective_max_chroma())
-
-        # Don't show tick labels at angle
-        axes.set_rlabel_position(0)
-
-        # If max chroma is 0.3 or 0.4: matplotlib puts grid circles every 0.05.
-        #     To reduce clutter and maximize label utility, place label every
-        #     0.10, but start at 0.05. Max chroma at 0.5, matplotlib puts grid
-        # If max chroma is 0.5: matplotlib puts grid circles every 0.1. Only
-        #     suppress labels for origin and max chroma.
-        axes.yaxis.set_major_formatter(FuncFormatter(
-                self.format_ytick_label_10 if self.effective_max_chroma() == 0.5
-                else self.format_ytick_label_05
-        ))
-
-        # Center tick labels on tick
-        plt.setp(axes.yaxis.get_majorticklabels(), ha="center")  # type: ignore
-
-        # Make grid appear below points
-        axes.set_axisbelow(True)
-
-        # Add label for gamut boundaries
-        if ColorSpace.Srgb in gamuts:
-            self.add_gamut_label(axes, ColorSpace.Srgb, "sRGB", 1.0, 0.85, 0.12, 0)
-        if ColorSpace.DisplayP3 in gamuts:
-            self.add_gamut_label(axes, ColorSpace.DisplayP3, "P3", 1.0, 0.95, 0.07, 0)
-        if ColorSpace.Rec2020 in gamuts:
-            self.add_gamut_label(axes, ColorSpace.Rec2020, "Rec. 2020", 0.95, 1.0, 0.18, 1)
-
-        axes.set_title("Hue & Chroma", style="italic", size=13, x=0.11, y=1.01)
-
-        light_axes.set_yticks([0, 0.5, 1], minor=False)
-        light_axes.set_yticks([0.25, 0.75], minor=True)
-        light_axes.yaxis.grid(True, which="major")
-        light_axes.yaxis.grid(True, which="minor")
-
-        light_axes.bar(
-            [x for x in range(len(self._lightness))],
-            self._lightness,
-            color=self._bar_color,
-            zorder=5,
-        )
-        light_axes.set_ylim(0, 1)
-        light_axes.get_xaxis().set_visible(False)
-
-        collection_name = collection_name or self._collection_name
-        color_kind = color_kind or self._color_kind or "Colors"
-        title = f"{collection_name}: " if collection_name else ""
-        title += f"{self.format_counts()} {color_kind} in Oklab"
-        fig.suptitle(title, ha="left", x=0.044, weight="bold", size=13)
-        fig.text(0.045, 0.085, "Lr", fontdict=dict(style="italic", size=13))
-
-        return fig
-
 
 def main() -> None:
     options = create_parser().parse_args()
-    plotter = ColorPlotter(volume=1-options.quiet+options.verbose)
+    plotter = ColorPlotter(
+        volume=1-options.quiet+options.verbose,
+        strong_gamut=options.strong_gamut,
+        chromaticity=options.chromaticity,
+    )
     terminal_id = None
 
     gamuts: list[ColorSpace] = []
@@ -619,6 +626,7 @@ def main() -> None:
         color_kind=color_kind,
         gamuts=gamuts,
         spectrum=options.spectrum,
+        with_illuminant=options.illuminant,
     )
     plotter.status(f"Saving plot to `{file_name}`")
     fig.savefig(file_name, bbox_inches="tight")  # type: ignore
