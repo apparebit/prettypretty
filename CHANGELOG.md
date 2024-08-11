@@ -2,6 +2,14 @@
 
 ## v0.11.0 (2024-xx-xx)
 
+### New Features
+
+  * Add [`Illuminant`] and [`Observer`] to capture critical spectral distributions.
+  * Add [`ColorSpace::boundaries()`] for traversing a color space's boundaries.
+  * Add [`Color::hue_chroma`] and [`Color::xy_chromaticity`] for plotting colors
+    in 2D.
+
+
 ### Changes
 
   * Rename `Sampler` to `Translator`.
