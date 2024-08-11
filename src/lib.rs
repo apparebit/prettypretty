@@ -141,8 +141,9 @@ pub type Bits = u32;
 mod core;
 mod error;
 mod object;
-#[doc(hidden)]
-pub mod style;
+mod spectrum;
+//#[doc(hidden)]
+//pub mod style;
 mod term_color;
 mod translation;
 mod util;
@@ -153,9 +154,15 @@ pub use core::close_enough;
 #[doc(hidden)]
 pub use core::to_eq_bits;
 
-pub use core::{ColorFormatError, ColorSpace, HueInterpolation};
+pub use core::{
+    ColorFormatError, ColorSpace, GamutTraversal, GamutTraversalStep, HueInterpolation,
+};
 pub use error::OutOfBoundsError;
 pub use object::{Color, Interpolator, OkVersion};
+pub use spectrum::{
+    sum_luminance, Illuminant, IlluminantIter, Observer, ObserverIter, CIE_ILLUMINANT_D65,
+    CIE_OBSERVER_2DEG_1931, CIE_OBSERVER_2DEG_2015,
+};
 pub use term_color::{
     AnsiColor, DefaultColor, EmbeddedRgb, Fidelity, GrayGradient, Layer, TerminalColor, TrueColor,
 };
@@ -170,21 +177,33 @@ use pyo3::prelude::*;
 #[pymodule]
 pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(close_enough, m)?)?;
+    m.add_function(wrap_pyfunction!(sum_luminance, m)?)?;
+
     m.add_class::<AnsiColor>()?;
     m.add_class::<Color>()?;
     m.add_class::<ColorSpace>()?;
     m.add_class::<DefaultColor>()?;
     m.add_class::<EmbeddedRgb>()?;
     m.add_class::<Fidelity>()?;
+    m.add_class::<GamutTraversal>()?;
+    m.add_class::<GamutTraversalStep>()?;
     m.add_class::<GrayGradient>()?;
     m.add_class::<HueInterpolation>()?;
+    m.add_class::<Illuminant>()?;
+    m.add_class::<IlluminantIter>()?;
     m.add_class::<Interpolator>()?;
     m.add_class::<Layer>()?;
     m.add_class::<OkVersion>()?;
+    m.add_class::<Observer>()?;
+    m.add_class::<ObserverIter>()?;
     m.add_class::<Translator>()?;
     m.add_class::<TerminalColor>()?;
     m.add_class::<ThemeEntry>()?;
     m.add_class::<ThemeEntryIterator>()?;
     m.add_class::<TrueColor>()?;
+
+    m.add("CIE_ILLUMINANT_D65", CIE_ILLUMINANT_D65)?;
+    m.add("CIE_OBSERVER_2DEG_1931", CIE_OBSERVER_2DEG_1931)?;
+    m.add("CIE_OBSERVER_2DEG_2015", CIE_OBSERVER_2DEG_2015)?;
     Ok(())
 }
