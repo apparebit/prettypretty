@@ -5,32 +5,30 @@ use crate::core::conversion::okxch_to_okxab;
 use crate::core::{convert, delta_e_ok, normalize};
 use crate::{Color, ColorSpace, Float};
 
-/// Determine whether the color is gray-ish.
+/// Determine whether the color is achromatic or gray-ish.
 ///
 /// For maximally consistent results, this functions tests chroma and hue in
 /// Oklch/Oklrch. If the color is in neither color space, this function first
 /// converts the coordinates.
-pub(crate) fn is_gray(space: ColorSpace, coordinates: &[Float; 3], threshold: Float) -> bool {
+pub(crate) fn is_achromatic(space: ColorSpace, coordinates: &[Float; 3], threshold: Float) -> bool {
     let coordinates = match space {
         ColorSpace::Oklch | ColorSpace::Oklrch => *coordinates,
+        ColorSpace::Oklrab => convert(space, ColorSpace::Oklrab, coordinates),
         _ => convert(space, ColorSpace::Oklch, coordinates),
     };
 
-    is_gray_chroma_hue(coordinates[1], coordinates[2], threshold)
+    is_achromatic_chroma_hue(coordinates[1], coordinates[2], threshold)
 }
 
-/// A fairly loose threshold for gray chroma
-pub(crate) const LOOSE_GRAY_THRESHOLD: Float = 0.05;
-
 /// A fairly tight threshold for gray chroma
-pub(crate) const TIGHT_GRAY_THRESHOLD: Float = 0.01;
+pub(crate) const GRAY_THRESHOLD: Float = 0.01;
 
 /// Determine whether the chroma and hue are gray-ish.
 ///
 /// This function treats the chroma and hue as gray-ish if either the hue is
 /// not-a-number or the chroma is smaller than the given threshold.
 #[inline]
-pub(crate) fn is_gray_chroma_hue(chroma: Float, hue: Float, threshold: Float) -> bool {
+pub(crate) fn is_achromatic_chroma_hue(chroma: Float, hue: Float, threshold: Float) -> bool {
     hue.is_nan() || chroma < threshold
 }
 
@@ -184,7 +182,7 @@ impl GamutTraversalStep {
 
 /// The gamut traversal's segment.
 #[derive(Copy, Clone, Debug)]
-enum GamutTraversalSegment {
+enum GamutEdge {
     Start,
     Blue2Cyan,
     Cyan2Green,
@@ -201,15 +199,24 @@ enum GamutTraversalSegment {
     Done,
 }
 
-/// An iterator to traverse RGB gamut boundaries.
+/// An iterator for traversing RGB gamut boundaries.
 ///
-/// Every RGB color space forms a cube. Consequently, traversing its gamut
-/// boundaries is the same as traversing the edges of the cube. This iterator
-/// yields [`GamutTraversalStep`] instances for seven paths that cover the
-/// cube's twelve edges as follows, in that order:
+/// Use [`ColorSpace::gamut`] to create new instances.
+///
+/// In the unit-normal representation used by prettypretty's [`Color`], any RGB
+/// color space forms a cube with the following eight corners:
+///
+///   * the red, green, and blue primaries;
+///   * the yellow, cyan, and magenta secondaries;
+///   * black and white.
+///
+/// Hence, traversing the boundaries of its gamut is the same as traversing the
+/// cube's twelve edges. This iterator yields [`GamutTraversalStep`] instances
+/// for seven paths that cover each of the cube's twelve edges exactly once, in
+/// the folling order:
 ///
 ///   * the closed path from blue to cyan to green to yellow to red to magenta
-///     to blue again;
+///     and blue again;
 ///   * the path from blue to black;
 ///   * the path from cyan to white;
 ///   * the path from green to black;
@@ -222,31 +229,32 @@ enum GamutTraversalSegment {
 /// edges of the cube.
 ///
 /// Each path starts with a `MoveTo` step and ends with either `LineTo` if open
-/// or `CloseWith` if closed. The color field of each step is a color in that
-/// color space and is in-gamut if barely.
+/// or `CloseWith` if closed. The step's color provides the coordinates for the
+/// step. They always are for the color space whose boundaries are being traced
+/// and in-gamut, if barely.
 #[cfg_attr(feature = "pyffi", pyclass)]
 #[derive(Debug)]
 pub struct GamutTraversal {
     space: ColorSpace,
     max_component: usize,
-    segment: GamutTraversalSegment,
+    edge: GamutEdge,
     r: usize,
     g: usize,
     b: usize,
 }
 
 impl GamutTraversal {
-    pub(crate) fn new(space: ColorSpace, segment_size: usize) -> Option<Self> {
-        if !space.is_rgb() || segment_size < 2 {
+    pub(crate) fn new(space: ColorSpace, edge_length: usize) -> Option<Self> {
+        if !space.is_rgb() || edge_length < 2 {
             None
         } else {
             Some(Self {
                 space,
-                max_component: segment_size - 1,
-                segment: GamutTraversalSegment::Start,
+                max_component: edge_length - 1,
+                edge: GamutEdge::Start,
                 r: 0,
                 g: 0,
-                b: segment_size - 1,
+                b: edge_length - 1,
             })
         }
     }
@@ -256,10 +264,10 @@ impl Iterator for GamutTraversal {
     type Item = GamutTraversalStep;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use GamutTraversalSegment::*;
+        use GamutEdge::*;
         use GamutTraversalStep::*;
 
-        if matches!(self.segment, Done) {
+        if matches!(self.edge, Done) {
             return None;
         }
 
@@ -273,10 +281,10 @@ impl Iterator for GamutTraversal {
             ],
         );
 
-        let result = match self.segment {
+        let result = match self.edge {
             Start => {
                 self.g += 1;
-                self.segment = Blue2Cyan;
+                self.edge = Blue2Cyan;
 
                 MoveTo(color)
             }
@@ -284,7 +292,7 @@ impl Iterator for GamutTraversal {
                 if self.g < self.max_component {
                     self.g += 1;
                 } else {
-                    self.segment = Cyan2Green;
+                    self.edge = Cyan2Green;
                     self.b -= 1;
                 }
 
@@ -294,7 +302,7 @@ impl Iterator for GamutTraversal {
                 if self.b > 0 {
                     self.b -= 1;
                 } else {
-                    self.segment = Green2Yellow;
+                    self.edge = Green2Yellow;
                     self.r += 1;
                 }
 
@@ -304,7 +312,7 @@ impl Iterator for GamutTraversal {
                 if self.r < self.max_component {
                     self.r += 1;
                 } else {
-                    self.segment = Yellow2Red;
+                    self.edge = Yellow2Red;
                     self.g -= 1;
                 }
 
@@ -314,7 +322,7 @@ impl Iterator for GamutTraversal {
                 if self.g > 0 {
                     self.g -= 1;
                 } else {
-                    self.segment = Red2Magenta;
+                    self.edge = Red2Magenta;
                     self.b += 1;
                 }
 
@@ -324,7 +332,7 @@ impl Iterator for GamutTraversal {
                 if self.b < self.max_component {
                     self.b += 1;
                 } else {
-                    self.segment = Magenta2Blue;
+                    self.edge = Magenta2Blue;
                     self.r -= 1;
                 }
 
@@ -336,7 +344,7 @@ impl Iterator for GamutTraversal {
 
                     LineTo(color)
                 } else {
-                    self.segment = Blue2Black;
+                    self.edge = Blue2Black;
 
                     CloseWith(color)
                 }
@@ -351,7 +359,7 @@ impl Iterator for GamutTraversal {
 
                     LineTo(color)
                 } else {
-                    self.segment = Cyan2White;
+                    self.edge = Cyan2White;
                     self.g = self.max_component;
                     self.b = self.max_component;
 
@@ -368,7 +376,7 @@ impl Iterator for GamutTraversal {
 
                     LineTo(color)
                 } else {
-                    self.segment = Green2Black;
+                    self.edge = Green2Black;
                     self.r = 0;
                     self.b = 0;
 
@@ -385,7 +393,7 @@ impl Iterator for GamutTraversal {
 
                     LineTo(color)
                 } else {
-                    self.segment = Yellow2White;
+                    self.edge = Yellow2White;
                     self.r = self.max_component;
                     self.g = self.max_component;
 
@@ -402,7 +410,7 @@ impl Iterator for GamutTraversal {
 
                     LineTo(color)
                 } else {
-                    self.segment = Red2Black;
+                    self.edge = Red2Black;
                     self.g = 0;
                     self.b = 0;
 
@@ -419,7 +427,7 @@ impl Iterator for GamutTraversal {
 
                     LineTo(color)
                 } else {
-                    self.segment = Magenta2White;
+                    self.edge = Magenta2White;
                     self.r = self.max_component;
                     self.b = self.max_component;
 
@@ -436,7 +444,7 @@ impl Iterator for GamutTraversal {
 
                     LineTo(color)
                 } else {
-                    self.segment = Done;
+                    self.edge = Done;
 
                     LineTo(color)
                 }
@@ -467,7 +475,7 @@ impl GamutTraversal {
     pub fn __repr__(&self) -> String {
         format!(
             "GamutTraversal([{}, {}, {}] / {}, {:?}, {:?})",
-            self.r, self.g, self.b, self.max_component, self.segment, self.space
+            self.r, self.g, self.b, self.max_component, self.edge, self.space
         )
     }
 }
