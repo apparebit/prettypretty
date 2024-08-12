@@ -8,7 +8,7 @@ import math
 from typing import cast, Literal
 
 from .color import Color
-from .color.term import ( # pyright: ignore [reportMissingModuleSource]
+from .color.style import ( # pyright: ignore [reportMissingModuleSource]
     AnsiColor, EmbeddedRgb, Fidelity, Layer, TrueColor
 )
 from .theme import MACOS_TERMINAL, VGA, XTERM, current_translator

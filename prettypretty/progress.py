@@ -4,7 +4,7 @@ import random
 import time
 
 from prettypretty.color import Color
-from prettypretty.style import rich, RichText, Style
+from prettypretty.style_extras import rich, RichText, Style
 from prettypretty.terminal import Terminal
 from prettypretty.theme import current_translator
 

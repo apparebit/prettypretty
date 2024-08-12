@@ -4,7 +4,7 @@ from typing import Self
 # Repeat submodule name to make it public
 from . import gamut as gamut
 from . import spectrum as spectrum
-from . import term as term
+from . import style as style
 from . import trans as trans
 
 class ColorSpace:

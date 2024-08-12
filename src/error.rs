@@ -8,11 +8,11 @@ use pyo3::{exceptions::PyValueError, prelude::*};
 /// This error indicates an index value that is out of bounds for some range.
 /// The ranges used by this crate include:
 ///
-///   * `0..=5` for coordinates of [`EmbeddedRgb`](crate::term::EmbeddedRgb);
-///   * `0..=15` for index values of [`AnsiColor`](crate::term::AnsiColor);
-///   * `0..=23` for the gay levels of [`GrayGradient`](crate::term::GrayGradient);
-///   * `16..=231` for index values of [`EmbeddedRgb`](crate::term::EmbeddedRgb);
-///   * `232..=255` for index values of [`GrayGradient`](crate::term::GrayGradient).
+///   * `0..=5` for coordinates of [`EmbeddedRgb`](crate::style::EmbeddedRgb);
+///   * `0..=15` for index values of [`AnsiColor`](crate::style::AnsiColor);
+///   * `0..=23` for the gay levels of [`GrayGradient`](crate::style::GrayGradient);
+///   * `16..=231` for index values of [`EmbeddedRgb`](crate::style::EmbeddedRgb);
+///   * `232..=255` for index values of [`GrayGradient`](crate::style::GrayGradient).
 ///
 #[derive(Clone, Debug)]
 pub struct OutOfBoundsError {

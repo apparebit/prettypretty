@@ -8,7 +8,7 @@ use pyo3::types::PyInt;
 use crate::core::is_achromatic_chroma_hue;
 
 use crate::error::OutOfBoundsError;
-use crate::term::{AnsiColor, DefaultColor, EmbeddedRgb, Fidelity, GrayGradient, TerminalColor};
+use crate::style::{AnsiColor, DefaultColor, EmbeddedRgb, Fidelity, GrayGradient, TerminalColor};
 use crate::{rgb, Bits, Color, ColorSpace, Float, OkVersion};
 
 // ====================================================================================================================
@@ -414,7 +414,7 @@ fn into_terminal_color(obj: &Bound<'_, PyAny>) -> PyResult<TerminalColor> {
     obj.extract::<TerminalColor>()
         .or_else(|_| obj.extract::<AnsiColor>().map(|c| c.into()))
         .or_else(|_| obj.extract::<EmbeddedRgb>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<crate::term::TrueColor>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<crate::style::TrueColor>().map(|c| c.into()))
         .or_else(|_| obj.extract::<GrayGradient>().map(|c| c.into()))
         .or_else(|_| obj.extract::<DefaultColor>().map(|c| c.into()))
 }
@@ -523,7 +523,7 @@ impl Translator {
     ///
     /// ```
     /// # use prettypretty::{Color, OkVersion};
-    /// # use prettypretty::term::{AnsiColor, DefaultColor, TrueColor}
+    /// # use prettypretty::style::{AnsiColor, DefaultColor, TrueColor}
     /// # use prettypretty::trans::{Translator, VGA_COLORS};
     /// let black = Translator.resolve(DefaultColor::Foreground);
     /// assert_eq!(black, Color::srgb(0.0, 0.0, 0.0));
@@ -717,7 +717,7 @@ impl Translator {
     /// [`Translator::new`] does as well.
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// # use prettypretty::term::AnsiColor;
+    /// # use prettypretty::style::AnsiColor;
     /// # use prettypretty::trans::VGA_COLORS;
     /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
@@ -749,7 +749,7 @@ impl Translator {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace, Float};
-    /// # use prettypretty::term::AnsiColor;
+    /// # use prettypretty::style::AnsiColor;
     /// # use prettypretty::trans::VGA_COLORS;
     /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
@@ -826,7 +826,7 @@ impl Translator {
     /// ```
     /// # use prettypretty::{assert_close_enough, Color, ColorSpace, Float, OkVersion};
     /// # use prettypretty::error::OutOfBoundsError;
-    /// # use prettypretty::term::{EmbeddedRgb, TerminalColor};
+    /// # use prettypretty::style::{EmbeddedRgb, TerminalColor};
     /// # use prettypretty::trans::{Translator, VGA_COLORS};
     /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
     ///
@@ -960,7 +960,7 @@ impl Translator {
     ///
     /// ```
     /// # use prettypretty::{Color, OkVersion};
-    /// # use prettypretty::term::{AnsiColor, DefaultColor, TrueColor};
+    /// # use prettypretty::style::{AnsiColor, DefaultColor, TrueColor};
     /// # use prettypretty::trans::{Translator, VGA_COLORS};
     /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
     /// let blue = translator.resolve(AnsiColor::Blue);
@@ -1043,7 +1043,7 @@ impl Translator {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace, OkVersion};
-    /// # use prettypretty::term::AnsiColor;
+    /// # use prettypretty::style::AnsiColor;
     /// # use prettypretty::trans::{Translator, VGA_COLORS};
     /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
@@ -1086,7 +1086,7 @@ impl Translator {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace, OkVersion};
-    /// # use prettypretty::term::AnsiColor;
+    /// # use prettypretty::style::AnsiColor;
     /// # use prettypretty::trans::{Translator, VGA_COLORS};
     /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
@@ -1154,7 +1154,7 @@ impl Translator {
     /// [`Translator::new`] does as well.
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
-    /// # use prettypretty::term::AnsiColor;
+    /// # use prettypretty::style::AnsiColor;
     /// # use prettypretty::trans::VGA_COLORS;
     /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
@@ -1186,7 +1186,7 @@ impl Translator {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace, Float};
-    /// # use prettypretty::term::AnsiColor;
+    /// # use prettypretty::style::AnsiColor;
     /// # use prettypretty::trans::VGA_COLORS;
     /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
@@ -1266,7 +1266,7 @@ impl Translator {
     ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace, Float, OkVersion};
-    /// # use prettypretty::term::{EmbeddedRgb, TerminalColor};
+    /// # use prettypretty::style::{EmbeddedRgb, TerminalColor};
     /// # use prettypretty::trans::{Translator, VGA_COLORS};
     /// # use prettypretty::error::OutOfBoundsError;
     /// # use prettypretty::assert_close_enough;
@@ -1436,7 +1436,7 @@ impl std::fmt::Debug for Translator {
 mod test {
     use super::{Translator, VGA_COLORS};
     use crate::error::OutOfBoundsError;
-    use crate::term::AnsiColor;
+    use crate::style::AnsiColor;
     use crate::{Color, OkVersion};
 
     #[test]

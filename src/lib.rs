@@ -26,30 +26,31 @@ interfaces as well as Python ingration, with the `pyffi` feature flag enabled.**
 //!
 //! ## Overview
 //!
-//!   * [`Color`] is prettypretty's high-resolution color object. It combines a
-//!     [`ColorSpace`] with three [`Float`] coordinates. Its methods expose much
-//!     of prettypretty's functionality, including conversion between color
-//!     spaces, interpolation between colors, calculation of perceptual
-//!     contrast, as well as gamut testing, clipping, and mapping.
-//!   * The [`term`] module models terminal colors. In particular, the
-//!     [`TerminalColor`](crate::term::TerminalColor) enum combines, in order
+//!   * [`Color`] is prettypretty's abstraction for **high-resolution colors**.
+//!     It combines a [`ColorSpace`] with three [`Float`] coordinates. Its
+//!     methods expose much of prettypretty's functionality, including
+//!     conversion between color spaces, interpolation between colors,
+//!     calculation of perceptual contrast, as well as gamut testing, clipping,
+//!     and mapping.
+//!   * The [`style`] module models **terminal colors**. Notably, the
+//!     [`TerminalColor`](crate::style::TerminalColor) enum combines, in order
 //!     from lowest to highest resolution,
-//!     [`DefaultColor`](crate::term::DefaultColor),
-//!     [`AnsiColor`](crate::term::AnsiColor),
-//!     [`EmbeddedRgb`](crate::term::EmbeddedRgb),
-//!     [`GrayGradient`](crate::term::GrayGradient), and
-//!     [`TrueColor`](crate::term::TrueColor). It also implements `From` and
+//!     [`DefaultColor`](crate::style::DefaultColor),
+//!     [`AnsiColor`](crate::style::AnsiColor),
+//!     [`EmbeddedRgb`](crate::style::EmbeddedRgb),
+//!     [`GrayGradient`](crate::style::GrayGradient), and
+//!     [`TrueColor`](crate::style::TrueColor). It also implements `From` and
 //!     `FromTry` traits for converting between color representations. For
 //!     embedded RGB colors, they include conversion from/to `u8` and wrapped
-//!     [`TerminalColor`](crate::term::TerminalColor) instances as well as raw
+//!     [`TerminalColor`](crate::style::TerminalColor) instances as well as raw
 //!     24-bit (`[u8; 3]`), 24-bit color objects
-//!     ([`TrueColor`](crate::term::TrueColor)), and high-resolution colors
+//!     ([`TrueColor`](crate::style::TrueColor)), and high-resolution colors
 //!     ([`Color`]).
-//!   * The [`trans`] module implements more complicated conversions. Notably,
-//!     [`Translation`](crate::trans::Translator) handles conversion between
-//!     ANSI/8-bit colors and high-resolution colors. It includes several
-//!     algorithms for translating from high-resolution to ANSI colors. Since
-//!     that requires mapping practically infinite onto 16 colors, that
+//!   * The [`trans`] module implements more **complicated color conversions**.
+//!     Notably, [`Translation`](crate::trans::Translator) handles conversion
+//!     between ANSI/8-bit colors and high-resolution colors. It includes
+//!     several algorithms for translating from high-resolution to ANSI colors.
+//!     Since that requires mapping practically infinite onto 16 colors, that
 //!     translation is particularly challenging.
 //!
 //!
@@ -149,7 +150,7 @@ mod object;
 pub mod spectrum;
 //#[doc(hidden)]
 //pub mod style;
-pub mod term;
+pub mod style;
 pub mod trans;
 mod util;
 
@@ -174,7 +175,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modcolor_name = m.name()?;
     let modgamut_name = format!("{}.gamut", modcolor_name);
     let modspectrum_name = format!("{}.spectrum", modcolor_name);
-    let modterm_name = format!("{}.term", modcolor_name);
+    let modstyle_name = format!("{}.style", modcolor_name);
     let modtrans_name = format!("{}.trans", modcolor_name);
 
     // --------------------------------------------------------------- color
@@ -218,21 +219,21 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Only change __name__ attribute after submodule has been added.
     modspectrum.setattr("__name__", &modspectrum_name)?;
 
-    // --------------------------------------------------------------- color.term
-    let modterm = PyModule::new_bound(m.py(), "term")?;
-    modterm.add("__package__", &modcolor_name)?;
-    modterm.add_class::<crate::term::AnsiColor>()?;
-    modterm.add_class::<crate::term::DefaultColor>()?;
-    modterm.add_class::<crate::term::EmbeddedRgb>()?;
-    modterm.add_class::<crate::term::Fidelity>()?;
-    modterm.add_class::<crate::term::GrayGradient>()?;
-    modterm.add_class::<crate::term::Layer>()?;
-    modterm.add_class::<crate::term::TerminalColor>()?;
-    modterm.add_class::<crate::term::TrueColor>()?;
-    m.add_submodule(&modterm)?;
+    // --------------------------------------------------------------- color.style
+    let modstyle = PyModule::new_bound(m.py(), "style")?;
+    modstyle.add("__package__", &modcolor_name)?;
+    modstyle.add_class::<crate::style::AnsiColor>()?;
+    modstyle.add_class::<crate::style::DefaultColor>()?;
+    modstyle.add_class::<crate::style::EmbeddedRgb>()?;
+    modstyle.add_class::<crate::style::Fidelity>()?;
+    modstyle.add_class::<crate::style::GrayGradient>()?;
+    modstyle.add_class::<crate::style::Layer>()?;
+    modstyle.add_class::<crate::style::TerminalColor>()?;
+    modstyle.add_class::<crate::style::TrueColor>()?;
+    m.add_submodule(&modstyle)?;
 
     // Only change __name__ attribute after submodule has been added.
-    modterm.setattr("__name__", &modterm_name)?;
+    modstyle.setattr("__name__", &modstyle_name)?;
 
     // --------------------------------------------------------------- color.trans
     let modtrans = PyModule::new_bound(m.py(), "trans")?;
@@ -251,7 +252,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py_modules: Bound<'_, PyDict> = sys.getattr("modules")?.downcast_into()?;
     py_modules.set_item(&modgamut_name, modgamut)?;
     py_modules.set_item(&modspectrum_name, modspectrum)?;
-    py_modules.set_item(&modterm_name, modterm)?;
+    py_modules.set_item(&modstyle_name, modstyle)?;
     py_modules.set_item(&modtrans_name, modtrans)?;
 
     Ok(())

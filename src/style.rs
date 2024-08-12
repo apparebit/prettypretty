@@ -1,544 +1,1541 @@
-#![allow(dead_code)]
+//! Terminal colors supported by Select Graphic Rendition (SGR) escape
+//! sequences.
+//!
+//! The unifying [`TerminalColor`] abstraction combines, in order of decreasing
+//! age and increasing resolution, [`DefaultColor`], [`AnsiColor`],
+//! [`EmbeddedRgb`], [`GrayGradient`], and [`TrueColor`]. Out of these, default
+//! and the extended ANSI colors not only have the lowest resolution—one default
+//! color each for foreground and background as well as sixteen extended ANSI
+//! colors—but they also are abstract. That is, their appearance is (coarsely)
+//! defined, but they do not have standardized or widely accepted color values.
+//!
+//! Where possible, `From` and `TryFrom` trait implementations convert between
+//! different terminal color abstractions. More complicated conversions are
+//! implemented by the [`trans`](crate::trans) module.
 
-use crate::{Layer, TerminalColor};
+#[cfg(feature = "pyffi")]
+use pyo3::prelude::*;
 
-// mod bit {
-//     pub(super) type Flags = u16;
+use super::util::{Env, Environment};
+use crate::error::OutOfBoundsError;
+use crate::{Color, ColorSpace};
 
-//     pub(super) const NONE: Flags = 0;
+// ====================================================================================================================
+// Default Color
+// ====================================================================================================================
 
-//     pub(super) const REGULAR: Flags = 1 << 1;
-//     pub(super) const BOLD: Flags = 1 << 2;
-//     pub(super) const THIN: Flags = 1 << 3;
-//     pub(super) const CLEAR_WEIGHT: Flags = !(REGULAR | BOLD | THIN);
+/// The default foreground and background colors.
+///
+/// The default colors are ordered because they are ordered as theme colors.
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash, ord))]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum DefaultColor {
+    Foreground,
+    Background,
+}
 
-//     pub(super) const UPRIGHT: Flags = 1 << 4;
-//     pub(super) const ITALIC: Flags = 1 << 5;
-//     pub(super) const CLEAR_SLANT: Flags = !(UPRIGHT | ITALIC);
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl DefaultColor {
+    /// Get the default color's human-readable name.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Foreground => "default foreground color",
+            Self::Background => "default background color",
+        }
+    }
+}
 
-//     pub(super) const NOT_UNDERLINED: Flags = 1 << 6;
-//     pub(super) const UNDERLINED: Flags = 1 << 7;
-//     pub(super) const CLEAR_UNDERLINE: Flags = !(NOT_UNDERLINED | UNDERLINED);
+impl TryFrom<usize> for DefaultColor {
+    type Error = OutOfBoundsError;
 
-//     pub(super) const NOT_BLINKING: Flags = 1 << 8;
-//     pub(super) const BLINKING: Flags = 1 << 9;
-//     pub(super) const CLEAR_BLINKING: Flags = !(NOT_BLINKING | BLINKING);
+    fn try_from(value: usize) -> Result<Self, OutOfBoundsError> {
+        match value {
+            0 => Ok(DefaultColor::Foreground),
+            1 => Ok(DefaultColor::Background),
+            _ => Err(OutOfBoundsError::new(value, 0..=1)),
+        }
+    }
+}
 
-//     pub(super) const NOT_REVERSED: Flags = 1 << 10;
-//     pub(super) const REVERSED: Flags = 1 << 11;
+impl From<DefaultColor> for TerminalColor {
+    fn from(color: DefaultColor) -> Self {
+        TerminalColor::Default { color }
+    }
+}
 
-//     pub(super) const NOT_HIDDEN: Flags = 1 << 12;
-//     pub(super) const HIDDEN: Flags = 1 << 13;
+// ====================================================================================================================
+// Ansi Color
+// ====================================================================================================================
 
-//     pub(super) const NOT_STRICKEN: Flags = 1 << 14;
-//     pub(super) const STRICKEN: Flags = 1 << 15;
+/// The 16 extended ANSI colors.
+///
+/// Rust code converts between 8-bit color codes and enumeration variants with
+/// [`AnsiColor as
+/// TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor) and
+/// [`u8 as
+/// From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8).
+#[cfg_attr(
+    feature = "pyffi",
+    doc = "In contrast, Python code uses the [`AnsiColor::try_from_8bit`] and
+    [`AnsiColor::to_8bit`] methods."
+)]
+/// Since ANSI colors have no intrinsic color values, conversion from/to
+/// high-resolution colors requires additional machinery, as provided by
+/// [`Translator`](crate::trans::Translator).
+///
+/// The ANSI colors are ordered because they are ordered as theme colors and as
+/// indexed colors.
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash, ord))]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum AnsiColor {
+    #[default]
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+    BrightBlack,
+    BrightRed,
+    BrightGreen,
+    BrightYellow,
+    BrightBlue,
+    BrightMagenta,
+    BrightCyan,
+    BrightWhite,
+}
 
-//     pub(super) const ALL_NON_DEFAULT: [Flags; 8] = [
-//         BOLD, THIN, ITALIC, UNDERLINED, BLINKING, REVERSED, HIDDEN, STRICKEN,
-//     ];
-
-//     pub(super) const SIMPLE_NON_DEFAULT: [Flags; 6] = [
-//         ITALIC, UNDERLINED, BLINKING, REVERSED, HIDDEN, STRICKEN,
-//     ];
-
-//     pub(super) fn negate(flag: Flags) -> Flags {
-//         match flag {
-//             BOLD | THIN => REGULAR,
-//             ITALIC => UPRIGHT,
-//             UNDERLINED => NOT_UNDERLINED,
-//             BLINKING => NOT_BLINKING,
-//             REVERSED => NOT_REVERSED,
-//             HIDDEN => NOT_HIDDEN,
-//             STRICKEN => NOT_STRICKEN,
-//             _ => 0,
-//         }
-//     }
-// }
-
-// struct Attr(bit::Flags);
-
-// impl Attr {
-//     pub fn new() -> Self {
-//         Self(0)
-//     }
-
-//     #[inline]
-//     fn test(&self, flags: bit::Flags) -> bool {
-//         self.0 & flags != 0
-//     }
-
-//     pub fn bold(self) -> Self {
-//         Self(self.0 & bit::CLEAR_WEIGHT | bit::BOLD)
-//     }
-
-//     pub fn thin(self) -> Self {
-//         Self(self.0 & bit::CLEAR_WEIGHT | bit::THIN)
-//     }
-
-//     pub fn italic(self) -> Self {
-//         Self(self.0 & bit::CLEAR_SLANT | bit::ITALIC)
-//     }
-
-//     pub fn blink(self) -> Self {
-//         Self(self.0 & bit::CLEAR_BLINKING | bit::BLINKING)
-//     }
-
-//     pub fn negate(self) -> Self {
-//         let mut result: bit::Flags = 0;
-
-//         for flag in bit::ALL_NON_DEFAULT {
-//             if self.test(flag) {
-//                 result |= bit::negate(flag);
-//             }
-//         }
-
-//         Self(result)
-//     }
-
-//     pub fn subtract_flag(&self, other: &Self) -> Self {
-//         let mut result: bit::Flags = 0;
-
-//         if self.test(bit::BOLD) {
-//             if !other.test(bit::BOLD) {
-//                 result |= bit::BOLD;
-//             }
-//         } else if self.test(bit::THIN) {
-//             if !other.test(bit::THIN) {
-//                 result |= bit::THIN;
-//             }
-//         } else if other.test(bit::BOLD | bit::THIN) {
-//             result |= bit::REGULAR;
-//         }
-
-//         for flag in bit::SIMPLE_NON_DEFAULT {
-//             if self.test(flag) {
-//                 if !other.test(flag) {
-//                     result |= flag;
-//                 }
-//             } else if other.test(flag) {
-//                 result |= bit::negate(flag)
-//             }
-//         }
-
-//         Self(result)
-//     }
-
-//     pub fn sgr_parameters(&self) -> Vec<u8> {
-//         let mut parameters = Vec::new();
-
-//         if self.0 & bit::REGULAR != 0 {
-//             parameters.push(22);
-//         } else if self.0 & bit::BOLD != 0 {
-//             parameters.push(1);
-//         } else if self.0 & bit::ITALIC != 0 {
-//             parameters.push(2);
-//         }
-
-//         if self.0 & bit::UPRIGHT != 0 {
-//             parameters.push(23);
-//         } else if self.0 & bit::ITALIC != 0 {
-//             parameters.push(3);
-//         }
-
-//         if self.0 & bit::NOT_UNDERLINED != 0 {
-//             parameters.push(24);
-//         } else if self.0 & bit::UNDERLINED != 0 {
-//             parameters.push(4);
-//         }
-
-//         if self.0 & bit::NOT_BLINKING != 0 {
-//             parameters.push(25);
-//         } else if self.0 & bit::BLINKING != 0 {
-//             parameters.push(5);
-//         }
-
-//         if self.0 & bit::NOT_REVERSED != 0 {
-//             parameters.push(27);
-//         } else if self.0 & bit::REVERSED != 0 {
-//             parameters.push(7);
-//         }
-
-//         if self.0 & bit::NOT_HIDDEN != 0 {
-//             parameters.push(28);
-//         } else if self.0 & bit::BLINKING != 0 {
-//             parameters.push(8);
-//         }
-
-//         if self.0 & bit::NOT_STRICKEN != 0 {
-//             parameters.push(29);
-//         } else if self.0 & bit::STRICKEN != 0 {
-//             parameters.push(9);
-//         }
-
-//         parameters
-//     }
-// }
-
-pub trait TextAttribute: Copy + Default + PartialEq {
-    /// Determine whether the variant is the default.
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl AnsiColor {
+    /// Instantiate an ANSI color from its 8-bit code. <span
+    /// class=python-only></span>
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use prettypretty::style::*;
-    /// assert!(Reverse::NotReversed.is_default());
-    /// assert!(Reverse::default().is_default());
-    /// assert!(!Reverse::Reversed.is_default());
-    /// ```
-    fn is_default(&self) -> bool {
-        *self == Self::default()
+    /// This method offers the same functionality as [`AnsiColor as
+    /// TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor)
+    /// and is available in Python only.
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn try_from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
+        Self::try_from(value)
     }
 
-    /// Negate this text attribute.
+    /// Get the 8-bit code for this ANSI color. <span class=python-only></span>
     ///
-    /// This method determines the update necessary for restoring the text
-    /// attribute to its default state. Of course, the only attribute value that
-    /// can restore the default state is the default value. Hence, if this text
-    /// attribute is *not* the default, this method returns the default wrapped
-    /// in `Some`. Otherwise, it returns `None`.
+    /// This method offers the same functionality as [`u8 as
+    /// From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8)
+    /// and is available in Python only.
+    #[cfg(feature = "pyffi")]
+    pub fn to_8bit(&self) -> u8 {
+        *self as u8
+    }
+
+    /// Determine whether this ANSI color is gray.
+    pub fn is_gray(&self) -> bool {
+        use AnsiColor::*;
+        matches!(self, Black | White | BrightBlack | BrightWhite)
+    }
+
+    /// Determine whether this ANSI color is bright.
+    pub fn is_bright(&self) -> bool {
+        *self as u8 >= 8
+    }
+
+    /// Get the corresponding 3-bit ANSI color.
     ///
-    /// # Examples
+    /// If this color is bright, this method returns the corresponding nonbright
+    /// color. Otherwise, it returns the color.
+    pub fn to_3bit(&self) -> AnsiColor {
+        let mut index = *self as u8;
+        if index >= 8 {
+            index -= 8;
+        }
+        AnsiColor::try_from(index).unwrap()
+    }
+
+    /// Get this ANSI color's name.
     ///
-    /// Negating some `attribute` is the same as subtracting the attribute from
-    /// the default value, i.e., `T::default().subtract(attribute)`.
-    ///
-    /// ```
-    /// # use prettypretty::style::*;
-    /// assert_eq!(Blink::Blinking.negate(), Some(Blink::NotBlinking));
-    /// assert_eq!(Blink::default().subtract(Some(Blink::Blinking)), Some(Blink::NotBlinking));
-    /// assert_eq!(Blink::NotBlinking.negate(), None);
-    /// assert_eq!(Blink::default().subtract(Some(Blink::NotBlinking)), None);
-    /// ```
-    fn negate(&self) -> Option<Self> {
-        if !self.is_default() {
-            Some(Self::default())
+    /// This method returns the human-readable name, e.g., `"bright green"` for
+    /// [`AnsiColor::BrightGreen`].
+    pub fn name(&self) -> &'static str {
+        use AnsiColor::*;
+
+        match self {
+            Black => "black",
+            Red => "red",
+            Green => "green",
+            Yellow => "yellow",
+            Blue => "blue",
+            Magenta => "magenta",
+            Cyan => "cyan",
+            White => "white",
+            BrightBlack => "bright black",
+            BrightRed => "bright red",
+            BrightGreen => "bright green",
+            BrightYellow => "bright yellow",
+            BrightBlue => "bright blue",
+            BrightMagenta => "bright magenta",
+            BrightCyan => "bright cyan",
+            BrightWhite => "bright white",
+        }
+    }
+}
+
+impl TryFrom<u8> for AnsiColor {
+    type Error = OutOfBoundsError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        let ansi = match value {
+            0 => AnsiColor::Black,
+            1 => AnsiColor::Red,
+            2 => AnsiColor::Green,
+            3 => AnsiColor::Yellow,
+            4 => AnsiColor::Blue,
+            5 => AnsiColor::Magenta,
+            6 => AnsiColor::Cyan,
+            7 => AnsiColor::White,
+            8 => AnsiColor::BrightBlack,
+            9 => AnsiColor::BrightRed,
+            10 => AnsiColor::BrightGreen,
+            11 => AnsiColor::BrightYellow,
+            12 => AnsiColor::BrightBlue,
+            13 => AnsiColor::BrightMagenta,
+            14 => AnsiColor::BrightCyan,
+            15 => AnsiColor::BrightWhite,
+            _ => return Err(OutOfBoundsError::new(value, 0..=15)),
+        };
+
+        Ok(ansi)
+    }
+}
+
+impl From<AnsiColor> for u8 {
+    fn from(value: AnsiColor) -> u8 {
+        value as u8
+    }
+}
+
+impl From<AnsiColor> for TerminalColor {
+    fn from(color: AnsiColor) -> Self {
+        TerminalColor::Ansi { color }
+    }
+}
+
+// ====================================================================================================================
+// The Embedded 6x6x6 RGB Cube
+// ====================================================================================================================
+
+/// The 6x6x6 RGB cube embedded in 8-bit terminal colors.
+///
+///
+/// # Examples
+///
+/// Rust code can create a new embedded RGB color with either
+/// [`EmbeddedRgb::new`] or [`EmbeddedRgb as
+/// TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb).
+///
+/// ```
+/// # use prettypretty::style::EmbeddedRgb;
+/// # use prettypretty::error::OutOfBoundsError;
+/// let orange = EmbeddedRgb::new(5, 2, 0)?;
+/// let orange_too = EmbeddedRgb::try_from(208)?;
+/// assert_eq!(orange, orange_too);
+/// # Ok::<(), OutOfBoundsError>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #ff8700;"></div>
+/// </div>
+/// <br>
+///
+/// It can access the coordinates with [`EmbeddedRgb as AsRef<[u8;
+/// 3]>`](struct.EmbeddedRgb.html#impl-AsRef%3C%5Bu8;+3%5D%3E-for-EmbeddedRgb)
+/// or with [`EmbeddedRgb as
+/// Index<usize>`](struct.EmbeddedRgb.html#impl-Index%3Cusize%3E-for-EmbeddedRgb).
+/// ```
+/// # use prettypretty::style::EmbeddedRgb;
+/// # use prettypretty::error::OutOfBoundsError;
+/// let blue = EmbeddedRgb::try_from(75)?;
+/// assert_eq!(blue.as_ref(), &[1_u8, 3, 5]);
+/// assert_eq!(blue[1], 3);
+/// # Ok::<(), OutOfBoundsError>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #5fafff;"></div>
+/// </div>
+/// <br>
+///
+/// Finally, it can convert an embedded RGB color to `u8` with [`u8 as
+/// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8),
+/// to a true color with [`TrueColor as
+/// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-TrueColor),
+/// or to a high-resolution color with [`Color as
+/// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color).
+/// ```
+/// # use prettypretty::Color;
+/// # use prettypretty::style::{EmbeddedRgb, TrueColor};
+/// # use prettypretty::error::OutOfBoundsError;
+/// let rose = EmbeddedRgb::new(5, 4, 5)?;
+/// assert_eq!(u8::from(rose), 225);
+///
+/// let also_rose = TrueColor::from(rose);
+/// assert_eq!(format!("{}", also_rose), "#ffd7ff");
+///
+/// let rose_too = Color::from(rose);
+/// assert_eq!(rose_too.to_hex_format(), "#ffd7ff");
+///
+/// assert_eq!(Color::from(also_rose), rose_too);
+/// # Ok::<(), OutOfBoundsError>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #ffd7ff;"></div>
+/// </div>
+/// <br>
+///
+#[cfg_attr(
+    feature = "pyffi",
+    doc = "Since there is no Python feature equivalent to trait implementations in
+    Rust, the Python class for `EmbeddedRgb` provides equivalent functionality
+    through [`EmbeddedRgb::try_from_8bit`], [`EmbeddedRgb::to_8bit`],
+    [`EmbeddedRgb::to_24bit`], [`EmbeddedRgb::to_color`], [`EmbeddedRgb::coordinates`],
+    [`EmbeddedRgb::__len__`], [`EmbeddedRgb::__getitem__`], and
+    [`EmbeddedRgb::__repr__`]. These methods are not available in Rust."
+)]
+#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, sequence))]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct EmbeddedRgb([u8; 3]);
+
+#[cfg(feature = "pyffi")]
+#[pymethods]
+impl EmbeddedRgb {
+    /// Create a new embedded RGB value from its coordinates.
+    #[new]
+    pub fn new(r: u8, g: u8, b: u8) -> Result<Self, OutOfBoundsError> {
+        if r >= 6 {
+            Err(OutOfBoundsError::new(r, 0..=5))
+        } else if g >= 6 {
+            Err(OutOfBoundsError::new(g, 0..=5))
+        } else if b >= 6 {
+            Err(OutOfBoundsError::new(b, 0..=5))
         } else {
-            None
+            Ok(Self([r, g, b]))
         }
     }
 
-    /// Subtract another text attribute from this one.
+    /// Instantiate an embedded RGB color from its 8-bit code. <span
+    /// class=python-only></span>
     ///
-    /// This method determines the update necessary for setting the text
-    /// attribute to this value if it last was set to the other value. Of
-    /// course, the only attribute value that can do so is this text attribute
-    /// value. Hence, if this text attribute  That leads to the following four cases:Hence, if the previous attribute is `None`the this method returns this text attribute value wrapped in
-    /// `Some` unless the two attribute values are the same, in which case it
-    /// returns `None`.
+    /// This method offers the same functionality as [`EmbeddedRgb as
+    /// TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
+    /// and is available in Python only.
+    #[staticmethod]
+    #[inline]
+    pub fn try_from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
+        Self::try_from(value)
+    }
+
+    /// Get the 8-bit code for this embedded RGB color. <span
+    /// class=python-only></span>
     ///
-    /// # Examples
+    /// This method offers the same functionality as [`u8 as
+    /// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8)
+    /// and is available in Python only.
+    #[inline]
+    pub fn to_8bit(&self) -> u8 {
+        u8::from(*self)
+    }
+
+    /// Convert this embedded RGB color to 24-bit. <span
+    /// class=python-only></span>
+    #[inline]
+    pub fn to_24bit(&self) -> [u8; 3] {
+        (*self).into()
+    }
+
+    /// Convert this embedded RGB color to a high-resolution color. <span
+    /// class=python-only></span>
     ///
-    /// ```
-    /// # use prettypretty::style::*;
-    /// assert_eq!(Weight::Bold.subtract(Some(Weight::Thin)), Some(Weight::Bold));
-    /// assert_eq!(Weight::Regular.subtract(Some(Weight::Regular)), None);
-    /// ```
-    fn subtract(&self, other: Option<Self>) -> Option<Self> {
-        match other {
-            Some(other) => {
-                if *self != other {
-                    Some(*self)
-                } else {
-                    None
-                }
-            }
-            None => {
-                if !self.is_default() {
-                    Some(*self)
-                } else {
-                    None
-                }
-            }
+    /// This method offers the same functionality as [`Color as
+    /// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color)
+    /// and is available in Python only.
+    #[inline]
+    pub fn to_color(&self) -> Color {
+        Color::from(*self)
+    }
+
+    /// Access this true color's coordinates. <span class=python-only></span>
+    #[inline]
+    pub fn coordinates(&self) -> [u8; 3] {
+        self.0
+    }
+
+    /// Get this embedded RGB color's length, which is 3. <span
+    /// class=python-only></span>
+    ///
+    /// This method improves integration with Python's runtime and hence is
+    /// available in Python only.
+    #[inline]
+    pub fn __len__(&self) -> usize {
+        3
+    }
+
+    /// Get the coordinate at the given index. <span class=python-only></span>
+    ///
+    /// This method improves integration with Python's runtime and hence is
+    /// available in Python only.
+    pub fn __getitem__(&self, index: isize) -> PyResult<u8> {
+        match index {
+            -3..=-1 => Ok(self.0[(3 + index) as usize]),
+            0..=2 => Ok(self.0[index as usize]),
+            _ => Err(pyo3::exceptions::PyIndexError::new_err(
+                "Invalid coordinate index",
+            )),
+        }
+    }
+
+    /// Convert this embedded RGB color to its debug representation. <span
+    /// class=python-only></span>
+    #[inline]
+    pub fn __repr__(&self) -> String {
+        format!("EmbeddedRgb({}, {}, {})", self.0[0], self.0[1], self.0[2])
+    }
+}
+
+#[cfg(not(feature = "pyffi"))]
+impl EmbeddedRgb {
+    /// Create a new embedded RGB value from its coordinates.
+    pub fn new(r: u8, g: u8, b: u8) -> Result<Self, OutOfBoundsError> {
+        if r >= 6 {
+            Err(OutOfBoundsError::new(r, 0..=5))
+        } else if g >= 6 {
+            Err(OutOfBoundsError::new(g, 0..=5))
+        } else if b >= 6 {
+            Err(OutOfBoundsError::new(b, 0..=5))
+        } else {
+            Ok(Self([r, g, b]))
         }
     }
 }
 
-macro_rules! text_attributes {
-    (
-        $(
-            $( #[$attr:meta] )*
-            $name:ident {
-                $default_variant:ident = $default_value:expr ,
-                $( $variant:ident = $value:expr ),+
-                $(,)?
-            }
-        )*
-    ) => {
-        $(
-            $( #[$attr] )*
-            #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-            pub enum $name {
-                #[default]
-                $default_variant = $default_value,
-                $( $variant = $value ),+
-            }
+impl TryFrom<u8> for EmbeddedRgb {
+    type Error = OutOfBoundsError;
 
-            impl TextAttribute for $name {}
-        )*
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        if !(16..=231).contains(&value) {
+            Err(OutOfBoundsError::new(value, 16..=231))
+        } else {
+            let mut b = value - 16;
+            let r = b / 36;
+            b -= r * 36;
+            let g = b / 6;
+            b -= g * 6;
+
+            Self::new(r, g, b)
+        }
     }
 }
 
-text_attributes! {
-    /// The font weight: Regular, bold, or thin.
-    Weight {
-        Regular = 22,
-        Bold = 1,
-        Thin = 2,
-    }
-
-    /// The font style: upright or italic.
-    ///
-    /// This text attribute effectively is the binary attribute for italic text.
-    Slant {
-        Upright = 23,
-        Italic = 3,
-    }
-
-    /// The binary attribute for underlined text.
-    Underline {
-        NotUnderlined = 24,
-        Underlined = 4,
-    }
-
-    /// The binary attribute for blinking text.
-    Blink {
-        NotBlinking = 25,
-        Blinking = 5,
-    }
-
-    /// The binary attribute for reversed text.
-    Reverse {
-        NotReversed = 27,
-        Reversed = 7,
-    }
-
-    /// The binary attribute for stricken text.
-    Strike {
-        NotStricken = 29,
-        Stricken = 9,
+impl AsRef<[u8; 3]> for EmbeddedRgb {
+    fn as_ref(&self) -> &[u8; 3] {
+        &self.0
     }
 }
 
-/// A terminal style.
-///
-/// A terminal style captures the visual appearance of terminal output,
-/// including text attributes as well as foreground and background colors. There
-/// are two ways of modelling terminal styles:
-///
-///  1. Effective styles: Each style instance captures *all attributes* of a
-///     cell in the fixed-width grid being displayed on screen. Since this model
-///     only recognizes complete descriptions, representing changes may require
-///     two style instances, one for attributes to clear and one for attributes
-///     to set.
-///  2. Style changes: Each style instance captures only *changing attributes*.
-///     This representation is far more inline with ANSI escape sequences, which
-///     incrementally update terminal styles. However, computing the effective
-///     style may require an arbitrary history of style changes.
-///
-/// This struct uses the second approach but also provides methods to
-/// automatically determine styles that undo the previous style, incrementally
-/// modify a style, or combine several other styles.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct Style {
-    weight: Option<Weight>,
-    slant: Option<Slant>,
-    underline: Option<Underline>,
-    blink: Option<Blink>,
-    reverse: Option<Reverse>,
-    strike: Option<Strike>,
-    foreground: Option<TerminalColor>,
-    background: Option<TerminalColor>,
+impl std::ops::Index<usize> for EmbeddedRgb {
+    type Output = u8;
+
+    /// Access the coordinate with the given index.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `index > 2`.
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
 }
 
-impl Style {
-    /// Determine whether this style is empty.
-    ///
-    /// A style is empty if it has no text attributes or colors.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use prettypretty::style::*;
-    /// assert!(Style::default().is_empty());
-    /// assert!(!Style::default().bold().is_empty());
-    /// ```
-    pub fn is_empty(&self) -> bool {
-        self.weight.is_none()
-            && self.slant.is_none()
-            && self.underline.is_none()
-            && self.blink.is_none()
-            && self.reverse.is_none()
-            && self.strike.is_none()
-            && self.foreground.is_none()
-            && self.background.is_none()
+impl From<EmbeddedRgb> for u8 {
+    fn from(value: EmbeddedRgb) -> u8 {
+        let [r, g, b] = value.0;
+        16 + 36 * r + 6 * g + b
     }
+}
 
-    /// Determine the style for restoring default appearance.
-    ///
-    /// This method computes the style that takes a terminal with this style
-    /// back to its default appearance.
-    pub fn negate(&self) -> Self {
-        fn negate(color: TerminalColor, default: TerminalColor) -> Option<TerminalColor> {
-            if !color.is_default() {
-                Some(default)
+impl From<EmbeddedRgb> for [u8; 3] {
+    fn from(value: EmbeddedRgb) -> Self {
+        fn convert(value: u8) -> u8 {
+            if value == 0 {
+                0
             } else {
-                None
+                55 + 40 * value
             }
         }
 
-        Self {
-            weight: self.weight.and_then(|a| a.negate()),
-            slant: self.slant.and_then(|a| a.negate()),
-            underline: self.underline.and_then(|a| a.negate()),
-            blink: self.blink.and_then(|a| a.negate()),
-            reverse: self.reverse.and_then(|a| a.negate()),
-            strike: self.strike.and_then(|a| a.negate()),
-            foreground: self
-                .foreground
-                .and_then(|c| negate(c, TerminalColor::FOREGROUND)),
-            background: self
-                .background
-                .and_then(|c| negate(c, TerminalColor::BACKGROUND)),
+        let [r, g, b] = *value.as_ref();
+        [convert(r), convert(g), convert(b)]
+    }
+}
+
+impl From<EmbeddedRgb> for TrueColor {
+    fn from(value: EmbeddedRgb) -> Self {
+        let [r, g, b] = value.into();
+        TrueColor::new(r, g, b)
+    }
+}
+
+impl From<EmbeddedRgb> for TerminalColor {
+    fn from(color: EmbeddedRgb) -> Self {
+        TerminalColor::Rgb6 { color }
+    }
+}
+
+impl From<EmbeddedRgb> for Color {
+    fn from(value: EmbeddedRgb) -> Self {
+        TrueColor::from(value).into()
+    }
+}
+
+// ====================================================================================================================
+// Gray Gradient
+// ====================================================================================================================
+
+/// The 24-step gray gradient embedded in 8-bit terminal colors.
+///
+/// # Examples
+///
+/// Rust code can instantiate a new gray gradient color with either
+/// [`GrayGradient::new`] or [`GrayGradient as
+/// TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient).
+///
+/// ```
+/// # use prettypretty::style::GrayGradient;
+/// # use prettypretty::error::OutOfBoundsError;
+/// let almost_black = GrayGradient::new(4)?;
+/// let almost_black_too = GrayGradient::try_from(236)?;
+/// assert_eq!(almost_black, almost_black_too);
+/// # Ok::<(), OutOfBoundsError>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #303030;"></div>
+/// </div>
+/// <br>
+///
+/// It can access the gray level with [`GrayGradient::level`].
+/// ```
+/// # use prettypretty::style::GrayGradient;
+/// # use prettypretty::error::OutOfBoundsError;
+/// let midgray = GrayGradient::try_from(243)?;
+/// assert_eq!(midgray.level(), 11);
+/// # Ok::<(), OutOfBoundsError>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #767676;"></div>
+/// </div>
+/// <br>
+///
+/// Finally, it can convert a gray gradient color to `u8` with [`u8 as
+/// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8),
+/// to a true color with [`TrueColor as
+/// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-TrueColor),
+/// or to a high-resolution color with [`Color as
+/// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Color).
+/// ```
+/// # use prettypretty::Color;
+/// # use prettypretty::style::{GrayGradient, TrueColor};
+/// # use prettypretty::error::OutOfBoundsError;
+/// let light_gray = GrayGradient::new(20)?;
+/// assert_eq!(u8::from(light_gray), 252);
+///
+/// let also_light_gray = TrueColor::from(light_gray);
+/// assert_eq!(format!("{}", also_light_gray), "#d0d0d0");
+///
+/// let light_gray_too = Color::from(light_gray);
+/// assert_eq!(light_gray_too.to_hex_format(), "#d0d0d0");
+///
+/// assert_eq!(Color::from(also_light_gray), light_gray_too);
+/// # Ok::<(), OutOfBoundsError>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #d0d0d0;"></div>
+/// </div>
+/// <br>
+///
+#[cfg_attr(
+    feature = "pyffi",
+    doc = "Since there is no Python feature equivalent to trait implementations in
+    Rust, the Python class for `GrayGradient` provides equivalent functionality
+    through [`GrayGradient::try_from_8bit`], [`GrayGradient::__repr__`],
+    [`GrayGradient::to_8bit`], and [`GrayGradient::to_color`]. These methods are not
+    available in Rust."
+)]
+#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, ord))]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct GrayGradient(u8);
+
+#[cfg(feature = "pyffi")]
+#[pymethods]
+impl GrayGradient {
+    /// Instantiate a new gray gradient from its level `0..=23`.
+    #[new]
+    pub fn new(value: u8) -> Result<Self, OutOfBoundsError> {
+        if value >= 24 {
+            Err(OutOfBoundsError::new(value, 0..=23))
+        } else {
+            Ok(Self(value))
         }
     }
 
-    /// Determine the style change from the other to this style.
+    /// Instantiate a gray gradient from its 8-bit code. <span
+    /// class=python-only></span>
     ///
-    /// This method returns the incremental style change that updates a terminal
-    /// with the other style to this style.
-    pub fn subtract(&self, other: &Self) -> Self {
-        fn subtract(color: TerminalColor, other: Option<TerminalColor>) -> Option<TerminalColor> {
-            match other {
-                Some(other) => {
-                    if color != other {
-                        Some(color)
-                    } else {
-                        None
-                    }
-                }
-                None => {
-                    if !color.is_default() {
-                        Some(color)
-                    } else {
-                        None
-                    }
-                }
-            }
-        }
-
-        Self {
-            weight: self.weight.unwrap_or_default().subtract(other.weight),
-            slant: self.slant.unwrap_or_default().subtract(other.slant),
-            underline: self.underline.unwrap_or_default().subtract(other.underline),
-            blink: self.blink.unwrap_or_default().subtract(other.blink),
-            reverse: self.reverse.unwrap_or_default().subtract(other.reverse),
-            strike: self.strike.unwrap_or_default().subtract(other.strike),
-            foreground: subtract(
-                self.foreground.unwrap_or(TerminalColor::FOREGROUND),
-                other.foreground,
-            ),
-            background: subtract(
-                self.background.unwrap_or(TerminalColor::BACKGROUND),
-                other.background,
-            ),
-        }
+    /// This method offers the same functionality as [`GrayGradient as
+    /// TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
+    /// and is available in Python only.
+    #[staticmethod]
+    #[inline]
+    pub fn try_from_8bit(value: u8) -> Result<Self, OutOfBoundsError> {
+        Self::try_from(value)
     }
 
-    /// Determine the combined style.
+    /// Get the 8-bit code for this gray gradient color. <span
+    /// class=python-only></span>
     ///
-    /// This method returns the style resulting from applying first the other
-    /// and then this style to a terminal. Just as for style subtraction, the
-    /// order of styles matters for style addition. In other words, style
-    /// addition is not commutative.
-    pub fn add(&self, other: &Self) -> Self {
-        Self {
-            weight: self.weight.or(other.weight),
-            slant: self.slant.or(other.slant),
-            underline: self.underline.or(other.underline),
-            blink: self.blink.or(other.blink),
-            reverse: self.reverse.or(other.reverse),
-            strike: self.strike.or(other.strike),
-            foreground: self.foreground.or(other.foreground),
-            background: self.background.or(other.background),
-        }
-    }
-    pub fn bold(&mut self) -> &mut Self {
-        self.weight = Some(Weight::Bold);
-        self
-    }
-    pub fn thin(&mut self) -> &mut Self {
-        self.weight = Some(Weight::Thin);
-        self
-    }
-    pub fn italic(&mut self) -> &mut Self {
-        self.slant = Some(Slant::Italic);
-        self
-    }
-    pub fn underlined(&mut self) -> &mut Self {
-        self.underline = Some(Underline::Underlined);
-        self
-    }
-    pub fn blink(&mut self) -> &mut Self {
-        self.blink = Some(Blink::Blinking);
-        self
-    }
-    pub fn reverse(&mut self) -> &mut Self {
-        self.reverse = Some(Reverse::Reversed);
-        self
-    }
-    pub fn strike(&mut self) -> &mut Self {
-        self.strike = Some(Strike::Stricken);
-        self
+    /// This method offers the same functionality as [`u8 as
+    /// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8)
+    /// and is available in Python only.
+    #[inline]
+    pub fn to_8bit(&self) -> u8 {
+        u8::from(*self)
     }
 
-    /// Get the SGR parameters corresponding to this style.
-    pub fn sgr_parameters(&self) -> Vec<u8> {
-        let mut parameters = Vec::new();
-
-        if let Some(weight) = self.weight {
-            parameters.push(weight as u8);
-        }
-        if let Some(slant) = self.slant {
-            parameters.push(slant as u8);
-        }
-        if let Some(underline) = self.underline {
-            parameters.push(underline as u8);
-        }
-        if let Some(blink) = self.blink {
-            parameters.push(blink as u8);
-        }
-        if let Some(reverse) = self.reverse {
-            parameters.push(reverse as u8);
-        }
-        if let Some(strike) = self.strike {
-            parameters.push(strike as u8);
-        }
-        if let Some(foreground) = self.foreground {
-            parameters.append(&mut foreground.sgr_parameters(Layer::Foreground));
-        }
-        if let Some(background) = self.background {
-            parameters.append(&mut background.sgr_parameters(Layer::Background));
-        }
-
-        parameters
+    /// Convert this gray gradient color to 24-bit. <span
+    /// class=python-only></span>
+    #[inline]
+    pub fn to_24bit(&self) -> [u8; 3] {
+        (*self).into()
     }
 
-    /// Get the SGR ANSI escape sequence corresponding to this style.
-    pub fn sgr(&self) -> String {
-        use std::fmt::Write;
+    /// Convert this gray gradient to a high-resolution color. <span
+    /// class=python-only></span>
+    ///
+    /// This method offers the same functionality as [`Color as
+    /// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Color)
+    /// and is available in Python only.
+    #[inline]
+    pub fn to_color(&self) -> Color {
+        Color::from(*self)
+    }
 
-        let mut sgr = String::new();
+    /// Access the gray level `0..=23`.
+    #[inline]
+    pub const fn level(&self) -> u8 {
+        self.0
+    }
 
-        let _ = write!(&mut sgr, "\x1b[");
-        for (index, param) in self.sgr_parameters().into_iter().enumerate() {
-            if index > 0 {
-                let _ = write!(&mut sgr, ";{}", param);
-            } else {
-                let _ = write!(&mut sgr, "{}", param);
+    /// Convert this gray gradient to its debug representation. <span
+    /// class=python-only></span>
+    #[inline]
+    pub fn __repr__(&self) -> String {
+        format!("GrayGradient({})", self.0)
+    }
+}
+
+#[cfg(not(feature = "pyffi"))]
+impl GrayGradient {
+    /// Instantiate a new gray gradient from its level `0..=23`.
+    pub fn new(value: u8) -> Result<Self, OutOfBoundsError> {
+        if value <= 23 {
+            Ok(Self(value))
+        } else {
+            Err(OutOfBoundsError::new(value, 0..=23))
+        }
+    }
+
+    /// Access the gray level `0..=23`.
+    #[inline]
+    pub const fn level(&self) -> u8 {
+        self.0
+    }
+}
+
+impl TryFrom<u8> for GrayGradient {
+    type Error = OutOfBoundsError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        if value <= 231 {
+            Err(OutOfBoundsError::new(value, 232..=255))
+        } else {
+            Self::new(value - 232)
+        }
+    }
+}
+
+impl From<GrayGradient> for u8 {
+    fn from(value: GrayGradient) -> u8 {
+        232 + value.0
+    }
+}
+
+impl From<GrayGradient> for [u8; 3] {
+    fn from(value: GrayGradient) -> Self {
+        let level = 8 + 10 * value.level();
+        [level, level, level]
+    }
+}
+
+impl From<GrayGradient> for TrueColor {
+    fn from(value: GrayGradient) -> TrueColor {
+        let [r, g, b] = value.into();
+        TrueColor::new(r, g, b)
+    }
+}
+
+impl From<GrayGradient> for TerminalColor {
+    fn from(color: GrayGradient) -> Self {
+        TerminalColor::Gray { color }
+    }
+}
+
+impl From<GrayGradient> for Color {
+    fn from(value: GrayGradient) -> Self {
+        TrueColor::from(value).into()
+    }
+}
+
+// ====================================================================================================================
+// True Color
+// ====================================================================================================================
+
+/// A "true," 24-bit RGB color.
+///
+/// # Examples
+///
+/// Rust code can create a new true color with either [`TrueColor::new`] or
+/// [`TrueColor as
+/// From<&Color>`](struct.TrueColor.html#impl-From%3C%26Color%3E-for-TrueColor).
+///
+/// ```
+/// # use prettypretty::Color;
+/// # use prettypretty::style::TrueColor;
+/// let blue = Color::from_24bit(0xae, 0xe8, 0xfb);
+/// let blue_too = TrueColor::new(0xae, 0xe8, 0xfb);
+/// assert_eq!(TrueColor::from(&blue), blue_too);
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #aee8fb;"></div>
+/// </div>
+/// <br>
+///
+/// It can access the coordinates with [`TrueColor as AsRef<[u8;
+/// 3]>`](struct.TrueColor.html#impl-AsRef%3C%5Bu8;+3%5D%3E-for-TrueColor) or
+/// with [`TrueColor as
+/// Index<usize>`](struct.TrueColor.html#impl-Index%3Cusize%3E-for-TrueColor).
+/// ```
+/// # use prettypretty::style::TrueColor;
+/// let sea_foam = TrueColor::new(0xb6, 0xeb, 0xd4);
+/// assert_eq!(sea_foam.as_ref(), &[182_u8, 235, 212]);
+/// assert_eq!(sea_foam[1], 235);
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #b6ebd4;"></div>
+/// </div>
+/// <br>
+///
+/// Finally, it can convert a true color to a high-resolution color with [`Color
+/// as
+/// From<TrueColor>`](struct.TrueColor.html#impl-From%3CTrueColor%3E-for-Color)
+/// or format it in hashed hexadecimal notation with [`TrueColor as
+/// Display`](struct.TrueColor.html#impl-Display-for-TrueColor).
+/// ```
+/// # use prettypretty::Color;
+/// # use prettypretty::style::TrueColor;
+/// let sand = TrueColor::new(0xee, 0xdc, 0xad);
+/// assert_eq!(Color::from(sand), Color::from_24bit(0xee, 0xdc, 0xad));
+/// assert_eq!(format!("{}", sand), "#eedcad");
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #eedcad;"></div>
+/// </div>
+/// <br>
+///
+#[cfg_attr(
+    feature = "pyffi",
+    doc = "Since there is no Python feature equivalent to trait implementations in
+    Rust, the Python class for `TrueColor` provides equivalent functionality
+    through [`TrueColor::from_color`], [`True Color::to_8bit`], [`TrueColor::to_color`],
+    [`TrueColor::coordinates`], [`TrueColor::__len__`], and [`TrueColor::__getitem__`].
+    These methods are not available in Rust."
+)]
+#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, sequence))]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TrueColor([u8; 3]);
+
+#[cfg(feature = "pyffi")]
+#[pymethods]
+impl TrueColor {
+    /// Create a new true color from its coordinates.
+    #[new]
+    pub const fn new(r: u8, g: u8, b: u8) -> Self {
+        Self([r, g, b])
+    }
+
+    /// Create a new true color from the given high-resolution color. <span
+    /// class=python-only></span>
+    ///
+    /// This method converts the given color to an in-gamut sRGB color and then
+    /// converts each coordinate to a `u8`. changes the components to
+    #[staticmethod]
+    pub fn from_color(color: &Color) -> Self {
+        let [r, g, b] = color.to_24bit();
+        Self::new(r, g, b)
+    }
+
+    /// Convert this true color to a high-resolution color. <span
+    /// class=python-only></span>
+    ///
+    /// This method offers the same functionality as [`Color as
+    /// From<TrueColor>`](struct.TrueColor.html#impl-From%3CTrueColor%3E-for-Color)
+    /// and is available in Python only.
+    pub fn to_color(&self) -> Color {
+        Color::from(*self)
+    }
+
+    /// Access this true color's coordinates. <span class=python-only></span>
+    pub fn coordinates(&self) -> [u8; 3] {
+        self.0
+    }
+
+    /// Get this true color's length, which is 3. <span
+    /// class=python-only></span>
+    ///
+    /// This method improves integration with Python's runtime and hence is
+    /// available in Python only.
+    pub fn __len__(&self) -> usize {
+        3
+    }
+
+    /// Get the coordinate at the given index. <span class=python-only></span>
+    ///
+    /// This method improves integration with Python's runtime and hence is
+    /// available in Python only.
+    pub fn __getitem__(&self, index: isize) -> PyResult<u8> {
+        match index {
+            -3..=-1 => Ok(self.0[(3 + index) as usize]),
+            0..=2 => Ok(self.0[index as usize]),
+            _ => Err(pyo3::exceptions::PyIndexError::new_err(
+                "Invalid coordinate index",
+            )),
+        }
+    }
+
+    /// Calculate the weighted Euclidian distance between the two colors.
+    ///
+    /// This method reimplements the distance metric used by the [anstyle
+    /// crate](https://github.com/rust-cli/anstyle/blob/main/crates/anstyle-lossy/src/lib.rs).
+    pub fn weighted_euclidian_distance(&self, other: &TrueColor) -> u32 {
+        self.do_weighted_euclidian_distance(other)
+    }
+
+    /// Convert this true color to its debug representation. <span
+    /// class=python-only></span>
+    pub fn __repr__(&self) -> String {
+        format!("TrueColor({}, {}, {})", self.0[0], self.0[1], self.0[2])
+    }
+
+    /// Convert this true color to hashed hexadecimal notation. <span
+    /// class=python-only></span>
+    pub fn __str__(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+#[cfg(not(feature = "pyffi"))]
+impl TrueColor {
+    /// Create a new true color from its coordinates.
+    pub const fn new(r: u8, g: u8, b: u8) -> Self {
+        Self([r, g, b])
+    }
+
+    /// Calculate the weighted Euclidian distance between the two colors.
+    ///
+    /// This method reimplements the distance metric used by the [anstyle
+    /// crate](https://github.com/rust-cli/anstyle/blob/main/crates/anstyle-lossy/src/lib.rs).
+    pub fn weighted_euclidian_distance(&self, other: &TrueColor) -> u32 {
+        self.do_weighted_euclidian_distance(other)
+    }
+}
+
+impl TrueColor {
+    fn do_weighted_euclidian_distance(&self, other: &TrueColor) -> u32 {
+        let r1 = self.0[0] as i32;
+        let g1 = self.0[1] as i32;
+        let b1 = self.0[2] as i32;
+        let r2 = other.0[0] as i32;
+        let g2 = other.0[1] as i32;
+        let b2 = other.0[2] as i32;
+
+        let r_sum = r1 + r2;
+        let r_delta = r1 - r2;
+        let g_delta = g1 - g2;
+        let b_delta = b1 - b2;
+
+        let r = (2 * 512 + r_sum) * r_delta * r_delta;
+        let g = 4 * g_delta * g_delta * (1 << 8);
+        let b = (2 * 767 - r_sum) * b_delta * b_delta;
+
+        (r + g + b) as u32
+    }
+}
+
+impl AsRef<[u8; 3]> for TrueColor {
+    fn as_ref(&self) -> &[u8; 3] {
+        &self.0
+    }
+}
+
+impl std::ops::Index<usize> for TrueColor {
+    type Output = u8;
+
+    /// Access the coordinate with the given index.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if `index > 2`.
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl From<[u8; 3]> for TrueColor {
+    fn from(value: [u8; 3]) -> Self {
+        TrueColor::new(value[0], value[1], value[2])
+    }
+}
+
+impl From<&Color> for TrueColor {
+    /// Convert the given color to a true color.
+    ///
+    /// This method first converts the color to gamut-mapped sRGB and then
+    /// converts each coordinate to `u8`
+    fn from(value: &Color) -> Self {
+        let [r, g, b] = value.to(ColorSpace::Srgb).to_gamut().to_24bit();
+        Self::new(r, g, b)
+    }
+}
+
+impl From<TrueColor> for TerminalColor {
+    fn from(color: TrueColor) -> Self {
+        TerminalColor::Rgb256 { color }
+    }
+}
+
+impl From<TrueColor> for Color {
+    fn from(value: TrueColor) -> Self {
+        Self::from_24bit(value.0[0], value.0[1], value.0[2])
+    }
+}
+
+impl core::fmt::Display for TrueColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let [r, g, b] = *self.as_ref();
+        write!(f, "#{:02x}{:02x}{:02x}", r, g, b)
+    }
+}
+
+// ====================================================================================================================
+// Terminal Color
+// ====================================================================================================================
+
+/// A terminal color.
+///
+/// This enumeration unifies all five terminal color types, [`DefaultColor`],
+/// [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`], and [`TrueColor`]. It does
+/// not distinguish between ANSI colors as themselves and as 8-bit colors. An
+/// early version of this crate included the corresponding wrapper type, but it
+/// offered no distinct functionality and hence was removed again.
+///
+/// In a departure from common practice, variants are implemented as struct
+/// variants with a single `color` field. This does result in slightly more
+/// verbose Rust patterns, but it also makes the Python classes much easier to
+/// use. The variants for the embedded RGB and 24-bit RGB colors derive their
+/// names from the number of levels per channel.
+#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum TerminalColor {
+    Default { color: DefaultColor },
+    Ansi { color: AnsiColor },
+    Rgb6 { color: EmbeddedRgb },
+    Gray { color: GrayGradient },
+    Rgb256 { color: TrueColor },
+}
+
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl TerminalColor {
+    /// The default foreground color.
+    pub const FOREGROUND: TerminalColor = TerminalColor::Default {
+        color: DefaultColor::Foreground,
+    };
+
+    /// The default background color.
+    pub const BACKGROUND: TerminalColor = TerminalColor::Default {
+        color: DefaultColor::Background,
+    };
+
+    /// Convert the high-resolution color to a terminal color. <span
+    /// class=python-only></span>
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn from_color(color: &Color) -> Self {
+        Self::from(color)
+    }
+
+    /// Convert the 8-bit index to a terminal color. <span
+    /// class=python-only></span>
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn from_8bit(color: u8) -> Self {
+        Self::from(color)
+    }
+
+    /// Instantiate a new terminal color from the 24-bit RGB coordinates.
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn from_24bit(r: u8, g: u8, b: u8) -> Self {
+        Self::Rgb256 {
+            color: TrueColor::new(r, g, b),
+        }
+    }
+
+    /// Convert this terminal color to an 8-bit index color. <span
+    /// class=python-only></span>
+    #[cfg(feature = "pyffi")]
+    pub fn try_to_8bit(&self) -> PyResult<u8> {
+        u8::try_from(*self).map_err(|_| {
+            pyo3::exceptions::PyValueError::new_err("unable to convert to 8-bit index")
+        })
+    }
+
+    /// Convert this terminal color to 24-bit. <span class=python-only></span>
+    #[cfg(feature = "pyffi")]
+    pub fn try_to_24bit(&self) -> PyResult<[u8; 3]> {
+        <[u8; 3]>::try_from(*self).map_err(|_| {
+            pyo3::exceptions::PyValueError::new_err("unable to convert to 24-bit coordinates")
+        })
+    }
+
+    /// Determine whether this terminal color is the default color.
+    #[inline]
+    pub fn is_default(&self) -> bool {
+        matches!(self, Self::Default { .. })
+    }
+
+    /// Reverse this terminal color.
+    ///
+    /// This method determines the terminal color for restoring the terminal
+    /// layer's default appearance again. If this color is the default color for
+    /// that layer, the appearance does not need to change and this method
+    /// returns `None`. Otherwise, this method returns the default color for the
+    /// layer.
+    pub fn reverse(&self, layer: Layer) -> Option<TerminalColor> {
+        match (*self, layer) {
+            (
+                Self::Default {
+                    color: DefaultColor::Foreground,
+                },
+                Layer::Foreground,
+            ) => None,
+            (
+                Self::Default {
+                    color: DefaultColor::Background,
+                },
+                Layer::Background,
+            ) => None,
+            (_, Layer::Foreground) => Some(Self::FOREGROUND),
+            (_, Layer::Background) => Some(Self::BACKGROUND),
+        }
+    }
+
+    /// Get the SGR parameters for this terminal color.
+    ///
+    /// This method determines the SGR parameters for setting the given layer,
+    /// i.e., foreground or background, to this terminal color. It returns 1, 3,
+    /// or 5 parameters that may be combined with other SGR parameters into one
+    /// escape sequence, as long as they are properly separated by semicolons.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if it is invoked on a default color with an
+    /// inconsistent layer.
+    pub fn sgr_parameters(&self, layer: Layer) -> Vec<u8> {
+        match self {
+            TerminalColor::Default { color: c } => {
+                if *c as u8 != layer as u8 {
+                    panic!("unable to use default color {:?} for layer {:?}", c, layer);
+                }
+
+                match c {
+                    DefaultColor::Foreground => vec![39],
+                    DefaultColor::Background => vec![49],
+                }
+            }
+            TerminalColor::Ansi { color: c } => {
+                let base = if c.is_bright() { 90 } else { 30 } + layer.offset();
+                vec![base + c.to_3bit() as u8]
+            }
+            TerminalColor::Rgb6 { color: c } => {
+                vec![38 + layer.offset(), 5, u8::from(*c)]
+            }
+            TerminalColor::Gray { color: c } => {
+                vec![38 + layer.offset(), 5, u8::from(*c)]
+            }
+            TerminalColor::Rgb256 { color: c } => {
+                vec![38 + layer.offset(), 2, c[0], c[1], c[2]]
             }
         }
-        let _ = write!(&mut sgr, "m");
+    }
 
-        sgr
+    /// Convert to a debug representation. <span class=python-only></span>
+    #[cfg(feature = "pyffi")]
+    pub fn __repr__(&self) -> String {
+        match self {
+            TerminalColor::Default { color: c } => format!("TerminalColor.Default({:?})", c),
+            TerminalColor::Ansi { color: c } => format!("TerminalColor.Ansi({:?})", c),
+            TerminalColor::Rgb6 { color: c } => format!("TerminalColor.Rgb6({})", c.__repr__()),
+            TerminalColor::Gray { color: c } => format!("TerminalColor.Gray({})", c.__repr__()),
+            TerminalColor::Rgb256 { color: c } => format!("TerminalColor.Rgb256({})", c.__repr__()),
+        }
+    }
+}
+
+#[cfg(not(feature = "pyffi"))]
+impl TerminalColor {
+    /// Instantiate a new terminal color from the 24-bit RGB coordinates.
+    pub fn from_24bit(r: impl Into<u8>, g: impl Into<u8>, b: impl Into<u8>) -> Self {
+        Self::Rgb256 {
+            color: TrueColor::new(r.into(), g.into(), b.into()),
+        }
+    }
+}
+
+impl From<u8> for TerminalColor {
+    /// Convert 8-bit index to a terminal color.
+    ///
+    /// Depending on the 8-bit number, this method returns either a wrapped
+    /// ANSI, embedded RGB, or gray gradient color.
+    fn from(value: u8) -> Self {
+        if (0..=15).contains(&value) {
+            Self::Ansi {
+                color: AnsiColor::try_from(value).unwrap(),
+            }
+        } else if (16..=231).contains(&value) {
+            Self::Rgb6 {
+                color: EmbeddedRgb::try_from(value).unwrap(),
+            }
+        } else {
+            Self::Gray {
+                color: GrayGradient::try_from(value).unwrap(),
+            }
+        }
+    }
+}
+
+impl From<[u8; 3]> for TerminalColor {
+    fn from(value: [u8; 3]) -> Self {
+        Self::Rgb256 {
+            color: TrueColor(value),
+        }
+    }
+}
+
+impl From<&Color> for TerminalColor {
+    /// Convert a high-resolution color to a terminal color.
+    ///
+    /// This method first converts the color to gamut-mapped sRGB and then
+    /// converts each coordinate to `u8` before returning a wrapped
+    /// [`TrueColor`].
+    fn from(value: &Color) -> Self {
+        Self::Rgb256 {
+            color: TrueColor::from(value),
+        }
+    }
+}
+
+impl TryFrom<TerminalColor> for u8 {
+    type Error = TerminalColor;
+
+    /// Try to convert this terminal color to an 8-bit index.
+    ///
+    /// For ANSI, embedded RGB, and gray gradient colors, this method unwraps
+    /// the color and converts it to an 8-bit index. It returns any other
+    /// terminal color as the error value.
+    fn try_from(value: TerminalColor) -> Result<Self, Self::Error> {
+        match value {
+            TerminalColor::Default { .. } => Err(value),
+            TerminalColor::Ansi { color: c } => Ok(u8::from(c)),
+            TerminalColor::Rgb6 { color: c } => Ok(u8::from(c)),
+            TerminalColor::Gray { color: c } => Ok(u8::from(c)),
+            TerminalColor::Rgb256 { .. } => Err(value),
+        }
+    }
+}
+
+impl TryFrom<TerminalColor> for [u8; 3] {
+    type Error = TerminalColor;
+
+    fn try_from(value: TerminalColor) -> Result<Self, Self::Error> {
+        match value {
+            TerminalColor::Default { .. } => Err(value),
+            TerminalColor::Ansi { .. } => Err(value),
+            TerminalColor::Rgb6 { color } => Ok(color.into()),
+            TerminalColor::Gray { color } => Ok(color.into()),
+            TerminalColor::Rgb256 { color } => Ok(*color.as_ref()),
+        }
+    }
+}
+
+impl TryFrom<TerminalColor> for Color {
+    type Error = TerminalColor;
+
+    fn try_from(value: TerminalColor) -> Result<Self, Self::Error> {
+        let [r, g, b] = value.try_into()?;
+        Ok(Color::from_24bit(r, g, b))
+    }
+}
+
+// ====================================================================================================================
+// Layer and Fidelity
+
+/// The targeted display layer: Foreground or background.
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Layer {
+    /// The foreground or text layer.
+    Foreground,
+    /// The background layer.
+    Background,
+}
+
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl Layer {
+    /// Determine the offset for this layer.
+    ///
+    /// The offset is added to CSI parameter values for foreground colors.
+    #[inline]
+    pub fn offset(&self) -> u8 {
+        match self {
+            Self::Foreground => 0,
+            Self::Background => 10,
+        }
+    }
+
+    /// Return a humane description for this layer. <span
+    /// class=python-only></span>
+    #[cfg(feature = "pyffi")]
+    pub fn __str__(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+impl std::fmt::Display for Layer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Foreground => f.write_str("Foreground"),
+            Self::Background => f.write_str("Background"),
+        }
+    }
+}
+
+/// The stylistic fidelity of terminal output.
+///
+/// This enumeration captures levels of stylistic fidelity. It can describe the
+/// capabilities of a terminal or runtime environment (such as CI) as well as
+/// the preferences of a user (notably, `NoColor`).
+///
+#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash, ord))]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Fidelity {
+    /// Plain text, no ANSI escape codes
+    Plain,
+    /// ANSI escape codes but no colors
+    NoColor,
+    /// ANSI and default colors only
+    Ansi,
+    /// 8-bit indexed colors including ANSI and default colors
+    EightBit,
+    /// Full fidelity including 24-bit RGB color.
+    Full,
+}
+
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl Fidelity {
+    /// Determine the fidelity required for rendering the given terminal color.
+    /// <span class=python-only></span>
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn from_color(color: TerminalColor) -> Self {
+        color.into()
+    }
+
+    /// Determine the fidelity level for terminal output based on environment
+    /// variables.
+    ///
+    /// This method determines fidelity based on heuristics about environment
+    /// variables. Its primary sources are [NO_COLOR](https://no-color.org) and
+    /// [FORCE_COLOR](https://force-color.org). Its secondary source is Chalk's
+    /// [supports-color](https://github.com/chalk/supports-color/blob/main/index.js).
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn from_environment(has_tty: bool) -> Self {
+        fidelity_from_environment(&Env::default(), has_tty)
+    }
+
+    /// Determine the fidelity level for terminal output based on environment
+    /// variables.
+    ///
+    /// This method determines fidelity based on heuristics about environment
+    /// variables. Its primary sources are [NO_COLOR](https://no-color.org) and
+    /// [FORCE_COLOR](https://force-color.org). Its secondary source is Chalk's
+    /// [supports-color](https://github.com/chalk/supports-color/blob/main/index.js).
+    #[cfg(not(feature = "pyffi"))]
+    pub fn from_environment(has_tty: bool) -> Self {
+        fidelity_from_environment(&Env::default(), has_tty)
+    }
+
+    /// Determine whether this fidelity level suffices for rendering the
+    /// terminal color.
+    pub fn covers(&self, color: TerminalColor) -> bool {
+        Fidelity::from(color) <= *self
+    }
+
+    /// Return a humane description for this fidelity. <span
+    /// class=python-only></span>
+    #[cfg(feature = "pyffi")]
+    pub fn __str__(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+// While implementing this function, I was also writing helper functions to
+// simplify environment access. So, when it came to testing this function, an
+// answer offered itself: Mock the environment! Well, not really: I simply
+// abstracted environment access behind a trait and use a different
+// implementation for testing. That way, I continue to adhere to the first law
+// of mocking: Mock people, not code! 😈
+pub(crate) fn fidelity_from_environment(env: &impl Environment, has_tty: bool) -> Fidelity {
+    if env.is_non_empty("NO_COLOR") {
+        return Fidelity::NoColor;
+    } else if env.is_non_empty("FORCE_COLOR") {
+        return Fidelity::Ansi;
+    } else if env.is_defined("TF_BUILD") || env.is_defined("AGENT_NAME") {
+        // Supports-color states that this test must come before TTY test.
+        return Fidelity::Ansi;
+    } else if !has_tty {
+        return Fidelity::Plain;
+    } else if env.has_value("TERM", "dumb") {
+        return Fidelity::Plain; // FIXME Check Windows version!
+    } else if env.is_defined("CI") {
+        if env.is_defined("GITHUB_ACTIONS") || env.is_defined("GITEA_ACTIONS") {
+            return Fidelity::Full;
+        }
+
+        for ci in [
+            "TRAVIS",
+            "CIRCLECI",
+            "APPVEYOR",
+            "GITLAB_CI",
+            "BUILDKITE",
+            "DRONE",
+        ] {
+            if env.is_defined(ci) {
+                return Fidelity::Ansi;
+            }
+        }
+
+        if env.has_value("CI_NAME", "codeship") {
+            return Fidelity::Ansi;
+        }
+
+        return Fidelity::Plain;
+    }
+
+    let teamcity = env.read("TEAMCITY_VERSION");
+    if teamcity.is_ok() {
+        // Apparently, Teamcity 9.x and later support ANSI colors.
+        let teamcity = teamcity.unwrap();
+        let mut charity = teamcity.chars();
+        let c1 = charity.next();
+        let c2 = charity.next();
+
+        if c1.is_some() && c2.is_some() {
+            let (c1, c2) = (c1.unwrap(), c2.unwrap());
+            if c1 == '9' && c2 == '.' {
+                return Fidelity::Ansi;
+            } else if c1.is_ascii_digit() && c1 != '0' && c2.is_ascii_digit() {
+                let c3 = charity.next();
+                if c3.is_some() && c3.unwrap() == '.' {
+                    return Fidelity::Ansi;
+                }
+            }
+        }
+
+        return Fidelity::Plain;
+    } else if env.has_value("COLORTERM", "truecolor") || env.has_value("TERM", "xterm-kitty") {
+        return Fidelity::Full;
+    } else if env.has_value("TERM_PROGRAM", "Apple_Terminal") {
+        return Fidelity::EightBit;
+    } else if env.has_value("TERM_PROGRAM", "iTerm.app") {
+        let version = env.read("TERM_PROGRAM_VERSION");
+        if version.is_ok() {
+            let version = version.unwrap();
+            let mut charity = version.chars();
+            let c1 = charity.next();
+            let c2 = charity.next();
+            if c1.is_some() && c2.is_some() && c1.unwrap() == '3' && c2.unwrap() == '.' {
+                return Fidelity::Full;
+            }
+        }
+        return Fidelity::EightBit;
+    }
+
+    let term = env.read("TERM");
+    if term.is_ok() {
+        let mut term = term.unwrap();
+        term.make_ascii_lowercase();
+
+        if term.ends_with("-256") || term.ends_with("-256color") {
+            return Fidelity::EightBit;
+        } else if term.starts_with("screen")
+            || term.starts_with("xterm")
+            || term.starts_with("vt100")
+            || term.starts_with("vt220")
+            || term.starts_with("rxvt")
+            || term == "color"
+            || term == "ansi"
+            || term == "cygwin"
+            || term == "linux"
+        {
+            return Fidelity::Ansi;
+        }
+    } else if env.is_defined("COLORTERM") {
+        return Fidelity::Ansi;
+    }
+
+    Fidelity::Plain
+}
+
+impl From<TerminalColor> for Fidelity {
+    fn from(value: TerminalColor) -> Self {
+        match value {
+            TerminalColor::Default { .. } | TerminalColor::Ansi { .. } => Self::Ansi,
+            TerminalColor::Rgb6 { .. } | TerminalColor::Gray { .. } => Self::EightBit,
+            TerminalColor::Rgb256 { .. } => Self::Full,
+        }
+    }
+}
+
+impl std::fmt::Display for Fidelity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Plain => "plain text",
+            Self::NoColor => "no colors",
+            Self::Ansi => "ANSI colors",
+            Self::EightBit => "8-bit colors",
+            Self::Full => "24-bit colors",
+        };
+
+        f.write_str(s)
+    }
+}
+
+// ====================================================================================================================
+
+#[cfg(test)]
+mod test {
+    use crate::error::OutOfBoundsError;
+    use crate::style::{
+        fidelity_from_environment, AnsiColor, EmbeddedRgb, Fidelity, GrayGradient, TerminalColor,
+        TrueColor,
+    };
+    use crate::util::FakeEnv;
+
+    #[test]
+    fn test_conversion() -> Result<(), OutOfBoundsError> {
+        let magenta = AnsiColor::Magenta;
+        assert_eq!(magenta as u8, 5);
+
+        let green = EmbeddedRgb::new(0, 4, 0)?;
+        assert_eq!(green.as_ref(), &[0, 4, 0]);
+        assert_eq!(TrueColor::from(green), TrueColor::new(0, 215, 0));
+
+        let gray = GrayGradient::new(12)?;
+        assert_eq!(gray.level(), 12);
+        assert_eq!(TrueColor::from(gray), TrueColor::new(128, 128, 128));
+
+        let also_magenta = TerminalColor::Ansi {
+            color: AnsiColor::Magenta,
+        };
+        let also_green = TerminalColor::Rgb6 { color: green };
+        let also_gray = TerminalColor::Gray { color: gray };
+
+        assert_eq!(also_magenta, TerminalColor::from(5));
+        assert_eq!(also_green, TerminalColor::from(40));
+        assert_eq!(also_gray, TerminalColor::from(244));
+
+        assert!(<[u8; 3]>::try_from(also_magenta).is_err());
+        assert_eq!(<[u8; 3]>::try_from(also_green), Ok([0_u8, 215, 0]));
+        assert_eq!(<[u8; 3]>::try_from(also_gray), Ok([128_u8, 128, 128]));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_limits() -> Result<(), OutOfBoundsError> {
+        let black_ansi = AnsiColor::try_from(0)?;
+        assert_eq!(black_ansi, AnsiColor::Black);
+        assert_eq!(u8::from(black_ansi), 0);
+        let white_ansi = AnsiColor::try_from(15)?;
+        assert_eq!(white_ansi, AnsiColor::BrightWhite);
+        assert_eq!(u8::from(white_ansi), 15);
+
+        let black_rgb = EmbeddedRgb::try_from(16)?;
+        assert_eq!(*black_rgb.as_ref(), [0_u8, 0_u8, 0_u8]);
+        assert_eq!(u8::from(black_rgb), 16);
+        let white_rgb = EmbeddedRgb::try_from(231)?;
+        assert_eq!(*white_rgb.as_ref(), [5_u8, 5_u8, 5_u8]);
+        assert_eq!(u8::from(white_rgb), 231);
+
+        let black_gray = GrayGradient::try_from(232)?;
+        assert_eq!(black_gray.level(), 0);
+        assert_eq!(u8::from(black_gray), 232);
+        let white_gray = GrayGradient::try_from(255)?;
+        assert_eq!(white_gray.level(), 23);
+        assert_eq!(u8::from(white_gray), 255);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_fidelity() {
+        let env = &mut FakeEnv::new();
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Plain);
+        env.set("TERM", "cygwin");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
+        env.set("TERM_PROGRAM", "iTerm.app");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::EightBit);
+        env.set("TERM_PROGRAM_VERSION", "3.5");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Full);
+        env.set("COLORTERM", "truecolor");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Full);
+        env.set("CI", "");
+        env.set("APPVEYOR", "");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
+        env.set("TF_BUILD", "");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
+        env.set("NO_COLOR", "");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
+        env.set("NO_COLOR", "1");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::NoColor);
     }
 }

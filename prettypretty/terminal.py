@@ -23,13 +23,13 @@ from typing import (
 
 from .ansi import Ansi, RawAnsi
 from .color import Color, trans # pyright: ignore [reportMissingModuleSource]
-from .color.term import ( # pyright: ignore [reportMissingModuleSource]
+from .color.style import ( # pyright: ignore [reportMissingModuleSource]
     Fidelity, Layer, TerminalColor
 )
 from .color_types import IntoTerminalColor
 from .theme import new_theme, current_translator
 from .ident import identify_terminal, normalize_terminal_name
-from .style import RichText, RichTextElement
+from .style_extras import RichText, RichTextElement
 
 
 TerminalMode: TypeAlias = list[Any]

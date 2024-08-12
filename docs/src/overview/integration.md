@@ -180,7 +180,7 @@ The example code below illustrates the use of each major entry point besides
 ```rust
 # extern crate prettypretty;
 # use prettypretty::{Color, OkVersion};
-# use prettypretty::term::{AnsiColor, EmbeddedRgb, Fidelity, TrueColor};
+# use prettypretty::style::{AnsiColor, EmbeddedRgb, Fidelity, TrueColor};
 # use prettypretty::trans::{Translator, VGA_COLORS};
 # use prettypretty::error::ColorFormatError;
 # use std::str::FromStr;
@@ -210,7 +210,8 @@ The Python version is a close match:
 
 ```python
 ~from prettypretty.color import Color, OkVersion
-~from prettypretty.color.term import AnsiColor, Fidelity
+~from prettypretty.color.style import AnsiColor, EmbeddedRgb, Fidelity
+~from prettypretty.color.style import TerminalColor, TrueColor
 ~from prettypretty.color.trans import Translator
 ~from prettypretty.theme import VGA
 red = VGA[AnsiColor.BrightRed.to_8bit() + 2]

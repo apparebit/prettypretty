@@ -22,7 +22,7 @@ from typing import cast, Literal, overload, Self, TypeAlias, TypeVar
 
 from .ansi import Ansi
 from .color import Color
-from .color.term import ( # pyright: ignore [reportMissingModuleSource]
+from .color.style import ( # pyright: ignore [reportMissingModuleSource]
     DefaultColor, Fidelity, Layer, TerminalColor
 )
 from .theme import current_translator

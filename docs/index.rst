@@ -22,7 +22,7 @@ Python extension modules from Python.
    prettypretty/ansi
    prettypretty/darkmode
    prettypretty/ident
-   prettypretty/style
+   prettypretty/style_extras
    prettypretty/terminal
    prettypretty/theme
 

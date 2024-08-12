@@ -26,16 +26,18 @@ $ cd progress
 $ python -m venv .venv
 $ source .venv/bin/activate
 $ python -m pip install prettypretty
-Downloading prettypretty-0.9.0-py3-none-any.whl (64 kB)
+Downloading prettypretty-0.11.0-py3-none-any.whl (64 kB)
 Installing collected packages: prettypretty
-Successfully installed prettypretty-0.9.0
+Successfully installed prettypretty-0.11.0
 $ python -m prettypretty.progress
 ```
 
 Please note that prettypretty requires Python 3.11 or later. Furthermore,
-building prettypretty from source requires a locally installed Rust toolchain.
-[Rustup](https://rustup.rs) not only installs that toolchain but helps you keep
-it up to date.
+building prettypretty from source requires a number of tools in addition to the
+Rust compiler and Python interpreter. The [runner
+script](https://github.com/apparebit/prettypretty/blob/main/rr.sh) in the
+repository root has an `install` option to automatically install them on a
+system.
 
 The last command amongst the shell incantations above actually executes the
 progress bar script. You should see a green bar rapidly go from 0% to 100%. If
@@ -84,7 +86,7 @@ started on developing a language of terminal design tokens and, eventually, also
 components. To make this concrete, the progress bar script uses the [`rich`]
 fluent builder to declare two styles:
 
-```python
+```python,ignore
 LIGHT_MODE_BAR = rich().fg(Color.p3(0.0, 1.0, 0.0)).style()
 DARK_MODE_BAR = rich().fg(3, 151, 49).style()
 ```
@@ -99,7 +101,7 @@ builder provides a fluent interface to declaring styles and more. For instance,
 it also supports hyperlinks and cursor movements. But for our progress bar, we
 just stick with basic styles. Here's how we might declare a warning style:
 
-```python
+```python,ignore
 WARNING = rich().bold.fg(16).bg(220).style()
 ```
 <div class=color-swatch>
@@ -131,7 +133,7 @@ line](https://github.com/apparebit/prettypretty/blob/da0d1a6d0277dd3a240a1b49037
 of the `format_bar` function in the progress bar script uses negation for its
 intended purpose, restoring the default appearance:
 
-```python
+```python,ignore
 return RichText.of('  ┫', style, bar, ~style, '┣', f' {percent:5.1f}%')
 ```
 
@@ -152,7 +154,7 @@ the cursor reappears and no custom style leaks into your terminal, even if the
 application raises an exception. In other words, applications should always use
 such a `with` block.
 
-```python
+```python,ignore
 with (
    Terminal(fidelity=options.fidelity)
    .terminal_theme()
@@ -184,7 +186,7 @@ Once the terminal has been set up, the progress bar script uses the
 [`current_translator`]'s [`is_dark_theme`] to pick the attendant style and then
 adjusts that style to the terminal's [`Terminal.fidelity`]:
 
-```python
+```python,ignore
 style = DARK_MODE_BAR if current_translator().is_dark_theme() else LIGHT_MODE_BAR
 style = style.prepare(term.fidelity)
 ```
@@ -233,7 +235,7 @@ events progress bar updates. Each update assembles the rich text for the
 progress bar, moves the (invisible) cursor to the beginning of the line, writes
 the rich text to terminal output, and flushes the output:
 
-```python
+```python,ignore
 for percent in progress_reports():
    bar = format_bar(percent, style)
    term.column(0).rich_text(bar).flush()

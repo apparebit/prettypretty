@@ -1,6 +1,6 @@
 from typing import TypeAlias
 
-from .color.term import ( # pyright: ignore [reportMissingModuleSource]
+from .color.style import ( # pyright: ignore [reportMissingModuleSource]
     AnsiColor, DefaultColor, EmbeddedRgb, GrayGradient, TrueColor, TerminalColor
 )
 
