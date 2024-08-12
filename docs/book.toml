@@ -21,5 +21,5 @@ level = 0
 [output.html.code]
 hidelines = { python = "~" }
 
-#[preprocessor.pyextractor]
-#command = "python docs/pyextractor.py"
+[preprocessor.pyextractor]
+command = "python docs/pyextractor.py"
