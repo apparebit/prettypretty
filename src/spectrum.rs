@@ -1,3 +1,5 @@
+//! The spectral distributions for CIE standard observers and illuminants.
+
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
