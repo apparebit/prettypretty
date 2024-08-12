@@ -4,7 +4,7 @@ import unittest
 from prettypretty.color import (
     Color,
     ColorSpace,
-    term, # pyright: ignore [reportMissingModuleSource]
+    style, # pyright: ignore [reportMissingModuleSource]
 )
 from prettypretty.theme import current_translator
 
@@ -30,7 +30,7 @@ class ColorValues:
         css: str,
     ) -> None:
         self.spec = spec
-        self.parsed = term.TrueColor(*parsed)
+        self.parsed = style.TrueColor(*parsed)
         self.srgb = Color(ColorSpace.Srgb, srgb)
         self.linear_srgb = Color(ColorSpace.LinearSrgb, linear_srgb)
         self.p3 = Color(ColorSpace.DisplayP3, p3)
@@ -38,7 +38,7 @@ class ColorValues:
         self.xyz = Color(ColorSpace.Xyz, xyz)
         self.oklab = Color(ColorSpace.Oklab, oklab)
         self.oklch = Color(ColorSpace.Oklch, oklch)
-        self.ansi = term.AnsiColor.try_from_8bit(ansi)
+        self.ansi = style.AnsiColor.try_from_8bit(ansi)
         self.black_text = black_text
         self.black_background = black_background
         self.closest_index = closest_index
@@ -125,12 +125,12 @@ class TestColor(unittest.TestCase):
         self.assertEqual(green.space(), ColorSpace.Srgb)
         self.assertListEqual(green.coordinates(), [0.0, 1.0, 0.0])
 
-        also_green = term.TerminalColor.from_8bit(46)
-        self.assertIsInstance(also_green, term.TerminalColor.Rgb6)
-        self.assertIsInstance(also_green, term.TerminalColor)
-        assert isinstance(also_green, term.TerminalColor.Rgb6)
-        self.assertIsInstance(also_green.color, term.EmbeddedRgb)
-        self.assertEqual(also_green.color, term.EmbeddedRgb(0, 5, 0))
+        also_green = style.TerminalColor.from_8bit(46)
+        self.assertIsInstance(also_green, style.TerminalColor.Rgb6)
+        self.assertIsInstance(also_green, style.TerminalColor)
+        assert isinstance(also_green, style.TerminalColor.Rgb6)
+        self.assertIsInstance(also_green.color, style.EmbeddedRgb)
+        self.assertEqual(also_green.color, style.EmbeddedRgb(0, 5, 0))
         self.assertListEqual(also_green.color.coordinates(), [0, 5, 0])
 
         green_too = Color.from_24bit(0, 255, 0)

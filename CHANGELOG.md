@@ -8,7 +8,7 @@ While the implementation has been carefully modularized from day 1, the public
 API of prettypretty was small enough to fit into a single module. However, since
 I was adding new features that required the introduction of new public types, I
 decided to modularize the public API as well. New modules include [`error`],
-[`gamut`], [`spectrum`], [`term`], and [`trans`].
+[`gamut`], [`spectrum`], [`style`], and [`trans`].
 
 Other noteworthy new features are:
 
