@@ -135,6 +135,24 @@ install() {
 build() {
     run cargo fmt
     run maturin dev --all-features
+
+    if [ -f "prettypretty/color.abi3.so" ]; then
+        suffix=".abi3.so"
+    elif [ -f "prettypretty/color.pyd" ]; then
+        suffix=".pyd"
+    else
+        log ERROR "Unable to locate extension module library!"
+    fi
+
+    mkdir -p prettypretty/color
+
+    # Creating symbolic links to reify submodules of an extension module is a
+    # bit weird, though blessed by PEP 489 (https://peps.python.org/pep-0489/).
+    for mod in gamut spectrum term trans; do
+        if ! [ -h "prettypretty/color/${mod}${suffix}" ]; then
+            ln -s "../color${suffix}" "prettypretty/color/${mod}${suffix}"
+        fi
+    done
 }
 
 check() {
@@ -168,7 +186,7 @@ unittest.main(
 '
 }
 
-docs() {
+doc() {
     if [ -d docs ]; then
         run mdbook build docs
     fi
@@ -198,8 +216,8 @@ case $target in
         build;;
     check)
         check;;
-    docs)
-        docs;;
+    doc)
+        doc;;
     all)
         build
         check

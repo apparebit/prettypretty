@@ -59,7 +59,13 @@ jobs:
       run: cargo test
 
     - name: Build extension module
-      run: pip install -e .
+      run: |
+        pip install -e .
+        mkdir -p prettypretty/color
+        ln -s '../color.abi3.so' prettypretty/color/gamut.abi3.so
+        ln -s '../color.abi3.so' prettypretty/color/spectrum.abi3.so
+        ln -s '../color.abi3.so' prettypretty/color/term.abi3.so
+        ln -s '../color.abi3.so' prettypretty/color/trans.abi3.so
 
     - name: Typecheck and test Python code
       run: python -m runtest
