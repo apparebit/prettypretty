@@ -4,8 +4,20 @@
 
 ### New Features
 
-  * Add [`Illuminant`] and [`Observer`] to capture critical spectral distributions.
-  * Add [`ColorSpace::boundaries()`] for traversing a color space's boundaries.
+While the implementation has been carefully modularized from day 1, the public
+API of prettypretty was small enough to fit into a single module. However, since
+I was adding new features that required the introduction of new public types, I
+decided to modularize the public API as well. New modules include [`error`],
+[`gamut`], [`spectrum`], [`term`], and [`trans`].
+
+Other noteworthy new features are:
+
+  * Add [`Illuminant`] and [`Observer`] to represent critical spectral
+    distributions. The CIE's 2º standard observer for 1931 and 2015 as well as
+    the D65 illuminant are included at one-nanometer resolution.
+  * Add [`ColorSpace::gamut`] for traversing RGB color space boundaries. The
+    method returns a [`GamutTraversal`] iterator yielding
+    [`GamutTraversalStep`]s.
   * Add [`Color::hue_chroma`] and [`Color::xy_chromaticity`] for plotting colors
     in 2D.
 
