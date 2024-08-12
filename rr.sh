@@ -115,7 +115,7 @@ install_tool() {
 }
 
 install() {
-    print_run_header "Update $INSTALLER and its packages"
+    print_run_header "Updating $INSTALLER and its packages"
     installer_update
     echo
 
@@ -162,12 +162,22 @@ check() {
     run cargo clippy
     run cargo clippy --all-features
     run cargo test
+
     if [ -d prettypretty ]; then
         run npm run pyright -- --pythonpath ./.venv/bin/python
     fi
     if [ -d test ]; then
         run run_python_tests
     fi
+
+    print_run_header "Testing guide's Rust examples"
+    cargo clean
+    cargo build
+    mdbook test -L target/debug/deps docs
+
+    print_run_header "Testing guide's Python examples"
+    mdbook build docs
+    python docs/book.py
 }
 
 run_python_tests() {

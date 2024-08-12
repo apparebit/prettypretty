@@ -42,6 +42,9 @@ jobs:
     - name: Set up stable Rust
       run: rustup toolchain install stable
 
+    - name: Install mdBook
+      run: cargo install mdbook
+
     - name: Check Rust code (with & without features)
       run: |
         cargo check
@@ -59,16 +62,30 @@ jobs:
       run: cargo test
 
     - name: Build extension module
+      run: pip install -e .
+
+    - name: Create symbolic links
+      if: runner.os != 'Windows'
       run: |
-        pip install -e .
         mkdir -p prettypretty/color
         ln -s '../color.abi3.so' prettypretty/color/gamut.abi3.so
         ln -s '../color.abi3.so' prettypretty/color/spectrum.abi3.so
-        ln -s '../color.abi3.so' prettypretty/color/term.abi3.so
+        ln -s '../color.abi3.so' prettypretty/color/style.abi3.so
         ln -s '../color.abi3.so' prettypretty/color/trans.abi3.so
 
     - name: Typecheck and test Python code
       run: python -m runtest
+
+    - name: Test guide's Rust examples
+      run: |
+        cargo clean
+        cargo build
+        mdbook test -L target/debug/deps docs
+
+    - name: Test guide's Python examples
+      run: |
+        mdbook build docs
+        python docs/book.py
 
   linux:
     runs-on: ${{ matrix.platform.runner }}
