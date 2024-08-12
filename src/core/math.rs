@@ -52,6 +52,7 @@ impl std::convert::From<&Accumulator> for Float {
 }
 
 /// Sum up the values yielded by the iterator.
+#[allow(dead_code)]
 pub(crate) fn sum(values: impl IntoIterator<Item = Float>) -> Float {
     let mut accum = Accumulator::default();
     for value in values {
