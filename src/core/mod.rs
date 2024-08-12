@@ -20,11 +20,9 @@ pub use equality::close_enough;
 pub use equality::to_eq_bits;
 pub(crate) use equality::{normalize, to_eq_coordinates};
 pub(crate) use gamut::{
-    clip, in_gamut, is_gray, is_gray_chroma_hue, to_gamut, LOOSE_GRAY_THRESHOLD,
-    TIGHT_GRAY_THRESHOLD,
+    clip, in_gamut, is_achromatic, is_achromatic_chroma_hue, to_gamut, GRAY_THRESHOLD,
 };
 pub use gamut::{GamutTraversal, GamutTraversalStep};
 pub(crate) use math::Accumulator;
 pub use space::ColorSpace;
-pub use string::ColorFormatError;
 pub(crate) use string::{format, parse};

@@ -22,7 +22,10 @@ from typing import (
 )
 
 from .ansi import Ansi, RawAnsi
-from .color import Color, Fidelity, Layer, TerminalColor, ThemeEntry
+from .color import Color, trans # pyright: ignore [reportMissingModuleSource]
+from .color.term import ( # pyright: ignore [reportMissingModuleSource]
+    Fidelity, Layer, TerminalColor
+)
 from .color_types import IntoTerminalColor
 from .theme import new_theme, current_translator
 from .ident import identify_terminal, normalize_terminal_name
@@ -952,7 +955,7 @@ class Terminal:
 
         return self._parse_color(
             color + 2,
-            ThemeEntry.try_from_index(color + 2).name(),
+            trans.ThemeEntry.try_from_index(color + 2).name(),
             self.make_raw_request(Ansi.OSC, 4, color, ';?', Ansi.ST)
         )
 
@@ -974,7 +977,7 @@ class Terminal:
 
         return self._parse_color(
             code - 10,
-            ThemeEntry.try_from_index(code - 10).name(),
+            trans.ThemeEntry.try_from_index(code - 10).name(),
             self.make_raw_request(Ansi.OSC, code, ';?', Ansi.ST),
         )
 
@@ -1005,7 +1008,7 @@ class Terminal:
             response = self.read_control()
             colors.append(self._parse_color(
                 index,
-                ThemeEntry.try_from_index(index).name(),
+                trans.ThemeEntry.try_from_index(index).name(),
                 response,
             ))
 
@@ -1030,7 +1033,7 @@ class Terminal:
         for index, response in enumerate(responses):
             colors.append(self._parse_color(
                 index,
-                ThemeEntry.try_from_index(index).name(),
+                trans.ThemeEntry.try_from_index(index).name(),
                 response,
             ))
 
@@ -1302,14 +1305,14 @@ if __name__ == '__main__':
     import timeit
 
     with Terminal().cbreak_mode() as term:
-        timer1 = timeit.Timer(lambda: term._request_theme_v1())  # type: ignore
+        timer1: Any = timeit.Timer(lambda: term._request_theme_v1())  # type: ignore
         time_taken = timer1.timeit(10)
         print(f'1 stage : {time_taken / 10:.6f}')
 
-        timer2 = timeit.Timer(lambda: term._request_theme_v2())  # type: ignore
+        timer2: Any = timeit.Timer(lambda: term._request_theme_v2())  # type: ignore
         time_taken = timer2.timeit(10)
         print(f'2 stages: {time_taken / 10:.6f}')
 
-        timer3 = timeit.Timer(lambda: term._request_theme_v3())  # type: ignore
+        timer3: Any = timeit.Timer(lambda: term._request_theme_v3())  # type: ignore
         time_taken = timer3.timeit(10)
         print(f'3 stages: {time_taken / 10:.6f}')

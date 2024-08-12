@@ -31,17 +31,26 @@ interfaces as well as Python ingration, with the `pyffi` feature flag enabled.**
 //!     of prettypretty's functionality, including conversion between color
 //!     spaces, interpolation between colors, calculation of perceptual
 //!     contrast, as well as gamut testing, clipping, and mapping.
-//!   * [`TerminalColor`] combines [`DefaultColor`], [`AnsiColor`],
-//!     [`EmbeddedRgb`], [`GrayGradient`], and [`TrueColor`] to represent the
-//!     different kinds of terminal colors.
-//!   * A fair number of `From<T>` and `TryFrom<T>` implementations cover
-//!     lossless and partial conversions between color representations
-//!     including, for example, conversion from EmbeddedRgb to `u8` index values
-//!     as well true, terminal, and high-resolution colors.
-//!   * [`Translator`] performs the more difficult translation from ANSI to
-//!     high-resolution colors, from high-resolution to 8-bit or ANSI colors,
-//!     and the downgrading of terminal colors based on terminal capabilities
-//!     and user preferences.
+//!   * The [`term`] module models terminal colors. In particular, the
+//!     [`TerminalColor`](crate::term::TerminalColor) enum combines, in order
+//!     from lowest to highest resolution,
+//!     [`DefaultColor`](crate::term::DefaultColor),
+//!     [`AnsiColor`](crate::term::AnsiColor),
+//!     [`EmbeddedRgb`](crate::term::EmbeddedRgb),
+//!     [`GrayGradient`](crate::term::GrayGradient), and
+//!     [`TrueColor`](crate::term::TrueColor). It also implements `From` and
+//!     `FromTry` traits for converting between color representations. For
+//!     embedded RGB colors, they include conversion from/to `u8` and wrapped
+//!     [`TerminalColor`](crate::term::TerminalColor) instances as well as raw
+//!     24-bit (`[u8; 3]`), 24-bit color objects
+//!     ([`TrueColor`](crate::term::TrueColor)), and high-resolution colors
+//!     ([`Color`]).
+//!   * The [`trans`] module implements more complicated conversions. Notably,
+//!     [`Translation`](crate::trans::Translator) handles conversion between
+//!     ANSI/8-bit colors and high-resolution colors. It includes several
+//!     algorithms for translating from high-resolution to ANSI colors. Since
+//!     that requires mapping practically infinite onto 16 colors, that
+//!     translation is particularly challenging.
 //!
 //!
 //! ## Feature Flags
@@ -56,40 +65,31 @@ interfaces as well as Python ingration, with the `pyffi` feature flag enabled.**
 //!     [Maturin](https://www.maturin.rs) to export an extension module for
 //!     Python that makes this crate's Rust-based colors available in Python.
 //!
-//! PyO3's integration between Rust and Python goes well beyond what is offered
-//! by other foreign function interfaces. However, the macro-based
-//! implementation does seem rather brittle. In particular, `#[new]` and
-//! `#[staticmethod]` don't respect `cfg_attr()` and thus require the
-//! duplication of methods. `impl Into<T>` seem to further trip up PyO3,
-//! necessitating full separation into distinct blocks, one for
-//! `feature="pyffi"`, one for `not(feature="pyffi")`, and sometimes a third one
-//! for shared helper methods.
+//! PyO3's deep integration between Rust and Python certainly is impressive. But
+//! its macro-based implementation also is quite brittle. Seemingly, the only
+//! practical work-around for many of the implementation's limitations is to
+//! duplicate methods, one with `pyffi` disabled and one with `pyffi` enabled.
+//! In some instances, the two versions must also be separated into distinct
+//! `impl` blocks. Nonetheless, prettypretty's Rust and Python APIs are largely
+//! equivalent.
 #![cfg_attr(
     feature = "pyffi",
-    doc = "The documentation tags Python-only methods as
-<span class=python-only></span> and Rust-only methods as
-<span class=rust-only></span>."
+    doc = "For the few cases of a constant or function being available only in
+    one of the two languages, the documentation clearly labels the items as
+    <span class=python-only></span> or <span class=rust-only></span>."
 )]
 //!
-//! Despite these warts, the Python version offers the same functionality as the
-//! Rust version. Since Python does not support traits such as `From` and
-//! `TryFrom`, prettypretty includes additional methods that make the same
-//! functionality available.
-//!
-//! There likely won't ever be a `no_std` version of this crate. While use of
-//! the occasional `std` trait such as `Error` would be fixable, there is no
-//! good solution for prettypretty's use of floating point operations. Yet those
-//! same operations also are needed for fundamental functionality of this crate,
-//! including conversion between color spaces.
+//! Since many floating point operations require the `std` crate, a `no_std`
+//! version of this crate is highly unlikely.
 //!
 //!
 //! ## BYOIO: Bring Your Own (Terminal) I/O
 //!
-//! Unlike the Python version, the Rust version of prettypretty does not (yet?)
-//! include its own facilities for styled text or terminal I/O. Instead, it is
-//! designed to be a lightweight addition that focuses on color management only.
-//! To use this crate, an application should create its own instance of
-//! [`Translator`] with the colors of the current terminal theme.
+//! Currently, the one significant difference in features between the Python and
+//! Rust versions is that the latter does not yet include its own facilities for
+//! styled text and terminal I/O. To correctly use this crate, Rust code must
+//! create its own instance of [`Translator`](crate::trans::Translator) with the
+//! colors of the *current terminal theme*.
 //!
 //! An application should use the ANSI escape sequences
 //! ```text
@@ -101,9 +101,9 @@ interfaces as well as Python ingration, with the `pyffi` feature flag enabled.**
 //! ```
 //! to query the terminal for the two default and 16 extended ANSI colors. The
 //! responses are ANSI escape sequences with the exact same prefix as requests,
-//! *before* the question mark, followed by the color in X Windows `rgb:`
-//! format, followed by ST. Once you stripped the prefix and suffix from a
-//! response, you can use the `FromStr` trait to parse the X Windows color
+//! up to and excluding the question mark, followed by the color in X Windows
+//! `rgb:` format, followed by ST. Once you stripped the prefix and suffix from
+//! a response, you can use the `FromStr` trait to parse the X Windows color
 //! format into a color object.
 //!
 //! As usual, OSC stands for the character sequence `\x1b]` (escape, closing
@@ -139,13 +139,18 @@ pub type Bits = u64;
 pub type Bits = u32;
 
 mod core;
-mod error;
+pub mod error;
+pub mod gamut {
+    //! Machinery for traversing RGB gamut boundaries with
+    //! [`ColorSpace::gamut`](crate::ColorSpace).
+    pub use crate::core::{GamutTraversal, GamutTraversalStep};
+}
 mod object;
-mod spectrum;
+pub mod spectrum;
 //#[doc(hidden)]
 //pub mod style;
-mod term_color;
-mod translation;
+pub mod term;
+pub mod trans;
 mod util;
 
 #[cfg(feature = "pyffi")]
@@ -154,56 +159,100 @@ pub use core::close_enough;
 #[doc(hidden)]
 pub use core::to_eq_bits;
 
-pub use core::{
-    ColorFormatError, ColorSpace, GamutTraversal, GamutTraversalStep, HueInterpolation,
-};
-pub use error::OutOfBoundsError;
+pub use core::{ColorSpace, HueInterpolation};
 pub use object::{Color, Interpolator, OkVersion};
-pub use spectrum::{
-    sum_luminance, Illuminant, IlluminantIter, Observer, ObserverIter, CIE_ILLUMINANT_D65,
-    CIE_OBSERVER_2DEG_1931, CIE_OBSERVER_2DEG_2015,
-};
-pub use term_color::{
-    AnsiColor, DefaultColor, EmbeddedRgb, Fidelity, GrayGradient, Layer, TerminalColor, TrueColor,
-};
-pub use translation::{Theme, ThemeEntry, ThemeEntryIterator, Translator, VGA_COLORS};
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
+#[cfg(feature = "pyffi")]
+use pyo3::types::PyDict;
 
-/// Collect Rust functions and classes in a Python in the `color` extension
-/// module. <span class=python-only></span>
+#[doc(hidden)]
 #[cfg(feature = "pyffi")]
 #[pymodule]
 pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(close_enough, m)?)?;
-    m.add_function(wrap_pyfunction!(sum_luminance, m)?)?;
+    let modcolor_name = m.name()?;
+    let modgamut_name = format!("{}.gamut", modcolor_name);
+    let modspectrum_name = format!("{}.spectrum", modcolor_name);
+    let modterm_name = format!("{}.term", modcolor_name);
+    let modtrans_name = format!("{}.trans", modcolor_name);
 
-    m.add_class::<AnsiColor>()?;
+    // --------------------------------------------------------------- color
+    m.add_function(wrap_pyfunction!(close_enough, m)?)?;
+
     m.add_class::<Color>()?;
     m.add_class::<ColorSpace>()?;
-    m.add_class::<DefaultColor>()?;
-    m.add_class::<EmbeddedRgb>()?;
-    m.add_class::<Fidelity>()?;
-    m.add_class::<GamutTraversal>()?;
-    m.add_class::<GamutTraversalStep>()?;
-    m.add_class::<GrayGradient>()?;
     m.add_class::<HueInterpolation>()?;
-    m.add_class::<Illuminant>()?;
-    m.add_class::<IlluminantIter>()?;
     m.add_class::<Interpolator>()?;
-    m.add_class::<Layer>()?;
     m.add_class::<OkVersion>()?;
-    m.add_class::<Observer>()?;
-    m.add_class::<ObserverIter>()?;
-    m.add_class::<Translator>()?;
-    m.add_class::<TerminalColor>()?;
-    m.add_class::<ThemeEntry>()?;
-    m.add_class::<ThemeEntryIterator>()?;
-    m.add_class::<TrueColor>()?;
 
-    m.add("CIE_ILLUMINANT_D65", CIE_ILLUMINANT_D65)?;
-    m.add("CIE_OBSERVER_2DEG_1931", CIE_OBSERVER_2DEG_1931)?;
-    m.add("CIE_OBSERVER_2DEG_2015", CIE_OBSERVER_2DEG_2015)?;
+    // --------------------------------------------------------------- color.gamut
+    let modgamut = PyModule::new_bound(m.py(), "gamut")?;
+    modgamut.add("__package__", &modcolor_name)?;
+    modgamut.add_class::<crate::gamut::GamutTraversal>()?;
+    modgamut.add_class::<crate::gamut::GamutTraversalStep>()?;
+    m.add_submodule(&modgamut)?;
+
+    // Only change __name__ attribute after submodule has been added.
+    modgamut.setattr("__name__", &modgamut_name)?;
+
+    // --------------------------------------------------------------- color.spectrum
+    let modspectrum = PyModule::new_bound(m.py(), "spectrum")?;
+    modspectrum.add("__package__", &modcolor_name)?;
+    modspectrum.add_function(wrap_pyfunction!(crate::spectrum::sum_luminance, m)?)?;
+    modspectrum.add("CIE_ILLUMINANT_D65", crate::spectrum::CIE_ILLUMINANT_D65)?;
+    modspectrum.add(
+        "CIE_OBSERVER_2DEG_1931",
+        crate::spectrum::CIE_OBSERVER_2DEG_1931,
+    )?;
+    modspectrum.add(
+        "CIE_OBSERVER_2DEG_2015",
+        crate::spectrum::CIE_OBSERVER_2DEG_2015,
+    )?;
+    modspectrum.add_class::<crate::spectrum::Illuminant>()?;
+    modspectrum.add_class::<crate::spectrum::IlluminantIter>()?;
+    modspectrum.add_class::<crate::spectrum::Observer>()?;
+    modspectrum.add_class::<crate::spectrum::ObserverIter>()?;
+    m.add_submodule(&modspectrum)?;
+
+    // Only change __name__ attribute after submodule has been added.
+    modspectrum.setattr("__name__", &modspectrum_name)?;
+
+    // --------------------------------------------------------------- color.term
+    let modterm = PyModule::new_bound(m.py(), "term")?;
+    modterm.add("__package__", &modcolor_name)?;
+    modterm.add_class::<crate::term::AnsiColor>()?;
+    modterm.add_class::<crate::term::DefaultColor>()?;
+    modterm.add_class::<crate::term::EmbeddedRgb>()?;
+    modterm.add_class::<crate::term::Fidelity>()?;
+    modterm.add_class::<crate::term::GrayGradient>()?;
+    modterm.add_class::<crate::term::Layer>()?;
+    modterm.add_class::<crate::term::TerminalColor>()?;
+    modterm.add_class::<crate::term::TrueColor>()?;
+    m.add_submodule(&modterm)?;
+
+    // Only change __name__ attribute after submodule has been added.
+    modterm.setattr("__name__", &modterm_name)?;
+
+    // --------------------------------------------------------------- color.trans
+    let modtrans = PyModule::new_bound(m.py(), "trans")?;
+    modtrans.add("__package__", &modcolor_name)?;
+    modtrans.add_class::<crate::trans::ThemeEntry>()?;
+    modtrans.add_class::<crate::trans::ThemeEntryIterator>()?;
+    modtrans.add_class::<crate::trans::Translator>()?;
+    m.add_submodule(&modtrans)?;
+
+    // Only change __name__ attribute after submodule has been added.
+    modtrans.setattr("__name__", &modtrans_name)?;
+
+    // --------------------------------------------------------------- sys.modules
+    // Patch sys.modules
+    let sys = PyModule::import_bound(m.py(), "sys")?;
+    let py_modules: Bound<'_, PyDict> = sys.getattr("modules")?.downcast_into()?;
+    py_modules.set_item(&modgamut_name, modgamut)?;
+    py_modules.set_item(&modspectrum_name, modspectrum)?;
+    py_modules.set_item(&modterm_name, modterm)?;
+    py_modules.set_item(&modtrans_name, modtrans)?;
+
     Ok(())
 }

@@ -1,8 +1,24 @@
+//! Terminal colors supported by Select Graphic Rendition (SGR) escape
+//! sequences.
+//!
+//! The unifying [`TerminalColor`] abstraction combines, in order of decreasing
+//! age and increasing resolution, [`DefaultColor`], [`AnsiColor`],
+//! [`EmbeddedRgb`], [`GrayGradient`], and [`TrueColor`]. Out of these, default
+//! and the extended ANSI colors not only have the lowest resolution—one default
+//! color each for foreground and background as well as sixteen extended ANSI
+//! colors—but they also are abstract. That is, their appearance is (coarsely)
+//! defined, but they do not have standardized or widely accepted color values.
+//!
+//! Where possible, `From` and `TryFrom` trait implementations convert between
+//! different terminal color abstractions. More complicated conversions are
+//! implemented by the [`trans`](crate::trans) module.
+
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
 use super::util::{Env, Environment};
-use crate::{Color, ColorSpace, OutOfBoundsError};
+use crate::error::OutOfBoundsError;
+use crate::{Color, ColorSpace};
 
 // ====================================================================================================================
 // Default Color
@@ -65,7 +81,7 @@ impl From<DefaultColor> for TerminalColor {
 )]
 /// Since ANSI colors have no intrinsic color values, conversion from/to
 /// high-resolution colors requires additional machinery, as provided by
-/// [`Translator`](crate::Translator).
+/// [`Translator`](crate::trans::Translator).
 ///
 /// The ANSI colors are ordered because they are ordered as theme colors and as
 /// indexed colors.
@@ -220,7 +236,8 @@ impl From<AnsiColor> for TerminalColor {
 /// TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb).
 ///
 /// ```
-/// # use prettypretty::{EmbeddedRgb, OutOfBoundsError};
+/// # use prettypretty::term::EmbeddedRgb;
+/// # use prettypretty::error::OutOfBoundsError;
 /// let orange = EmbeddedRgb::new(5, 2, 0)?;
 /// let orange_too = EmbeddedRgb::try_from(208)?;
 /// assert_eq!(orange, orange_too);
@@ -236,7 +253,8 @@ impl From<AnsiColor> for TerminalColor {
 /// or with [`EmbeddedRgb as
 /// Index<usize>`](struct.EmbeddedRgb.html#impl-Index%3Cusize%3E-for-EmbeddedRgb).
 /// ```
-/// # use prettypretty::{EmbeddedRgb, OutOfBoundsError};
+/// # use prettypretty::term::EmbeddedRgb;
+/// # use prettypretty::error::OutOfBoundsError;
 /// let blue = EmbeddedRgb::try_from(75)?;
 /// assert_eq!(blue.as_ref(), &[1_u8, 3, 5]);
 /// assert_eq!(blue[1], 3);
@@ -254,7 +272,9 @@ impl From<AnsiColor> for TerminalColor {
 /// or to a high-resolution color with [`Color as
 /// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color).
 /// ```
-/// # use prettypretty::{Color, EmbeddedRgb, OutOfBoundsError, TrueColor};
+/// # use prettypretty::Color;
+/// # use prettypretty::term::{EmbeddedRgb, TrueColor};
+/// # use prettypretty::error::OutOfBoundsError;
 /// let rose = EmbeddedRgb::new(5, 4, 5)?;
 /// assert_eq!(u8::from(rose), 225);
 ///
@@ -489,7 +509,8 @@ impl From<EmbeddedRgb> for Color {
 /// TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient).
 ///
 /// ```
-/// # use prettypretty::{GrayGradient, OutOfBoundsError};
+/// # use prettypretty::term::GrayGradient;
+/// # use prettypretty::error::OutOfBoundsError;
 /// let almost_black = GrayGradient::new(4)?;
 /// let almost_black_too = GrayGradient::try_from(236)?;
 /// assert_eq!(almost_black, almost_black_too);
@@ -502,7 +523,8 @@ impl From<EmbeddedRgb> for Color {
 ///
 /// It can access the gray level with [`GrayGradient::level`].
 /// ```
-/// # use prettypretty::{GrayGradient, OutOfBoundsError};
+/// # use prettypretty::term::GrayGradient;
+/// # use prettypretty::error::OutOfBoundsError;
 /// let midgray = GrayGradient::try_from(243)?;
 /// assert_eq!(midgray.level(), 11);
 /// # Ok::<(), OutOfBoundsError>(())
@@ -519,7 +541,9 @@ impl From<EmbeddedRgb> for Color {
 /// or to a high-resolution color with [`Color as
 /// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Color).
 /// ```
-/// # use prettypretty::{Color, GrayGradient, OutOfBoundsError, TrueColor};
+/// # use prettypretty::Color;
+/// # use prettypretty::term::{GrayGradient, TrueColor};
+/// # use prettypretty::error::OutOfBoundsError;
 /// let light_gray = GrayGradient::new(20)?;
 /// assert_eq!(u8::from(light_gray), 252);
 ///
@@ -692,7 +716,8 @@ impl From<GrayGradient> for Color {
 /// From<&Color>`](struct.TrueColor.html#impl-From%3C%26Color%3E-for-TrueColor).
 ///
 /// ```
-/// # use prettypretty::{Color,TrueColor};
+/// # use prettypretty::Color;
+/// # use prettypretty::term::TrueColor;
 /// let blue = Color::from_24bit(0xae, 0xe8, 0xfb);
 /// let blue_too = TrueColor::new(0xae, 0xe8, 0xfb);
 /// assert_eq!(TrueColor::from(&blue), blue_too);
@@ -707,7 +732,7 @@ impl From<GrayGradient> for Color {
 /// with [`TrueColor as
 /// Index<usize>`](struct.TrueColor.html#impl-Index%3Cusize%3E-for-TrueColor).
 /// ```
-/// # use prettypretty::TrueColor;
+/// # use prettypretty::term::TrueColor;
 /// let sea_foam = TrueColor::new(0xb6, 0xeb, 0xd4);
 /// assert_eq!(sea_foam.as_ref(), &[182_u8, 235, 212]);
 /// assert_eq!(sea_foam[1], 235);
@@ -723,7 +748,8 @@ impl From<GrayGradient> for Color {
 /// or format it in hashed hexadecimal notation with [`TrueColor as
 /// Display`](struct.TrueColor.html#impl-Display-for-TrueColor).
 /// ```
-/// # use prettypretty::{Color, TrueColor};
+/// # use prettypretty::Color;
+/// # use prettypretty::term::TrueColor;
 /// let sand = TrueColor::new(0xee, 0xdc, 0xad);
 /// assert_eq!(Color::from(sand), Color::from_24bit(0xee, 0xdc, 0xad));
 /// assert_eq!(format!("{}", sand), "#eedcad");
@@ -1264,10 +1290,12 @@ impl Fidelity {
     }
 }
 
-// While implementing this function, I had to write some helper functions for
-// accessing environment variables already. So, when I thought about how to test
-// this rather gnarly function, the answer offered itself: Mock the environment!
-// But we do this civilized way, with a trait and an impl argument 😈
+// While implementing this function, I was also writing helper functions to
+// simplify environment access. So, when it came to testing this function, an
+// answer offered itself: Mock the environment! Well, not really: I simply
+// abstracted environment access behind a trait and use a different
+// implementation for testing. That way, I continue to adhere to the first law
+// of mocking: Mock people, not code! 😈
 pub(crate) fn fidelity_from_environment(env: &impl Environment, has_tty: bool) -> Fidelity {
     if env.is_non_empty("NO_COLOR") {
         return Fidelity::NoColor;
@@ -1398,10 +1426,12 @@ impl std::fmt::Display for Fidelity {
 
 #[cfg(test)]
 mod test {
-    use super::{
-        AnsiColor, EmbeddedRgb, Fidelity, GrayGradient, OutOfBoundsError, TerminalColor, TrueColor,
+    use crate::error::OutOfBoundsError;
+    use crate::term::{
+        fidelity_from_environment, AnsiColor, EmbeddedRgb, Fidelity, GrayGradient, TerminalColor,
+        TrueColor,
     };
-    use crate::{term_color::fidelity_from_environment, util::FakeEnv};
+    use crate::util::FakeEnv;
 
     #[test]
     fn test_conversion() -> Result<(), OutOfBoundsError> {

@@ -1,12 +1,7 @@
 from typing import TypeAlias
 
-from .color import (
-    AnsiColor,
-    DefaultColor,
-    EmbeddedRgb,
-    GrayGradient,
-    TerminalColor,
-    TrueColor,
+from .color.term import ( # pyright: ignore [reportMissingModuleSource]
+    AnsiColor, DefaultColor, EmbeddedRgb, GrayGradient, TrueColor, TerminalColor
 )
 
 IntoTerminalColor: TypeAlias = (

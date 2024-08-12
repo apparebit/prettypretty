@@ -2,7 +2,9 @@ import math
 import unittest
 
 from prettypretty.color import (
-    AnsiColor, Color, ColorSpace, EmbeddedRgb, TerminalColor, TrueColor
+    Color,
+    ColorSpace,
+    term, # pyright: ignore [reportMissingModuleSource]
 )
 from prettypretty.theme import current_translator
 
@@ -28,7 +30,7 @@ class ColorValues:
         css: str,
     ) -> None:
         self.spec = spec
-        self.parsed = TrueColor(*parsed)
+        self.parsed = term.TrueColor(*parsed)
         self.srgb = Color(ColorSpace.Srgb, srgb)
         self.linear_srgb = Color(ColorSpace.LinearSrgb, linear_srgb)
         self.p3 = Color(ColorSpace.DisplayP3, p3)
@@ -36,7 +38,7 @@ class ColorValues:
         self.xyz = Color(ColorSpace.Xyz, xyz)
         self.oklab = Color(ColorSpace.Oklab, oklab)
         self.oklch = Color(ColorSpace.Oklch, oklch)
-        self.ansi = AnsiColor.try_from_8bit(ansi)
+        self.ansi = term.AnsiColor.try_from_8bit(ansi)
         self.black_text = black_text
         self.black_background = black_background
         self.closest_index = closest_index
@@ -123,12 +125,13 @@ class TestColor(unittest.TestCase):
         self.assertEqual(green.space(), ColorSpace.Srgb)
         self.assertListEqual(green.coordinates(), [0.0, 1.0, 0.0])
 
-        also_green = TerminalColor.from_8bit(46)
-        self.assertIsInstance(also_green, TerminalColor.Rgb6)
-        self.assertIsInstance(also_green, TerminalColor)
-        self.assertIsInstance(also_green.color, EmbeddedRgb)  # type: ignore
-        self.assertEqual(also_green.color, EmbeddedRgb(0, 5, 0))  # type: ignore
-        self.assertListEqual(also_green.color.coordinates(), [0, 5, 0])  # type: ignore
+        also_green = term.TerminalColor.from_8bit(46)
+        self.assertIsInstance(also_green, term.TerminalColor.Rgb6)
+        self.assertIsInstance(also_green, term.TerminalColor)
+        assert isinstance(also_green, term.TerminalColor.Rgb6)
+        self.assertIsInstance(also_green.color, term.EmbeddedRgb)
+        self.assertEqual(also_green.color, term.EmbeddedRgb(0, 5, 0))
+        self.assertListEqual(also_green.color.coordinates(), [0, 5, 0])
 
         green_too = Color.from_24bit(0, 255, 0)
         self.assertEqual(green_too.space(), ColorSpace.Srgb)

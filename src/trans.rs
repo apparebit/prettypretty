@@ -1,20 +1,22 @@
+//! Stateful conversion between high-resolution and terminal colors.
+
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyffi")]
 use pyo3::types::PyInt;
 
-use crate::core::{is_gray_chroma_hue, LOOSE_GRAY_THRESHOLD};
+use crate::core::is_achromatic_chroma_hue;
 
-use crate::{
-    rgb, AnsiColor, Bits, Color, ColorSpace, DefaultColor, EmbeddedRgb, Fidelity, Float,
-    GrayGradient, OkVersion, OutOfBoundsError, TerminalColor,
-};
+use crate::error::OutOfBoundsError;
+use crate::term::{AnsiColor, DefaultColor, EmbeddedRgb, Fidelity, GrayGradient, TerminalColor};
+use crate::{rgb, Bits, Color, ColorSpace, Float, OkVersion};
 
 // ====================================================================================================================
 // Color Themes
 // ====================================================================================================================
 
-/// An 18-entry slice with the color values for default and ANSI colors.
+/// An 18-entry slice with the color values for default and ANSI colors. <span
+/// class=rust-only></span>
 ///
 /// By now, a color theme is just an array with 18 colors. The implementation
 /// started out as a more elaborate and encapsulated struct but ended up being
@@ -122,9 +124,12 @@ impl std::iter::ExactSizeIterator for ThemeEntryIterator {}
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl ThemeEntryIterator {
+    /// Return this iterator. <span class=python-only></span>
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
+
+    /// Return the next theme entry. <span class=python-only></span>
     pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<ThemeEntry> {
         slf.next()
     }
@@ -173,8 +178,10 @@ impl GrayEntry {
     /// value is not gray.
     fn new(spec: AnsiColor, value: &Color) -> Option<GrayEntry> {
         let [lr, c, h] = *value.to(ColorSpace::Oklrch).as_ref();
-        if !spec.is_gray() || !is_gray_chroma_hue(c, h, LOOSE_GRAY_THRESHOLD) {
-            println!("{}, {}, {} is too colorful for GrayEntry", lr, c, h); // FIXME
+        if !spec.is_gray()
+            || !is_achromatic_chroma_hue(c, h, HueLightnessTable::ACHROMATIC_THRESHOLD)
+        {
+            println!("@@@@@ {}, {}, {} is too colorful for GrayEntry", lr, c, h); // FIXME
             return None;
         }
 
@@ -203,8 +210,9 @@ impl ColorEntry {
     /// concrete color value is gray.
     fn new(spec: AnsiColor, value: &Color) -> Option<Self> {
         let [lr, c, mut h] = *value.to(ColorSpace::Oklrch).as_ref();
-        if spec.is_gray() || is_gray_chroma_hue(c, h, LOOSE_GRAY_THRESHOLD) {
-            println!("{}, {}, {} is too grey for ColorEntry", lr, c, h); // FIXME
+        if spec.is_gray() || is_achromatic_chroma_hue(c, h, HueLightnessTable::ACHROMATIC_THRESHOLD)
+        {
+            println!("@@@@@ {}, {}, {} is too grey for ColorEntry", lr, c, h); // FIXME
             return None;
         }
         h = h.rem_euclid(360.0); // Critical for correctness!
@@ -246,6 +254,8 @@ struct HueLightnessTable {
 }
 
 impl HueLightnessTable {
+    const ACHROMATIC_THRESHOLD: Float = 0.05;
+
     /// Create a new hue lightness table.
     ///
     /// This associated function returns `None` if the theme colors violate any
@@ -325,7 +335,7 @@ impl HueLightnessTable {
         let [lr, c, h] = *color.to(ColorSpace::Oklrch).as_ref();
 
         // Select gray index by lr only. Not that there is anything else to go by...
-        if is_gray_chroma_hue(c, h, LOOSE_GRAY_THRESHOLD) {
+        if is_achromatic_chroma_hue(c, h, Self::ACHROMATIC_THRESHOLD) {
             for index in 0..(self.grays.len() - 1) {
                 let entry1 = &self.grays[index];
                 let entry2 = &self.grays[index + 1];
@@ -404,7 +414,7 @@ fn into_terminal_color(obj: &Bound<'_, PyAny>) -> PyResult<TerminalColor> {
     obj.extract::<TerminalColor>()
         .or_else(|_| obj.extract::<AnsiColor>().map(|c| c.into()))
         .or_else(|_| obj.extract::<EmbeddedRgb>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<crate::TrueColor>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<crate::term::TrueColor>().map(|c| c.into()))
         .or_else(|_| obj.extract::<GrayGradient>().map(|c| c.into()))
         .or_else(|_| obj.extract::<DefaultColor>().map(|c| c.into()))
 }
@@ -512,8 +522,9 @@ impl Translator {
     /// # Examples
     ///
     /// ```
-    /// # use prettypretty::{AnsiColor, Color, DefaultColor, OkVersion, Translator, TrueColor};
-    /// # use prettypretty::{VGA_COLORS};
+    /// # use prettypretty::{Color, OkVersion};
+    /// # use prettypretty::term::{AnsiColor, DefaultColor, TrueColor}
+    /// # use prettypretty::trans::{Translator, VGA_COLORS};
     /// let black = Translator.resolve(DefaultColor::Foreground);
     /// assert_eq!(black, Color::srgb(0.0, 0.0, 0.0));
     ///
@@ -596,8 +607,9 @@ impl Translator {
     /// for the closest color.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Translator};
-    /// # use prettypretty::{VGA_COLORS, OkVersion};
+    /// # use prettypretty::{Color, ColorSpace, OkVersion};
+    /// # use prettypretty::trans::{Translator, VGA_COLORS};
+    /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// let translator = Translator::new(
     ///     OkVersion::Revised, VGA_COLORS.clone());
@@ -637,8 +649,9 @@ impl Translator {
     /// (more or less) saturated color.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Translator};
-    /// # use prettypretty::{VGA_COLORS, OkVersion};
+    /// # use prettypretty::{Color, ColorSpace, OkVersion};
+    /// # use prettypretty::trans::{Translator, VGA_COLORS};
+    /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// let original_translator = Translator::new(
     ///     OkVersion::Original, VGA_COLORS.clone());
@@ -703,7 +716,10 @@ impl Translator {
     /// in that color space. That, by the way, is pretty much what
     /// [`Translator::new`] does as well.
     /// ```
-    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, VGA_COLORS};
+    /// # use prettypretty::{Color, ColorSpace};
+    /// # use prettypretty::term::AnsiColor;
+    /// # use prettypretty::trans::VGA_COLORS;
+    /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// let ansi_colors: Vec<Color> = (0..=15)
     ///     .map(|n| VGA_COLORS[n + 2].to(ColorSpace::Oklrch))
@@ -732,7 +748,10 @@ impl Translator {
     /// our list with the new distance metric.
     ///
     /// ```
-    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, VGA_COLORS, Float};
+    /// # use prettypretty::{Color, ColorSpace, Float};
+    /// # use prettypretty::term::AnsiColor;
+    /// # use prettypretty::trans::VGA_COLORS;
+    /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// # let ansi_colors: Vec<Color> = (0..=15)
     /// #     .map(|n| VGA_COLORS[n + 2].to(ColorSpace::Oklrch))
@@ -805,9 +824,10 @@ impl Translator {
     /// still are closest to themselves after conversion to Oklrch.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, VGA_COLORS, TerminalColor, Float};
-    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Translator, OkVersion};
-    /// # use prettypretty::assert_close_enough;
+    /// # use prettypretty::{assert_close_enough, Color, ColorSpace, Float, OkVersion};
+    /// # use prettypretty::error::OutOfBoundsError;
+    /// # use prettypretty::term::{EmbeddedRgb, TerminalColor};
+    /// # use prettypretty::trans::{Translator, VGA_COLORS};
     /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// for r in 0..5 {
@@ -860,26 +880,27 @@ impl Translator {
         TerminalColor::from(index)
     }
 
-    /// Cap the terminal color by the fidelity.
+    /// Cap the terminal color by the given fidelity.
     ///
-    /// This method ensures that the terminal color can be rendered by a
-    /// terminal with the given fidelity level. Depending on fidelity, it
-    /// returns the following result:
+    /// This method ensures that that a terminal with the fidelity level
+    /// can render the resulting color as follows:
     ///
-    ///   * Plain-text or no-color
-    ///         * `None`
-    ///   * ANSI colors
-    ///         * Downsampled 8-bit and 24-bit colors
-    ///         * Unmodified ANSI colors
-    ///   * 8-bit
-    ///         * Downsampled 24-bit colors
-    ///         * Unmodified ANSI and 8-bit colors
-    ///   * Full
-    ///         * Unmodified colors
+    ///   * `Plain`, `NoColor` (fidelity)
+    ///       * `None` (result)
+    ///   * `Ansi`
+    ///       * Unmodified ANSI colors
+    ///       * Downsampled 8-bit and 24-bit colors
+    ///   * `EightBit`
+    ///       * Unmodified ANSI and 8-bit colors
+    ///       * Downsampled 24-bit colors
+    ///   * `Full`
+    ///       * Unmodified colors
     ///
-    /// A custom type conversion function ensures that this method can be
-    /// invoked on default, ANSI, 8-bit, 24-bit and terminal colors without
-    /// prior conversion.
+    /// The Rust-only implementation uses an `impl` `Into` trait as color
+    /// argument so that it can be invoked with default, ANSI, embedded RGB,
+    /// gray gradient, true, and terminal colors without prior conversion. The
+    /// version exposed to Python uses a custom type conversion function to
+    /// provide the exact same capability.
     pub fn cap(
         &self,
         #[pyo3(from_py_with = "into_terminal_color")] color: TerminalColor,
@@ -888,6 +909,7 @@ impl Translator {
         self.do_cap(color, fidelity)
     }
 
+    /// Return a debug representation. <span class=python-only></span>
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
     }
@@ -937,8 +959,9 @@ impl Translator {
     /// achieve the same effect.
     ///
     /// ```
-    /// # use prettypretty::{AnsiColor, Color, DefaultColor, OkVersion, Translator, TrueColor};
-    /// # use prettypretty::{VGA_COLORS};
+    /// # use prettypretty::{Color, OkVersion};
+    /// # use prettypretty::term::{AnsiColor, DefaultColor, TrueColor};
+    /// # use prettypretty::trans::{Translator, VGA_COLORS};
     /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
     /// let blue = translator.resolve(AnsiColor::Blue);
     /// assert_eq!(blue, Color::srgb(0.0, 0.0, 0.666666666666667));
@@ -1019,8 +1042,10 @@ impl Translator {
     /// for the closest color.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Translator};
-    /// # use prettypretty::{VGA_COLORS, OkVersion, AnsiColor};
+    /// # use prettypretty::{Color, ColorSpace, OkVersion};
+    /// # use prettypretty::term::AnsiColor;
+    /// # use prettypretty::trans::{Translator, VGA_COLORS};
+    /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// let translator = Translator::new(
     ///     OkVersion::Revised, VGA_COLORS.clone());
@@ -1060,8 +1085,10 @@ impl Translator {
     /// (more or less) saturated color.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorSpace, Translator};
-    /// # use prettypretty::{VGA_COLORS, OkVersion, AnsiColor};
+    /// # use prettypretty::{Color, ColorSpace, OkVersion};
+    /// # use prettypretty::term::AnsiColor;
+    /// # use prettypretty::trans::{Translator, VGA_COLORS};
+    /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// let original_translator = Translator::new(
     ///     OkVersion::Original, VGA_COLORS.clone());
@@ -1126,7 +1153,10 @@ impl Translator {
     /// in that color space. That, by the way, is pretty much what
     /// [`Translator::new`] does as well.
     /// ```
-    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, VGA_COLORS};
+    /// # use prettypretty::{Color, ColorSpace};
+    /// # use prettypretty::term::AnsiColor;
+    /// # use prettypretty::trans::VGA_COLORS;
+    /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// let ansi_colors: Vec<Color> = (0..=15)
     ///     .map(|n| VGA_COLORS[n + 2].to(ColorSpace::Oklrch))
@@ -1155,7 +1185,10 @@ impl Translator {
     /// our list with the new distance metric.
     ///
     /// ```
-    /// # use prettypretty::{AnsiColor, Color, ColorFormatError, ColorSpace, VGA_COLORS, Float};
+    /// # use prettypretty::{Color, ColorSpace, Float};
+    /// # use prettypretty::term::AnsiColor;
+    /// # use prettypretty::trans::VGA_COLORS;
+    /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// # let ansi_colors: Vec<Color> = (0..=15)
     /// #     .map(|n| VGA_COLORS[n + 2].to(ColorSpace::Oklrch))
@@ -1232,8 +1265,10 @@ impl Translator {
     /// still are closest to themselves after conversion to Oklrch.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, VGA_COLORS, TerminalColor, Float};
-    /// # use prettypretty::{EmbeddedRgb, OutOfBoundsError, Translator, OkVersion};
+    /// # use prettypretty::{Color, ColorSpace, Float, OkVersion};
+    /// # use prettypretty::term::{EmbeddedRgb, TerminalColor};
+    /// # use prettypretty::trans::{Translator, VGA_COLORS};
+    /// # use prettypretty::error::OutOfBoundsError;
     /// # use prettypretty::assert_close_enough;
     /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
     ///
@@ -1287,25 +1322,27 @@ impl Translator {
         TerminalColor::from(index)
     }
 
-    /// Cap the terminal color by the fidelity.
+    /// Cap the terminal color by the given fidelity.
     ///
-    /// This method ensures that the terminal color can be rendered by a
-    /// terminal with the given fidelity level. Depending on fidelity, it
-    /// returns the following result:
+    /// This method ensures that that a terminal with the fidelity level
+    /// can render the resulting color as follows:
     ///
-    ///   * Plain-text or no-color
-    ///         * `None`
-    ///   * ANSI colors
-    ///         * Downsampled 8-bit and 24-bit colors
-    ///         * Unmodified ANSI colors
-    ///   * 8-bit
-    ///         * Downsampled 24-bit colors
-    ///         * Unmodified ANSI and 8-bit colors
-    ///   * Full
-    ///         * Unmodified colors
+    ///   * `Plain`, `NoColor` (fidelity)
+    ///       * `None` (result)
+    ///   * `Ansi`
+    ///       * Unmodified ANSI colors
+    ///       * Downsampled 8-bit and 24-bit colors
+    ///   * `EightBit`
+    ///       * Unmodified ANSI and 8-bit colors
+    ///       * Downsampled 24-bit colors
+    ///   * `Full`
+    ///       * Unmodified colors
     ///
-    /// The Python version has a custom type conversion function and also
-    /// accepts all kinds of terminal colors, whether wrapper or not.
+    /// The Rust-only implementation uses an `impl` `Into` trait as color
+    /// argument so that it can be invoked with default, ANSI, embedded RGB,
+    /// gray gradient, true, and terminal colors without prior conversion. The
+    /// version exposed to Python uses a custom type conversion function to
+    /// provide the exact same capability.
     pub fn cap(
         &self,
         color: impl Into<TerminalColor>,
@@ -1398,7 +1435,9 @@ impl std::fmt::Debug for Translator {
 #[cfg(test)]
 mod test {
     use super::{Translator, VGA_COLORS};
-    use crate::{AnsiColor, Color, OkVersion, OutOfBoundsError};
+    use crate::error::OutOfBoundsError;
+    use crate::term::AnsiColor;
+    use crate::{Color, OkVersion};
 
     #[test]
     fn test_translator() -> Result<(), OutOfBoundsError> {

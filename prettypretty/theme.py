@@ -6,7 +6,8 @@ to meaningful color values.
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from .color import Color, Translator, OkVersion
+from .color import Color, OkVersion
+from .color.trans import Translator # pyright: ignore [reportMissingModuleSource]
 
 MACOS_TERMINAL = (
     Color.parse("#000000"),

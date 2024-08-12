@@ -20,8 +20,12 @@ from typing import Any, cast
 
 from .terminal import Terminal
 from .color import (
-    CIE_ILLUMINANT_D65, CIE_OBSERVER_2DEG_1931, close_enough, Color, ColorSpace,
-    GamutTraversalStep, sum_luminance, ThemeEntry
+    close_enough,
+    Color,
+    ColorSpace,
+    gamut, # pyright: ignore [reportMissingModuleSource]
+    spectrum, # pyright: ignore [reportMissingModuleSource]
+    trans, # pyright: ignore [reportMissingModuleSource]
 )
 from .theme import current_translator, VGA
 
@@ -230,8 +234,7 @@ class ColorPlotter:
     ) -> None:
         self._with_spectrum = True
 
-        total_luminance = sum_luminance(CIE_OBSERVER_2DEG_1931)
-        sample_count = len(CIE_OBSERVER_2DEG_1931)
+        sample_count = len(spectrum.CIE_OBSERVER_2DEG_1931)
         pulse_increment = 11
         line_count = 44 if with_pulses else 1
         max_width = sample_count if with_pulses else 1
@@ -245,13 +248,13 @@ class ColorPlotter:
             total_xyz = [0.0, 0.0, 0.0]
             series_index = 0
 
-            wave = CIE_OBSERVER_2DEG_1931.start() + index
+            wave = spectrum.CIE_OBSERVER_2DEG_1931.start() + index
 
             for width in range(max_width):
-                xyz = CIE_OBSERVER_2DEG_1931[index + width]
+                xyz = spectrum.CIE_OBSERVER_2DEG_1931[index + width]
 
                 if with_illuminant:
-                    d65 = CIE_ILLUMINANT_D65[index + width]
+                    d65 = spectrum.CIE_ILLUMINANT_D65[index + width]
                     for c in range(3):
                         total_xyz[c] += d65 * xyz[c]
                 else:
@@ -261,10 +264,11 @@ class ColorPlotter:
                 emit_point = width % pulse_increment == 0 or width == sample_count - 1
                 emit_mark = self._chromaticity and not with_pulses and wave in markwaves
                 if emit_point or emit_mark:
+                    luminance = spectrum.CIE_OBSERVER_2DEG_1931.weight()
                     coordinates = [
-                        total_xyz[0] / total_luminance,
-                        total_xyz[1] / total_luminance,
-                        total_xyz[2] / total_luminance,
+                        total_xyz[0] / luminance,
+                        total_xyz[1] / luminance,
+                        total_xyz[2] / luminance,
                     ]
                     two_dee = self.to_2d(Color(ColorSpace.Xyz, coordinates))
 
@@ -310,7 +314,7 @@ class ColorPlotter:
         all_points: list[tuple[float, float]]= []
         all_colors: list[str] = []
 
-        iter = space.boundaries(self._segment_size)
+        iter = space.gamut(self._segment_size)
         assert iter is not None
         for step in iter:
             color = step.color()
@@ -331,7 +335,7 @@ class ColorPlotter:
             all_points.append(pt)
             all_colors.append(hex_format)
 
-            if isinstance(step, GamutTraversalStep.CloseWith):
+            if isinstance(step, gamut.GamutTraversalStep.CloseWith):
                 break
 
         assert close_enough(all_points[0][0], all_points[-1][0])
@@ -584,9 +588,9 @@ def main() -> None:
             translator = current_translator()
             for index in [0, 1, 3, 2, 6, 4, 5, 7]:
                 color = translator.resolve(index)
-                plotter.add(ThemeEntry.try_from_index(index + 2).name(), color)
+                plotter.add(trans.ThemeEntry.try_from_index(index + 2).name(), color)
                 color = translator.resolve(index + 8)
-                plotter.add(ThemeEntry.try_from_index(index + 8 + 2).name(), color)
+                plotter.add(trans.ThemeEntry.try_from_index(index + 8 + 2).name(), color)
 
     for color in [Color.parse("#" + c) for c in cast(list[str], options.colors) or []]:
         plotter.add("<extra>", color, marker="d")

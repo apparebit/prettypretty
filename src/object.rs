@@ -4,10 +4,10 @@ use std::str::FromStr;
 use pyo3::prelude::*;
 
 use crate::core::{
-    clip, convert, delta_e_ok, format, from_24bit, in_gamut, interpolate, is_gray, normalize,
+    clip, convert, delta_e_ok, format, from_24bit, in_gamut, interpolate, is_achromatic, normalize,
     parse, prepare_to_interpolate, scale_lightness, to_24bit, to_contrast,
-    to_contrast_luminance_p3, to_contrast_luminance_srgb, to_eq_coordinates, to_gamut,
-    ColorFormatError, ColorSpace, HueInterpolation, TIGHT_GRAY_THRESHOLD,
+    to_contrast_luminance_p3, to_contrast_luminance_srgb, to_eq_coordinates, to_gamut, ColorSpace,
+    HueInterpolation, GRAY_THRESHOLD,
 };
 
 use crate::Float;
@@ -149,7 +149,7 @@ impl Color {
     /// Python only.
     #[cfg(feature = "pyffi")]
     #[staticmethod]
-    pub fn parse(s: &str) -> Result<Color, ColorFormatError> {
+    pub fn parse(s: &str) -> Result<Color, crate::error::ColorFormatError> {
         use std::str::FromStr;
 
         Color::from_str(s)
@@ -422,7 +422,7 @@ impl Color {
     /// </div>
     #[inline]
     pub fn is_gray(&self) -> bool {
-        is_gray(self.space, &self.coordinates, TIGHT_GRAY_THRESHOLD)
+        is_achromatic(self.space, &self.coordinates, GRAY_THRESHOLD)
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -637,8 +637,8 @@ impl Color {
     /// revised lightness Lr corrects the original's dark bias, we'd expect
     /// light colors to be more spread out in Oklrab. That is indeed the case.
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, OkVersion, ColorFormatError};
-    /// # use prettypretty::assert_close_enough;
+    /// # use prettypretty::{assert_close_enough, Color, ColorSpace, OkVersion};
+    /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// let honeydew = Color::from_str("#d4fb79")?;
     /// let cantaloupe = Color::from_str("#ffd479")?;
@@ -852,7 +852,8 @@ impl Color {
     /// the color. It uses the same algorithm as [`Color::contrast_against`].
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, ColorFormatError};
+    /// # use prettypretty::{Color, ColorSpace};
+    /// # use prettypretty::error::ColorFormatError;
     /// let blue: Color = str::parse("#6872ff")?;
     /// assert!(!blue.use_black_text());
     /// # Ok::<(), ColorFormatError>(())
@@ -883,7 +884,8 @@ impl Color {
     /// the color. It uses the same algorithm as [`Color::contrast_against`].
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, ColorFormatError};
+    /// # use prettypretty::{Color, ColorSpace};
+    /// # use prettypretty::error::ColorFormatError;
     /// let blue: Color = str::parse("#68a0ff")?;
     /// assert!(blue.use_black_background());
     /// # Ok::<(), ColorFormatError>(())
@@ -1114,7 +1116,7 @@ impl Color {
     ///
     /// Because it is generic, this method is available in Rust only. A
     /// specialized version is available in Python through
-    /// [`Translator`](crate::Translator).
+    /// [`Translator`](crate::trans::Translator).
     ///
     /// # Examples
     ///
@@ -1162,7 +1164,7 @@ impl Color {
     ///
     /// Because it is generic, this method is available in Rust only. A
     /// specialized version is available in Python through
-    /// [`Translator`](crate::Translator).
+    /// [`Translator`](crate::trans::Translator).
     pub fn find_closest<'c, C, F>(
         &self,
         candidates: C,
@@ -1214,7 +1216,7 @@ impl Default for Color {
 }
 
 impl std::str::FromStr for Color {
-    type Err = crate::ColorFormatError;
+    type Err = crate::error::ColorFormatError;
 
     /// Instantiate a color from its string representation.
     ///
@@ -1258,7 +1260,8 @@ impl std::str::FromStr for Color {
     /// # Examples
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorSpace, ColorFormatError};
+    /// # use prettypretty::{Color, ColorSpace};
+    /// # use prettypretty::error::ColorFormatError;
     /// use std::str::FromStr;
     ///
     /// let navy = Color::from_str("#011480")?;
@@ -1283,7 +1286,7 @@ impl std::str::FromStr for Color {
 }
 
 impl TryFrom<&str> for Color {
-    type Error = ColorFormatError;
+    type Error = crate::error::ColorFormatError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Color::from_str(value)
@@ -1291,7 +1294,7 @@ impl TryFrom<&str> for Color {
 }
 
 impl TryFrom<String> for Color {
-    type Error = ColorFormatError;
+    type Error = crate::error::ColorFormatError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Color::from_str(value.as_str())
@@ -1429,7 +1432,8 @@ impl std::fmt::Display for Color {
     /// and hence should show the same color four times over.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorSpace::*};
+    /// # use prettypretty::{Color, ColorSpace::*};
+    /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// let lime = Color::from_str("#a1d2ae")?;
     /// assert_eq!(format!("{}", lime), "color(srgb 0.63137 0.82353 0.68235)");
@@ -1453,7 +1457,8 @@ impl std::fmt::Display for Color {
     /// serializes as `none`.
     ///
     /// ```
-    /// # use prettypretty::{Color, ColorFormatError, ColorSpace::*};
+    /// # use prettypretty::{Color, ColorSpace::*};
+    /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// let gray = Color::oklch(0.665, 0, f64::NAN);
     /// assert_eq!(format!("{}", gray), "oklch(0.665 0 none)");
@@ -1588,7 +1593,8 @@ impl Interpolator {
         Color::new(self.space, [c1, c2, c3])
     }
 
-    /// Create a debug representation of this interpolator.
+    /// Create a debug representation of this interpolator. <span
+    /// class=python-only></span>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         format!(

@@ -302,4 +302,4 @@ a complete change of direction.
 [`Terminal.bracketed_paste`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.bracketed_paste
 [`Terminal.fidelity`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.fidelity
 [`Terminal.window_title`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.window_title
-[`Translator.cap`]: https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.cap
+[`Translator.cap`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.cap

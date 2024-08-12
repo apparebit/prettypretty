@@ -1,8 +1,6 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use super::gamut::GamutTraversal;
-
 /// The enumeration of supported color spaces.
 ///
 /// # RGB
@@ -151,23 +149,24 @@ impl ColorSpace {
     ///
     /// For bounded or RGB color spaces, this method returns an iterator that
     /// traces the boundaries of the color space's gamut. As described in detail
-    /// for [`GamutTraversal`], the iterator does so by yielding
-    /// [`GamutTraversalStep`](crate::GamutTraversalStep)s that trace paths
-    /// along the edges of this color space's RGB cube.
+    /// for [`GamutTraversal`](crate::gamut::GamutTraversal), the iterator does
+    /// so by yielding [`GamutTraversalStep`](crate::gamut::GamutTraversalStep)s
+    /// that trace paths along the edges of this color space's RGB cube.
     ///
     /// Altogether, the iterator yields steps for a closed path covering six
     /// edges followed by another six paths each covering one edge. Each step
     /// includes exactly one in-gamut color that also is in this color space.
-    /// There are `segment_size` steps per edge, though the first path yields
+    /// There are `edge_length` steps per edge, though the first path yields
     /// corners other than the blue primary only once.
     ///
     /// If this color space is not bounded or the segment size is 0 or 1, this
     /// method returns `None`.
-    pub fn boundaries(&self, segment_size: usize) -> Option<GamutTraversal> {
-        GamutTraversal::new(*self, segment_size)
+    pub fn gamut(&self, edge_length: usize) -> Option<crate::gamut::GamutTraversal> {
+        crate::gamut::GamutTraversal::new(*self, edge_length)
     }
 
-    /// Create a human-readable representation for this color space.
+    /// Create a human-readable representation for this color space. <span
+    /// class=python-only></span>
     #[cfg(feature = "pyffi")]
     pub fn __str__(&self) -> String {
         format!("{}", self)
