@@ -181,7 +181,6 @@ impl GrayEntry {
         if !spec.is_gray()
             || !is_achromatic_chroma_hue(c, h, HueLightnessTable::ACHROMATIC_THRESHOLD)
         {
-            println!("@@@@@ {}, {}, {} is too colorful for GrayEntry", lr, c, h); // FIXME
             return None;
         }
 
@@ -212,7 +211,6 @@ impl ColorEntry {
         let [lr, c, mut h] = *value.to(ColorSpace::Oklrch).as_ref();
         if spec.is_gray() || is_achromatic_chroma_hue(c, h, HueLightnessTable::ACHROMATIC_THRESHOLD)
         {
-            println!("@@@@@ {}, {}, {} is too grey for ColorEntry", lr, c, h); // FIXME
             return None;
         }
         h = h.rem_euclid(360.0); // Critical for correctness!
@@ -271,8 +269,6 @@ impl HueLightnessTable {
         }
         grays.sort_by_key(|entry| entry.key());
 
-        println!("Done setting up gray tones!"); // FIXME
-
         // Prep the non-grays in hue order: red, yellow, green, cyan, blue, magenta.
         let mut colors = Vec::with_capacity(12);
         for index in [1_usize, 3, 2, 6, 4, 5] {
@@ -312,15 +308,11 @@ impl HueLightnessTable {
         // pairs are in standard order, all hues are sorted as well.
         min_hue = -1.0;
         for entry in colors.iter() {
-            println!("hue {}  spec {:?}", entry.h, entry.spec); // FIXME
             if entry.h < min_hue {
-                println!("bad min_hue {} ABORT", min_hue); // FIXME
                 return None;
             }
             min_hue = entry.h;
         }
-
-        println!("All good"); // FIXME
 
         Some(HueLightnessTable { grays, colors })
     }
