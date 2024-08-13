@@ -1,7 +1,7 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use crate::core::conversion::okxch_to_okxab;
+use crate::core::conversion::{okxab_to_okxch, okxch_to_okxab};
 use crate::core::{convert, delta_e_ok, normalize};
 use crate::{Color, ColorSpace, Float};
 
@@ -13,7 +13,7 @@ use crate::{Color, ColorSpace, Float};
 pub(crate) fn is_achromatic(space: ColorSpace, coordinates: &[Float; 3], threshold: Float) -> bool {
     let coordinates = match space {
         ColorSpace::Oklch | ColorSpace::Oklrch => *coordinates,
-        ColorSpace::Oklrab => convert(space, ColorSpace::Oklrab, coordinates),
+        ColorSpace::Oklrab => okxab_to_okxch(coordinates),
         _ => convert(space, ColorSpace::Oklch, coordinates),
     };
 

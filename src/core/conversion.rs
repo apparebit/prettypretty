@@ -248,7 +248,7 @@ mod oklab {
     /// one-hop, direct conversion.
     #[inline]
     #[allow(non_snake_case)]
-    pub(super) fn okxab_to_okxch(value: &[Float; 3]) -> [Float; 3] {
+    pub(crate) fn okxab_to_okxch(value: &[Float; 3]) -> [Float; 3] {
         let [L, a, b] = *value;
         let (C, h) = if a.abs() < EPSILON && b.abs() < EPSILON {
             (0.0, Float::NAN)
@@ -291,8 +291,8 @@ mod oklab {
     }
 }
 
-pub(crate) use oklab::okxch_to_okxab;
-use oklab::{oklrxx_to_oklxx, oklxx_to_oklrxx, okxab_to_okxch};
+use oklab::{oklrxx_to_oklxx, oklxx_to_oklrxx};
+pub(crate) use oklab::{okxab_to_okxch, okxch_to_okxab};
 
 // --------------------------------------------------------------------------------------------------------------------
 // https://github.com/color-js/color.js/blob/a77e080a070039c534dda3965a769675aac5f75e/src/spaces/oklab.js
