@@ -1,6 +1,7 @@
 #!.venv/bin/python
 
 import json
+import os
 from pathlib import Path
 import re
 import sys
@@ -54,6 +55,10 @@ def collect(items: list[Any]) -> list[str]:
 
 def main() -> None:
     if len(sys.argv) >= 2 and sys.argv[1] == "supports":
+        # The shell for GitHub Actions on Windows does not handle Unicode.
+        # So just don't run in that environment.
+        if "GITHUB_ACTION" in os.environ and os.name == "nt":
+            sys.exit(1)
         sys.exit(0)
 
     _, book = json.load(sys.stdin)
