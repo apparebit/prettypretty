@@ -20,9 +20,6 @@ pub(crate) fn is_achromatic(space: ColorSpace, coordinates: &[Float; 3], thresho
     is_achromatic_chroma_hue(coordinates[1], coordinates[2], threshold)
 }
 
-/// A fairly tight threshold for gray chroma
-pub(crate) const GRAY_THRESHOLD: Float = 0.01;
-
 /// Determine whether the chroma and hue are gray-ish.
 ///
 /// This function treats the chroma and hue as gray-ish if either the hue is
