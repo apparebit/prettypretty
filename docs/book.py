@@ -1,12 +1,15 @@
 # This script is automatically generated from markdown sources.
 # Please do *not* edit.
+
+# pyright: reportMissingModuleSource=false
+
 import os
 import sys
 sys.path.insert(0, os.path.abspath("."))
 
 
 def test0() -> None:
-    # overview/2020s.md:136
+    # overview/2020s.md:140
     from prettypretty.color import Color, ColorSpace
     oklch = Color.oklch(0.716, 0.349, 335.0)
     p3 = oklch.to(ColorSpace.DisplayP3)

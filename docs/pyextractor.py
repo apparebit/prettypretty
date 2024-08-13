@@ -69,6 +69,9 @@ def main() -> None:
             """\
             # This script is automatically generated from markdown sources.
             # Please do *not* edit.
+
+            # pyright: reportMissingModuleSource=false
+
             import os
             import sys
             sys.path.insert(0, os.path.abspath("."))\n\n
