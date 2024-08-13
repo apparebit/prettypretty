@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "pyright": "^1.1.361"
+    "pyright": "^1.1.375"
   },
   "scripts": {
     "pyright": "pyright"
