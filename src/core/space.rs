@@ -63,7 +63,7 @@ use pyo3::prelude::*;
 ///     can be bounded `-0.4..=0.4`.
 ///   * The chroma for Oklch/Oklrch must be non-negative and in practice can be
 ///     bounded `0..=0.4`.
-///   * The hue for Oklch/Oklrch may be not-a-number, which indicates that a
+///   * The hue for Oklch/Oklrch may be not-a-number, which indicates a
 ///     powerless component, i.e., gray tone. In that case, the chroma must
 ///     necessarily be zero.
 ///
