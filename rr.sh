@@ -253,7 +253,7 @@ build() {
 
     # Creating symbolic links to reify submodules of an extension module is a
     # bit weird, though blessed by PEP 489 (https://peps.python.org/pep-0489/).
-    for mod in gamut spectrum term trans; do
+    for mod in gamut spectrum style trans; do
         if ! [ -h "prettypretty/color/${mod}${suffix}" ]; then
             ln -s "../color${suffix}" "prettypretty/color/${mod}${suffix}"
         fi
