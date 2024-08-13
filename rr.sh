@@ -2,54 +2,99 @@
 
 set -e
 
-# Simple styles
-BOLD=$(printf "\e[1m")
-REGULAR=$(printf "\e[22m")
-UNDERLINE=$(printf "\e[4m")
-NOLINE=$(printf "\e[24m")
-RESET=$(printf "\e[m")
+if [ -t 2 ]; then
+    MARK=$(printf "\e[1;34m〔r²〕\e[m")
+
+    BOLD=$(printf "\e[1m")
+    NOBOLD=$(printf "\e[22m")
+    UNDERLINE=$(printf "\e[4m")
+    NOLINE=$(printf "\e[24m")
+    RESET=$(printf "\e[m")
+
+    terminal=$(tty)
+    # The joys of Unix: On macOS, stty -a prints the number of columns before the
+    # word "columns", whereas on Linux it does just the opposite. Meanwhile, the BSD
+    # version of grep accepts \d in an extended regex, whereas POSIX and Linux do
+    # not.
+    columns=$(stty -a <"$terminal" | grep -Eo '; ([0-9]+ )?columns( [0-9]+)?;' | grep -Eo '[0-9]+')
+
+    # shellcheck disable=SC2034
+    TRACE=""
+    # shellcheck disable=SC2034
+    INFO=$(printf "\e[1;35m")
+    # shellcheck disable=SC2034
+    SUCCESS=$(printf "\e[1;32m")
+    # shellcheck disable=SC2034
+    WARNING=$(printf "\e[1;38;5;208m")
+    # shellcheck disable=SC2034
+    ERROR=$(printf "\e[1;31m")
+else
+    MARK="〔r²〕"
+
+    BOLD=""
+    NOBOLD=""
+    UNDERLINE=""
+    NOLINE=""
+    RESET=""
+
+    columns=80
+
+    # shellcheck disable=SC2034
+    TRACE=""
+    # shellcheck disable=SC2034
+    INFO=""
+    # shellcheck disable=SC2034
+    SUCCESS=""
+    # shellcheck disable=SC2034
+    WARNING=""
+    # shellcheck disable=SC2034
+    ERROR=""
+fi
 
 help() {
-    >&2 printf "%s\n" "${BOLD}$(basename "$0") [install|build|check|docs|all|help]${RESET}"
-    >&2 printf "\n"
-    >&2 printf "%s\n" "${BOLD}install${REGULAR} : Install or update required tools using apt or brew."
-    >&2 printf "%s\n" "${BOLD}build${REGULAR}   : Build and locally install the Python extenion module."
-    >&2 printf "%s\n" "${BOLD}check${REGULAR}   : Check that the source code is well-formatted,"
-    >&2 printf "%s\n" "          free of lint, and altogether in good shape."
-    >&2 printf "%s\n" "${BOLD}docs${REGULAR}    : Build the user guide, the Rust API documentation,"
-    >&2 printf "%s\n" "          and the Python API documentation in ${UNDERLINE}target/doc${NOLINE} dir."
-    >&2 printf "%s\n" "${BOLD}all${REGULAR}     : Perform build, check, and docs tasks in that order."
-    >&2 printf "%s\n" "${BOLD}help${REGULAR}    : Show this help message and exit."
-    exit 1
+    >&2 cat <<EOF
+${BOLD}Usage:${NOBOLD} $(basename "$0") [COMMAND]
+
+${BOLD}Commands:${NOBOLD}
+    ${BOLD}install${NOBOLD} : Install or update required tools using apt or brew.
+    ${BOLD}build${NOBOLD}   : Build and locally install the Python extenion module.
+    ${BOLD}check${NOBOLD}   : Check that the source code is well-formatted,
+              free of lint, and altogether in good shape.
+    ${BOLD}docs${NOBOLD}    : Build the user guide, the Rust API documentation,
+              and the Python API documentation in ${UNDERLINE}target/doc${NOLINE} dir.
+    ${BOLD}all${NOBOLD}     : Perform build, check, and docs tasks in that order.
+    ${BOLD}help${NOBOLD}    : Show this help message and exit.
+EOF
+    exit 0
 }
 
-# shellcheck disable=SC2034
-TRACE=""
-# shellcheck disable=SC2034
-INFO=$(printf "\e[1;35m")
-# shellcheck disable=SC2034
-SUCCESS=$(printf "\e[1;32m")
-# shellcheck disable=SC2034
-WARNING=$(printf "\e[1;38;5;208m")
-# shellcheck disable=SC2034
-ERROR=$(printf "\e[1;31m")
+# >&2 printf "%s\n" "${BOLD}$(basename "$0") [install|build|check|docs|all|help]${NOBOLD}"
+# >&2 printf "\n"
+# >&2 printf "%s\n" "${BOLD}install${NOBOLD} : Install or update required tools using apt or brew."
+# >&2 printf "%s\n" "${BOLD}build${NOBOLD}   : Build and locally install the Python extenion module."
+# >&2 printf "%s\n" "${BOLD}check${NOBOLD}   : Check that the source code is well-formatted,"
+# >&2 printf "%s\n" "          free of lint, and altogether in good shape."
+# >&2 printf "%s\n" "${BOLD}docs${NOBOLD}    : Build the user guide, the Rust API documentation,"
+# >&2 printf "%s\n" "          and the Python API documentation in ${UNDERLINE}target/doc${NOLINE} dir."
+# >&2 printf "%s\n" "${BOLD}all${NOBOLD}     : Perform build, check, and docs tasks in that order."
+# >&2 printf "%s\n" "${BOLD}help${NOBOLD}    : Show this help message and exit."
+# exit 1
 
-terminal=$(tty)
-# The joys of Unix: On macOS, stty -a prints the number of columns before the
-# word "columns", whereas on Linux it does just the opposite. Meanwhile, the BSD
-# version of grep accepts \d in an extended regex, whereas POSIX and Linux do
-# not.
-columns=$(stty -a <"$terminal" | grep -Eo '; ([0-9]+ )?columns( [0-9]+)?;' | grep -Eo '[0-9]+')
-
-log() {
-    LEVEL="$1"
+log() (
+    if [ "$1" = "TRACE" ]; then
+        STYLE=""
+        LEVEL=""
+    else
+        eval "STYLE=\"\${$1}\""
+        LEVEL="$1: "
+    fi
     shift
-    eval "STYLE=\"\${$LEVEL}\""
-    # Don't use print, it's zsh only.
-    >&2 printf "%s\n" "${STYLE}〔r²〕${LEVEL}: ${*}${RESET}"
-}
 
-print_run_header() {
+    # Don't use print, it's zsh only.
+    >&2 printf "%s\n" "${MARK}${STYLE}${LEVEL}${*}${RESET}"
+)
+
+print_header() {
     # Don't use {1..$columns}. Bash does not expand variables.
     >&2 printf "━%.0s" $(seq 1 "$columns")
     >&2 printf "\n"
@@ -59,74 +104,134 @@ print_run_header() {
 }
 
 run() {
-    print_run_header "$@"
+    print_header "$*"
     "$@"
     >&2 echo
 }
 
 # ===========================================================================================================
-# For simplicity and uniformity, use the same package manager for all dependencies!
+# Ugh! For Linux, I tried making installation work just using APT, since that's
+# the package manager shipping with Ubuntu. The fact that package names tend
+# towards the baroque is a bit annoying. Python not including venv seems like a
+# gratuitous complication. The lack of packages for maturin and mdbook already
+# points towards APT being insufficient. That is only reinforced by rust-all
+# being five releases or 7.5 months behind the latest release, which means it's
+# too old for compiling prettypretty. So much for simplicity and uniformity in
+# package management...
+#
+# Still, I doubt that replacing the Linux distribution's package manager with
+# Homebrew is the right approach. So, we split duties between APT, rustup, and
+# cargo: APT for generic tools, rustup for core Rust tools, and cargo for
+# remaining Rust tools.
 
 if [ -x "$(command -v brew)" ]; then
-    INSTALLER=Homebrew
-    installer_update() {
+    PACKAGE_MANAGER=Homebrew
+    package_update_all() {
         brew update
         brew upgrade
     }
-    installer_install() {
+    package_show_name() {
+        echo "$1"
+    }
+    package_show_extras() {
+        echo
+    }
+    package_is_installed() {
+        brew ls --versions "$1" > /dev/null
+    }
+    package_install() {
         brew install "$1"
     }
-elif [ -x "$(command -v apt)" ]; then
-    INSTALLER="APT"
-    installer_update() {
-        sudo apt update
-        sudo apt upgrade
+elif [ -x "$(command -v apt-get)" ]; then
+    PACKAGE_MANAGER=APT
+    package_update_all() {
+        sudo apt-get -y update
+        sudo apt-get -y upgrade
     }
-    installer_install() {
-        sudo apt install "$1"
+    package_show_name() {
+        case "$1" in
+            node)   echo "nodejs" ;;
+            *)      echo "$1" ;;
+        esac
+    }
+    package_show_extras() {
+        # build-essential: includes gcc and linker, required for Rust
+        # python3-venv: installs venv module stripped from python3 package
+        echo "build-essential python3-venv"
+    }
+    package_is_installed() {
+        dpkg-query -Wf'${db:Status-Abbrev}' "$1" 2>/dev/null | grep -q '^i'
+    }
+    package_install() {
+        sudo apt-get -y install "$1"
     }
 else
-    log ERROR "Could not find apt or brew package manager!"
+    log ERROR "Could not find apt-get (APT) or brew (Homebrew) package manager!"
     exit 1
 fi
 
-get_package_name() {
-    case $1 in
-        cargo)
-            if [ "$INSTALLER" = "APT" ]; then
-                echo "rust-all"
-            else
-                echo "rust"
-            fi
-            ;;
-        *)  echo "$1" ;;
-    esac
+install_package() {
+    print_header "Installing $1 with $PACKAGE_MANAGER"
+    package_install "$1"
+    >&2 echo
 }
 
-install_tool() {
+# Install package if tool cannot be found.
+install_tool() (
     tool_name="$1"
-    pkg_name="$(get_package_name "$tool_name")"
+    pkg_name="$(package_show_name "$tool_name")"
 
     if [ -x "$(command -v "$tool_name")" ]; then
-        log TRACE "Skipping ${BOLD}${pkg_name}${REGULAR}, since it is already installed."
+        log TRACE "Skipping already installed ${BOLD}${pkg_name}${NOBOLD}"
     else
-        installer_install "$pkg_name"
+        install_package "$pkg_name"
     fi
-}
+)
 
 install() {
-    print_run_header "Updating $INSTALLER and its packages"
-    installer_update
-    echo
+    print_header "Updating $PACKAGE_MANAGER and installed packages"
+    package_update_all
+    >&2 echo
 
-    for tool in git curl cargo maturin mdbook node python; do
-        install_tool "$tool"
+    for tool_name in git curl node python3; do
+        install_tool "$tool_name"
+    done
+
+    for pkg_name in $(package_show_extras); do
+        if package_is_installed "$pkg_name"; then
+            log TRACE "Skipping already installed ${BOLD}${pkg_name}${NOBOLD}"
+        else
+            install_package "$pkg_name"
+        fi
+    done
+
+    should_restart=false
+    if [ ! -x "$(command -v rustup)" ]; then
+        # Rustup modifies .profile, .bashrc,... to source $HOME/.cargo/env,
+        # which updates PATH. We do equivalent to finish installation.
+        # However, user should still restart their current shell.
+        print_header "Installing rustup"
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s - -y
+
+        # shellcheck source=/dev/null
+        . "${CARGO_HOME:-$HOME/.cargo}/env"
+
+        should_restart=true
+        >&2 echo
+    fi
+
+    for tool in maturin mdbook; do
+        run cargo install --locked "$tool"
     done
 
     if [ -d ./.venv ]; then
-        log TRACE "Skipping creation of virtual env in ${UNDERLINE}.venv${NOLINE}, since it already exists."
+        log TRACE "Skipping creation of already existing virtual env in ${UNDERLINE}.venv${NOLINE}"
     else
-        run python -m venv .venv
+        run python3 -m venv .venv
+    fi
+
+    if should_restart; then
+        log WARNING "Please restart your current shell to pick up changes to PATH"
     fi
 }
 
@@ -170,14 +275,16 @@ check() {
         run run_python_tests
     fi
 
-    print_run_header "Testing guide's Rust examples"
+    print_header "Testing Rust examples from guide book"
     cargo clean
     cargo build
     mdbook test -L target/debug/deps docs
+    >&2 echo
 
-    print_run_header "Testing guide's Python examples"
+    print_header "Testing Python examples from guide book"
     mdbook build docs
     python docs/book.py
+    >&2 echo
 }
 
 run_python_tests() {
