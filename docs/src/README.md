@@ -34,7 +34,7 @@ following resources:
   * [Rust API documentation](https://docs.rs/prettypretty/latest/prettypretty/)
     on docs.rs, without Python integration
   * [Python API documentation](https://apparebit.github.io/prettypretty/python/)
-  * [Python type stub](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi)
+  * [Python type stub](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color/__init__.pyi)
   * [Rust crate](https://crates.io/crates/prettypretty)
   * [Python package](https://pypi.org/project/prettypretty/)
   * [Repository](https://github.com/apparebit/prettypretty)
@@ -47,7 +47,7 @@ The optional Python integration, enabled with the `pyffi` feature flag, relies
 on [PyO3](https://pyo3.rs/v0.22.0/) and [Maturin](https://www.maturin.rs) for
 building an extension module with the same functionality—only where the Rust
 library uses trait implementations, the Python module [uses dedicated
-methods](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi).
+methods](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color/__init__.pyi).
 Also, where the Rust library currently is BYO(T)IO, that is, bring your own
 (terminal) I/O, the Python library comes with a powerful terminal abstraction
 that makes, say, querying the terminal [for the current color

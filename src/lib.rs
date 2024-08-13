@@ -4,24 +4,29 @@
 
 //! # Pretty 🌸 Pretty
 //!
-//! This is the API documentation for prettypretty, which brings 2020s color
-//! science to 1970s terminals. Please consult the [user
-//! guide](https://apparebit.github.io/prettypretty/) for a structured overview
-//! of this library. The [type
-//! stub](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi)
-//! and [API documentation](https://apparebit.github.io/prettypretty/python/)
-//! for Python are separate as well.
-//!
+//! Prettypretty brings 2020s color science to 1970 terminals.
 #![cfg_attr(
     not(feature = "pyffi"),
-    doc = " **This version of prettypretty's API documentation covers native Rust
-interfaces only without Python integration, with the `pyffi` feature flag disabled**"
+    doc = " This version of the API documentation **covers native Rust interfaces
+only**. You can find a version that also covers Python integration, with the `pyffi`
+feature enabled,
+[on GitHub](https://apparebit.github.io/prettypretty/prettypretty/). "
 )]
 #![cfg_attr(
     feature = "pyffi",
-    doc = "**This version of prettypretty's API documentation covers Rust
-interfaces as well as Python ingration, with the `pyffi` feature flag enabled.**"
+    doc = " This version of the API documentation **covers both Rust and Python
+interfaces**. You can find a version without Python integration, with the `pyffi`
+feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/). "
 )]
+//! Separately, the [user guide](https://apparebit.github.io/prettypretty/)
+//! provides a comprehensive overview and several deep dives covering both
+//! languages. There also are the [type
+//! stubs](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color/__init__.pyi)
+//! and [API documentation](https://apparebit.github.io/prettypretty/python/)
+//! for Python as well as the shared [source
+//! repository](https://github.com/apparebit/prettypretty), [Rust
+//! crate](https://crates.io/crates/prettypretty), and [Python
+//! package](https://pypi.org/project/prettypretty/).
 //!
 //!
 //! ## Overview

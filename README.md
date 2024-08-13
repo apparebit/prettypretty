@@ -41,7 +41,7 @@ The optional Python integration is enabled with the `pyffi` feature flag and
 relies on [PyO3](https://pyo3.rs/v0.22.0/) and [Maturin](https://www.maturin.rs)
 for building an extension module with the same functionality. Only where the
 Rust library uses trait implementations, the Python module [uses dedicated
-methods](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color.pyi).
+methods](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color/__init__.pyi).
 Also, where the Rust library currently is BYO(T)IO, that is, bring your own
 (terminal) I/O, the Python library comes with a powerful terminal abstraction
 that makes, say, querying the terminal [for the current color
