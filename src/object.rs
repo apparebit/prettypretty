@@ -7,7 +7,7 @@ use crate::core::{
     clip, convert, delta_e_ok, format, from_24bit, in_gamut, interpolate, is_achromatic, normalize,
     parse, prepare_to_interpolate, scale_lightness, to_24bit, to_contrast,
     to_contrast_luminance_p3, to_contrast_luminance_srgb, to_eq_coordinates, to_gamut, ColorSpace,
-    HueInterpolation, GRAY_THRESHOLD,
+    HueInterpolation,
 };
 
 use crate::Float;
@@ -396,34 +396,146 @@ impl Color {
         self.space == ColorSpace::Xyz && self.coordinates == [0.0, 0.0, 0.0]
     }
 
-    /// Determine whether this color is gray-ish.
+    /// The threshold used by [`is_achromatic`](Color::is_achromatic).
+    #[cfg(feature = "pyffi")]
+    #[classattr]
+    pub const ACHROMATIC_THRESHOLD: Float = 0.01;
+
+    /// The threshold used by [`is_achromatic`](Color::is_achromatic).
+    #[cfg(not(feature = "pyffi"))]
+    pub const ACHROMATIC_THRESHOLD: Float = 0.01;
+
+    /// Determine whether this color is achromatic.
     ///
-    /// For consistent, high-quality results, this method tests for hue being
-    /// not-a-number or chroma being close to zero in Oklch or Oklrch. If this
-    /// color is not in either color space, this method first converts it.
+    /// For consistent, high-quality results, this method tests wether the hue
+    /// is not-a-number or chroma is smaller than the
+    /// [`ACHROMATIC_THRESHOLD`](Color::ACHROMATIC_THRESHOLD) in Oklch or
+    /// Oklrch, converting this color if necessary.
     ///
-    /// Meanwhile, other color spaces do not seem particularly suitable to
-    /// implementing this predicate: A per-component maximum for a/b in
-    /// Oklab/Oklrab would carve a rectangular cuboid out of those color spaces
-    /// and hence produce inconsistent results. Similarly, a limit on component
-    /// differences for RGB components would carve a cube out of *linear* RGB
-    /// color spaces. For gamma-corrected RGB spaces, that cube would be gamma
-    /// distorted as well.
+    /// # Algorithmic Considerations
+    ///
+    /// Such a threshold-based predicate seems poorly suited to color spaces
+    /// with Cartesian coordinates, as it carves a cuboid out of such spaces. Of
+    /// course, the perceptual implications of the cuboid are highly dependent
+    /// on the specific color space. (They also needn't be uniform; after all,
+    /// gamma correction isn't uniform either.)
+    ///
+    /// As perceptually uniform color spaces, the differences between
+    /// Oklab/Oklrab and Oklch/Oklrch are instructive here: In all four
+    /// variations, achromatic colors form a thin column centered around the
+    /// lightness axis. For Oklch/Oklrch, the column is circular. In other
+    /// words, lightness and hue have *no* impact on whether colors are
+    /// classified as achromatic. Only chroma, up to some threshold 𝚾, makes a
+    /// difference. That nicely matches our expectations for lightness, chroma,
+    /// and hue.
+    ///
+    /// For Oklab/Oklrab, the column has a square profile. It intersects with
+    /// the a/b axes at 𝚾 units from the lightness axis—just as the circular
+    /// column does. But whereas that distance is constant for the circular
+    /// column, the square column's corners are positioned ±𝚾 units along each
+    /// of the a/b axes, which is sqrt(𝚾²+𝚾²) = sqrt(2)⋅𝚾 = 1.41⋅𝚾 units
+    /// from the lightness axis. In other words, the variability in chroma
+    /// threshold is 1.41×.
     ///
     /// # Examples
     ///
+    /// The swatch below shows the Oklab colors at the four corners and the four
+    /// axis intersections for a lightness of 0.6 and 𝚾=0.1 in order of
+    /// increasing hue. The 1.41× difference in chroma is not glaring but still
+    /// clearly noticeable.
+    ///
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklab(0.6 0.1 0)"></div>
+    /// <div style="background-color: oklab(0.6 0.1 0.1)"></div>
+    /// <div style="background-color: oklab(0.6 0 0.1)"></div>
+    /// <div style="background-color: oklab(0.6 -0.1 0.1)"></div>
+    /// <div style="background-color: oklab(0.6 -0.1 0)"></div>
+    /// <div style="background-color: oklab(0.6 -0.1 -0.1)"></div>
+    /// <div style="background-color: oklab(0.6 0 -0.1)"></div>
+    /// <div style="background-color: oklab(0.6 0.1 -0.1)"></div>
+    /// </div>
+    /// <br>
+    ///
+    /// Clearly, 𝚾=0.1 is a bit large when it comes to practical applications
+    /// of achromatic testing. Notably, this method uses an order-of-magnitude
+    /// smaller and hence far more precise 𝚾=0.01. Though, as illustrated by
+    /// the example below, even that threshold allows for numerically
+    /// significant divergence amongst RGB coordinates.
+    ///
     /// ```
     /// # use prettypretty::Color;
-    /// let gray_enough = Color::srgb(0.5, 0.5, 0.52);
-    /// assert!(gray_enough.is_gray());
+    /// let gray = Color::srgb(0.5, 0.5, 0.5);
+    /// assert!(gray.is_achromatic());
+    /// let gray_enough = Color::srgb(0.5, 0.5, 0.526);
+    /// assert!(gray_enough.is_achromatic());
     /// ```
     /// <div class=color-swatch>
-    /// <div style="background-color: color(srgb 0.5 0.5 0.51)"></div>
+    /// <div style="background-color: color(srgb 0.5 0.5 0.5)"></div>
+    /// <div style="background-color: color(srgb 0.5 0.5 0.526)"></div>
+    /// </div>
+    /// <br>
+    ///
+    /// If you look at the above swatch carefully, you'll notice that the
+    /// difference between the two colors isn't only numerical. It also is large
+    /// enough to be visible!
+    ///
+    /// Finally, the example below leverages the above analysis of achromatic
+    /// subspace geometry in Oklab/Oklch to systematically test boundary
+    /// conditions.
+    ///
+    /// ```
+    /// # use prettypretty::{Color, Float};
+    /// let long = Color::ACHROMATIC_THRESHOLD - Float::EPSILON;
+    /// let short = Color::ACHROMATIC_THRESHOLD / 2.0_f64.sqrt() - Float::EPSILON;
+    ///
+    /// assert!(Color::oklab(0.5, long, 0).is_achromatic());
+    /// assert!(Color::oklab(0.5, 0, long).is_achromatic());
+    /// assert!(Color::oklab(0.5, -long, 0).is_achromatic());
+    /// assert!(Color::oklab(0.5, 0, -long).is_achromatic());
+    ///
+    /// assert!(!Color::oklab(0.5, long, long).is_achromatic());
+    /// assert!(!Color::oklab(0.5, -long, long).is_achromatic());
+    /// assert!(!Color::oklab(0.5, -long, -long).is_achromatic());
+    /// assert!(!Color::oklab(0.5, long, -long).is_achromatic());
+    ///
+    /// assert!(Color::oklab(0.5, short, short).is_achromatic());
+    /// assert!(Color::oklab(0.5, -short, short).is_achromatic());
+    /// assert!(Color::oklab(0.5, -short, -short).is_achromatic());
+    /// assert!(Color::oklab(0.5, short, -short).is_achromatic());
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklab(0.5 0.01 0)"></div>
+    /// <div style="background-color: oklab(0.5 0 0.01)"></div>
+    /// <div style="background-color: oklab(0.5 -0.01 0)"></div>
+    /// <div style="background-color: oklab(0.5 0 -0.01)"></div>
+    /// <hr>
+    /// <div style="background-color: oklab(0.5 0.01 0.01)"></div>
+    /// <div style="background-color: oklab(0.5 -0.01 0.01)"></div>
+    /// <div style="background-color: oklab(0.5 -0.01 -0.01)"></div>
+    /// <div style="background-color: oklab(0.5 0.01 -0.01)"></div>
+    /// <hr>
+    /// <div style="background-color: oklab(0.5 0.007 0.007)"></div>
+    /// <div style="background-color: oklab(0.5 -0.007 0.007)"></div>
+    /// <div style="background-color: oklab(0.5 -0.007 -0.007)"></div>
+    /// <div style="background-color: oklab(0.5 0.007 -0.007)"></div>
     /// </div>
     #[inline]
-    pub fn is_gray(&self) -> bool {
-        is_achromatic(self.space, &self.coordinates, GRAY_THRESHOLD)
+    pub fn is_achromatic(&self) -> bool {
+        is_achromatic(self.space, &self.coordinates, Color::ACHROMATIC_THRESHOLD)
     }
+
+    // Meanwhile, when drawing chroma-hue diagrams with
+    // [prettypretty.plot](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py),
+    // discriminatory precision isn't particularly important. But avoiding a
+    // cluster of partially overlapping color markers *is* important. Hence
+    // that script
+
+    // ceases  we want
+    // to avoid clusters of color markers that partially overlap and thereby
+    // orm a much bigger blob. *visible* differences threshold. the script
+    // visualizing colors. The color object uses a tighter threshold of
+    // 𝒞=0.01. But as the example code below illustrates, that still allows
+    // considerable variation in coordinate values in other color spaces.
 
     // ----------------------------------------------------------------------------------------------------------------
 
@@ -465,6 +577,18 @@ impl Color {
         let [x, y, z] = self.to(ColorSpace::Xyz).coordinates;
         let sum = x + y + z;
         (x / sum, y / sum)
+    }
+
+    /// Determine the u', v' chromaticity coordinates of this color.
+    ///
+    /// This method determines the u', v' coordinates for the 1976 version of
+    /// the CIE chromaticity diagram.
+    pub fn uv_prime_chromaticity(&self) -> (Float, Float) {
+        let (x, y) = self.xy_chromaticity();
+        (
+            4.0 * x / (-2.0 * x + 12.0 * y + 3.0),
+            9.0 * y / (-2.0 * x + 12.0 * y + 3.0),
+        )
     }
 
     /// Convert this color to the target color space.

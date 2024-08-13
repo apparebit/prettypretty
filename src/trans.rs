@@ -178,7 +178,7 @@ impl GrayEntry {
     /// value is not gray.
     fn new(spec: AnsiColor, value: &Color) -> Option<GrayEntry> {
         let [lr, c, h] = *value.to(ColorSpace::Oklrch).as_ref();
-        if !spec.is_gray()
+        if !spec.is_achromatic()
             || !is_achromatic_chroma_hue(c, h, HueLightnessTable::ACHROMATIC_THRESHOLD)
         {
             return None;
@@ -209,7 +209,8 @@ impl ColorEntry {
     /// concrete color value is gray.
     fn new(spec: AnsiColor, value: &Color) -> Option<Self> {
         let [lr, c, mut h] = *value.to(ColorSpace::Oklrch).as_ref();
-        if spec.is_gray() || is_achromatic_chroma_hue(c, h, HueLightnessTable::ACHROMATIC_THRESHOLD)
+        if spec.is_achromatic()
+            || is_achromatic_chroma_hue(c, h, HueLightnessTable::ACHROMATIC_THRESHOLD)
         {
             return None;
         }
@@ -690,7 +691,7 @@ impl Translator {
     /// (0.13452 vs 0.1359) nor hue (55.6 vs 54.1) but lightness only (0.79885
     /// vs 0.54211). Depending on the use case, the theme's yellow may be an
     /// acceptable match. Otherwise the bright red probably is a better match
-    /// than a chromaless gray tone.
+    /// than the achromatic gray.
     ///
     /// ![The colors plotted on Oklab's chroma and hue plane](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/vga-colors.svg)
     ///
@@ -1127,7 +1128,7 @@ impl Translator {
     /// (0.13452 vs 0.1359) nor hue (55.6 vs 54.1) but lightness only (0.79885
     /// vs 0.54211). Depending on the use case, the theme's yellow may be an
     /// acceptable match. Otherwise the bright red probably is a better match
-    /// than a chromaless gray tone.
+    /// than the achromatic gray.
     ///
     /// ![The colors plotted on Oklab's chroma and hue plane](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/vga-colors.svg)
     ///

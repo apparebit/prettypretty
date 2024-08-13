@@ -131,8 +131,8 @@ impl AnsiColor {
         *self as u8
     }
 
-    /// Determine whether this ANSI color is gray.
-    pub fn is_gray(&self) -> bool {
+    /// Determine whether this ANSI color is achromatic.
+    pub fn is_achromatic(&self) -> bool {
         use AnsiColor::*;
         matches!(self, Black | White | BrightBlack | BrightWhite)
     }
