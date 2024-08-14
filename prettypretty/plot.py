@@ -106,6 +106,8 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 class ColorPlotter:
+    ACHROMATIC_THRESHOLD = 0.05
+
     def __init__(
         self,
         collection_name: None | str = None,
@@ -156,8 +158,8 @@ class ColorPlotter:
             print(msg)
 
     def start_adding(self) -> None:
-        self.status("                Color    L        Chroma   Hue")
-        self.status("------------------------------------------------")
+        self.status("                Color    L        Chroma   Hue    Dup")
+        self.status("-----------------------------------------------------")
 
     def add(self, name: str, color: Color, marker: str = "o") -> None:
         # Matplotlib is sRGB only
@@ -168,6 +170,9 @@ class ColorPlotter:
         lr, c, h = oklrch
         c = round(c, 14)  # Chop off one digit of precision.
 
+        # Detect duplicates
+        dup = " ✘ " if oklrch in self._colors else " - "
+
         # Update status
         light = f'{lr:.5}'
         if len(light) > 7:
@@ -176,35 +181,36 @@ class ColorPlotter:
         if len(chroma) > 7:
             chroma = f'{c:.5f}'
         hue = f'{h:.1f}'
-        self.status(f"{name:14}  {hex_color}  {light:<7}  {chroma:<7}  {hue:>5}")
-
-        # Handle grays
-        if c < 1e-9 or math.isnan(h):
-            self._grays.append(lr)
-            if self._gray_mark is None:
-                self._gray_mark = marker
-            elif marker != self._gray_mark:
-                raise ValueError(
-                    f"inconsistent markers for gray: {marker} vs {self._gray_mark}"
-                )
-            return
+        self.status(f"{name:14}  {hex_color}  {light:<7}  {chroma:<7}  {hue:>5}  {dup}")
 
         # Skip duplicates
         if oklrch in self._colors:
             self._duplicate_count += 1
             return
 
-        # Add lightness bar and chroma/hue mark
+        # Display lightness for *all* non-duplicate colors
         self._lightness.append(lr)
         self._bar_color.append(hex_color)
 
+        # Handle grays
+        if oklrch.is_achromatic_threshold(ColorPlotter.ACHROMATIC_THRESHOLD):
+            self._grays.append(lr)
+            if self._gray_mark is None:
+                self._gray_mark = marker
+            elif marker != self._gray_mark:
+                raise ValueError(
+                    f"inconsistent markers for achromatic color: {marker} vs {self._gray_mark}"
+                )
+            return
+
+        # Add hue/chroma/mark and update counts accordingly
         x, y = self.to_2d(color)
         self._xs.append(x)
         self._ys.append(y)
         self._marks.append(marker)
         self._mark_colors.append(hex_color)
-
         self._colors.add(oklrch)
+
         if marker == "o":
             self._base_count += 1
         else:
