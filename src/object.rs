@@ -407,8 +407,8 @@ impl Color {
 
     /// Determine whether this color is achromatic.
     ///
-    /// For consistent, high-quality results, this method tests wether the hue
-    /// is not-a-number or chroma is smaller than the
+    /// For consistent, high-quality results, this method tests wether hue is
+    /// not-a-number or chroma is less equal than
     /// [`ACHROMATIC_THRESHOLD`](Color::ACHROMATIC_THRESHOLD) in Oklch or
     /// Oklrch, converting this color if necessary.
     ///
@@ -425,24 +425,24 @@ impl Color {
     /// variations, achromatic colors form a thin column centered around the
     /// lightness axis. For Oklch/Oklrch, the column is circular. In other
     /// words, lightness and hue have *no* impact on whether colors are
-    /// classified as achromatic. Only chroma, up to some threshold 𝚾, makes a
-    /// difference. That nicely matches our expectations for lightness, chroma,
-    /// and hue.
+    /// classified as achromatic. Only chroma, up to and including some
+    /// threshold 𝚾, makes a difference. That nicely matches our informal
+    /// expectations for lightness, chroma, and hue.
     ///
-    /// For Oklab/Oklrab, the column has a square profile. It intersects with
-    /// the a/b axes at 𝚾 units from the lightness axis—just as the circular
-    /// column does. But whereas that distance is constant for the circular
-    /// column, the square column's corners are positioned ±𝚾 units along each
-    /// of the a/b axes, which is sqrt(𝚾²+𝚾²) = sqrt(2)⋅𝚾 = 1.41⋅𝚾 units
-    /// from the lightness axis. In other words, the variability in chroma
-    /// threshold is 1.41×.
+    /// In contrast, for Oklab/Oklrab, the column has a square profile. It
+    /// intersects with the a/b axes at 𝚾 units from the lightness axis—just as
+    /// the circular column does. But whereas that distance is constant for the
+    /// surface of the circular column, the square column's corners are
+    /// positioned ±𝚾 units along both the a/b axes from the origin. That is
+    /// sqrt(𝚾²+𝚾²) = sqrt(2)⋅𝚾 = 1.41⋅𝚾 units from the lightness axis. In
+    /// other words, the chroma threshold itself has a variability of 1.41×.
     ///
     /// # Examples
     ///
     /// The swatch below shows the Oklab colors at the four corners and the four
     /// axis intersections for a lightness of 0.6 and 𝚾=0.1 in order of
-    /// increasing hue. The 1.41× difference in chroma is not glaring but still
-    /// clearly noticeable.
+    /// increasing hue. The 1.41× difference in chroma may not be glaring, but
+    /// it *is* clearly noticeable.
     ///
     /// <div class=color-swatch>
     /// <div style="background-color: oklab(0.6 0.1 0)"></div>
@@ -456,11 +456,12 @@ impl Color {
     /// </div>
     /// <br>
     ///
-    /// Clearly, 𝚾=0.1 is a bit large when it comes to practical applications
-    /// of achromatic testing. Notably, this method uses an order-of-magnitude
-    /// smaller and hence far more precise 𝚾=0.01. Though, as illustrated by
-    /// the example below, even that threshold allows for numerically
-    /// significant divergence amongst RGB coordinates.
+    /// Clearly, 𝚾=0.1 is on the large side when it comes to practical
+    /// applications of achromatic testing. By comparison, this method uses
+    /// 𝚾=0.01, which is an order-of-magnitude smaller and hence far more
+    /// precise. Though, as illustrated by the example below, even that
+    /// threshold allows for numerically significant divergence amongst, say,
+    /// RGB coordinates.
     ///
     /// ```
     /// # use prettypretty::Color;
@@ -475,18 +476,19 @@ impl Color {
     /// </div>
     /// <br>
     ///
-    /// If you look at the above swatch carefully, you'll notice that the
-    /// difference between the two colors isn't only numerical. It also is large
+    /// If you carefully look at the above swatch, you'll notice that the
+    /// difference between the two colors isn't just numerical. It also is large
     /// enough to be visible!
     ///
-    /// Finally, the example below leverages the above analysis of achromatic
-    /// subspace geometry in Oklab/Oklch to systematically test boundary
-    /// conditions.
+    /// The next example leverages the above analysis of the geometry of the
+    /// achromatic subspaces in Oklab/Oklch to systematically test boundary
+    /// conditions. Yet again, the 1.41× difference in chroma is large enough to
+    /// be perceptible.
     ///
     /// ```
-    /// # use prettypretty::{Color, Float};
-    /// let long = Color::ACHROMATIC_THRESHOLD - Float::EPSILON;
-    /// let short = Color::ACHROMATIC_THRESHOLD / 2.0_f64.sqrt() - Float::EPSILON;
+    /// # use prettypretty::Color;
+    /// let long = Color::ACHROMATIC_THRESHOLD;
+    /// let short = Color::ACHROMATIC_THRESHOLD / 2.0_f64.sqrt();
     ///
     /// assert!(Color::oklab(0.5, long, 0).is_achromatic());
     /// assert!(Color::oklab(0.5, 0, long).is_achromatic());
@@ -524,18 +526,103 @@ impl Color {
         is_achromatic(self.space, &self.coordinates, Color::ACHROMATIC_THRESHOLD)
     }
 
-    // Meanwhile, when drawing chroma-hue diagrams with
-    // [prettypretty.plot](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py),
-    // discriminatory precision isn't particularly important. But avoiding a
-    // cluster of partially overlapping color markers *is* important. Hence
-    // that script
+    /// Determine whether this color is achromatic given the threshold.
+    ///
+    /// For consistent, high-quality results, this method tests wether hue is
+    /// not-a-number or chroma is less equal than the threshold in Oklch or
+    /// Oklrch, converting this color if necessary.
+    ///
+    /// The threshold must be non-negative, since chroma in Oklch/Oklrch is
+    /// non-negative and hence cannot possibly be less equal than a negative
+    /// threshold. Upon violation of this invariant, this method returns the
+    /// offending threshold as an error object.
+    ///
+    /// # Algorithmic Considerations
+    ///
+    /// Unlike [`is_achromatic`](Color::is_achromatic), this method accepts an
+    /// explicit threshold argument. While that does necessitate testing the
+    /// argument's sign for all invocations, it addresses a real need for
+    /// applications such as
+    /// [prettypretty.plot](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
+    /// that require consistent but coarse detection of achromatic colors. The
+    /// plot script graphs colors on the two-dimensional hue-chroma plane of
+    /// Oklab. Since that places *all* achromatic colors at the same
+    /// coordinates, the origin, the plot script uses the threshold 𝚾=0.05 so
+    /// that almost achromatic colors do not form an unsightly blob but rather
+    /// are pushed to the origin.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::Color;
+    /// assert_eq!(
+    ///     Color::oklab(0.5, 0.15, 45).is_achromatic_threshold(-0.0),
+    ///     Err(-0.0)
+    /// );
+    /// ```
+    #[cfg(not(feature = "pyffi"))]
+    #[inline]
+    pub fn is_achromatic_threshold(&self, threshold: Float) -> Result<bool, Float> {
+        if threshold.is_sign_negative() {
+            Err(threshold)
+        } else {
+            Ok(is_achromatic(self.space, &self.coordinates, threshold))
+        }
+    }
 
-    // ceases  we want
-    // to avoid clusters of color markers that partially overlap and thereby
-    // orm a much bigger blob. *visible* differences threshold. the script
-    // visualizing colors. The color object uses a tighter threshold of
-    // 𝒞=0.01. But as the example code below illustrates, that still allows
-    // considerable variation in coordinate values in other color spaces.
+    /// Determine whether this color is achromatic given the threshold.
+    ///
+    /// For consistent, high-quality results, this method tests wether hue is
+    /// not-a-number or chroma is less equal than the threshold in Oklch or
+    /// Oklrch, converting this color if necessary.
+    ///
+    /// The threshold must be non-negative, since chroma in Oklch/Oklrch is
+    /// non-negative and cannot possibly be less than a negative threshold. Upon
+    /// violation of this invariant, the method returns the offending threshold
+    /// as an error object.
+    ///
+    /// # Panics
+    ///
+    /// Since chroma in Oklch/Oklrch is non-negative and must be less than the
+    /// threshold, negative threshold values are useless. This method panics if
+    /// that is the case.
+    ///
+    /// # Algorithmic Considerations
+    ///
+    /// Unlike [`is_achromatic`](Color::is_achromatic), this method accepts an
+    /// explicit threshold argument. While that does necessitate testing the
+    /// argument's sign, it is directly useful for applications such as
+    /// [prettypretty.plot](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
+    /// that require consistent but coarse detection of achromatic colors. The
+    /// plot script graphs colors on the two-dimensional hue-chroma plane of
+    /// Oklab. Since that places *all* achromatic colors at the same coordinates,
+    /// the origin, the plot script uses the threshold 𝚾=0.05 so that almost
+    /// achromatic colors do not form an unsightly blob but rather are pushed
+    /// to the origin.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::Color;
+    /// assert_eq!(
+    ///     Color::oklab(0.5, 0.15, 45).is_achromatic_threshold(-0.0),
+    ///     Err(pyo3::exceptions::PyValueError::new_err(format!(
+    ///         "negative achromatic threshold -0.0"
+    ///     )))
+    /// );
+    /// ```
+    #[cfg(feature = "pyffi")]
+    #[inline]
+    pub fn is_achromatic_threshold(&self, threshold: Float) -> PyResult<bool> {
+        if threshold.is_sign_negative() {
+            Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "negative achromatic threshold {}",
+                threshold
+            )))
+        } else {
+            Ok(is_achromatic(self.space, &self.coordinates, threshold))
+        }
+    }
 
     // ----------------------------------------------------------------------------------------------------------------
 
