@@ -256,7 +256,7 @@ mod oklab {
             ((a.powi(2) + b.powi(2)).sqrt(), b.atan2(a).to_degrees())
         };
 
-        let h = if h < 0.0 { h + 360.0 } else { h };
+        let h = if h.is_sign_negative() { h + 360.0 } else { h };
 
         [L, C, h]
     }

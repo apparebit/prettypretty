@@ -537,19 +537,21 @@ impl Color {
     /// threshold. Upon violation of this invariant, this method returns the
     /// offending threshold as an error object.
     ///
-    /// # Algorithmic Considerations
+    /// # Algorithm
     ///
     /// Unlike [`is_achromatic`](Color::is_achromatic), this method accepts an
     /// explicit threshold argument. While that does necessitate testing the
-    /// argument's sign for all invocations, it addresses a real need for
-    /// applications such as
+    /// argument's sign on every single invocation, it also addresses a real
+    /// need for applications such as
     /// [prettypretty.plot](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
-    /// that require consistent but coarse detection of achromatic colors. The
-    /// plot script graphs colors on the two-dimensional hue-chroma plane of
-    /// Oklab. Since that places *all* achromatic colors at the same
-    /// coordinates, the origin, the plot script uses the threshold 𝚾=0.05 so
-    /// that almost achromatic colors do not form an unsightly blob but rather
-    /// are pushed to the origin.
+    /// that require consistent but coarse-grained detection of achromatic
+    /// colors. The plot script, for instance, scatter-plots colors on the
+    /// two-dimensional hue-chroma plane of the Oklab variations. Since that
+    /// would project achromatic colors to the origin and nearly achromatic
+    /// colors near the origin, the script uses a relatively high threshold,
+    /// 𝜲=0.05, to prevent a large blob of partially overlappig colors close to
+    /// the origin. Instead, close-by colors are projected to the origin, which
+    /// shows only one (average) gray.
     ///
     /// # Examples
     ///
@@ -580,28 +582,25 @@ impl Color {
     /// Oklrch, converting this color if necessary.
     ///
     /// The threshold must be non-negative, since chroma in Oklch/Oklrch is
-    /// non-negative and cannot possibly be less than a negative threshold. Upon
-    /// violation of this invariant, the method returns the offending threshold
-    /// as an error object.
+    /// non-negative and hence cannot possibly be less equal than a negative
+    /// threshold. Upon violation of this invariant, this method returns the
+    /// offending threshold as an error object.
     ///
-    /// # Panics
-    ///
-    /// Since chroma in Oklch/Oklrch is non-negative and must be less than the
-    /// threshold, negative threshold values are useless. This method panics if
-    /// that is the case.
-    ///
-    /// # Algorithmic Considerations
+    /// # Algorithm
     ///
     /// Unlike [`is_achromatic`](Color::is_achromatic), this method accepts an
     /// explicit threshold argument. While that does necessitate testing the
-    /// argument's sign, it is directly useful for applications such as
+    /// argument's sign on every single invocation, it also addresses a real
+    /// need for applications such as
     /// [prettypretty.plot](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
-    /// that require consistent but coarse detection of achromatic colors. The
-    /// plot script graphs colors on the two-dimensional hue-chroma plane of
-    /// Oklab. Since that places *all* achromatic colors at the same coordinates,
-    /// the origin, the plot script uses the threshold 𝚾=0.05 so that almost
-    /// achromatic colors do not form an unsightly blob but rather are pushed
-    /// to the origin.
+    /// that require consistent but coarse-grained detection of achromatic
+    /// colors. The plot script, for instance, scatter-plots colors on the
+    /// two-dimensional hue-chroma plane of the Oklab variations. Since that
+    /// would project achromatic colors to the origin and nearly achromatic
+    /// colors near the origin, the script uses a relatively high threshold,
+    /// 𝜲=0.05, to prevent a large blob of partially overlappig colors close to
+    /// the origin. Instead, close-by colors are projected to the origin, which
+    /// shows only one (average) gray.
     ///
     /// # Examples
     ///
