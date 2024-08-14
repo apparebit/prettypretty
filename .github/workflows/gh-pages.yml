@@ -40,7 +40,7 @@ jobs:
       run: rustup toolchain install stable
 
     - name: Build and install prettypretty as extension module
-      run: pip install '.[doc]'
+      run: pip install '.[dev]'
 
     - name: Install mdBook
       run: |

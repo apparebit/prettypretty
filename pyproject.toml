@@ -37,9 +37,9 @@ classifiers = [
     "Typing :: Typed",
 ]
 
+
 [project.optional-dependencies]
-dev = ["matplotlib", "pyright"]
-doc = [
+dev = [
     "sphinx",
     "sphinxcontrib-autoprogram",
     "sphinx-copybutton",

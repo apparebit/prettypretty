@@ -62,7 +62,7 @@ jobs:
       run: cargo test
 
     - name: Build extension module
-      run: pip install -e .
+      run: pip install -e .[dev]
 
     - name: Create symbolic links
       if: runner.os != 'Windows'
