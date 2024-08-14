@@ -295,7 +295,7 @@ class ColorPlotter:
             f3d, a3d = plt.subplots(subplot_kw={"projection": "3d"})  # type: ignore
             a3d.scatter(*all_points)
             f3d.savefig("spectrum-3d.svg")
-            plt.close(f3d)
+            plt.close(f3d) # type: ignore
             #plt.show(f3d) # type: ignore
 
         color = "#bbb" if with_pulses else "#000"
