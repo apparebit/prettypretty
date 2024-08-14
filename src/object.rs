@@ -556,10 +556,13 @@ impl Color {
     /// ```
     /// # use prettypretty::Color;
     /// assert_eq!(
-    ///     Color::oklab(0.5, 0.15, 45).is_achromatic_threshold(-0.0),
+    ///     Color::oklab(0.35, 0.11, -0.03).is_achromatic_threshold(-0.0),
     ///     Err(-0.0)
     /// );
     /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklab(0.35 0.11 -0.03)"></div>
+    /// </div>
     #[cfg(not(feature = "pyffi"))]
     #[inline]
     pub fn is_achromatic_threshold(&self, threshold: Float) -> Result<bool, Float> {
@@ -605,12 +608,15 @@ impl Color {
     /// ```
     /// # use prettypretty::Color;
     /// assert_eq!(
-    ///     Color::oklab(0.5, 0.15, 45).is_achromatic_threshold(-0.0),
+    ///     Color::oklab(0.35, 0.11, -0.03).is_achromatic_threshold(-0.0),
     ///     Err(pyo3::exceptions::PyValueError::new_err(format!(
     ///         "negative achromatic threshold -0.0"
     ///     )))
     /// );
     /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: oklab(0.35 0.11 -0.03)"></div>
+    /// </div>
     #[cfg(feature = "pyffi")]
     #[inline]
     pub fn is_achromatic_threshold(&self, threshold: Float) -> PyResult<bool> {
