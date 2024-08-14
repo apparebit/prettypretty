@@ -230,7 +230,7 @@ install() {
         run python3 -m venv .venv
     fi
 
-    if should_restart; then
+    if "${should_restart}"; then
         log WARNING "Please restart your current shell to pick up changes to PATH"
     fi
 }
