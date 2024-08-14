@@ -18,8 +18,8 @@ pub(crate) use equality::assert_same_coordinates;
 #[cfg(feature = "pyffi")]
 pub use equality::close_enough;
 pub use equality::to_eq_bits;
-pub(crate) use equality::{normalize, to_eq_coordinates};
-pub(crate) use gamut::{clip, in_gamut, is_achromatic, is_achromatic_chroma_hue, to_gamut};
+pub(crate) use equality::{is_achromatic, is_achromatic_chroma_hue, normalize, to_eq_coordinates};
+pub(crate) use gamut::{clip, in_gamut, to_gamut};
 pub use gamut::{GamutTraversal, GamutTraversalStep};
 pub(crate) use math::Accumulator;
 pub use space::ColorSpace;

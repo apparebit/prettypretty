@@ -1,33 +1,9 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use crate::core::conversion::{okxab_to_okxch, okxch_to_okxab};
+use crate::core::conversion::okxch_to_okxab;
 use crate::core::{convert, delta_e_ok, normalize};
 use crate::{Color, ColorSpace, Float};
-
-/// Determine whether the color is achromatic or gray-ish.
-///
-/// For maximally consistent results, this functions tests chroma and hue in
-/// Oklch/Oklrch. If the color is in neither color space, this function first
-/// converts the coordinates.
-pub(crate) fn is_achromatic(space: ColorSpace, coordinates: &[Float; 3], threshold: Float) -> bool {
-    let coordinates = match space {
-        ColorSpace::Oklch | ColorSpace::Oklrch => *coordinates,
-        ColorSpace::Oklrab => okxab_to_okxch(coordinates),
-        _ => convert(space, ColorSpace::Oklch, coordinates),
-    };
-
-    is_achromatic_chroma_hue(coordinates[1], coordinates[2], threshold)
-}
-
-/// Determine whether the chroma and hue are gray-ish.
-///
-/// This function treats the chroma and hue as gray-ish if either the hue is
-/// not-a-number or the chroma is smaller than the given threshold.
-#[inline]
-pub(crate) fn is_achromatic_chroma_hue(chroma: Float, hue: Float, threshold: Float) -> bool {
-    hue.is_nan() || chroma < threshold
-}
 
 /// Determine whether the coordinates are in gamut for their color space.
 pub(crate) fn in_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> bool {
