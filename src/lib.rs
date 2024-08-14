@@ -246,6 +246,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modtrans.add_class::<crate::trans::ThemeEntry>()?;
     modtrans.add_class::<crate::trans::ThemeEntryIterator>()?;
     modtrans.add_class::<crate::trans::Translator>()?;
+    modtrans.add("VGA_COLORS", crate::trans::VGA_COLORS)?;
     m.add_submodule(&modtrans)?;
 
     // Only change __name__ attribute after submodule has been added.

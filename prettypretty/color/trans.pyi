@@ -4,6 +4,9 @@ from typing import Self
 from . import Color, OkVersion, style
 
 
+VGA_COLORS: list[Color] =  ...
+
+
 class ThemeEntry_Default(ThemeEntry):
     """A theme entry for one of the default colors."""
     def __new__(cls, color: style.DefaultColor) -> Self: ...

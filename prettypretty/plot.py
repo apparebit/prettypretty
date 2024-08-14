@@ -27,7 +27,7 @@ from .color import (
     spectrum, # pyright: ignore [reportMissingModuleSource]
     trans, # pyright: ignore [reportMissingModuleSource]
 )
-from .theme import current_translator, VGA
+from .theme import current_translator
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -58,7 +58,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--vga",
         action="store_const",
-        const=VGA,
+        const=trans.VGA_COLORS,
         dest="theme",
         help="use VGA colors instead of querying terminal"
     )

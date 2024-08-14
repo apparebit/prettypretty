@@ -64,12 +64,11 @@ def test2() -> None:
     from prettypretty.color import Color, OkVersion
     from prettypretty.color.style import AnsiColor, EmbeddedRgb, Fidelity
     from prettypretty.color.style import TerminalColor, TrueColor
-    from prettypretty.color.trans import Translator
-    from prettypretty.theme import VGA
-    red = VGA[AnsiColor.BrightRed.to_8bit() + 2]
+    from prettypretty.color.trans import Translator, VGA_COLORS
+    red = VGA_COLORS[AnsiColor.BrightRed.to_8bit() + 2]
     assert red == Color.srgb(1.0, 0.333333333333333, 0.333333333333333)
     
-    translator = Translator(OkVersion.Revised, VGA)
+    translator = Translator(OkVersion.Revised, VGA_COLORS)
     also_red = translator.resolve(AnsiColor.BrightRed)
     assert red == also_red
     

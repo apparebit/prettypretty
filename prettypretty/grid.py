@@ -11,7 +11,8 @@ from .color import Color
 from .color.style import ( # pyright: ignore [reportMissingModuleSource]
     AnsiColor, EmbeddedRgb, Fidelity, Layer, TrueColor
 )
-from .theme import MACOS_TERMINAL, VGA, XTERM, current_translator
+from .color.trans import VGA_COLORS # pyright: ignore [reportMissingModuleSource]
+from .theme import current_translator
 from .terminal import Terminal
 
 
@@ -332,23 +333,9 @@ def create_parser() -> argparse.ArgumentParser:
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
-        '--macos-terminal',
-        action='store_const',
-        const=MACOS_TERMINAL,
-        dest='theme',
-        help="use the same colors as the Basic theme for macOS Terminal"
-    )
-    group.add_argument(
-        '--xterm',
-        action='store_const',
-        const=XTERM,
-        dest='theme',
-        help='use the same colors as xterm'
-    )
-    group.add_argument(
         '--vga',
         action='store_const',
-        const=VGA,
+        const=VGA_COLORS,
         dest='theme',
         help='use the same colors as VGA in text mode'
     )
