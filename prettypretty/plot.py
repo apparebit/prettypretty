@@ -147,6 +147,10 @@ class ColorPlotter:
         self._with_spectrum = False
         self._chromaticity = chromaticity
 
+        # Spectrum trace
+        self._spectrum_traversal: None | spectrum.SpectrumTraversal = None
+        self._white_point: list[float] = [math.nan, math.nan, math.nan]
+
         self._volume = volume
 
     def status(self, msg: str) -> None:
@@ -235,78 +239,50 @@ class ColorPlotter:
     def trace_spectrum(
         self,
         axes: Any,
-        with_pulses: bool = True,
-        with_illuminant: bool = False,
+        locus_only: bool = False
     ) -> None:
-        self._with_spectrum = True
+        if self._spectrum_traversal is None:
+            self._spectrum_traversal = spectrum.SpectrumTraversal(
+                spectrum.CIE_ILLUMINANT_D65, spectrum.CIE_OBSERVER_2DEG_1931
+            )
 
-        sample_count = len(spectrum.CIE_OBSERVER_2DEG_1931)
-        pulse_increment = 11
-        line_count = 44 if with_pulses else 1
-        max_width = sample_count if with_pulses else 1
+            self._white_point = self._spectrum_traversal.white_point()
 
-        markwaves = {380, 460, 480, 490, 500, 520, 540, 560, 580, 600, 700}
-        marks: dict[int, tuple[float, float]] = {}
+        points: tuple[list[float], list[float], list[float], list[str]] = [], [], [], []
+        lines2d: list[list[tuple[float, float]]] = []
+        all_colors: list[list[str]] = []
 
-        all_points: list[list[float]] = [[], [], []]
-        all_series: list[list[tuple[float, float]]] = [list() for _ in range(line_count)]
-        for index in range(sample_count):
-            total_xyz = [0.0, 0.0, 0.0]
-            series_index = 0
+        for step in self._spectrum_traversal:
+            if isinstance(step, gamut.GamutTraversalStep.MoveTo):
+                lines2d.append([])
+                all_colors.append([])
+                if locus_only and len(lines2d) > 1:
+                    break
+            c = step.color()
+            points[0].append(c[0])
+            points[1].append(c[1])
+            points[2].append(c[2])
+            points[3].append(c.to_hex_format())
+            lines2d[-1].append(self.to_2d(c))
+            all_colors[-1].append(c.to_hex_format())
 
-            wave = spectrum.CIE_OBSERVER_2DEG_1931.start() + index
+        self._spectrum_traversal = self._spectrum_traversal.restart()
 
-            for width in range(max_width):
-                xyz = spectrum.CIE_OBSERVER_2DEG_1931[index + width]
+        if not locus_only:
+            f, a = plt.subplots(subplot_kw={"projection": "3d"})  # type: ignore
+            a.scatter(points[0], points[1], points[2], c=points[3])  # type: ignore
+            f.show()
+            #f.savefig("spectrum-3d.svg") # type: ignore
+            #plt.close(f) # type: ignore
 
-                if with_illuminant:
-                    d65 = spectrum.CIE_ILLUMINANT_D65[index + width]
-                    for c in range(3):
-                        total_xyz[c] += d65 * xyz[c]
-                else:
-                    for c in range(3):
-                        total_xyz[c] += xyz[c]
-
-                emit_point = width % pulse_increment == 0 or width == sample_count - 1
-                emit_mark = self._chromaticity and not with_pulses and wave in markwaves
-                if emit_point or emit_mark:
-                    luminance = spectrum.CIE_OBSERVER_2DEG_1931.weight()
-                    coordinates = [
-                        total_xyz[0] / luminance,
-                        total_xyz[1] / luminance,
-                        total_xyz[2] / luminance,
-                    ]
-                    two_dee = self.to_2d(Color(ColorSpace.Xyz, coordinates))
-
-                    if emit_point:
-                        all_points[0].append(coordinates[0])
-                        all_points[1].append(coordinates[1])
-                        all_points[2].append(coordinates[2])
-
-                        all_series[series_index].append(two_dee)
-                        series_index += 1
-
-                    if emit_mark:
-                        marks[wave] = two_dee
-
-        if with_pulses:
-            f3d: Any
-            a3d: Any
-            f3d, a3d = plt.subplots(subplot_kw={"projection": "3d"})  # type: ignore
-            a3d.scatter(*all_points)
-            f3d.savefig("spectrum-3d.svg")
-            plt.close(f3d) # type: ignore
-            #plt.show(f3d) # type: ignore
-
-        color = "#bbb" if with_pulses else "#000"
-        width = 1.0 if with_pulses else 2.0
-        for series in all_series:
-            self.add_line(axes, series, color = color, width = width)
-
-        if marks:
-            xs = [x for x, _ in marks.values()]
-            ys = [y for _, y in marks.values()]
-            axes.scatter(xs, ys, c="#f00")
+        for line, colors in zip(lines2d, all_colors):
+            self.detail(f"Drawing spectral line with {len(line)} points")
+            self.add_line(
+                axes,
+                line,
+                color=colors, #'#000' if locus_only else '#ccc',
+                width=2 if locus_only else 0.8,
+            )
 
     def trace_gamut(self, space: ColorSpace, axes: Any) -> None:
         """Trace the boundary of the gamut for the given color space."""
@@ -415,7 +391,7 @@ class ColorPlotter:
         collection_name: None | str = None,
         color_kind: None | str = None,
         gamuts: None | list[ColorSpace] = None,
-        spectrum: bool = False,
+        with_spectrum: bool = False,
         with_illuminant: bool = False,
     ) -> Any:
         if self._chromaticity:
@@ -428,10 +404,20 @@ class ColorPlotter:
             light_axes: Any = fig.add_subplot(6, 10, (52, 59))
 
         # Add spectrum and gamut boundaries if so requested.
-        if spectrum:
-            self.trace_spectrum(axes, with_illuminant=with_illuminant)
+        # if with_spectrum or self._chromaticity:
+        #     self.premultiply(spectrum.CIE_OBSERVER_2DEG_1931, spectrum.CIE_ILLUMINANT_D65)
+        if with_spectrum:
+            self.trace_spectrum(axes)
         if self._chromaticity:
-            self.trace_spectrum(axes, with_pulses=False)
+            self.trace_spectrum(axes, locus_only=True)
+
+            # Add white point
+            c = Color(ColorSpace.Xyz, self._white_point)
+            x, y = self.to_2d(c)
+            self._xs.append(x)
+            self._ys.append(y)
+            self._marks.append("*")
+            self._mark_colors.append(c.to_hex_format())
 
         gamuts = gamuts or []
         for space in gamuts:
@@ -442,7 +428,12 @@ class ColorPlotter:
         for x, y, color, marker in zip(
             self._xs, self._ys, self._mark_colors, self._marks
         ):
-            size = 80 if marker == "o" else 60
+            if marker == "o":
+                size = 80
+            elif marker == "*":
+                size = 120
+            else:
+                size = 60
             axes.scatter(
                 [x],
                 [y],
@@ -635,7 +626,7 @@ def main() -> None:
         collection_name=collection_name,
         color_kind=color_kind,
         gamuts=gamuts,
-        spectrum=options.spectrum,
+        with_spectrum=options.spectrum,
         with_illuminant=options.illuminant,
     )
     plotter.status(f"Saving plot to `{file_name}`")

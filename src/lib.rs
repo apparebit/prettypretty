@@ -205,7 +205,6 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // --------------------------------------------------------------- color.spectrum
     let modspectrum = PyModule::new_bound(m.py(), "spectrum")?;
     modspectrum.add("__package__", &modcolor_name)?;
-    modspectrum.add_function(wrap_pyfunction!(crate::spectrum::sum_luminance, m)?)?;
     modspectrum.add("CIE_ILLUMINANT_D65", crate::spectrum::CIE_ILLUMINANT_D65)?;
     modspectrum.add(
         "CIE_OBSERVER_2DEG_1931",
@@ -216,9 +215,8 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
         crate::spectrum::CIE_OBSERVER_2DEG_2015,
     )?;
     modspectrum.add_class::<crate::spectrum::Illuminant>()?;
-    modspectrum.add_class::<crate::spectrum::IlluminantIter>()?;
     modspectrum.add_class::<crate::spectrum::Observer>()?;
-    modspectrum.add_class::<crate::spectrum::ObserverIter>()?;
+    modspectrum.add_class::<crate::spectrum::SpectrumTraversal>()?;
     m.add_submodule(&modspectrum)?;
 
     // Only change __name__ attribute after submodule has been added.
