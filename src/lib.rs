@@ -37,9 +37,9 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     conversion between color spaces, interpolation between colors,
 //!     calculation of perceptual contrast, as well as gamut testing, clipping,
 //!     and mapping.
-//!   * The [`style`] module models **terminal colors**. Notably, the
-//!     [`TerminalColor`](crate::style::TerminalColor) enum combines, in order
-//!     from lowest to highest resolution,
+//!   * The [`style`] module models **terminal colors** and other stylistic text
+//!     attributes. Notably, the [`TerminalColor`](crate::style::TerminalColor)
+//!     enum combines, in order from lowest to highest resolution,
 //!     [`DefaultColor`](crate::style::DefaultColor),
 //!     [`AnsiColor`](crate::style::AnsiColor),
 //!     [`EmbeddedRgb`](crate::style::EmbeddedRgb),
@@ -50,7 +50,10 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     [`TerminalColor`](crate::style::TerminalColor) instances as well as raw
 //!     24-bit (`[u8; 3]`), 24-bit color objects
 //!     ([`TrueColor`](crate::style::TrueColor)), and high-resolution colors
-//!     ([`Color`]).
+//!     ([`Color`]). [`Format`](crate::style::Format) captures other stylistic
+//!     attributes, [`Style`](crate::style::Style) is the enumeration of all
+//!     style options, and [`RichText`](crate:style::RichText) combines styles
+//!     with text.
 //!   * The [`trans`] module implements more **complicated color conversions**.
 //!     Notably, [`Translation`](crate::trans::Translator) handles conversion
 //!     between ANSI/8-bit colors and high-resolution colors. It includes
@@ -229,8 +232,11 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modstyle.add_class::<crate::style::DefaultColor>()?;
     modstyle.add_class::<crate::style::EmbeddedRgb>()?;
     modstyle.add_class::<crate::style::Fidelity>()?;
+    modstyle.add_class::<crate::style::Format>()?;
     modstyle.add_class::<crate::style::GrayGradient>()?;
     modstyle.add_class::<crate::style::Layer>()?;
+    modstyle.add_class::<crate::style::RichText>()?;
+    modstyle.add_class::<crate::style::Style>()?;
     modstyle.add_class::<crate::style::TerminalColor>()?;
     modstyle.add_class::<crate::style::TrueColor>()?;
     m.add_submodule(&modstyle)?;
