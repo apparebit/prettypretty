@@ -2,11 +2,8 @@
 use pyo3::prelude::*;
 
 use super::ColorSpace;
-use crate::core::{conversion::okxab_to_okxch, convert};
+use crate::core::{conversion::okxab_to_okxch, convert, FloatExt};
 use crate::{Bits, Float};
-
-/// The loss of precision.
-const DELTA_EQ_PRECISION: i32 = 3;
 
 /// Test macro for asserting that two floating point numbers can be considered
 /// equal. <span class=rust-only></span>
@@ -148,7 +145,7 @@ pub(crate) fn to_eq_coordinates(space: ColorSpace, coordinates: &[Float; 3]) -> 
     }
 
     // Reduce precision.
-    let factor = (10.0 as Float).powi(Float::DIGITS as i32 - DELTA_EQ_PRECISION);
+    let factor = <Float as FloatExt>::ROUNDING_FACTOR;
     c1 = (c1 * factor).round();
     c2 = (c2 * factor).round();
     c3 = (c3 * factor).round();
@@ -197,8 +194,7 @@ pub fn to_eq_bits(f: Float) -> Bits {
     let mut f = if f.is_nan() { 0.0 } else { f };
 
     // Reduce precision.
-    let multiplier = (10.0 as Float).powi(Float::DIGITS as i32 - DELTA_EQ_PRECISION);
-    f = (multiplier * f).round();
+    f = (<Float as FloatExt>::ROUNDING_FACTOR * f).round();
 
     // Too much negativity!
     if f == -0.0 {

@@ -21,6 +21,6 @@ pub use equality::to_eq_bits;
 pub(crate) use equality::{is_achromatic, is_achromatic_chroma_hue, normalize, to_eq_coordinates};
 pub(crate) use gamut::{clip, in_gamut, to_gamut};
 pub use gamut::{GamutTraversal, GamutTraversalStep};
-pub(crate) use math::Accumulator;
+pub(crate) use math::{Accumulator, FloatExt};
 pub use space::ColorSpace;
 pub(crate) use string::{format, parse};

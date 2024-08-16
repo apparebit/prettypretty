@@ -1,5 +1,17 @@
 use crate::Float;
 
+pub(crate) trait FloatExt {
+    const ROUNDING_FACTOR: Self;
+}
+
+impl FloatExt for f64 {
+    const ROUNDING_FACTOR: f64 = 1e12;
+}
+
+impl FloatExt for f32 {
+    const ROUNDING_FACTOR: f32 = 1e4;
+}
+
 /// A floating point accumulator.
 ///
 /// Unlike plain summation with the `+` operator, this struct minimizes the
@@ -12,7 +24,7 @@ pub(crate) struct Accumulator {
 }
 
 impl Accumulator {
-    pub fn sum(&self) -> Float {
+    pub fn total(&self) -> Float {
         self.sum + self.compensation
     }
 }
@@ -41,24 +53,14 @@ impl std::ops::AddAssign<Float> for Accumulator {
 
 impl From<Accumulator> for Float {
     fn from(value: Accumulator) -> Self {
-        value.sum + value.compensation
+        value.total()
     }
 }
 
-impl std::convert::From<&Accumulator> for Float {
+impl From<&Accumulator> for Float {
     fn from(value: &Accumulator) -> Self {
-        value.sum + value.compensation
+        value.total()
     }
-}
-
-/// Sum up the values yielded by the iterator.
-#[allow(dead_code)]
-pub(crate) fn sum(values: impl IntoIterator<Item = Float>) -> Float {
-    let mut accum = Accumulator::default();
-    for value in values {
-        accum += value;
-    }
-    accum.sum()
 }
 
 #[cfg(test)]
@@ -72,7 +74,7 @@ mod test {
         accum += 10e100;
         accum += 1.0;
         accum += -10e100;
-        assert_eq!(accum.sum(), 2.0);
+        assert_eq!(accum.total(), 2.0);
         assert_eq!(1.0 + 10e100 + 1.0 - 10e100, 0.0);
     }
 }
