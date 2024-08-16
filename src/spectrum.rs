@@ -186,6 +186,10 @@ impl SpectrumTraversalData {
 }
 
 /// An iterator over the visible spectrum.
+///
+/// The first line is guaranteed to be the spectrum locus. Independent of the
+/// currently configured step size, this iterator always uses one-nanometer
+/// resolution for the spectrum locus.
 #[cfg_attr(feature = "pyffi", pyclass)]
 #[derive(Debug)]
 pub struct SpectrumTraversal {
@@ -221,6 +225,29 @@ impl SpectrumTraversal {
             position: 0,
             width: 0,
         }
+    }
+
+    /// Determine the current step sizes.
+    ///
+    /// This iterator actually uses two distinct step sizes, even though they
+    /// currently cannot be updated independently. The first step size controls
+    /// the stride of starting positions for pulses. The second step size
+    /// controls the stride of pulse widths. Starting positions range from 0 to
+    /// the number of samples. Pulse widths range form 1 to the number of
+    /// samples.
+    pub fn step_sizes(&self) -> (usize, usize) {
+        (self.position_incr, self.width_incr)
+    }
+
+    /// Update the step size for this traversal.
+    ///
+    /// The given step size is used for selecting the initial position of pulses
+    /// as well as the width of pulses. The current default is 5. Though the
+    /// traversal always uses 1 for the first line only, which is the spectrum
+    /// locus.
+    pub fn set_step_sizes(&mut self, step_size: std::num::NonZeroUsize) {
+        self.position_incr = step_size.get();
+        self.width_incr = step_size.get();
     }
 
     /// Determine the white point for the spectrum traversal's illuminant and
