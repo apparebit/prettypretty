@@ -11,12 +11,15 @@
 [`EmbeddedRgb`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.EmbeddedRgb.html
 [`Fidelity`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Fidelity.html
 [`Float`]: https://apparebit.github.io/prettypretty/prettypretty/type.Float.html
+[`Format`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.Format.html
 [`GrayGradient`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.GrayGradient.html
 [`HueInterpolation`]: https://apparebit.github.io/prettypretty/prettypretty/enum.HueInterpolation.html
 [`Interpolator`]: https://apparebit.github.io/prettypretty/prettypretty/struct.Interpolator.html
 [`Layer`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Layer.html
 [`OkVersion`]: https://apparebit.github.io/prettypretty/prettypretty/enum.OkVersion.html
 [`OutOfBoundsError`]: https://apparebit.github.io/prettypretty/prettypretty/error/struct.OutOfBoundsError.html
+[`RichText`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.RichText.html
+[`Style`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Style.html
 [`TerminalColor`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.TerminalColor.html
 [`ThemeEntry`]: https://apparebit.github.io/prettypretty/prettypretty/trans/enum.ThemeEntry.html
 [`ThemeEntryIterator`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.ThemeEntryIterator.html
