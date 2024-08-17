@@ -503,6 +503,8 @@ class ColorPlotter:
                 self._lightness,
                 color=self._bar_color,
                 zorder=5,
+                edgecolor="#000",
+                linewidth=0.5,
             )
             light_axes.set_ylim(0, 1)
             light_axes.get_xaxis().set_visible(False)
