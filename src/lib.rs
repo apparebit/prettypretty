@@ -50,10 +50,10 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     [`TerminalColor`](crate::style::TerminalColor) instances as well as raw
 //!     24-bit (`[u8; 3]`), 24-bit color objects
 //!     ([`TrueColor`](crate::style::TrueColor)), and high-resolution colors
-//!     ([`Color`]). [`Format`](crate::style::Format) captures other stylistic
-//!     attributes, [`Style`](crate::style::Style) is the enumeration of all
-//!     style options, and [`RichText`](crate:style::RichText) combines styles
-//!     with text.
+//!     ([`Color`]). Additionally, [`Format`](crate::style::Format) captures
+//!     other stylistic attributes, [`Style`](crate::style::Style) is the
+//!     enumeration of all style options, and
+//!     [`RichText`](crate::style::RichText) combines styles with text.
 //!   * The [`trans`] module implements more **complicated color conversions**.
 //!     Notably, [`Translation`](crate::trans::Translator) handles conversion
 //!     between ANSI/8-bit colors and high-resolution colors. It includes

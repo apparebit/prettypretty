@@ -10,6 +10,7 @@
 \]
 
 🎖️ As featured on [Real Python #211](https://realpython.com/podcasts/rpp/211/)
+🎖️ Inspired [iTerm2's color preferences](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/iterm2-color-preferences.jpg)
 
 Prettypretty is a Rust library with optional Python integration that brings
 2020s color science to 1970s terminals for building awesome terminal user
@@ -98,6 +99,15 @@ starting point for familiarizing yourself with prettypretty are the scripts:
     <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/rgb6-background.png"
          alt="a grid visualizing the 6x6x6 embedded RGB cube" width=300px>
 
+  * [prettypretty.cloud](https://github.com/apparebit/prettypretty/blob/main/prettypretty/cloud.py)
+    traces the gamut for *visible* light by generating a point cloud of the
+    surface and saving it in [PLY
+    format](https://en.wikipedia.org/wiki/PLY_(file_format)). The screenshot
+    below shows the result displayed by the [F3D](https://f3d.app) viewer.
+
+    <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/visible-spectrum.jpg"
+         alt="a 3D visualization of the gamut for visible light,
+              somewhat shaped like a fat, squat hot pocket" width=300px>
 
 ## Developing Prettypretty
 

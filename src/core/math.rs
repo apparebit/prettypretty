@@ -1,6 +1,16 @@
 use crate::Float;
 
+/// An extension trait for floating point numbers.
+///
+/// For now, this trait exists solely to pre-compute the rounding factor for
+/// equality comparisons, which depends on the floating point representation.
 pub(crate) trait FloatExt {
+    /// The factor determining rounding precision.
+    ///
+    /// When limiting a floating point number's precision, the number is
+    /// multiplied by some factor, rounded, and divided by the same factor
+    /// again. Typically, that factor is a power of ten, which directly
+    /// translates into significant digits after the decimal.
     const ROUNDING_FACTOR: Self;
 }
 
@@ -11,6 +21,8 @@ impl FloatExt for f64 {
 impl FloatExt for f32 {
     const ROUNDING_FACTOR: f32 = 1e4;
 }
+
+// ----------------------------------------------------------------------------------------------------------
 
 /// A floating point accumulator.
 ///
@@ -24,6 +36,7 @@ pub(crate) struct Accumulator {
 }
 
 impl Accumulator {
+    #[inline]
     pub fn total(&self) -> Float {
         self.sum + self.compensation
     }
@@ -32,6 +45,14 @@ impl Accumulator {
 impl std::ops::Add<Float> for Accumulator {
     type Output = Accumulator;
 
+    /// Accumulate the given number.
+    ///
+    /// This method adds the given number to the accumulator's running sum and
+    /// then, somewhat unusually, returns the accumulator. In other words, it
+    /// moves the accumulator into the method upon invocation and out of the
+    /// method on completion, thus ensuring that the accumulator remains
+    /// available for continued use. See `AddAssign` for the mutably borrowed
+    /// version.
     fn add(self, rhs: Float) -> Self::Output {
         let mut lhs = self;
         lhs += rhs;
@@ -48,18 +69,6 @@ impl std::ops::AddAssign<Float> for Accumulator {
             self.compensation += (rhs - t) + self.sum;
         }
         self.sum = t;
-    }
-}
-
-impl From<Accumulator> for Float {
-    fn from(value: Accumulator) -> Self {
-        value.total()
-    }
-}
-
-impl From<&Accumulator> for Float {
-    fn from(value: &Accumulator) -> Self {
-        value.total()
     }
 }
 

@@ -12,6 +12,10 @@
 //! Where possible, `From` and `TryFrom` trait implementations convert between
 //! different terminal color abstractions. More complicated conversions are
 //! implemented by the [`trans`](crate::trans) module.
+//!
+//! Additionally, this module defines [`Format`] for representing text styles
+//! beyond colors, [`Style`] to unify *all* stylistic abstractions, and
+//! [`RichText`] to combine styles with text.
 
 mod color;
 mod context;
