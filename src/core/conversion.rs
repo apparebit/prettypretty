@@ -67,7 +67,7 @@ fn linear_rgb_to_rgb(value: &[Float; 3]) -> [Float; 3] {
         if magnitude <= 0.00313098 {
             value * 12.92
         } else {
-            (magnitude.powf(1.0 / 2.4) * 1.055 - 0.055).copysign(value)
+            magnitude.powf(1.0 / 2.4).mul_add(1.055, -0.055).copysign(value)
         }
     }
 
