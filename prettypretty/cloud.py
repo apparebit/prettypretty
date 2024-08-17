@@ -1,5 +1,6 @@
 import argparse
 import io
+import math
 from typing import Self
 
 from prettypretty.color import Color, ColorSpace
@@ -20,8 +21,58 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="plot gamut boundary in 2D",
     )
+    parser.add_argument(
+        "--step", "-s",
+        help="use given step size (in integral nanometers)"
+    )
 
     return parser
+
+
+class Sampler:
+    def __init__(self) -> None:
+        impossible = Color(ColorSpace.Oklrch, [1.0, math.inf, 0.0])
+        black = Color(ColorSpace.Oklrch, [0.0, 0.0, 0.0])
+        self.minima = [impossible] * 8
+        self.maxima = [black] * 8
+        self.achromatic = 0
+        self.chromatic = 0
+
+    def sample(self, color: Color) -> None:
+        color = color.to(ColorSpace.Oklrch)
+        if color.is_achromatic():
+            self.achromatic += 1
+            return
+
+        self.chromatic += 1
+        _, chroma, hue = color
+        index = int(hue // 45)
+        if chroma < self.minima[index][1]:
+            self.minima[index] = color
+        elif chroma > self.maxima[index][1]:
+            self.maxima[index] = color
+
+    def __str__(self) -> str:
+        lines: list[str] = []
+
+        lines.append("Hue bin   Lr      Min C   h      Lr      Max C   h")
+        lines.append("------------------------------------------------------")
+
+        for index in range(8):
+            mini = self.minima[index]
+            maxi = self.maxima[index]
+
+            lines.append(
+                f"{index * 45:3}-{(index+1) * 45:3}º  "
+                f"{mini[0]:.5f} {mini[1]:.5f} {mini[2]:5.1f}  "
+                f"{maxi[0]:.5f} {maxi[1]:.5f} {maxi[2]:5.1f}"
+            )
+
+        lines.append("")
+        lines.append(
+            f"(Based on {self.chromatic:,} samples, "
+            f"ignoring {self.achromatic:,} achromatic colors.)")
+        return "\n".join(lines)
 
 
 class PointManager:
@@ -86,9 +137,11 @@ def render(
     segment_size: int = 50,
     gamut: None | ColorSpace = None,
     planar: bool = False,
+    sampler: None | Sampler = None,
+    step_size: int = 2,
 ) -> None:
     traversal = SpectrumTraversal(CIE_ILLUMINANT_D65, CIE_OBSERVER_2DEG_1931)
-    traversal.set_step_sizes(2)
+    traversal.set_step_sizes(step_size)
 
     points = PointManager()
     for step in traversal:
@@ -96,6 +149,8 @@ def render(
             points.mark_newline()
 
         color = step.color()
+        if sampler:
+            sampler.sample(color)
         if space.is_ok():
             points.add(color.to(ColorSpace.Oklrab))
         else:
@@ -116,9 +171,9 @@ def render(
                 gamut_points.add(color.to(ColorSpace.Xyz))
 
     if space.is_ok():
-        filename = "ok.ply"
+        filename = "cloud-ok.ply"
     else:
-        filename = "xyz.ply"
+        filename = "cloud-xyz.ply"
 
     with open(filename, mode="w", encoding="utf8") as file:
         file.write("ply\n")
@@ -150,5 +205,28 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"{name} is not a valid gamut name")
 
-    render(ColorSpace.Xyz, gamut=gamut, planar=options.planar)
-    render(ColorSpace.Oklrab, gamut=gamut, planar=options.planar)
+    step_size = 2
+    if options.step:
+        step_size = int(options.step)
+    if step_size <= 0:
+        raise ValueError(f"{step_size} is not a valid step size")
+
+    sampler = Sampler()
+
+    render(
+        ColorSpace.Xyz,
+        gamut=gamut,
+        planar=options.planar,
+        step_size=step_size
+    )
+    render(
+        ColorSpace.Oklrab,
+        gamut=gamut,
+        planar=options.planar,
+        sampler=sampler,
+        step_size=step_size
+    )
+
+    print("Shape of visible gamut (sampled on chroma/hue plane):\n")
+    print(sampler)
+
