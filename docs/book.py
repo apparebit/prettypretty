@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath("."))
 
 
 def test0() -> None:
-    # overview/2020s.md:141
+    print('Testing file "docs/src/overview/2020s.md", line 141, chapter "2020s High-Resolution Colors"')
     from prettypretty.color import Color, ColorSpace
     oklch = Color.oklch(0.716, 0.349, 335.0)
     p3 = oklch.to(ColorSpace.DisplayP3)
@@ -23,7 +23,7 @@ def test0() -> None:
 
 
 def test1() -> None:
-    # overview/1970s.md:377
+    print('Testing file "docs/src/overview/1970s.md", line 377, chapter "1970s Terminal Colors"')
     from prettypretty.color import Color
     from prettypretty.color.style import AnsiColor, EmbeddedRgb, GrayGradient, TerminalColor
     from prettypretty.color.style import TrueColor
@@ -60,7 +60,7 @@ def test1() -> None:
 
 
 def test2() -> None:
-    # overview/integration.md:211
+    print('Testing file "docs/src/overview/integration.md", line 211, chapter "Accommodating All Colors"')
     from prettypretty.color import Color, OkVersion
     from prettypretty.color.style import AnsiColor, EmbeddedRgb, Fidelity
     from prettypretty.color.style import TerminalColor, TrueColor

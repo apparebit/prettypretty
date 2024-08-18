@@ -9,6 +9,10 @@ import textwrap
 from typing import Any
 
 
+DOCS_DIR = Path(__file__).parent
+ROOT_DIR = DOCS_DIR.parent
+SRC_DIR = DOCS_DIR / "src"
+
 PYTHON_BLOCK = re.compile(r"(?:^|\n)```py(?:thon)?\n([^`]*)```")
 PYTHON_HIDDEN_LINE = re.compile("(?:^|\n)~")
 
@@ -28,9 +32,10 @@ def collect(items: list[Any]) -> list[str]:
         if content is None:
             return
 
-        source_path = chapter.get("source_path")
-        if source_path is None:
-            source_path = ""
+        name = chapter.get("name", "")
+        source_path = chapter.get("source_path", "")
+        if source_path:
+            source_path = (SRC_DIR / source_path).relative_to(ROOT_DIR)
 
         previous_end = 0
         lines_so_far = 0
@@ -39,7 +44,11 @@ def collect(items: list[Any]) -> list[str]:
             start_line = lines_so_far + content.count("\n", previous_end, block.start(1))
             text = block.group(1)
 
-            blocks.append(f"# {source_path}:{start_line}\n{text}")
+            blocks.append(
+                f"print('Testing file \"{source_path}\", line {start_line}, chapter "
+                f"\"{name}\"')\n"
+                f"{text}"
+            )
 
             previous_end = block.end()
             lines_so_far = start_line + text.count("\n")
@@ -64,7 +73,7 @@ def main() -> None:
     _, book = json.load(sys.stdin)
     blocks = collect(book.get("sections", []))
 
-    with open(Path(__file__).parent / "book.py", mode="w", encoding="utf8") as file:
+    with open(DOCS_DIR / "book.py", mode="w", encoding="utf8") as file:
         file.write(textwrap.dedent(
             """\
             # This script is automatically generated from markdown sources.
