@@ -253,12 +253,16 @@ mod oklab {
     #[allow(non_snake_case)]
     pub(crate) fn okxab_to_okxch(value: &[Float; 3]) -> [Float; 3] {
         let [L, a, b] = *value;
-        let (C, h) = if a.abs() < EPSILON && b.abs() < EPSILON {
-            (0.0, Float::NAN)
-        } else {
-            ((a.powi(2) + b.powi(2)).sqrt(), b.atan2(a).to_degrees())
-        };
 
+        let a_m = a.abs();
+        if a_m < EPSILON && b.abs() < EPSILON {
+            return [L, 0.0, Float::NAN];
+        }
+
+        // per herbie 2.1
+        let C = if a_m < b { b.hypot(a_m) } else { a_m.hypot(b) };
+
+        let h = b.atan2(a).to_degrees();
         let h = if h.is_sign_negative() { h + 360.0 } else { h };
 
         [L, C, h]
@@ -275,9 +279,9 @@ mod oklab {
     #[inline]
     pub(super) fn oklxx_to_oklrxx(value: &[Float; 3]) -> [Float; 3] {
         let [l, a, b] = *value;
-        let k3l = K3 * l;
+        let k3lk1 = K3.mul_add(l, -K1);
         [
-            0.5 * (k3l - K1 + ((k3l - K1) * (k3l - K1) + 4.0 * K2 * k3l).sqrt()),
+            0.5 * (k3lk1 + k3lk1.mul_add(k3lk1, 4.0 * K2 * K3 * l).sqrt()),
             a,
             b,
         ]
@@ -712,5 +716,29 @@ mod test {
             let oklch_too = oklrxx_to_oklxx(&oklrch);
             assert_same_coordinates!(Oklch, &oklch_too, &color.oklch);
         }
+    }
+
+    #[test]
+    fn test_oklrxx() {
+        // Based on https://github.com/color-js/color.js/pull/511
+        assert_same_coordinates!(
+            Oklrab,
+            &convert(Srgb, Oklrab, &[1.0, 0.0, 0.0]),
+            &[0.5680846563197034, 0.2248630684262744, 0.125846277330585]
+        );
+        assert_same_coordinates!(
+            Oklrab,
+            &convert(Srgb, Oklrab, &[0.0, 1.0, 0.0]),
+            &[0.8445289714936317, -0.23388758093655815, 0.1794984451609376]
+        );
+        assert_same_coordinates!(
+            Oklrab,
+            &convert(Srgb, Oklrab, &[0.0, 0.0, 1.0]),
+            &[
+                0.3665653391870817,
+                -0.03245697517079771,
+                -0.3115281656775778
+            ]
+        );
     }
 }
