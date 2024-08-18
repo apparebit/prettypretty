@@ -1,11 +1,27 @@
 # Installation
 
-Before covering the incantations necessary for actually installing prettypretty,
-we do need to cover the requirements. That includes the necessary tools as well
-as the minimum supported versions.
+One of the challenges of bilingual software is the barrier to entry posed by
+tooling. Projects such as prettypretty typically require working toolchains for
+both programming languages and for bridging the foreign-function interface on
+top. Prettypretty's [runner
+script](https://github.com/apparebit/prettypretty/blob/main/rr.sh), also called
+**r²**, tries to automate that barrier away. After downloading the script or
+cloning the repository, just create a fresh directory and execute:
+
+```sh
+$ ./rr.sh install
+```
+
+The script updates all local packages, installs any missing packages including
+Rust and Python, and creates a virtual environment in the current directory.
+Alas, it currently **only works on Linux or macOS with the APT or Homebrew
+package manager**.
+
+If that doesn't hold for your computer or you prefer to be more hands-on, keep
+on reading for detailed instructions.
 
 
-## Requirements
+## Requirements: Rust and/or Python
 
 Independent of whether you want to use prettypretty from Rust or Python, you'll
 need a **working Rust toolchain** to build the library or extension module from
@@ -31,7 +47,7 @@ I expect that, as the project matures, the version lag between minimum and
 latest versions will grow, as it should.
 
 
-## Feature Flags
+## Rust Feature Flags
 
 Prettypretty has two feature flags:
 
@@ -51,10 +67,11 @@ as <span class=python-only></span> and Rust-only methods as <span
 class=rust-only></span>.
 
 
-## Installation
+## Installing the Prettypretty Package
 
-With Rust installed or updated, you are ready to go and can use your favorite
-package manager for installing prettypretty. For Rust, that is `cargo`:
+Once you have Rust and/or Python installed or updated, you are ready to go and
+can use your favorite package manager for installing prettypretty. For Rust,
+that is `cargo`:
 
 ```sh
 $ cargo install prettypretty
@@ -82,7 +99,7 @@ falls into the "whatever else strikes your fancy" category and it doesn't
 install or run `maturin`, please fall back on `uv` or `pip`.
 
 
-## prettypretty.plot
+## Running prettypretty.plot
 
 Prettypretty's plot script visualizes colors by plotting their chroma/hue on the
 corresponding plane of the Oklrch color space (i.e., the [revised, cylindrical
@@ -96,7 +113,7 @@ $ uv pip install matplotlib
 ```
 
 
-## Documentation
+## Building the Documentation
 
 As a bilingual library, prettypretty's documentation also needs to be bilingual
 and hence requires additional tools to build. Notably, in addition to the
@@ -122,7 +139,7 @@ $ uv pip install --extra doc prettypretty
 ```
 
 
-## Build Script
+## Automating Everything with r²
 
 Outside of continuous integration, it's up to the developer to correctly invoke
 the various tools with the appropriate options. In case of prettypretty, that's
@@ -133,16 +150,17 @@ twice, once without the `pyffi` feature flag and once with it. However,
 documentation is always generated with `pyffi` enabled. And the Rust tests are
 always run with `pyffi` disabled.
 
-If that sounds like too much too remember, I agree. Hence prettypretty's
-repository includes `rr.sh` (for RunneR), a simple script to:
+If that sounds like too much too remember, I agree. Hence prettypretty's runner
+script [**r²**](https://github.com/apparebit/prettypretty/blob/main/rr.sh)
+orchestrates building and testing, too:
 
   * `check` the sources;
   * `build` the sources;
-  * build the `docs`;
-  * do `all` of the above.
+  * build the `doc`umentation;
+  * do `all` of the above (but not `install`).
 
-The highlighted word also is the (only) argument to `rr.sh` for executing the
-described job.
+The highlighted word also is the (only) argument to **r²** for executing the
+described job. If you omit it, **r²** builds prettypretty.
 
 
 {{#include links.md}}
