@@ -4,8 +4,10 @@ import math
 from typing import Self
 
 from prettypretty.color import Color, ColorSpace
-from prettypretty.color.gamut import GamutTraversalStep
-from prettypretty.color.spectrum import (
+from prettypretty.color.gamut import ( # pyright: ignore [reportMissingModuleSource]
+    GamutTraversalStep
+)
+from prettypretty.color.spectrum import ( # pyright: ignore [reportMissingModuleSource]
     CIE_ILLUMINANT_D65, CIE_OBSERVER_2DEG_1931, SpectrumTraversal
 )
 
