@@ -68,18 +68,6 @@ EOF
     exit 0
 }
 
-# >&2 printf "%s\n" "${BOLD}$(basename "$0") [install|build|check|docs|all|help]${NOBOLD}"
-# >&2 printf "\n"
-# >&2 printf "%s\n" "${BOLD}install${NOBOLD} : Install or update required tools using apt or brew."
-# >&2 printf "%s\n" "${BOLD}build${NOBOLD}   : Build and locally install the Python extenion module."
-# >&2 printf "%s\n" "${BOLD}check${NOBOLD}   : Check that the source code is well-formatted,"
-# >&2 printf "%s\n" "          free of lint, and altogether in good shape."
-# >&2 printf "%s\n" "${BOLD}docs${NOBOLD}    : Build the user guide, the Rust API documentation,"
-# >&2 printf "%s\n" "          and the Python API documentation in ${UNDERLINE}target/doc${NOLINE} dir."
-# >&2 printf "%s\n" "${BOLD}all${NOBOLD}     : Perform build, check, and docs tasks in that order."
-# >&2 printf "%s\n" "${BOLD}help${NOBOLD}    : Show this help message and exit."
-# exit 1
-
 log() (
     if [ "$1" = "TRACE" ]; then
         STYLE=""
@@ -108,6 +96,17 @@ run() {
     "$@"
     >&2 echo
 }
+
+# -----------------------------------------------------------------------------------------------------------
+# Since this script may change the current directory, refuse to run in any
+# directory that is too close to the root. A user's home directory often is
+# /home/user or /Users/user, so we insist on at least one level more.
+
+grandparent=$(cd ../../; pwd)
+if [ "$grandparent" = "/" ]; then
+    log ERROR "The working directory $(pwd) is too close to root directory."
+    log ERROR "Please run in a suitable subdirectory instead."
+fi
 
 # ===========================================================================================================
 # Ugh! For Linux, I tried making installation work just using APT, since that's
@@ -166,8 +165,28 @@ elif [ -x "$(command -v apt-get)" ]; then
         sudo apt-get -y install "$1"
     }
 else
-    log ERROR "Could not find apt-get (APT) or brew (Homebrew) package manager!"
-    exit 1
+    # Delay any error until the install option is selected.
+    PACKAGE_MANAGER=""
+    package_update_all() {
+        log ERROR "Could not find apt-get (APT) or brew (Homebrew) package manager!"
+        exit 1
+    }
+    package_show_name() {
+        log ERROR "Could not find apt-get (APT) or brew (Homebrew) package manager!"
+        exit 1
+    }
+    package_show_extras() {
+        log ERROR "Could not find apt-get (APT) or brew (Homebrew) package manager!"
+        exit 1
+    }
+    package_is_installed() {
+        log ERROR "Could not find apt-get (APT) or brew (Homebrew) package manager!"
+        exit 1
+    }
+    package_install() {
+        log ERROR "Could not find apt-get (APT) or brew (Homebrew) package manager!"
+        exit 1
+    }
 fi
 
 install_package() {
@@ -208,7 +227,7 @@ install() {
     should_restart=false
     if [ ! -x "$(command -v rustup)" ]; then
         # Rustup modifies .profile, .bashrc,... to source $HOME/.cargo/env,
-        # which updates PATH. We do equivalent to finish installation.
+        # which updates PATH. We do the equivalent to finish installation.
         # However, user should still restart their current shell.
         print_header "Installing rustup"
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s - -y
