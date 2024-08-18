@@ -47,11 +47,8 @@ def collect(items: list[Any]) -> list[str]:
             start_line = lines_so_far + content.count("\n", previous_end, block.start(1))
             text = block.group(1)
 
-            blocks.append(
-                f"print('Testing file \"{source_path}\", line {start_line}, chapter "
-                f"\"{name}\"')\n"
-                f"{text}"
-            )
+            s = f"Testing file \"{source_path}\", line {start_line}, chapter \"{name}\""
+            blocks.append(f"print('{s}',\n    file=sys.stderr)\n\n{text}")
 
             previous_end = block.end()
             lines_so_far = start_line + text.count("\n")
@@ -112,7 +109,8 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-    n = time.perf_counter_ns() - start_time
-    d = 1_000_000
-    ms = (n + d // 2) // d
-    print(f"pyextractor.py: \x1b[1;90mExtraction of Python code took {ms:,}ms\x1b[m", file=sys.stderr)
+    ms = (time.perf_counter_ns() - start_time + 1_000_000 // 2) // 1_000_000
+    print(
+        f"pyextractor.py: \x1b[1;90mExtraction of Python code took {ms:,}ms\x1b[m",
+        file=sys.stderr
+    )
