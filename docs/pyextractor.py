@@ -1,5 +1,8 @@
 #!.venv/bin/python
 
+import time
+start_time = time.perf_counter_ns()
+
 import json
 import os
 from pathlib import Path
@@ -108,3 +111,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+    n = time.perf_counter_ns() - start_time
+    d = 1_000_000
+    ms = (n + d // 2) // d
+    print(f"pyextractor.py: \x1b[1;90mExtraction of Python code took {ms:,}ms\x1b[m", file=sys.stderr)
