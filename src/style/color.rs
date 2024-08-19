@@ -124,7 +124,7 @@ impl AnsiColor {
 
     /// Determine whether this ANSI color is bright.
     pub fn is_bright(&self) -> bool {
-        *self as u8 >= 8
+        8 <= *self as u8
     }
 
     /// Get the corresponding 3-bit ANSI color.
@@ -133,7 +133,7 @@ impl AnsiColor {
     /// color. Otherwise, it returns the color.
     pub fn to_3bit(&self) -> AnsiColor {
         let mut index = *self as u8;
-        if index >= 8 {
+        if 8 <= index {
             index -= 8;
         }
         AnsiColor::try_from(index).unwrap()
@@ -296,11 +296,11 @@ impl EmbeddedRgb {
     /// Create a new embedded RGB value from its coordinates.
     #[new]
     pub fn new(r: u8, g: u8, b: u8) -> Result<Self, OutOfBoundsError> {
-        if r >= 6 {
+        if 6 <= r {
             Err(OutOfBoundsError::new(r, 0..=5))
-        } else if g >= 6 {
+        } else if 6 <= g {
             Err(OutOfBoundsError::new(g, 0..=5))
-        } else if b >= 6 {
+        } else if 6 <= b {
             Err(OutOfBoundsError::new(b, 0..=5))
         } else {
             Ok(Self([r, g, b]))
@@ -390,11 +390,11 @@ impl EmbeddedRgb {
 impl EmbeddedRgb {
     /// Create a new embedded RGB value from its coordinates.
     pub fn new(r: u8, g: u8, b: u8) -> Result<Self, OutOfBoundsError> {
-        if r >= 6 {
+        if 6 <= r {
             Err(OutOfBoundsError::new(r, 0..=5))
-        } else if g >= 6 {
+        } else if 6 <= g {
             Err(OutOfBoundsError::new(g, 0..=5))
-        } else if b >= 6 {
+        } else if 6 <= b {
             Err(OutOfBoundsError::new(b, 0..=5))
         } else {
             Ok(Self([r, g, b]))
@@ -433,7 +433,7 @@ impl std::ops::Index<usize> for EmbeddedRgb {
     ///
     /// # Panics
     ///
-    /// This method panics if `index > 2`.
+    /// This method panics if `2 < index`.
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
@@ -564,7 +564,7 @@ impl GrayGradient {
     /// Instantiate a new gray gradient from its level `0..=23`.
     #[new]
     pub fn new(value: u8) -> Result<Self, OutOfBoundsError> {
-        if value >= 24 {
+        if 24 <= value {
             Err(OutOfBoundsError::new(value, 0..=23))
         } else {
             Ok(Self(value))
@@ -886,7 +886,7 @@ impl std::ops::Index<usize> for TrueColor {
     ///
     /// # Panics
     ///
-    /// This method panics if `index > 2`.
+    /// This method panics if `2 < index`.
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]

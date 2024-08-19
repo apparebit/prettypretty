@@ -41,7 +41,7 @@ fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
         let t = s.ok_or(ColorFormatError::MissingCoordinate)?;
         if t.is_empty() {
             return Err(ColorFormatError::MissingCoordinate);
-        } else if t.len() > 4 {
+        } else if 4 < t.len() {
             return Err(ColorFormatError::OversizedCoordinate);
         }
 

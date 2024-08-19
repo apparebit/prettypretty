@@ -103,7 +103,7 @@ impl Iterator for ThemeEntryIterator {
     type Item = ThemeEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= 18 {
+        if 18 <= self.index {
             None
         } else {
             let item = ThemeEntry::try_from(self.index).unwrap();
@@ -301,7 +301,7 @@ impl HueLightnessTable {
         }
 
         // Rotate entry with smallest hue into first position.
-        if min_index > 0 {
+        if 0 < min_index {
             colors.rotate_left(min_index);
         }
 
@@ -347,7 +347,7 @@ impl HueLightnessTable {
         for index in 0..length {
             // We are looking for the first entry with a larger hue.
             let next_entry = &self.colors[index];
-            if h > next_entry.h && (index != 0 || h < self.colors[length - 1].h) {
+            if next_entry.h < h && (index != 0 || h < self.colors[length - 1].h) {
                 // The first interval starts with the last color.
                 continue;
             }
@@ -363,7 +363,7 @@ impl HueLightnessTable {
             // We need previous_hue < h <= next_hue to determine closer one.
             let mut previous_hue = previous_entry.h;
             let next_hue = next_entry.h;
-            if previous_hue > h {
+            if h < previous_hue {
                 assert!(index == 0);
                 previous_hue -= 360.0
             }
@@ -502,7 +502,7 @@ impl Translator {
     pub fn is_dark_theme(&self) -> bool {
         let yf = self.theme[0].to(ColorSpace::Xyz)[1];
         let yb = self.theme[1].to(ColorSpace::Xyz)[1];
-        yf > yb
+        yb < yf
     }
 
     /// Resolve the terminal color to a high-resolution color.
@@ -939,7 +939,7 @@ impl Translator {
     pub fn is_dark_theme(&self) -> bool {
         let yf = self.theme[0].to(ColorSpace::Xyz)[1];
         let yb = self.theme[1].to(ColorSpace::Xyz)[1];
-        yf > yb
+        yb < yf
     }
 
     /// Resolve the terminal color to a high-resolution color.
@@ -1366,7 +1366,7 @@ impl Translator {
         // the least bad results. In any case, prettypretty.grid's output shows
         // large striped rectangles, with 4x24 cells black/blue and 2x24 cells
         // green/cyan above 4x12 cells red/magenta and 2x12 cells yellow/white.
-        if index >= 3 {
+        if 3 <= index {
             index += 8;
         }
 

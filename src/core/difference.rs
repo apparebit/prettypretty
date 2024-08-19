@@ -131,7 +131,7 @@ pub enum HueInterpolation {
 fn prepare_hue_interpolation(strategy: HueInterpolation, h1: Float, h2: Float) -> [Float; 2] {
     match strategy {
         HueInterpolation::Shorter => {
-            if h2 - h1 > 180.0 {
+            if 180.0 < h2 - h1 {
                 return [h1 + 360.0, h2];
             } else if h2 - h1 < -180.0 {
                 return [h1, h2 + 360.0];

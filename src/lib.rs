@@ -89,7 +89,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 )]
 //!
 //! Since many floating point operations require the `std` crate, a `no_std`
-//! version of this crate is highly unlikely.
+//! version of this crate seems unlikely.
 //!
 //!
 //! ## BYOIO: Bring Your Own (Terminal) I/O
@@ -150,14 +150,12 @@ pub type Bits = u32;
 mod core;
 pub mod error;
 pub mod gamut {
-    //! Machinery for traversing RGB gamut boundaries with
+    //! The machinery for traversing RGB gamut boundaries with
     //! [`ColorSpace::gamut`](crate::ColorSpace).
     pub use crate::core::{GamutTraversal, GamutTraversalStep};
 }
 mod object;
 pub mod spectrum;
-//#[doc(hidden)]
-//pub mod style;
 pub mod style;
 pub mod trans;
 mod util;

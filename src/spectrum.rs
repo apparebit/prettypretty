@@ -75,15 +75,15 @@ macro_rules! declare_spectrum_distribution {
             /// Get the entry at the given index. <span class=python-only></span>
             #[cfg(feature = "pyffi")]
             pub fn __getitem__(&self, index: usize) -> PyResult<$item_type> {
-                if index >= self.data.len() {
+                if index < self.data.len() {
+                    Ok(self.data[index])
+                } else {
                     Err(pyo3::exceptions::PyIndexError::new_err(format!(
-                        "invalid index {} >= {} into {}",
-                        index,
+                        "len {} <= index {} into {}",
                         self.data.len(),
+                        index,
                         self.label,
                     )))
-                } else {
-                    Ok(self.data[index])
                 }
             }
 
@@ -254,7 +254,7 @@ impl SpectrumTraversal {
     /// observer.
     pub fn white_point(&self) -> [Float; 3] {
         let [x, y, z] = self.data.total();
-        if y > 0.0 {
+        if 0.0 < y {
             [x / y, 1.0, z / y]
         } else {
             [0.0, 0.0, 0.0]
@@ -317,7 +317,7 @@ impl Iterator for SpectrumTraversal {
     type Item = GamutTraversalStep;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.width >= self.data.len() {
+        if self.data.len() <= self.width {
             return None;
         } else if self.width == 0 {
             self.width = 1;
@@ -329,14 +329,14 @@ impl Iterator for SpectrumTraversal {
         } else {
             GamutTraversalStep::LineTo(color)
         };
-        //println!("{}+{}@{}+{}", self.position, self.position_incr, self.width, self.width_incr);
+
         self.position += if self.width == 1 {
             1
         } else {
             self.position_incr
         };
-        //println!("    {}+{}@{}+{}", self.position, self.position_incr, self.width, self.width_incr);
-        if self.position >= self.data.len() {
+
+        if self.data.len() <= self.position {
             self.width += self.width_incr;
             self.position = 0;
         }

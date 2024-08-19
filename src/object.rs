@@ -1090,7 +1090,7 @@ impl Color {
             to_contrast_luminance_p3(&self.to(ColorSpace::DisplayP3).coordinates)
         };
 
-        to_contrast(0.0, luminance) >= -to_contrast(1.0, luminance)
+        -to_contrast(1.0, luminance) <= to_contrast(0.0, luminance)
     }
 
     /// Determine the background with maximal perceptual contrast.
@@ -1531,7 +1531,7 @@ impl std::ops::Index<usize> for Color {
     ///
     /// # Panics
     ///
-    /// This method panics if `index > 2`.
+    /// This method panics if `2 < index`.
     ///
     /// # Examples
     ///

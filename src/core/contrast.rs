@@ -110,7 +110,7 @@ pub(crate) fn to_contrast(text_luminance: Float, background_luminance: Float) ->
         // White on black
         let contrast = SCALE * (background_luminance.powf(0.65) - text_luminance.powf(0.62));
 
-        if contrast > -OUTPUT_CLAMP {
+        if -OUTPUT_CLAMP < contrast {
             0.0
         } else {
             contrast + OFFSET

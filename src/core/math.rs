@@ -63,7 +63,7 @@ impl std::ops::Add<Float> for Accumulator {
 impl std::ops::AddAssign<Float> for Accumulator {
     fn add_assign(&mut self, rhs: Float) {
         let t = self.sum + rhs;
-        if self.sum.abs() > rhs.abs() {
+        if rhs.abs() < self.sum.abs() {
             self.compensation += (self.sum - t) + rhs;
         } else {
             self.compensation += (rhs - t) + self.sum;

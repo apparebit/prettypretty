@@ -48,7 +48,7 @@ pub(crate) fn to_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3
     // Preliminary 1/2: Clamp Lightness
     let origin_as_oklch = convert(space, Oklch, &coordinates);
     let l = origin_as_oklch[0];
-    if l >= 1.0 {
+    if 1.0 <= l {
         return convert(Oklch, space, &[1.0, 0.0, 0.0]);
     }
     if l <= 0.0 {
@@ -79,7 +79,7 @@ pub(crate) fn to_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3
     let mut max = origin_as_oklch[1];
     let mut min_in_gamut = true;
 
-    while max - min > EPSILON {
+    while EPSILON < max - min {
         let chroma = (min + max) / 2.0;
         current_as_oklch = [current_as_oklch[0], chroma, current_as_oklch[2]];
 
@@ -272,7 +272,7 @@ impl Iterator for GamutTraversal {
                 LineTo(color)
             }
             Cyan2Green => {
-                if self.b > 0 {
+                if 0 < self.b {
                     self.b -= 1;
                 } else {
                     self.edge = Green2Yellow;
@@ -292,7 +292,7 @@ impl Iterator for GamutTraversal {
                 LineTo(color)
             }
             Yellow2Red => {
-                if self.g > 0 {
+                if 0 < self.g {
                     self.g -= 1;
                 } else {
                     self.edge = Red2Magenta;
@@ -312,7 +312,7 @@ impl Iterator for GamutTraversal {
                 LineTo(color)
             }
             Magenta2Blue => {
-                if self.r > 0 {
+                if 0 < self.r {
                     self.r -= 1;
 
                     LineTo(color)
@@ -327,7 +327,7 @@ impl Iterator for GamutTraversal {
                     self.b -= 1;
 
                     MoveTo(color)
-                } else if self.b > 0 {
+                } else if 0 < self.b {
                     self.b -= 1;
 
                     LineTo(color)
@@ -361,7 +361,7 @@ impl Iterator for GamutTraversal {
                     self.g -= 1;
 
                     MoveTo(color)
-                } else if self.g > 0 {
+                } else if 0 < self.g {
                     self.g -= 1;
 
                     LineTo(color)
@@ -395,7 +395,7 @@ impl Iterator for GamutTraversal {
                     self.r -= 1;
 
                     MoveTo(color)
-                } else if self.r > 0 {
+                } else if 0 < self.r {
                     self.r -= 1;
 
                     LineTo(color)
