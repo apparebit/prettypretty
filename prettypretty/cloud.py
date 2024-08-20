@@ -1,7 +1,8 @@
 import argparse
 import io
 import math
-from typing import Self
+import sys
+from typing import Callable, Self
 
 from prettypretty.color import Color, ColorSpace
 from prettypretty.color.gamut import ( # pyright: ignore [reportMissingModuleSource]
@@ -13,15 +14,27 @@ from prettypretty.color.spectrum import ( # pyright: ignore [reportMissingModule
 
 
 def create_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="generate a point cloud for the visual gamut in XYZ as well as "
+        "Oklrab and store the data in 'cloud-xyz.ply' and 'cloud-ok.ply' files"
+    )
     parser.add_argument(
         "--gamut", "-g",
-        help="plot boundary of colorspace gamut; value must be sRGB, P3, or Rec2020",
+        help="plot boundary of gamut for 'sRGB', 'P3', or 'Rec2020' color space "
+        "(with case-insensitive name matching)",
     )
     parser.add_argument(
         "--planar",
         action="store_true",
-        help="plot gamut boundary in 2D",
+        help="plot gamut boundary X/Z plane for XYZ and a/b plane for Oklrab, "
+        "with Y=0 or Lr= 0, respectively"
+    )
+    parser.add_argument(
+        "--quad",
+        action="store_true",
+        help="include quadrilaterals with vertex data; quads are formed by connecting "
+        "the nth pulse of each line with the nth pulse of the next line, much like "
+        "a rope ladder"
     )
     parser.add_argument(
         "--step", "-s",
@@ -29,6 +42,9 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     return parser
+
+
+log: Callable[[str], None] = lambda msg: print(msg, file=sys.stderr)
 
 
 class Sampler:
@@ -78,15 +94,29 @@ class Sampler:
 
 
 class PointManager:
-    def __init__(self, darken: bool = False, planar: bool = False) -> None:
+    def __init__(
+        self,
+        darken: bool = False,
+        planar: bool = False,
+        quad: bool = False,
+    ) -> None:
         self.darken = darken
         self.planar = planar
+        self.quad = quad
         self.points: list[tuple[float, float, float]] = []
         self.colors: list[tuple[int, int, int]] = []
         self.line_starts: list[int] = []
 
     def __len__(self) -> int:
         return len(self.points)
+
+    @property
+    def line_length(self) -> int:
+        return self.line_starts[1]
+
+    @property
+    def line_count(self) -> int:
+        return len(self.line_starts) - 1
 
     def add(self, color: Color) -> None:
         x, y, z = color
@@ -111,10 +141,17 @@ class PointManager:
     def mark_newline(self) -> None:
         self.line_starts.append(len(self.points))
 
-    def write_header(self, file: io.TextIOWrapper, include: None | Self = None) -> None:
-        extra = 0 if include is None else len(include)
+    def write_header(
+        self,
+        file: io.TextIOWrapper,
+        include: None | Self = None
+    ) -> tuple[int, int]:
+        file.write("ply\n")
+        file.write("format ascii 1.0\n")
 
-        file.write(f"element vertex {len(self.points) + extra}\n")
+        vertex_count = len(self.points) + (0 if include is None else len(include))
+        file.write(f"element vertex {vertex_count}\n")
+
         file.write("property float x\n")
         file.write("property float y\n")
         file.write("property float z\n")
@@ -122,10 +159,16 @@ class PointManager:
         file.write("property uchar green\n")
         file.write("property uchar blue\n")
 
-        # file.write(f"element face {665}\n")
-        # file.write("property list uchar int vertex_indices\n")
+        face_count = 0
+        if self.quad:
+            face_count = (self.line_length - 1) * (self.line_count - 1)
+            file.write(f"element face {face_count}\n")
+            file.write("property list uchar int vertex_indices\n")
 
-    def write_data(self, file: io.TextIOWrapper) -> None:
+        file.write("end_header\n")
+        return vertex_count, face_count
+
+    def write_vertex_data(self, file: io.TextIOWrapper) -> None:
         for point, color in zip(self.points, self.colors):
             f = 100.0
             x, y, z = point[0] * f, point[1] * f, point[2] * f
@@ -133,19 +176,31 @@ class PointManager:
 
             file.write(f"{x:f} {y:f} {z:f} {r} {g} {b}\n")
 
+    def write_face_data(self, file: io.TextIOWrapper) -> None:
+        for line_count in range(1, self.line_count):
+            for point_count in range(1, self.line_length):
+                p = (line_count - 1) * self.line_length + point_count - 1
+                q = p + 1
+                r = q + self.line_length
+                s = r - 1
+
+                file.write(f"4 {p} {q} {r} {s}\n")
+
 
 def render(
     space: ColorSpace,
     segment_size: int = 50,
     gamut: None | ColorSpace = None,
     planar: bool = False,
+    quad: bool = False,
     sampler: None | Sampler = None,
     step_size: int = 2,
 ) -> None:
     traversal = SpectrumTraversal(CIE_ILLUMINANT_D65, CIE_OBSERVER_2DEG_1931)
     traversal.set_step_sizes(step_size)
 
-    points = PointManager()
+    log(f"Traversing visual gamut in {space}")
+    points = PointManager(quad=quad)
     for step in traversal:
         if isinstance(step, GamutTraversalStep.MoveTo):
             points.mark_newline()
@@ -158,8 +213,10 @@ def render(
         else:
             points.add(color.to(ColorSpace.Xyz))
 
-    gamut_points = PointManager(planar=planar)
+    gamut_points = None
     if gamut is not None:
+        log(f"Traversing color space gamut of {space}")
+        gamut_points = PointManager(planar=planar)
         it = gamut.gamut(segment_size)
         assert it is not None
         for step in it:
@@ -177,18 +234,17 @@ def render(
     else:
         filename = "cloud-xyz.ply"
 
+    log(f"Writing {filename}")
     with open(filename, mode="w", encoding="utf8") as file:
-        file.write("ply\n")
-        file.write("format ascii 1.0\n")
-        if gamut is None:
-            points.write_header(file)
-        else:
-            points.write_header(file, gamut_points)
-        file.write("end_header\n")
+        vertex_count, face_count = points.write_header(file, gamut_points)
+        log(f"Writing {filename}: {vertex_count:,} vertices")
+        points.write_vertex_data(file)
+        if gamut_points is not None:
+            gamut_points.write_vertex_data(file)
 
-        points.write_data(file)
-        if gamut is not None:
-            gamut_points.write_data(file)
+        if quad:
+            log(f"Writing {filename}: {face_count:,} faces")
+            points.write_face_data(file)
 
 
 if __name__ == "__main__":
@@ -219,16 +275,18 @@ if __name__ == "__main__":
         ColorSpace.Xyz,
         gamut=gamut,
         planar=options.planar,
+        quad=options.quad,
         step_size=step_size
     )
     render(
         ColorSpace.Oklrab,
         gamut=gamut,
         planar=options.planar,
+        quad=options.quad,
         sampler=sampler,
         step_size=step_size
     )
 
-    print("Shape of visible gamut (sampled on chroma/hue plane):\n")
-    print(sampler)
+    log("\nShape of visible gamut (sampled on chroma/hue plane):\n")
+    log(str(sampler))
 
