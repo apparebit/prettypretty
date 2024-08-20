@@ -25,15 +25,21 @@ pub(crate) trait Environment {
     /// Determine whether the environment variable is defined with a non-empty value.
     #[inline]
     fn is_non_empty(&self, key: &str) -> bool {
-        let value = self.read_os(key);
-        value.is_some() && !value.unwrap().is_empty()
+        if let Some(value) = self.read_os(key) {
+            !value.is_empty()
+        } else {
+            false
+        }
     }
 
     /// Determine whether the environment variable has the given value.
     #[inline]
     fn has_value(&self, key: &str, expected_value: &str) -> bool {
-        let actual = self.read_os(key);
-        actual.is_some() && actual.unwrap() == expected_value
+        if let Some(value) = self.read_os(key) {
+            value == expected_value
+        } else {
+            false
+        }
     }
 }
 

@@ -73,9 +73,7 @@ impl TryFrom<usize> for ThemeEntry {
         } else if value == 1 {
             Ok(ThemeEntry::Default(DefaultColor::Background))
         } else if value <= 17 {
-            Ok(ThemeEntry::Ansi(
-                AnsiColor::try_from(value as u8 - 2).unwrap(),
-            ))
+            Ok(ThemeEntry::Ansi(AnsiColor::try_from(value as u8 - 2)?))
         } else {
             Err(OutOfBoundsError::new(value, 0..=17))
         }
@@ -455,11 +453,13 @@ fn eight_bit_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 256] 
         coordinates[index] = *theme[index].to(space).as_ref()
     }
     for index in 16..=231 {
+        // Unwrap is safe b/c we are iterating over EmbeddedRgb's index range.
         coordinates[index] = *Color::from(EmbeddedRgb::try_from(index as u8).unwrap())
             .to(space)
             .as_ref();
     }
     for index in 232..=255 {
+        // Unwrap is safe b/c we are iterating over GrayGradient's index range.
         coordinates[index] = *Color::from(GrayGradient::try_from(index as u8).unwrap())
             .to(space)
             .as_ref();

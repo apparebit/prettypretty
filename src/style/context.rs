@@ -160,24 +160,22 @@ pub(crate) fn fidelity_from_environment(env: &impl Environment, has_tty: bool) -
         return Fidelity::Plain;
     }
 
-    let teamcity = env.read("TEAMCITY_VERSION");
-    if teamcity.is_ok() {
+    if let Ok(teamcity) = env.read("TEAMCITY_VERSION") {
         // Apparently, Teamcity 9.x and later support ANSI colors.
-        let teamcity = teamcity.unwrap();
         let mut charity = teamcity.chars();
         let c1 = charity.next();
         let c2 = charity.next();
 
-        if c1.is_some() && c2.is_some() {
-            let (c1, c2) = (c1.unwrap(), c2.unwrap());
-            if c1 == '9' && c2 == '.' {
-                return Fidelity::Ansi;
-            } else if c1.is_ascii_digit() && c1 != '0' && c2.is_ascii_digit() {
-                let c3 = charity.next();
-                if c3.is_some() && c3.unwrap() == '.' {
-                    return Fidelity::Ansi;
-                }
-            }
+        if c1
+            .filter(|c| *c == '9')
+            .and(c2.filter(|c| *c == '.'))
+            .or(c1
+                .filter(|c| c.is_ascii_digit() && *c != '0')
+                .and(c2.filter(|c| c.is_ascii_digit()))
+                .and(charity.next().filter(|c| *c == '.')))
+            .is_some()
+        {
+            return Fidelity::Ansi;
         }
 
         return Fidelity::Plain;
@@ -186,22 +184,21 @@ pub(crate) fn fidelity_from_environment(env: &impl Environment, has_tty: bool) -
     } else if env.has_value("TERM_PROGRAM", "Apple_Terminal") {
         return Fidelity::EightBit;
     } else if env.has_value("TERM_PROGRAM", "iTerm.app") {
-        let version = env.read("TERM_PROGRAM_VERSION");
-        if version.is_ok() {
-            let version = version.unwrap();
+        if let Ok(version) = env.read("TERM_PROGRAM_VERSION") {
             let mut charity = version.chars();
-            let c1 = charity.next();
-            let c2 = charity.next();
-            if c1.is_some() && c2.is_some() && c1.unwrap() == '3' && c2.unwrap() == '.' {
+            if charity
+                .next()
+                .filter(|c| *c == '3')
+                .and(charity.next().filter(|c| *c == '.'))
+                .is_some()
+            {
                 return Fidelity::Full;
             }
         }
         return Fidelity::EightBit;
     }
 
-    let term = env.read("TERM");
-    if term.is_ok() {
-        let mut term = term.unwrap();
+    if let Ok(mut term) = env.read("TERM") {
         term.make_ascii_lowercase();
 
         if term.ends_with("-256") || term.ends_with("-256color") {
