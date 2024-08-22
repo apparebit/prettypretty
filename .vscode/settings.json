@@ -22,7 +22,9 @@
         "recip",
         "repr",
         "rustfmt",
-        "srgb"
+        "srgb",
+        "systemsy",
+        "tristimulus"
     ],
     "python.testing.unittestArgs": [
         "-v",
