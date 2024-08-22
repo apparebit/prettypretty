@@ -25,7 +25,7 @@ use crate::{
 macro_rules! declare_spectrum_distribution {
     ($name:ident<$item_type:ty>, $dist_type:ty) => {
         /// A spectral distribution with one-nanometer resolution.
-        #[cfg_attr(feature = "pyffi", pyclass)]
+        #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.spectrum"))]
         #[derive(Debug)]
         pub struct $name {
             label: &'static str,
@@ -257,7 +257,7 @@ impl SpectrumTraversalData {
 /// a line of colors in the XYZ color space. The first pulse is always 1nm wide
 /// and hence the first line always always is the spectral locus for the given
 /// illuminant and observer.
-#[cfg_attr(feature = "pyffi", pyclass)]
+#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.spectrum"))]
 #[derive(Debug)]
 pub struct SpectrumTraversal {
     data: SpectrumTraversalData,

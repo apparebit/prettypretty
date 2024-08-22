@@ -8,7 +8,10 @@ use crate::util::{Env, Environment};
 // Layer and Fidelity
 
 /// The targeted display layer: Foreground or background.
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, eq_int, frozen, hash, module = "prettypretty.color.style")
+)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Layer {
     /// The foreground or text layer.
@@ -53,7 +56,10 @@ impl std::fmt::Display for Layer {
 /// capabilities of a terminal or runtime environment (such as CI) as well as
 /// the preferences of a user (notably, `NoColor`).
 ///
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash, ord))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, eq_int, frozen, hash, ord, module = "prettypretty.color.style")
+)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Fidelity {
     /// Plain text, no ANSI escape codes

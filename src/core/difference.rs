@@ -114,7 +114,10 @@ fn prepare_coordinate_interpolation(
 /// between hues, [`HueInterpolation::Shorter`] and
 /// [`HueInterpolation::Longer`], or on the direction,
 /// [`HueInterpolation::Increasing`] and [`HueInterpolation::Decreasing`].
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, eq_int, frozen, hash, module = "prettypretty.color")
+)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum HueInterpolation {
     /// Take the shorter arc between the two hue angles.

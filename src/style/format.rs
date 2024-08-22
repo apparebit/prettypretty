@@ -72,7 +72,10 @@ impl GroupMask {
     }
 }
 
-#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, frozen, hash, module = "prettypretty.color.style")
+)]
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Format(u16);
 
@@ -140,7 +143,10 @@ impl Format {
 }
 
 /// A style.
-#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, frozen, hash, module = "prettypretty.color.style")
+)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Style {
     Reset(),
@@ -151,7 +157,10 @@ pub enum Style {
 }
 
 /// The definition of rich text.
-#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, frozen, hash, module = "prettypretty.color.style")
+)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RichText {
     styles: Vec<Style>,

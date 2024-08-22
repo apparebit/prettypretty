@@ -120,7 +120,10 @@ pub(crate) fn to_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3
 /// corresponding operations. A traversal comprises several paths, each of which
 /// starts with a `MoveTo` and ends with either a `LineTo` or `CloseWith`. The
 /// latter repeats the color of the path's `MoveTo`.
-#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, frozen, hash, module = "prettypretty.color.gamut")
+)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum GamutTraversalStep {
     /// Move to the color's coordinates to start a new path.
@@ -205,7 +208,7 @@ enum GamutEdge {
 /// or `CloseWith` if closed. The step's color provides the coordinates for the
 /// step. They always are for the color space whose boundaries are being traced
 /// and in-gamut, if barely.
-#[cfg_attr(feature = "pyffi", pyclass)]
+#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.gamut"))]
 #[derive(Debug)]
 pub struct GamutTraversal {
     space: ColorSpace,

@@ -93,7 +93,10 @@ use pyo3::prelude::*;
 /// foundational color space. Notably, all conversions between unrelated color
 /// spaces go through XYZ. This crate uses XYZ with the [D65 standard
 /// illuminant](https://en.wikipedia.org/wiki/Standard_illuminant), *not* D50.
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, eq_int, frozen, hash, module = "prettypretty.color")
+)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ColorSpace {
     Srgb,

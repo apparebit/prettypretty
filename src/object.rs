@@ -95,7 +95,10 @@ macro_rules! rgb {
 ///
 /// Both Rust and Python code can access individual coordinates by indexing a
 /// color object with integers `0..2`.
-#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, sequence))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, frozen, hash, sequence, module = "prettypretty.color")
+)]
 #[derive(Clone)]
 pub struct Color {
     space: ColorSpace,
@@ -1692,7 +1695,10 @@ impl std::fmt::Display for Color {
 // ====================================================================================================================
 
 /// A choice of Oklab versions.
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, eq_int, frozen, hash, module = "prettypretty.color")
+)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum OkVersion {
     /// The original Oklab/Oklch color spaces.
@@ -1736,7 +1742,7 @@ impl OkVersion {
 /// work for every interpolation, this struct can perform an arbitrary number of
 /// interpolations for the its two source colors and thus potentially amortize
 /// the cost of preparation.
-#[cfg_attr(feature = "pyffi", pyclass)]
+#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color"))]
 #[derive(Clone, Debug)]
 pub struct Interpolator {
     space: ColorSpace,

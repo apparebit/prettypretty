@@ -12,7 +12,10 @@ use crate::{Color, ColorSpace};
 /// The default foreground and background colors.
 ///
 /// The default colors are ordered because they are ordered as theme colors.
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash, ord))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, eq_int, frozen, hash, ord, module = "prettypretty.color.style")
+)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum DefaultColor {
     Foreground,
@@ -70,7 +73,10 @@ impl From<DefaultColor> for TerminalColor {
 ///
 /// The ANSI colors are ordered because they are ordered as theme colors and as
 /// indexed colors.
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int, frozen, hash, ord))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, eq_int, frozen, hash, ord, module = "prettypretty.color.style")
+)]
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum AnsiColor {
     #[default]
@@ -286,7 +292,10 @@ impl From<AnsiColor> for TerminalColor {
     [`EmbeddedRgb::__len__`], [`EmbeddedRgb::__getitem__`], and
     [`EmbeddedRgb::__repr__`]. These methods are not available in Rust."
 )]
-#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, sequence))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, frozen, hash, sequence, module = "prettypretty.color.style")
+)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EmbeddedRgb([u8; 3]);
 
@@ -554,7 +563,10 @@ impl From<EmbeddedRgb> for Color {
     [`GrayGradient::to_8bit`], and [`GrayGradient::to_color`]. These methods are not
     available in Rust."
 )]
-#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, ord))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, frozen, hash, ord, module = "prettypretty.color.style")
+)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GrayGradient(u8);
 
@@ -752,7 +764,10 @@ impl From<GrayGradient> for Color {
     [`TrueColor::coordinates`], [`TrueColor::__len__`], and [`TrueColor::__getitem__`].
     These methods are not available in Rust."
 )]
-#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash, sequence))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, frozen, hash, sequence, module = "prettypretty.color.style")
+)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TrueColor([u8; 3]);
 
@@ -946,7 +961,10 @@ impl core::fmt::Display for TrueColor {
 /// verbose Rust patterns, but it also makes the Python classes much easier to
 /// use. The variants for the embedded RGB and 24-bit RGB colors derive their
 /// names from the number of levels per channel.
-#[cfg_attr(feature = "pyffi", pyclass(eq, frozen, hash))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, frozen, hash, module = "prettypretty.color.style")
+)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TerminalColor {
     Default { color: DefaultColor },
