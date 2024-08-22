@@ -1,7 +1,8 @@
 from typing import Self
 
 
-from .gamut import GamutTraversalStep
+from ..gamut import GamutTraversalStep
+from . import std_observer as std_observer
 
 
 class Illuminant:

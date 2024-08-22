@@ -181,6 +181,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modcolor_name = m.name()?;
     let modgamut_name = format!("{}.gamut", modcolor_name);
     let modspectrum_name = format!("{}.spectrum", modcolor_name);
+    let modobserver_name = format!("{}.std_observer", modspectrum_name);
     let modstyle_name = format!("{}.style", modcolor_name);
     let modtrans_name = format!("{}.trans", modcolor_name);
 
@@ -223,6 +224,14 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Only change __name__ attribute after submodule has been added.
     modspectrum.setattr("__name__", &modspectrum_name)?;
 
+    let modobserver = PyModule::new_bound(m.py(), "std_observer")?;
+    modobserver.add("__package__", &modcolor_name)?;
+    modobserver.add_function(wrap_pyfunction!(spectrum::std_observer::x, m)?)?;
+    modobserver.add_function(wrap_pyfunction!(spectrum::std_observer::y, m)?)?;
+    modobserver.add_function(wrap_pyfunction!(spectrum::std_observer::z, m)?)?;
+    modspectrum.add_submodule(&modobserver)?;
+    modobserver.setattr("__name__", &modobserver_name)?;
+
     // --------------------------------------------------------------- color.style
     let modstyle = PyModule::new_bound(m.py(), "style")?;
     modstyle.add("__package__", &modcolor_name)?;
@@ -260,6 +269,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py_modules: Bound<'_, PyDict> = sys.getattr("modules")?.downcast_into()?;
     py_modules.set_item(&modgamut_name, modgamut)?;
     py_modules.set_item(&modspectrum_name, modspectrum)?;
+    py_modules.set_item(&modobserver_name, modobserver)?;
     py_modules.set_item(&modstyle_name, modstyle)?;
     py_modules.set_item(&modtrans_name, modtrans)?;
 
