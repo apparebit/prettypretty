@@ -2,7 +2,7 @@ import argparse
 import io
 import math
 import sys
-from typing import Callable, Self
+from typing import Self
 
 from prettypretty.color import Color, ColorSpace
 from prettypretty.color.gamut import ( # pyright: ignore [reportMissingModuleSource]
@@ -24,17 +24,17 @@ def create_parser() -> argparse.ArgumentParser:
         "(with case-insensitive name matching)",
     )
     parser.add_argument(
-        "--planar",
+        "--planar-gamut",
         action="store_true",
         help="plot gamut boundary X/Z plane for XYZ and a/b plane for Oklrab, "
         "with Y=0 or Lr= 0, respectively"
     )
     parser.add_argument(
-        "--quad",
+        "--mesh",
         action="store_true",
-        help="include quadrilaterals with vertex data; quads are formed by connecting "
-        "the nth pulse of each line with the nth pulse of the next line, much like "
-        "a rope ladder"
+        help="include face mesh with vertex data; the mesh is formed by connecting "
+        "the nth starting wavelength of the mth pulse width with the nth starting "
+        "wavelength of the (m-1)th pulse width, much like a rope ladder"
     )
     parser.add_argument(
         "--step", "-s",
@@ -44,7 +44,8 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-log: Callable[[str], None] = lambda msg: print(msg, file=sys.stderr)
+def log(msg: str = "") -> None:
+    print(msg, file=sys.stderr)
 
 
 class Sampler:
@@ -87,9 +88,17 @@ class Sampler:
             )
 
         lines.append("")
-        lines.append(
-            f"(Based on {self.chromatic:,} samples, "
-            f"ignoring {self.achromatic:,} achromatic colors.)")
+
+        chromatic = f"{self.chromatic:9,}"
+        chromatic_label = "chromatic".rjust(len(chromatic))
+        achromatic = f"{self.achromatic:10,}"
+        achromatic_label = "achromatic".rjust(len(achromatic))
+        total = f"{self.chromatic + self.achromatic:5,}"
+        total_label = "total".rjust(len(total))
+
+        lines.append(f"{total} = {chromatic} + {achromatic} samples")
+        lines.append(f"{total_label} = {chromatic_label} + {achromatic_label}")
+
         return "\n".join(lines)
 
 
@@ -98,27 +107,24 @@ class PointManager:
         self,
         darken: bool = False,
         planar: bool = False,
-        quad: bool = False,
+        mesh: bool = False,
     ) -> None:
         self.darken = darken
         self.planar = planar
-        self.quad = quad
+        self.mesh = mesh
         self.points: list[tuple[float, float, float]] = []
         self.colors: list[tuple[int, int, int]] = []
-        self.line_starts: list[int] = []
+        self.line_count = 0
 
     def __len__(self) -> int:
         return len(self.points)
 
-    @property
-    def line_length(self) -> int:
-        return self.line_starts[1]
+    def mark_newline(self) -> None:
+        self.line_count += 1
+        if self.line_count == 2:
+            self.line_length = len(self.points)
 
-    @property
-    def line_count(self) -> int:
-        return len(self.line_starts) - 1
-
-    def add(self, color: Color) -> None:
+    def add(self, color: Color, highlight: None | Color = None) -> None:
         x, y, z = color
 
         if self.planar:
@@ -131,6 +137,11 @@ class PointManager:
         else:
             self.points.append((x, y, z))
 
+        if highlight is not None:
+            r, g, b = highlight.to_24bit()
+            self.colors.append((r, g, b))
+            return
+
         if self.darken:
             lr, c, h = color.to(ColorSpace.Oklrch)
             color = Color.oklrch(lr * 2 / 3, c * 2 / 3, h)
@@ -138,13 +149,12 @@ class PointManager:
         r, g, b = color.to_24bit()
         self.colors.append((r, g, b))
 
-    def mark_newline(self) -> None:
-        self.line_starts.append(len(self.points))
-
     def write_header(
         self,
         file: io.TextIOWrapper,
-        include: None | Self = None
+        *,
+        include: None | Self = None,
+        extra_faces: int = 0,
     ) -> tuple[int, int]:
         file.write("ply\n")
         file.write("format ascii 1.0\n")
@@ -160,8 +170,8 @@ class PointManager:
         file.write("property uchar blue\n")
 
         face_count = 0
-        if self.quad:
-            face_count = (self.line_length - 1) * (self.line_count - 1)
+        if self.mesh:
+            face_count = (self.line_length - 1) * (self.line_count - 1) + extra_faces
             file.write(f"element face {face_count}\n")
             file.write("property list uchar int vertex_indices\n")
 
@@ -177,30 +187,94 @@ class PointManager:
             file.write(f"{x:f} {y:f} {z:f} {r} {g} {b}\n")
 
     def write_face_data(self, file: io.TextIOWrapper) -> None:
-        for line_count in range(1, self.line_count):
-            for point_count in range(1, self.line_length):
-                p = (line_count - 1) * self.line_length + point_count - 1
-                q = p + 1
-                r = q + self.line_length
-                s = r - 1
+        for line_index in range(self.line_count - 1):
+            for index in range(0, self.line_length - 1):
+                s = line_index * self.line_length + index
+                t = s + 1
+                u = t + self.line_length
+                v = u - 1
 
-                file.write(f"4 {p} {q} {r} {s}\n")
+                file.write(f"4 {s} {t} {u} {v}\n")
+
+    def write_face_patch(self, file: io.TextIOWrapper, base: int) -> int:
+        face_count = 0
+
+        cusp = self.line_length * 32 // 100
+        if cusp % 2 == 0:
+            cusp += 1
+        halfcusp = cusp // 2  # Rounds downward
+
+        for index in range(1, halfcusp + 1):
+            s = base + index - 1
+            t = s + 1
+            u = base + cusp - index
+            v = u + 1
+
+            face_count += 1
+            file.write(f"4 {s} {t} {u} {v}\n")
+
+        for index in range(cusp, self.line_length - 1):
+            s = base
+            t = s + index
+            u = t + 1
+
+            face_count += 1
+            file.write(f"3 {s} {t} {u}\n")
+
+        return face_count
+
+    def write_all(
+        self,
+        file: io.TextIOWrapper,
+        include: None | Self = None,
+    ) -> None:
+        buffer: None | io.StringIO = None
+        extra_faces = 0
+
+        # TODO: Pre-compute face count to avoid buffering
+        if self.mesh:
+            buffer = io.StringIO()
+            extra_faces = self.write_face_patch(buffer, 0)
+            base = (self.line_count - 1) * self.line_length
+            extra_faces += self.write_face_patch(buffer, base)
+
+        # Write header
+        vertex_count, face_count = self.write_header(
+            file,
+            include=include,
+            extra_faces=extra_faces
+        )
+        log(f"    {vertex_count:,} vertices")
+
+        # Write vertices
+        self.write_vertex_data(file)
+        if include is not None:
+            include.write_vertex_data(file)
+
+        # Write faces
+        if self.mesh:
+            assert buffer is not None
+            log(f"    {face_count:,} faces")
+            self.write_face_data(file)
+            file.write(buffer.getvalue())
 
 
 def render(
     space: ColorSpace,
     segment_size: int = 50,
     gamut: None | ColorSpace = None,
-    planar: bool = False,
-    quad: bool = False,
+    planar_gamut: bool = False,
+    mesh: bool = False,
     sampler: None | Sampler = None,
     step_size: int = 2,
 ) -> None:
     traversal = SpectrumTraversal(CIE_ILLUMINANT_D65, CIE_OBSERVER_2DEG_1931)
     traversal.set_step_sizes(step_size)
 
-    log(f"Traversing visual gamut in {space}")
-    points = PointManager(quad=quad)
+    log(f"Traversing visual gamut in {space} with step size {step_size}:")
+    points = PointManager(mesh=mesh)
+
+    # Lines resulting from square wave pulses
     for step in traversal:
         if isinstance(step, GamutTraversalStep.MoveTo):
             points.mark_newline()
@@ -211,12 +285,15 @@ def render(
         if space.is_ok():
             points.add(color.to(ColorSpace.Oklrab))
         else:
-            points.add(color.to(ColorSpace.Xyz))
+            points.add(color)
+
+    log(f"    {len(points):,} individual points")
+    log(f"    {points.line_count:,} lines, each {points.line_length:,} points long")
 
     gamut_points = None
     if gamut is not None:
-        log(f"Traversing color space gamut of {space}")
-        gamut_points = PointManager(planar=planar)
+        log(f"Traversing color space gamut of {space} with step size {step_size}")
+        gamut_points = PointManager(planar=planar_gamut)
         it = gamut.gamut(segment_size)
         assert it is not None
         for step in it:
@@ -234,17 +311,9 @@ def render(
     else:
         filename = "cloud-xyz.ply"
 
-    log(f"Writing {filename}")
+    log(f"Writing {filename}:")
     with open(filename, mode="w", encoding="utf8") as file:
-        vertex_count, face_count = points.write_header(file, gamut_points)
-        log(f"Writing {filename}: {vertex_count:,} vertices")
-        points.write_vertex_data(file)
-        if gamut_points is not None:
-            gamut_points.write_vertex_data(file)
-
-        if quad:
-            log(f"Writing {filename}: {face_count:,} faces")
-            points.write_face_data(file)
+        points.write_all(file, gamut_points)
 
 
 if __name__ == "__main__":
@@ -274,15 +343,18 @@ if __name__ == "__main__":
     render(
         ColorSpace.Xyz,
         gamut=gamut,
-        planar=options.planar,
-        quad=options.quad,
+        planar_gamut=options.planar_gamut,
+        mesh=options.mesh,
         step_size=step_size
     )
+
+    log()
+
     render(
         ColorSpace.Oklrab,
         gamut=gamut,
-        planar=options.planar,
-        quad=options.quad,
+        planar_gamut=options.planar_gamut,
+        mesh=options.mesh,
         sampler=sampler,
         step_size=step_size
     )
