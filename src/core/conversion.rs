@@ -2,6 +2,7 @@ use super::{normalize, ColorSpace};
 use crate::Float;
 
 /// Convert the given 24-bit RGB coordinates to floating point coordinates.
+#[inline]
 pub(crate) fn from_24bit(r: u8, g: u8, b: u8) -> [Float; 3] {
     [r as Float / 255.0, g as Float / 255.0, b as Float / 255.0]
 }
@@ -41,7 +42,6 @@ fn multiply(matrix: &[[Float; 3]; 3], vector: &[Float; 3]) -> [Float; 3] {
 /// Convert coordinates from gamma-corrected RGB to linear RGB using sRGB's
 /// gamma. Display P3 uses the very same gamma. This is a one-hop, direct
 /// conversion.
-#[inline]
 fn rgb_to_linear_rgb(value: &[Float; 3]) -> [Float; 3] {
     #[inline]
     fn convert(value: Float) -> Float {
@@ -59,7 +59,6 @@ fn rgb_to_linear_rgb(value: &[Float; 3]) -> [Float; 3] {
 /// Convert coordinates from linear RGB to gamma-corrected RGB using sRGB's
 /// gamma. Display P3 uses the very same gamma. This is a one-hop, direct
 /// conversion.
-#[inline]
 fn linear_rgb_to_rgb(value: &[Float; 3]) -> [Float; 3] {
     #[inline]
     fn convert(value: Float) -> Float {
@@ -89,7 +88,6 @@ const LINEAR_SRGB_TO_XYZ: [[Float; 3]; 3] = [
 ];
 
 /// Convert coordinates for linear sRGB to XYZ. This is a one-hop, direct conversion.
-#[inline]
 fn linear_srgb_to_xyz(value: &[Float; 3]) -> [Float; 3] {
     multiply(&LINEAR_SRGB_TO_XYZ, value)
 }
@@ -106,7 +104,6 @@ const XYZ_TO_LINEAR_SRGB: [[Float; 3]; 3] = [
 
 /// Convert coordinates for XYZ to linear sRGB. THis is a one-hop, direct
 /// conversion.
-#[inline]
 fn xyz_to_linear_srgb(value: &[Float; 3]) -> [Float; 3] {
     multiply(&XYZ_TO_LINEAR_SRGB, value)
 }
@@ -124,7 +121,6 @@ const LINEAR_DISPLAY_P3_TO_XYZ: [[Float; 3]; 3] = [
 
 /// Convert coordinates for linear Display P3 to XYZ. This is a one-hop, direct
 /// conversion.
-#[inline]
 fn linear_display_p3_to_xyz(value: &[Float; 3]) -> [Float; 3] {
     multiply(&LINEAR_DISPLAY_P3_TO_XYZ, value)
 }
@@ -141,7 +137,6 @@ const XYZ_TO_LINEAR_DISPLAY_P3: [[Float; 3]; 3] = [
 
 /// Convert coordinates for XYZ to linear Display P3. This is a one-hop, direct
 /// conversion.
-#[inline]
 fn xyz_to_linear_display_p3(value: &[Float; 3]) -> [Float; 3] {
     multiply(&XYZ_TO_LINEAR_DISPLAY_P3, value)
 }
@@ -159,7 +154,6 @@ mod rec2020 {
 
     /// Convert coordinates for Rec. 2020 to linear Rec. 2020. This is a
     /// one-hop, direct conversion.
-    #[inline]
     pub(super) fn rec2020_to_linear_rec2020(value: &[Float; 3]) -> [Float; 3] {
         #[inline]
         fn convert(value: Float) -> Float {
@@ -175,7 +169,6 @@ mod rec2020 {
 
     /// Convert coordinates for linear Rec. 2020 to Rec. 2020. This is a
     /// one-hop, direct conversion.
-    #[inline]
     pub(super) fn linear_rec2020_to_rec2020(value: &[Float; 3]) -> [Float; 3] {
         #[inline]
         fn convert(value: Float) -> Float {
@@ -205,7 +198,6 @@ const LINEAR_REC2020_TO_XYZ: [[Float; 3]; 3] = [
 
 /// Convert coordinates for linear Rec. 2020 to XYZ. This is a one-hop, direct
 /// conversion.
-#[inline]
 fn linear_rec2020_to_xyz(value: &[Float; 3]) -> [Float; 3] {
     multiply(&LINEAR_REC2020_TO_XYZ, value)
 }
@@ -220,7 +212,6 @@ const XYZ_TO_LINEAR_REC2020: [[Float; 3]; 3] = [
 
 /// Convert coordinates for XYZ to linear Rec. 2020. This is a one-hop, direct
 /// conversion.
-#[inline]
 fn xyz_to_linear_rec2020(value: &[Float; 3]) -> [Float; 3] {
     multiply(&XYZ_TO_LINEAR_REC2020, value)
 }
@@ -232,7 +223,6 @@ mod oklab {
 
     /// Convert coordinates for Oklch to Oklab or for Oklrch to Oklrab. This is a
     /// one-hop, direct conversion.
-    #[inline]
     #[allow(non_snake_case)]
     pub(crate) fn okxch_to_okxab(value: &[Float; 3]) -> [Float; 3] {
         let [L, C, h] = *value;
@@ -249,7 +239,6 @@ mod oklab {
 
     /// Convert coordinates for Oklab to Oklch or for Oklrab to Oklrch. This is a
     /// one-hop, direct conversion.
-    #[inline]
     #[allow(non_snake_case)]
     pub(crate) fn okxab_to_okxch(value: &[Float; 3]) -> [Float; 3] {
         let [L, a, b] = *value;
@@ -276,7 +265,6 @@ mod oklab {
     /// function replaces the lightness L with the [improved lightness
     /// Lr](https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab).
     /// This is a one-hop, direct conversion.
-    #[inline]
     pub(super) fn oklxx_to_oklrxx(value: &[Float; 3]) -> [Float; 3] {
         let [l, a, b] = *value;
         let k3lk1 = K3.mul_add(l, -K1);
@@ -291,7 +279,6 @@ mod oklab {
     /// function replaces the [improved lightness
     /// Lr](https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab)
     /// with the original lightness L. This is a one-hop, direct conversion.
-    #[inline]
     pub(super) fn oklrxx_to_oklxx(value: &[Float; 3]) -> [Float; 3] {
         let [lr, a, b] = *value;
         [(lr * (lr + K1)) / (K3 * (lr + K2)), a, b]
@@ -323,7 +310,6 @@ const OKLMS_TO_XYZ: [[Float; 3]; 3] = [
 /// Convert coordinates for Oklab to XYZ. This is a one-hop, direct conversion,
 /// even though it requires two matrix multiplications and a coordinate-wise
 /// exponential.
-#[inline]
 fn oklab_to_xyz(value: &[Float; 3]) -> [Float; 3] {
     let [l, m, s] = multiply(&OKLAB_TO_OKLMS, value);
     multiply(&OKLMS_TO_XYZ, &[l.powi(3), m.powi(3), s.powi(3)])
@@ -350,7 +336,6 @@ const OKLMS_TO_OKLAB: [[Float; 3]; 3] = [
 /// Convert coordinates for XYZ to Oklab. This is a one-hop, direct conversion,
 /// even though it requires two matrix multiplications and a coordinate-wise
 /// exponential.
-#[inline]
 fn xyz_to_oklab(value: &[Float; 3]) -> [Float; 3] {
     let [l, m, s] = multiply(&XYZ_TO_OKLMS, value);
     multiply(&OKLMS_TO_OKLAB, &[l.cbrt(), m.cbrt(), s.cbrt()])
