@@ -37,6 +37,11 @@ def create_parser() -> argparse.ArgumentParser:
         "wavelength of the (m-1)th pulse width, much like a rope ladder"
     )
     parser.add_argument(
+        "--darken",
+        action="store_true",
+        help="darken vertex colors"
+    )
+    parser.add_argument(
         "--step", "-s",
         help="use given step size (in integral nanometers)"
     )
@@ -105,61 +110,131 @@ class Sampler:
 class PointManager:
     def __init__(
         self,
+        *,
+        step_size: int,
+        space: ColorSpace,
         darken: bool = False,
         planar: bool = False,
         mesh: bool = False,
     ) -> None:
-        self.darken = darken
-        self.planar = planar
-        self.mesh = mesh
-        self.points: list[tuple[float, float, float]] = []
-        self.colors: list[tuple[int, int, int]] = []
-        self.line_count = 0
+        self._step_size = step_size
+        self._space = space
+        self._should_darken = darken
+        self._should_project_to_plane = planar
+        self._should_generate_mesh = mesh
+        self._points: list[tuple[float, float, float]] = []
+        self._colors: list[tuple[int, int, int]] = []
+        self._faces: list[tuple[int, int, int]] = []
+        self._line_count = 0
+        self._line_length = 0
+
+    @property
+    def line_count(self) -> int:
+        return self._line_count
+
+    @property
+    def line_length(self) -> int:
+        return self._line_length
+
+    @property
+    def line_cusp(self) -> int:
+        cusp = self.line_length * 32 // 100
+        if cusp % 2 == 0:
+            cusp += 1
+        return cusp
 
     def __len__(self) -> int:
-        return len(self.points)
+        return len(self._points)
+
+    @property
+    def point_count(self) -> int:
+        return len(self._points)
+
+    @property
+    def face_count(self) -> int:
+        return len(self._faces)
 
     def mark_newline(self) -> None:
-        self.line_count += 1
-        if self.line_count == 2:
-            self.line_length = len(self.points)
+        self._line_count += 1
+        if self._line_count == 2:
+            self._line_length = self.point_count
 
     def add(self, color: Color, highlight: None | Color = None) -> None:
         x, y, z = color
 
-        if self.planar:
+        if self._should_project_to_plane:
             if color.space().is_ok():
                 # Zero out lightness
-                self.points.append((0, y, z))
+                self._points.append((0, y, z))
             else:
                 # Zero out luminosity
-                self.points.append((x, 0, z))
+                self._points.append((x, 0, z))
         else:
-            self.points.append((x, y, z))
+            self._points.append((x, y, z))
 
         if highlight is not None:
             r, g, b = highlight.to_24bit()
-            self.colors.append((r, g, b))
+            self._colors.append((r, g, b))
             return
 
-        if self.darken:
+        if self._should_darken:
             lr, c, h = color.to(ColorSpace.Oklrch)
-            color = Color.oklrch(lr * 2 / 3, c * 2 / 3, h)
+            color = Color.oklrch(self.darken(lr), c, h)
 
         r, g, b = color.to_24bit()
-        self.colors.append((r, g, b))
+        self._colors.append((r, g, b))
+
+    def darken(self, l: float) -> float:
+        return 0.9 * l
+
+    def generate_faces(self) -> None:
+        for line_index in range(self.line_count - 1):
+            for index in range(0, self.line_length - 1):
+                s = line_index * self.line_length + index
+                t = s + 1
+                u = t + self.line_length
+                v = u - 1
+
+                self._faces.append((s, v, u))
+                self._faces.append((s, u, t))
+
+        cusp = self.line_cusp
+        halfcusp = cusp // 2  # Rounds downward
+
+        for base in (0, (self.line_count - 1) * self.line_length):
+            for index in range(1, halfcusp + 1):
+                s = base + index - 1
+                t = s + 1
+                u = base + cusp - index
+                v = u + 1
+
+                self._faces.append((s, v, u))
+                self._faces.append((s, u, t))
+
+            for index in range(cusp, self.line_length - 1):
+                s = base
+                t = s + index
+                u = t + 1
+
+                self._faces.append((s, u, t))
+
+        # Open boundary: min(x), min(y) for growing z
+        # if z hits max, keep max(z) for growing x, y
 
     def write_header(
         self,
         file: io.TextIOWrapper,
         *,
         include: None | Self = None,
-        extra_faces: int = 0,
     ) -> tuple[int, int]:
         file.write("ply\n")
         file.write("format ascii 1.0\n")
+        c = f"Visual gamut in {self._space}, step size {self._step_size}nm, "
+        c += "w/mesh" if self._should_generate_mesh else "w/o mesh"
+        file.write(f"comment {c}\n")
+        file.write(f"comment Traced by <https://github.com/apparebit/prettypretty>\n")
 
-        vertex_count = len(self.points) + (0 if include is None else len(include))
+        vertex_count = self.point_count + (0 if include is None else include.point_count)
         file.write(f"element vertex {vertex_count}\n")
 
         file.write("property float x\n")
@@ -170,8 +245,8 @@ class PointManager:
         file.write("property uchar blue\n")
 
         face_count = 0
-        if self.mesh:
-            face_count = (self.line_length - 1) * (self.line_count - 1) + extra_faces
+        if self._should_generate_mesh:
+            face_count = self.face_count
             file.write(f"element face {face_count}\n")
             file.write("property list uchar int vertex_indices\n")
 
@@ -179,7 +254,7 @@ class PointManager:
         return vertex_count, face_count
 
     def write_vertex_data(self, file: io.TextIOWrapper) -> None:
-        for point, color in zip(self.points, self.colors):
+        for point, color in zip(self._points, self._colors):
             f = 100.0
             x, y, z = point[0] * f, point[1] * f, point[2] * f
             r, g, b = color
@@ -187,92 +262,44 @@ class PointManager:
             file.write(f"{x:f} {y:f} {z:f} {r} {g} {b}\n")
 
     def write_face_data(self, file: io.TextIOWrapper) -> None:
-        for line_index in range(self.line_count - 1):
-            for index in range(0, self.line_length - 1):
-                s = line_index * self.line_length + index
-                t = s + 1
-                u = t + self.line_length
-                v = u - 1
-
-                file.write(f"4 {s} {t} {u} {v}\n")
-
-    def write_face_patch(self, file: io.TextIOWrapper, base: int) -> int:
-        face_count = 0
-
-        cusp = self.line_length * 32 // 100
-        if cusp % 2 == 0:
-            cusp += 1
-        halfcusp = cusp // 2  # Rounds downward
-
-        for index in range(1, halfcusp + 1):
-            s = base + index - 1
-            t = s + 1
-            u = base + cusp - index
-            v = u + 1
-
-            face_count += 1
-            file.write(f"4 {s} {t} {u} {v}\n")
-
-        for index in range(cusp, self.line_length - 1):
-            s = base
-            t = s + index
-            u = t + 1
-
-            face_count += 1
-            file.write(f"3 {s} {t} {u}\n")
-
-        return face_count
+        for i, j, k in self._faces:
+            file.write(f"3 {i} {j} {k}\n")
 
     def write_all(
         self,
         file: io.TextIOWrapper,
         include: None | Self = None,
     ) -> None:
-        buffer: None | io.StringIO = None
-        extra_faces = 0
-
-        # TODO: Pre-compute face count to avoid buffering
-        if self.mesh:
-            buffer = io.StringIO()
-            extra_faces = self.write_face_patch(buffer, 0)
-            base = (self.line_count - 1) * self.line_length
-            extra_faces += self.write_face_patch(buffer, base)
-
         # Write header
-        vertex_count, face_count = self.write_header(
-            file,
-            include=include,
-            extra_faces=extra_faces
-        )
-        log(f"    {vertex_count:,} vertices")
+        vertex_count, face_count = self.write_header(file, include=include)
 
         # Write vertices
+        log(f"    {vertex_count:,} vertices")
         self.write_vertex_data(file)
         if include is not None:
             include.write_vertex_data(file)
 
         # Write faces
-        if self.mesh:
-            assert buffer is not None
+        if self._should_generate_mesh:
             log(f"    {face_count:,} faces")
             self.write_face_data(file)
-            file.write(buffer.getvalue())
 
 
 def render(
     space: ColorSpace,
-    segment_size: int = 50,
+    step_size: int = 2,
+    darken: bool = False,
     gamut: None | ColorSpace = None,
+    segment_size: int = 50,
     planar_gamut: bool = False,
     mesh: bool = False,
     sampler: None | Sampler = None,
-    step_size: int = 2,
 ) -> None:
     traversal = SpectrumTraversal(CIE_ILLUMINANT_D65, CIE_OBSERVER_2DEG_1931)
     traversal.set_step_sizes(step_size)
 
     log(f"Traversing visual gamut in {space} with step size {step_size}:")
-    points = PointManager(mesh=mesh)
+    points = PointManager(step_size=step_size, space=space, darken=darken, mesh=mesh)
 
     # Lines resulting from square wave pulses
     for step in traversal:
@@ -285,15 +312,21 @@ def render(
         if space.is_ok():
             points.add(color.to(ColorSpace.Oklrab))
         else:
-            points.add(color)
+            hl = Color(ColorSpace.Srgb, [1, 0, 0]) if points.line_count == 1 else None
+            points.add(color, hl)
 
-    log(f"    {len(points):,} individual points")
+    points.generate_faces()
+
+    log(f"    {points.point_count:,} individual points")
     log(f"    {points.line_count:,} lines, each {points.line_length:,} points long")
+    log(f"    {points.face_count:,} faces")
 
     gamut_points = None
     if gamut is not None:
         log(f"Traversing color space gamut of {space} with step size {step_size}")
-        gamut_points = PointManager(planar=planar_gamut)
+        gamut_points = PointManager(
+            step_size=step_size, space=space, darken=darken, planar=planar_gamut
+        )
         it = gamut.gamut(segment_size)
         assert it is not None
         for step in it:
@@ -345,7 +378,8 @@ if __name__ == "__main__":
         gamut=gamut,
         planar_gamut=options.planar_gamut,
         mesh=options.mesh,
-        step_size=step_size
+        step_size=step_size,
+        darken=options.darken,
     )
 
     log()
@@ -356,7 +390,8 @@ if __name__ == "__main__":
         planar_gamut=options.planar_gamut,
         mesh=options.mesh,
         sampler=sampler,
-        step_size=step_size
+        step_size=step_size,
+        darken=options.darken,
     )
 
     log("\nShape of visible gamut (sampled on chroma/hue plane):\n")
