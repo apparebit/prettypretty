@@ -63,8 +63,8 @@ The API documentation on
 `pyffi` and hence is Rust-only. The API documentation on
 [GitHub](https://apparebit.github.io/prettypretty/prettypretty/) is built with
 `pyffi` and hence covers Python integration as well. It tags Python-only methods
-as <span class=python-only></span> and Rust-only methods as <span
-class=rust-only></span>.
+as <i class=python-only>Python only!</i> and Rust-only methods as <i
+class=rust-only>Rust only!</i>.
 
 
 ## Installing the Prettypretty Package

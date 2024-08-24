@@ -6,7 +6,7 @@ use crate::core::{conversion::okxab_to_okxch, convert, FloatExt};
 use crate::{Bits, Float};
 
 /// Test macro for asserting that two floating point numbers can be considered
-/// equal. <span class=rust-only></span>
+/// equal. <i class=rust-only>Rust only!</i>
 ///
 /// This macro relies on [`to_eq_bits`] to normalize the two floating point
 /// numbers by zeroing out not-a-numbers, reducing resolution, and dropping the
@@ -59,7 +59,7 @@ macro_rules! assert_same_coordinates {
 pub(crate) use assert_same_coordinates;
 
 /// Test macro for asserting that two color objects describe the same color.
-/// <span class=rust-only></span>
+/// <i class=rust-only>Rust only!</i>
 ///
 /// This macro tests the color objects for equality using the `Eq` trait. The
 /// implementation, in turn, normalizes the coordinates of colors with the same
@@ -167,7 +167,7 @@ pub(crate) fn to_eq_coordinates(space: ColorSpace, coordinates: &[Float; 3]) -> 
 // --------------------------------------------------------------------------------------------------------------------
 
 /// Determine whether the two floats are close enough to be considered equal.
-/// <span class=python-only></span>
+/// <i class=python-only>Python only!</i>
 ///
 /// This function relies on [`to_eq_bits`] to normalize the two floating point
 /// numbers by zeroing out not-a-numbers, reducing resolution, and dropping the

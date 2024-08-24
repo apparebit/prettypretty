@@ -145,7 +145,7 @@ impl GamutTraversalStep {
         }
     }
 
-    /// Get a debug representation. <span class=python-only></span>
+    /// Get a debug representation. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         match self {
@@ -437,17 +437,17 @@ impl std::iter::FusedIterator for GamutTraversal {}
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl GamutTraversal {
-    /// Get this iterator. <span class=python-only></span>
+    /// Get this iterator. <i class=python-only>Python only!</i>
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
 
-    /// Get the next gamut traversal step. <span class=python-only></span>
+    /// Get the next gamut traversal step. <i class=python-only>Python only!</i>
     pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<GamutTraversalStep> {
         slf.next()
     }
 
-    /// Get a debug representation. <span class=python-only></span>
+    /// Get a debug representation. <i class=python-only>Python only!</i>
     pub fn __repr__(&self) -> String {
         format!(
             "GamutTraversal([{}, {}, {}] / {}, {:?}, {:?})",

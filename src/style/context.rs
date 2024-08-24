@@ -33,8 +33,8 @@ impl Layer {
         }
     }
 
-    /// Return a humane description for this layer. <span
-    /// class=python-only></span>
+    /// Return a humane description for this layer. <i class=python-only>Python
+    /// only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __str__(&self) -> String {
         format!("{}", self)
@@ -77,7 +77,7 @@ pub enum Fidelity {
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl Fidelity {
     /// Determine the fidelity required for rendering the given terminal color.
-    /// <span class=python-only></span>
+    /// <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn from_color(color: TerminalColor) -> Self {
@@ -115,8 +115,8 @@ impl Fidelity {
         Fidelity::from(color) <= *self
     }
 
-    /// Return a humane description for this fidelity. <span
-    /// class=python-only></span>
+    /// Return a humane description for this fidelity. <i
+    /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __str__(&self) -> String {
         format!("{}", self)

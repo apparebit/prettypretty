@@ -12,8 +12,8 @@ use crate::core::{
 
 use crate::Float;
 
-/// Create a new sRGB color from 24-bit integer coordinates. <span
-/// class=rust-only></span>
+/// Create a new sRGB color from 24-bit integer coordinates. <i
+/// class=rust-only>Rust only!</i>
 ///
 /// Like [`Color::from_24bit`], this macro creates a new color from 24-bit
 /// integer coordinates. However, it also is safe to use in const expressions.
@@ -145,7 +145,8 @@ impl Color {
         Self { space, coordinates }
     }
 
-    /// Parse a color from its string representation. <span class=python-only></span>
+    /// Parse a color from its string representation. <i
+    /// class=python-only>Python only!</i>
     ///
     /// This method implements the same functionality as `Color`'s [`Color as
     /// FromStr`](struct.Color.html#impl-FromStr-for-Color) and is available in
@@ -341,7 +342,7 @@ impl Color {
         self.space
     }
 
-    /// Access the coordinates. <span class=python-only></span>
+    /// Access the coordinates. <i class=python-only>Python only!</i>
     ///
     /// This method provides access to this color's coordinates as a single
     /// sequence instead of piecemeal by index. However, it critically differs
@@ -352,7 +353,8 @@ impl Color {
         self.coordinates
     }
 
-    /// Get this color's length, which is 3. <span class=python-only></span>
+    /// Get this color's length, which is 3. <i class=python-only>Python
+    /// only!</i>
     ///
     /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
@@ -360,7 +362,7 @@ impl Color {
         3
     }
 
-    /// Read coordinates by index. <span class=python-only></span>
+    /// Read coordinates by index. <i class=python-only>Python only!</i>
     ///
     /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
@@ -1176,8 +1178,8 @@ impl Color {
 
     // ----------------------------------------------------------------------------------------------------------------
 
-    /// Convert this color to its debug representation. <span
-    /// class=python-only></span>
+    /// Convert this color to its debug representation. <i
+    /// class=python-only>Python only!</i>
     ///
     /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
@@ -1185,8 +1187,8 @@ impl Color {
         format!("{:?}", self)
     }
 
-    /// Convert this color to its (CSS-based) string representation. <span
-    /// class=python-only></span>
+    /// Convert this color to its (CSS-based) string representation. <i
+    /// class=python-only>Python only!</i>
     ///
     /// This method is available from Python only.
     #[cfg(feature = "pyffi")]
@@ -1325,7 +1327,7 @@ impl Color {
 // Do not use cfg(), so that methods are documented.
 impl Color {
     /// Find the index position of the candidate color closest to this color.
-    /// <span class=rust-only></span>
+    /// <i class=rust-only>Rust only!</i>
     ///
     /// This method delegates to [`Color::find_closest`] using the Delta E
     /// metric for Oklab/Oklrab, which is the Euclidian distance.
@@ -1370,7 +1372,7 @@ impl Color {
     }
 
     /// Find the index position of the candidate color closest to this color.
-    /// <span class=rust-only></span>
+    /// <i class=rust-only>Rust only!</i>
     ///
     /// This method compares this color to every candidate color by computing
     /// the distance with the given function and returns the index position of
@@ -1815,8 +1817,8 @@ impl Interpolator {
         Color::new(self.space, [c1, c2, c3])
     }
 
-    /// Create a debug representation of this interpolator. <span
-    /// class=python-only></span>
+    /// Create a debug representation of this interpolator. <i
+    /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         format!(

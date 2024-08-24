@@ -100,8 +100,8 @@ pub enum AnsiColor {
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl AnsiColor {
-    /// Instantiate an ANSI color from its 8-bit code. <span
-    /// class=python-only></span>
+    /// Instantiate an ANSI color from its 8-bit code. <i
+    /// class=python-only>Python only!</i>
     ///
     /// This method offers the same functionality as [`AnsiColor as
     /// TryFrom<u8>`](enum.AnsiColor.html#impl-TryFrom%3Cu8%3E-for-AnsiColor)
@@ -112,7 +112,8 @@ impl AnsiColor {
         Self::try_from(value)
     }
 
-    /// Get the 8-bit code for this ANSI color. <span class=python-only></span>
+    /// Get the 8-bit code for this ANSI color. <i class=python-only>Python
+    /// only!</i>
     ///
     /// This method offers the same functionality as [`u8 as
     /// From<AnsiColor>`](enum.AnsiColor.html#impl-From%3CAnsiColor%3E-for-u8)
@@ -316,9 +317,9 @@ impl EmbeddedRgb {
         }
     }
 
-    /// Instantiate an embedded RGB color from its 8-bit code. <span
-    /// class=python-only></span>
-    ///
+    /// Instantiate an embedded RGB color from its 8-bit code. <i
+    /// class=python-only>Python only!</i>
+    ////
     /// This method offers the same functionality as [`EmbeddedRgb as
     /// TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb)
     /// and is available in Python only.
@@ -328,8 +329,8 @@ impl EmbeddedRgb {
         Self::try_from(value)
     }
 
-    /// Get the 8-bit code for this embedded RGB color. <span
-    /// class=python-only></span>
+    /// Get the 8-bit code for this embedded RGB color. <i
+    /// class=python-only>Python only!</i>
     ///
     /// This method offers the same functionality as [`u8 as
     /// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8)
@@ -339,15 +340,15 @@ impl EmbeddedRgb {
         u8::from(*self)
     }
 
-    /// Convert this embedded RGB color to 24-bit. <span
-    /// class=python-only></span>
+    /// Convert this embedded RGB color to 24-bit. <i class=python-only>Python
+    /// only!</i>
     #[inline]
     pub fn to_24bit(&self) -> [u8; 3] {
         (*self).into()
     }
 
-    /// Convert this embedded RGB color to a high-resolution color. <span
-    /// class=python-only></span>
+    /// Convert this embedded RGB color to a high-resolution color. <i
+    /// class=python-only>Python only!</i>
     ///
     /// This method offers the same functionality as [`Color as
     /// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color)
@@ -357,14 +358,15 @@ impl EmbeddedRgb {
         Color::from(*self)
     }
 
-    /// Access this true color's coordinates. <span class=python-only></span>
+    /// Access this true color's coordinates. <i class=python-only>Python
+    /// only!</i>
     #[inline]
     pub fn coordinates(&self) -> [u8; 3] {
         self.0
     }
 
-    /// Get this embedded RGB color's length, which is 3. <span
-    /// class=python-only></span>
+    /// Get this embedded RGB color's length, which is 3. <i
+    /// class=python-only>Python only!</i>
     ///
     /// This method improves integration with Python's runtime and hence is
     /// available in Python only.
@@ -373,7 +375,8 @@ impl EmbeddedRgb {
         3
     }
 
-    /// Get the coordinate at the given index. <span class=python-only></span>
+    /// Get the coordinate at the given index. <i class=python-only>Python
+    /// only!</i>
     ///
     /// This method improves integration with Python's runtime and hence is
     /// available in Python only.
@@ -387,8 +390,8 @@ impl EmbeddedRgb {
         }
     }
 
-    /// Convert this embedded RGB color to its debug representation. <span
-    /// class=python-only></span>
+    /// Convert this embedded RGB color to its debug representation. <i
+    /// class=python-only>Python only!</i>
     #[inline]
     pub fn __repr__(&self) -> String {
         format!("EmbeddedRgb({}, {}, {})", self.0[0], self.0[1], self.0[2])
@@ -583,8 +586,8 @@ impl GrayGradient {
         }
     }
 
-    /// Instantiate a gray gradient from its 8-bit code. <span
-    /// class=python-only></span>
+    /// Instantiate a gray gradient from its 8-bit code. <i
+    /// class=python-only>Python only!</i>
     ///
     /// This method offers the same functionality as [`GrayGradient as
     /// TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient)
@@ -595,8 +598,8 @@ impl GrayGradient {
         Self::try_from(value)
     }
 
-    /// Get the 8-bit code for this gray gradient color. <span
-    /// class=python-only></span>
+    /// Get the 8-bit code for this gray gradient color. <i
+    /// class=python-only>Python only!</i>
     ///
     /// This method offers the same functionality as [`u8 as
     /// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8)
@@ -606,15 +609,15 @@ impl GrayGradient {
         u8::from(*self)
     }
 
-    /// Convert this gray gradient color to 24-bit. <span
-    /// class=python-only></span>
+    /// Convert this gray gradient color to 24-bit. <i class=python-only>Python
+    /// only!</i>
     #[inline]
     pub fn to_24bit(&self) -> [u8; 3] {
         (*self).into()
     }
 
-    /// Convert this gray gradient to a high-resolution color. <span
-    /// class=python-only></span>
+    /// Convert this gray gradient to a high-resolution color. <i
+    /// class=python-only>Python only!</i>
     ///
     /// This method offers the same functionality as [`Color as
     /// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Color)
@@ -630,8 +633,8 @@ impl GrayGradient {
         self.0
     }
 
-    /// Convert this gray gradient to its debug representation. <span
-    /// class=python-only></span>
+    /// Convert this gray gradient to its debug representation. <i
+    /// class=python-only>Python only!</i>
     #[inline]
     pub fn __repr__(&self) -> String {
         format!("GrayGradient({})", self.0)
@@ -780,19 +783,20 @@ impl TrueColor {
         Self([r, g, b])
     }
 
-    /// Create a new true color from the given high-resolution color. <span
-    /// class=python-only></span>
+    /// Create a new true color from the given high-resolution color. <i
+    /// class=python-only>Python only!</i>
     ///
-    /// This method converts the given color to an in-gamut sRGB color and then
-    /// converts each coordinate to a `u8`. changes the components to
+    /// This method invokes true color's constructor after converting the given
+    /// color to an in-gamut sRGB color and then converting each coordinate to a
+    /// `u8`.
     #[staticmethod]
     pub fn from_color(color: &Color) -> Self {
         let [r, g, b] = color.to_24bit();
         Self::new(r, g, b)
     }
 
-    /// Convert this true color to a high-resolution color. <span
-    /// class=python-only></span>
+    /// Convert this true color to a high-resolution color. <i
+    /// class=python-only>Python only!</i>
     ///
     /// This method offers the same functionality as [`Color as
     /// From<TrueColor>`](struct.TrueColor.html#impl-From%3CTrueColor%3E-for-Color)
@@ -801,13 +805,14 @@ impl TrueColor {
         Color::from(*self)
     }
 
-    /// Access this true color's coordinates. <span class=python-only></span>
+    /// Access this true color's coordinates. <i class=python-only>Python
+    /// only!</i>
     pub fn coordinates(&self) -> [u8; 3] {
         self.0
     }
 
-    /// Get this true color's length, which is 3. <span
-    /// class=python-only></span>
+    /// Get this true color's length, which is 3. <i class=python-only>Python
+    /// only!</i>
     ///
     /// This method improves integration with Python's runtime and hence is
     /// available in Python only.
@@ -815,7 +820,8 @@ impl TrueColor {
         3
     }
 
-    /// Get the coordinate at the given index. <span class=python-only></span>
+    /// Get the coordinate at the given index. <i class=python-only>Python
+    /// only!</i>
     ///
     /// This method improves integration with Python's runtime and hence is
     /// available in Python only.
@@ -837,14 +843,14 @@ impl TrueColor {
         self.do_weighted_euclidian_distance(other)
     }
 
-    /// Convert this true color to its debug representation. <span
-    /// class=python-only></span>
+    /// Convert this true color to its debug representation. <i
+    /// class=python-only>Python only!</i>
     pub fn __repr__(&self) -> String {
         format!("TrueColor({}, {}, {})", self.0[0], self.0[1], self.0[2])
     }
 
-    /// Convert this true color to hashed hexadecimal notation. <span
-    /// class=python-only></span>
+    /// Convert this true color to hashed hexadecimal notation. <i
+    /// class=python-only>Python only!</i>
     pub fn __str__(&self) -> String {
         format!("{}", self)
     }
@@ -986,16 +992,16 @@ impl TerminalColor {
         color: DefaultColor::Background,
     };
 
-    /// Convert the high-resolution color to a terminal color. <span
-    /// class=python-only></span>
+    /// Convert the high-resolution color to a terminal color. <i
+    /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn from_color(color: &Color) -> Self {
         Self::from(color)
     }
 
-    /// Convert the 8-bit index to a terminal color. <span
-    /// class=python-only></span>
+    /// Convert the 8-bit index to a terminal color. <i class=python-only>Python
+    /// only!</i>
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn from_8bit(color: u8) -> Self {
@@ -1011,8 +1017,8 @@ impl TerminalColor {
         }
     }
 
-    /// Convert this terminal color to an 8-bit index color. <span
-    /// class=python-only></span>
+    /// Convert this terminal color to an 8-bit index color. <i
+    /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn try_to_8bit(&self) -> PyResult<u8> {
         u8::try_from(*self).map_err(|_| {
@@ -1020,7 +1026,8 @@ impl TerminalColor {
         })
     }
 
-    /// Convert this terminal color to 24-bit. <span class=python-only></span>
+    /// Convert this terminal color to 24-bit. <i class=python-only>Python
+    /// only!</i>
     #[cfg(feature = "pyffi")]
     pub fn try_to_24bit(&self) -> PyResult<[u8; 3]> {
         <[u8; 3]>::try_from(*self).map_err(|_| {
@@ -1099,7 +1106,7 @@ impl TerminalColor {
         }
     }
 
-    /// Convert to a debug representation. <span class=python-only></span>
+    /// Convert to a debug representation. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         match self {

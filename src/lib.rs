@@ -85,7 +85,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
     feature = "pyffi",
     doc = "For the few cases of a constant or function being available only in
     one of the two languages, the documentation clearly labels the items as
-    <span class=python-only></span> or <span class=rust-only></span>."
+    <i class=python-only>Python only!</i> or <i class=rust-only>Rust only!</i>."
 )]
 //!
 //! Since many floating point operations require the `std` crate, a `no_std`
@@ -179,6 +179,7 @@ use pyo3::types::PyDict;
 #[pymodule]
 pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modcolor_name = m.name()?;
+    let modcolor_name = modcolor_name.to_str()?;
     let modgamut_name = format!("{}.gamut", modcolor_name);
     let modspectrum_name = format!("{}.spectrum", modcolor_name);
     let modobserver_name = format!("{}.std_observer", modspectrum_name);
@@ -196,7 +197,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // --------------------------------------------------------------- color.gamut
     let modgamut = PyModule::new_bound(m.py(), "gamut")?;
-    modgamut.add("__package__", &modcolor_name)?;
+    modgamut.add("__package__", modcolor_name)?;
     modgamut.add_class::<crate::gamut::GamutTraversal>()?;
     modgamut.add_class::<crate::gamut::GamutTraversalStep>()?;
     m.add_submodule(&modgamut)?;
@@ -206,7 +207,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // --------------------------------------------------------------- color.spectrum
     let modspectrum = PyModule::new_bound(m.py(), "spectrum")?;
-    modspectrum.add("__package__", &modcolor_name)?;
+    modspectrum.add("__package__", modcolor_name)?;
     modspectrum.add("CIE_ILLUMINANT_D65", crate::spectrum::CIE_ILLUMINANT_D65)?;
     modspectrum.add(
         "CIE_OBSERVER_2DEG_1931",
@@ -225,7 +226,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modspectrum.setattr("__name__", &modspectrum_name)?;
 
     let modobserver = PyModule::new_bound(m.py(), "std_observer")?;
-    modobserver.add("__package__", &modcolor_name)?;
+    modobserver.add("__package__", modcolor_name)?;
     modobserver.add_function(wrap_pyfunction!(spectrum::std_observer::x, m)?)?;
     modobserver.add_function(wrap_pyfunction!(spectrum::std_observer::y, m)?)?;
     modobserver.add_function(wrap_pyfunction!(spectrum::std_observer::z, m)?)?;
@@ -234,7 +235,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // --------------------------------------------------------------- color.style
     let modstyle = PyModule::new_bound(m.py(), "style")?;
-    modstyle.add("__package__", &modcolor_name)?;
+    modstyle.add("__package__", modcolor_name)?;
     modstyle.add_class::<crate::style::AnsiColor>()?;
     modstyle.add_class::<crate::style::DefaultColor>()?;
     modstyle.add_class::<crate::style::EmbeddedRgb>()?;
@@ -253,7 +254,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // --------------------------------------------------------------- color.trans
     let modtrans = PyModule::new_bound(m.py(), "trans")?;
-    modtrans.add("__package__", &modcolor_name)?;
+    modtrans.add("__package__", modcolor_name)?;
     modtrans.add_class::<crate::trans::ThemeEntry>()?;
     modtrans.add_class::<crate::trans::ThemeEntryIterator>()?;
     modtrans.add_class::<crate::trans::Translator>()?;
@@ -265,8 +266,11 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // --------------------------------------------------------------- sys.modules
     // Patch sys.modules
-    let sys = PyModule::import_bound(m.py(), "sys")?;
-    let py_modules: Bound<'_, PyDict> = sys.getattr("modules")?.downcast_into()?;
+    //let sys = PyModule::import_bound(m.py(), "sys")?;
+    let py_modules: Bound<'_, PyDict> =
+        PyModule::import_bound(m.py(), "sys")?
+        .getattr("modules")?
+        .downcast_into()?;
     py_modules.set_item(&modgamut_name, modgamut)?;
     py_modules.set_item(&modspectrum_name, modspectrum)?;
     py_modules.set_item(&modobserver_name, modobserver)?;

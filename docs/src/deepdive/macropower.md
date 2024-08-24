@@ -91,7 +91,12 @@ with Jeannie's finer granularity entailing higher complexity, and the existence
 of language-supported extension mechanisms for Rust and Python, i.e., macros for
 Rust and dunder methods for Python. By comparison, Java's attributes are just
 that, inert annotations that require external tools for processing, and the C
-preprocessor amounts to a somewhat confounding template engine only.
+preprocessor amounts to a somewhat confounding template engine only. In other
+words, the key difference between Rust's and Java's attributes is that Rust has
+a language-supported means for acting on them.
+
+
+### The Popularity of Rust Macros
 
 <img src=macropower/most-downloaded.png
      alt="screenshot of crates.io's most downloaded list"
@@ -102,13 +107,14 @@ The thing is, PyO3 is not the only Rust-based library and tool to make heavy use
 of macros. At the time of this writing, `bitflags` is the fourth most downloaded
 crate on crates.io. Its claim to fame is extending Rust with support for bit
 flags, which are ubiquitous in C APIs and network protocols. Astonishingly, the
-top three most downloaded crates, `syn`, `proc-macro2`, and `quote`, are
-designed to aid the implementation of procedural macros. Out of the remaining
-six in the top ten most downloaded crates, one more crate, `cfg-if`, exists to
-wrangle syntax, two more crates, `rand_core` and `rand`, make liberal use of
-macros for their implementation, two more crates, `libc` and `hashbrown`, make
-use of a few macros, notably their own vendored versions of `cfg-if`, and only
-one crate, `base64` appears to neither contain nor use any macros.
+top three most downloaded crates as of early morning August 20, 2024, `syn`,
+`proc-macro2`, and `quote`, are designed to aid the implementation of procedural
+macros. Out of the remaining six in the top ten most downloaded crates, one more
+crate, `cfg-if`, exists to wrangle syntax, two more crates, `rand_core` and
+`rand`, make liberal use of macros for their implementation, two more crates,
+`libc` and `hashbrown`, make use of a few macros, notably their own vendored
+versions of `cfg-if`, and only one crate, `base64` appears to neither contain
+nor use any macros.
 
 The fact that macro-related crates are the most popular crates period points
 towards a truth about Rust that doesn't get nearly enough attention: The
@@ -116,26 +122,25 @@ language's underappreciated superpower aren't affine types and the borrow
 checker. They *are* the language's marquee features and hence the primary
 reasons developers try out Rust. But they probably aren't enough to make them
 stay. In fact, why would anyone stick with Rust when the developer experience
-invariably entails needing something that isn't available in stable Rust but has
-a GitHub issue indicating that the feature is fully implemented but stuck
-somewhere just before or in stabilization. It happens less frequently in 2024
-than in 2019, but it still happens with reliability.
+invariably entails needing something that isn't quite available in stable Rust
+but has a GitHub issue indicating that the feature is fully implemented but
+stuck somewhere just before or in stabilization. It happens less frequently in
+2024 than in 2019, but it still happens with reliability.
 
 The other feature frequently mentioned in the context of Rust is async. But the
 state of async in Rust is such that async is closer to being Rust's kryptonite
-than a superpower. I am aware of the project goals for [the second half of
-2024](https://github.com/rust-lang/rfcs/blob/master/text/3672-Project-Goals-2024h2.md)
-and they sound like steps in the right direction. But as a Rust user, I remain
-sore that generators, no matter their color, continue to be one feature
-seemingly stuck forever in unstable land, in 2024 as much as in 2019. (The fact
-that Rust 2024 will reserve the `gen` keyword for just that use case is welcome
-news nonetheless.)
+than a superpower. As evidenced by the [project goals for the second half of
+2024](https://github.com/rust-lang/rfcs/blob/master/text/3672-Project-Goals-2024h2.md),
+that isn't news to the Rust project. But as a Rust user, I am disappointed that
+generators, no matter their color, continue to be one feature seemingly stuck in
+nightly, in 2024 as much as in 2019. Still, the fact that Rust 2024 will reserve
+the `gen` keyword for just that use case is welcome news.
 
-The most downloaded list further suggests that async might not be that important
-to Rust developers. The most downloaded crates clearly devoted to async
-programming are `mio` and `tokyo` at positions 57 and 59. However, a closer look
-at the two features and the most popular crates supporting them is instructive,
-as it clearly shows the limits of that particular popularity contest:
+Like procedural macros, async depends on ecosystem crates for practical use. So,
+I was surprised when I had to go down the most downloaded list until #57 to find
+a crate dedicated to async, `mio`, with `tokyo` following at #59. A closer look
+at the two language features and the most popular supporting crates helps to put
+that disparity in perspective:
 
 |Feature     |Crate|First Commit|Stable Rust          |Download Count|
 |:-----------|:----|:-----------|:--------------------|-------------:|
@@ -154,24 +159,21 @@ Oh, by the way:
 
 🍾 *Happy 10th birthday, `mio`!* 🎉
 
-The table's correlation between language feature and popular crate is justified
-by the fact that fully leveraging either feature pretty much requires ecosystem
-support. With `syn` having 2.6× the downloads of `mio`, the *Download Count*
-does indeed suggest that procedural macros are more frequently used than async.
-But upon reflection, that seems hardly surprising. Macros are generally useful
-whereas async has pretty much only one use case, albeit a critically important
-one. The *First Commit* and *Stable Rust* columns make clear that both language
-features had been in development for a long time before initial stabilization.
-They also confirm that ecosystem demand and uptake for both features started
-well before stabilization. So just maybe, integration of async into Rust is more
-complicated than that of procedural macros.
-
-*Duh!*
+With `syn` having 2.6× the downloads of `mio`, the *Download Count* does indeed
+suggest that procedural macros are more frequently used than async. But with
+macros more generally useful than async, the fact that there is a difference
+shouldn't be surprising. Though the magnitude of the difference still strikes me
+as high. At the same time, there seem to be significant commonalities: As the
+*First Commit* and *Stable Rust* columns make clear, both features had been in
+development for a long time before initial stabilization. Furthermore, ecosystem
+demand and uptake started long before stabilization. In other words, they both
+are very much consistent with a community-based project that takes a
+deliberately incremental approach to programming language evolution.
 
 
-## Rust's Many Macros
+### The Uniqueness of Rust Macros
 
-Still, it is safe to conclude that Rust macros are very very popular. And that
+It is safe to conclude that Rust macros are very very popular. And that
 *is* surprising in the context of systemsy programming languages. Historically,
 the brittleness of the C preprocessor caused many developers to swear off
 syntactic extensibility. How else to explain the terrible reputation of operator
@@ -216,46 +218,48 @@ Meanwhile, derive macros are the only macros that can define *helper
 attributes*, i.e., attributes valid for the scope of the data definition.
 
 If you are not familiar with Rust macros and this seems all a bit *too much
-information*, then that's ok. Just stick to declarative macros for now. They are
-far less complicated.
+information*, then that's ok. Just stick to declarative macros for now. They
+aren't all that complicated and can be very effective.
 
 
-## A Rust Macro to Save Rust From Itself
+### Rust Macros Save Rust From Itself
 
 <div class=color-swatch style="float: right;"><div style="background: rgb(254 156 201);"></div></div>
 
-Here's an example from prettypretty. The code needs to define the occasional
-color constant. To facilitate straight-forward conversion between color spaces,
-the crate's representation for high-resolution colors, `Color`, uses normalized
-floating point coordinates. While that is the more appropriate representation
-for processing colors, integer coordinates are more readable and familiar to us
-humans. Hence they seem more appropriate for specifying colors, at least in the
-common case where colors are in the sRGB color space. For example,
+In fact, they can be very effective at helping cope with papercuts resulting
+from Rust's incremental evolution. Here's an example from prettypretty. The
+issue is creating compile-time color constants in code. To facilitate conversion
+between color spaces, prettypretty's representation for high-resolution colors,
+`Color`, uses normalized floating point coordinates. While that is an
+appropriate representation for processing colors, (hexadecimal) integers are the
+more familiar and ergonomic notation for us humans. Nobody prefers
 ```rust,ignore
 Color::srgb(0.996078431372549, 0.611764705882353, 0.788235294117647)
 ```
-creates the nice light pink shown floating on the right side. So does
+over
 ```rust,ignore
 Color::from_24bit(0xfe, 0x9c, 0xc9)
 ```
-The latter is much closer to the `#fe9cc9` notation familiar from the web and
-hence seems preferable for specifying color constants. But current Rust (1.80.1)
-does not allow floating point arithmetic in `const` functions, that is,
-functions that can be executed at compile time. Worse, it does not allow `const`
-traits at all. However, it does allow floating point arithmetic in `const`
-expressions. The restriction on floating point arithmetic in `const` functions
-will probably be lifted pretty soon. Stabilization [started a few weeks
+for creating the same color object representing the same prettypretty pink shown
+in the color swatch floating to the right.
+
+Alas, `Color::from_24bit` cannot be used for creating compile-time constants in
+current Rust (1.80.1), since `const` functions must not perform floating point
+arithmetic. Worse, there is no support for `const` traits at all. Somewhat
+strangely, however, floating point arithmetic *is* supported in `const`
+expressions. This will get better in the near future. Stabilization for floating
+point arithmetic in `const` functions [started a few weeks
 ago](https://github.com/rust-lang/rust/pull/128596). And `const` traits are [on
 the list of project
 goals](https://github.com/rust-lang/rust-project-goals/issues/106) for the
 second half of 2014. That doesn't mean they will be supported within that time
 frame. But it does mean they are on the Rust team's radar screen.
 
-The fact that stable Rust supports floating point arithmetic in expressions
-isn't just a painful reminder that the other restrictions are somewhat
-arbitrary. It also is key to solving the problem *today*, in stable Rust
-nonetheless. Consider the following declarative macro, straight from
-prettypretty's sources:
+So does that mean writing obscure floating point numbers for color constants for
+now? As it turns out, stable Rust's support for floating point arithmetic in
+expressions isn't only painful reminder of what could (or will) be, it also is
+key to solving the problem *today*—no unsafe code or nightly Rust necessary!
+Consider the following declarative macro, straight from prettypretty's sources:
 
 ```rust
 #[macro_export]
@@ -288,21 +292,22 @@ or also
 ```rust,ignore
 rgb!(0xfe, 0x9c, 0xc9)
 ```
-to create a color constant for that oh so pretty pink. I like the color so much,
-I've added a swatch to this paragraph as well. 🌸
+to create a color constant for that prettypretty pink. 🌸
 
-That's one real-world example for Rust macros saving the language from itself.
-But I have to emphasize that getting there was a bumpy ride. I first tried to do
-the conversion in a `const` function, which resulted in an error message. I had
-bigger fish to fry, so for a while thereafter, I was using floating point
-literals. Then one day, I got really frustrated. Since C allows floating point
-arithmetic in constant expressions, the fact that Rust would not just seemed
-nuts. So, I tried floating point arithmetic in a `const` expression and it
-worked. Then I tried floating point arithmetic in a `const` function again and
-it didn't work. Then it dawned on me that there really was a difference between
-the two. Then I searched the GitHub issues. Finally, while reading through [the
-corresponding issue](https://github.com/rust-lang/rust/issues/57241), I had the
-idea for the macro.
+That's one real-world example of Rust macros [making the future
+today](https://www.youtube.com/watch?v=Wlh6yFSJEms) and thereby making Rust more
+usable. But I have to emphasize that getting there was a bumpy ride. I first
+tried to do the conversion in a `const` function, which resulted in an error
+message. I had bigger fish to fry, so for a while thereafter, I was using
+floating point literals. Then one day, I got really frustrated. Since C allows
+floating point arithmetic in constant expressions, the fact that Rust would not
+just seemed nuts. So, I tried floating point arithmetic in a `const` expression
+and it worked. Then I tried floating point arithmetic in a `const` function
+again and it didn't work. Then it dawned on me that there really was a
+difference between the two. Then I searched the GitHub issues. Finally, while
+reading through [the corresponding
+issue](https://github.com/rust-lang/rust/issues/57241), I had the idea for the
+macro.
 
 Unfortunately, the Rust compiler doesn't tell us about these work-arounds.
 Neither do most books about Rust. For instance, David Drysdale's otherwise
@@ -311,7 +316,7 @@ balanced](https://www.lurklurk.org/effective-rust/macros.html), I can't but
 wonder if he appreciates how important Rust macros are to the success of Rust.
 The one exception I can think of is [The Little Book of
 Macros](https://veykril.github.io/tlborm/). I for one am deeply appreciative of
-Lukas Wirth's and Daniel Keep's efforts, in 2024 as well as in 2019. There also
+Daniel Keep's and Lukas Wirth's efforts, in 2024 as much as in 2019. There also
 is David Tolnay's [procedural macro
 workshop](https://github.com/dtolnay/proc-macro-workshop), but I haven't worked
 through the material yet. Any other recommendations?
@@ -319,7 +324,147 @@ through the material yet. Any other recommendations?
 
 ## PyO3: The Bad
 
-Let's get back to PyO3.
+Let's get back to PyO3. While its deep integration between Rust and Python is
+impressive, it doesn't always succeed. At the same time, even PyO3's failures
+are instructive. First, I'm going to discuss two issues where integration with
+Python is less than seamless. Second, in the next section, I'll discuss a major
+pain point that results from a poor interaction between Rust features. In all
+three cases, I also describe prettypretty's pragmatic workarounds and point
+towards more principled and general solutions.
+
+The first issue is that PyO3 exposes misleading or incorrect module and package
+names to Python. First, by default, it identifies the `__module__` for functions
+and classes as `builtins`. While I can see an associative connection, Python's
+`builtins` are also written in native code, having accurate information on the
+provenance of objects is critical for debugging. Second, PyO3 supports
+submodules implemented by the same dynamically linked library. But it doesn't
+set the `__package__` attribute and incorrectly sets the `__name__` attribute to
+the unqualified name instead of the qualified one. Neither does it install
+submodules in Python's `sys.modules` registry of loaded modules, thus preventing
+Python from importing them.
+
+PyO3 does offer partial work-arounds with declarative modules and the
+`append_to_inittab` macro. But neither is a complete solution. To present
+correct provenance, I had to add `module = "prettypretty.color"` (and similar)
+arguments to all `#[pyclass]` attributes. To correctly set up the extension
+module and its submodules, prettypretty's library initialization function
+follows this outline:
+
+```rust,ignore
+#[pymodule]
+pub fn color(mod_color: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Get fully qualified module name:
+    let base_name = m.name()?;
+    let base_name = base_name.to_str()?;
+
+    // Populate extension module:
+    mod_color.add_class::<Color>()?;
+
+    // Create submodule, format its name, fix __package__:
+    let mod_spectrum = PyModule::new_bound(mod_color.py(), "spectrum")?;
+    let mod_spectrum_name = format!("{}.spectrum", base_name)
+    mod_spectrum.add("__package__", base_name)?;
+
+    // Populate submodule:
+    mod_spectrum.add_class::<Observer>()?;
+
+    // Add submodule to parent:
+    mod_color.add_submodule(&mod_spectrum)?;
+    // Only after add_submodule(), fix __name__:
+    mod_spectrum.setattr("__name__", &mod_spectrum_name)?;
+
+    // Patch sys.modules:
+    let sysmodules: Bound<'_, PyDict> =
+        PyModule::import_bound(mod_color.py(), "sys")?
+        .getattr("modules")?
+        .downcase_into()?;
+    sysmodules.set_item(&mod_spectrum_name, mod_spectrum)?;
+
+    Ok(()) // Ok?!
+}
+```
+
+None of the was particularly hard. In fact, PyO3's user guide mentions the
+`builtins` issue and its solution. It also provides example code for updating
+`sys.modules`. But that still adds to the cognitive load when picking up PyO3
+and imposes busy work on all users, well, those who care about playing well with
+Python. Given PyO3's otherwise excellent integration with Python, I am a bit
+puzzled by this apparent lack of care for proper naming. As prettypretty's
+initialization function demonstrates, it is possible to do proper module setup
+without even hardcoding the extension module's name. Since that function also
+populates the extension module with its contents, that should suffice for fixing
+all naming issues and hence seems to preclude technical limitations as an
+explanation. That leaves me wondering whether the lack of immediate
+consequences, whether positive (e.g., additional features) or negative (e.g.,
+Python crashing), also removes a potent motivation to do better.
+
+By contrast, the second issue is well beyond the control of the PyO3 project. In
+fact, PyO3 does its part by exporting Rust documentation attributes to Python as
+`__doc__` comments. The problem is a complete lack of tools to process that
+text. By largely vanquishing the foreign function interface, PyO3 also
+eliminates the need for a separate interface layer dedicated to Python. Instead,
+we sprinkle some attribute dust over the code and the same abstractions, by and
+large, become accessible from both Rust and Python. That has consequences for
+API documentation: Whereas embedded comments and tools were monolingual before,
+they now need to be bilingual, accounting for use case in both.
+
+Alas, to the best of my knowledge, no such tools exist. It's also unclear how to
+best write and present such bilingual documentation. To begin with, independent
+views for each programming language have the advantage of hiding unnecessary
+complexity from developers who only care about one of the languages. But the
+need for producing two high-quality, independent views also runs the real risk
+of doubling the documentation effort, which is neither economic nor ergonomic.
+Documentation processors for the [OpenAPI](https://www.openapis.org) interface
+definition language point to a more unified approach, where embedded tabs
+feature language-specific examples.
+
+Since I am partial to Rustdoc's clean and well-structured style, prettypretty's
+documentation is closer to the latter approach, though it is possible to build a
+version that covers Rust only. Where the two language APIs substantially
+diverge, I try to cover the differences in the embedded comments. I also use <i
+class=python-only>Python only!</i> or <i class=rust-only>Rust only!</i> to
+annotate features that are available in one language only.
+
+
+
+ When
+provided with manually written Python typing stubs,
+[pdoc](https://github.com/mitmproxy/pdoc) can generate API documentation. Though
+it [doesn't seem very robust](https://github.com/mitmproxy/pdoc/issues/731) and
+does not support Rustdoc's conventions for linking types. The need for the
+latter is a side-effect of vanquishing the foreign function interface. Now the
+same data type definition in Rust may serve as a Rust `struct` or `enum` or a
+Python `class`. That also means that the API documentation needs to cover both
+languages. As far as I know, there are no API documentation tools that support
+
+
+When the foreign function
+interface is largely va
+
+
+The latter is necessary
+because the same code is
+
+
+The latter is the
+result of Rust code being exposed to Python
+
+
+The latter is
+the fundamental challenge for any API documentation
+
+More importantly, it
+doesn't know what to do with Rustdoc's linking
+
+
+
+
+In this section, I'm
+going to highlight two pain points related to the integration with Python. In
+the next section, I'm going to highlight one pain point related to Rust's
+support for macros that also is more severe than the previous two. Prettypretty
+works around all three, but especially the solution to the third ain't pretty at
+all. While
 
 
 

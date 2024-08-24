@@ -84,13 +84,14 @@ macro_rules! declare_spectrum_distribution {
                 }
             }
 
-            /// Get the number of entries. <span class=python-only></span>
+            /// Get the number of entries. <i class=python-only>Python only!</i>
             #[cfg(feature = "pyffi")]
             pub fn __len__(&self) -> usize {
                 self.data.len()
             }
 
-            /// Get the entry at the given index. <span class=python-only></span>
+            /// Get the entry at the given index. <i class=python-only>Python
+            /// only!</i>
             #[cfg(feature = "pyffi")]
             pub fn __getitem__(&self, index: usize) -> PyResult<$item_type> {
                 if index < self.data.len() {
@@ -105,7 +106,8 @@ macro_rules! declare_spectrum_distribution {
                 }
             }
 
-            /// Get a debug representation. <span class=python-only></span>
+            /// Get a debug representation. <i class=python-only>Python
+            /// only!</i>
             #[cfg(feature = "pyffi")]
             pub fn __repr__(&self) -> String {
                 format!(
@@ -349,19 +351,19 @@ impl SpectrumTraversal {
         }
     }
 
-    /// Get this iterator. <span class=python-only></span>
+    /// Get this iterator. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
 
-    /// Get the next item. <span class=python-only></span>
+    /// Get the next item. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<GamutTraversalStep> {
         slf.next()
     }
 
-    /// Get a debug representation. <span class=python-only></span>
+    /// Get a debug representation. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         format!(

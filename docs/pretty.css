@@ -34,10 +34,10 @@
 }
 
 /* =================================================================================== *
- * Python-only and Rust-only labels: <span class=python-only></span>
+ * Python-only and Rust-only labels: <i class=python-only></i>
  */
 
-.python-only::before, .rust-only::before {
+.python-only, .rust-only {
     font-size: 0.8em;
     display: inline-block;
     border-radius: 0.5em;
@@ -45,14 +45,8 @@
     font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui,
         helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
     font-weight: 600;
+    font-style: normal;
 }
 
-.python-only::before {
-    content: "Python only!";
-    background: #84c5fb;
-}
-
-.rust-only::before {
-    content: "Rust only!";
-    background: #f0ac84;
-}
+.python-only { background: #84c5fb; }
+.rust-only   { background: #f0ac84; }

@@ -15,8 +15,8 @@ use crate::{rgb, Bits, Color, ColorSpace, Float, OkVersion};
 // Color Themes
 // ====================================================================================================================
 
-/// An 18-entry slice with the color values for default and ANSI colors. <span
-/// class=rust-only></span>
+/// An 18-entry slice with the color values for default and ANSI colors. <i
+/// class=rust-only>Rust only!</i>
 ///
 /// By now, a color theme is just an array with 18 colors. The implementation
 /// started out as a more elaborate and encapsulated struct but ended up being
@@ -125,12 +125,12 @@ impl std::iter::ExactSizeIterator for ThemeEntryIterator {}
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl ThemeEntryIterator {
-    /// Return this iterator. <span class=python-only></span>
+    /// Return this iterator. <i class=python-only>Python only!</i>
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
 
-    /// Return the next theme entry. <span class=python-only></span>
+    /// Return the next theme entry. <i class=python-only>Python only!</i>
     pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<ThemeEntry> {
         slf.next()
     }
@@ -905,7 +905,7 @@ impl Translator {
         self.do_cap(color, fidelity)
     }
 
-    /// Return a debug representation. <span class=python-only></span>
+    /// Return a debug representation. <i class=python-only>Python only!</i>
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
     }

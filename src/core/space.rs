@@ -168,8 +168,8 @@ impl ColorSpace {
         crate::gamut::GamutTraversal::new(*self, edge_length)
     }
 
-    /// Create a human-readable representation for this color space. <span
-    /// class=python-only></span>
+    /// Create a human-readable representation for this color space. <i
+    /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __str__(&self) -> String {
         format!("{}", self)
