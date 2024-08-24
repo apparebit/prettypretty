@@ -72,6 +72,13 @@ impl GroupMask {
     }
 }
 
+/// Terminal text styles other than color.
+///
+/// This immutable struct efficiently encodes bold, thin, italic, underlined,
+/// blinking, reversed, hidden, and stricken styles as well as the corresponding
+/// defaults. It ensures that mutually exclusive styles, such as upright vs
+/// italic text, are not present in the same format. You combine individual
+/// styles by fluently invoking the corresponding methods.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, module = "prettypretty.color.style")
