@@ -267,8 +267,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // --------------------------------------------------------------- sys.modules
     // Patch sys.modules
     //let sys = PyModule::import_bound(m.py(), "sys")?;
-    let py_modules: Bound<'_, PyDict> =
-        PyModule::import_bound(m.py(), "sys")?
+    let py_modules: Bound<'_, PyDict> = PyModule::import_bound(m.py(), "sys")?
         .getattr("modules")?
         .downcast_into()?;
     py_modules.set_item(&modgamut_name, modgamut)?;
