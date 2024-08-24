@@ -1,4 +1,5 @@
 import argparse
+from collections import Counter
 import io
 import math
 import sys
@@ -44,6 +45,11 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--step", "-s",
         help="use given step size (in integral nanometers)"
+    )
+    parser.add_argument(
+        "--alpha",
+        default=1.0,
+        help="make vertex colors transparent, using given alpha between 0 and 1",
     )
 
     return parser
@@ -116,6 +122,7 @@ class PointManager:
         darken: bool = False,
         planar: bool = False,
         mesh: bool = False,
+        alpha: float = 1.0,
     ) -> None:
         self._step_size = step_size
         self._space = space
@@ -125,6 +132,7 @@ class PointManager:
         self._points: list[tuple[float, float, float]] = []
         self._colors: list[tuple[int, int, int]] = []
         self._faces: list[tuple[int, int, int]] = []
+        self._alpha: int = min(max(int(alpha * 255), 0), 255)
         self._line_count = 0
         self._line_length = 0
 
@@ -188,6 +196,11 @@ class PointManager:
         return 0.9 * l
 
     def generate_faces(self) -> None:
+        edges = Counter[tuple[int, int]]()
+
+        def e(x: int, y: int) -> tuple[int, int]:
+            return min(x, y), max(x, y)
+
         for line_index in range(self.line_count - 1):
             for index in range(0, self.line_length - 1):
                 s = line_index * self.line_length + index
@@ -197,6 +210,9 @@ class PointManager:
 
                 self._faces.append((s, v, u))
                 self._faces.append((s, u, t))
+
+                for edge in [e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]:
+                    edges[edge] += 1
 
         cusp = self.line_cusp
         halfcusp = cusp // 2  # Rounds downward
@@ -211,6 +227,9 @@ class PointManager:
                 self._faces.append((s, v, u))
                 self._faces.append((s, u, t))
 
+                for edge in [e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]:
+                    edges[edge] += 1
+
             for index in range(cusp, self.line_length - 1):
                 s = base
                 t = s + index
@@ -218,8 +237,15 @@ class PointManager:
 
                 self._faces.append((s, u, t))
 
-        # Open boundary: min(x), min(y) for growing z
-        # if z hits max, keep max(z) for growing x, y
+                for edge in [e(s, u), e(u, t), e(t, s)]:
+                    edges[edge] += 1
+
+        # Determine mesh boundary
+        boundary = [e for e, count in edges.items() if count == 1]
+        boundary.sort()
+
+        # for edge in boundary:
+        #     print(f"{edge[0]} -> {edge[1]}")
 
     def write_header(
         self,
@@ -243,6 +269,8 @@ class PointManager:
         file.write("property uchar red\n")
         file.write("property uchar green\n")
         file.write("property uchar blue\n")
+        if self._alpha != 255:
+            file.write("property uchar alpha\n")
 
         face_count = 0
         if self._should_generate_mesh:
@@ -258,8 +286,10 @@ class PointManager:
             f = 100.0
             x, y, z = point[0] * f, point[1] * f, point[2] * f
             r, g, b = color
-
-            file.write(f"{x:f} {y:f} {z:f} {r} {g} {b}\n")
+            line = f"{x:f} {y:f} {z:f} {r} {g} {b}"
+            if self._alpha < 255:
+                line += f" {self._alpha}"
+            file.write(f"{line}\n")
 
     def write_face_data(self, file: io.TextIOWrapper) -> None:
         for i, j, k in self._faces:
@@ -293,13 +323,16 @@ def render(
     segment_size: int = 50,
     planar_gamut: bool = False,
     mesh: bool = False,
+    alpha: float = 1.0,
     sampler: None | Sampler = None,
 ) -> None:
     traversal = SpectrumTraversal(CIE_ILLUMINANT_D65, CIE_OBSERVER_2DEG_1931)
     traversal.set_step_sizes(step_size)
 
     log(f"Traversing visual gamut in {space} with step size {step_size}:")
-    points = PointManager(step_size=step_size, space=space, darken=darken, mesh=mesh)
+    points = PointManager(
+        step_size=step_size, space=space, darken=darken, mesh=mesh, alpha=alpha
+    )
 
     # Lines resulting from square wave pulses
     for step in traversal:
@@ -312,8 +345,7 @@ def render(
         if space.is_ok():
             points.add(color.to(ColorSpace.Oklrab))
         else:
-            hl = Color(ColorSpace.Srgb, [1, 0, 0]) if points.line_count == 1 else None
-            points.add(color, hl)
+            points.add(color)
 
     points.generate_faces()
 
@@ -380,6 +412,7 @@ if __name__ == "__main__":
         mesh=options.mesh,
         step_size=step_size,
         darken=options.darken,
+        alpha=options.alpha,
     )
 
     log()
@@ -392,6 +425,7 @@ if __name__ == "__main__":
         sampler=sampler,
         step_size=step_size,
         darken=options.darken,
+        alpha=options.alpha,
     )
 
     log("\nShape of visible gamut (sampled on chroma/hue plane):\n")
