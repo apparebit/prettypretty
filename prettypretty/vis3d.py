@@ -3,7 +3,7 @@ from collections import Counter
 import io
 import math
 import sys
-from typing import Self
+from typing import Any, Self
 
 from prettypretty.color import Color, ColorSpace
 from prettypretty.color.gamut import ( # pyright: ignore [reportMissingModuleSource]
@@ -48,8 +48,14 @@ def create_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--alpha",
-        default=1.0,
+        default="1.0",
         help="make vertex colors transparent, using given alpha between 0 and 1",
+    )
+    parser.add_argument(
+        "--render",
+        action="store_true",
+        help="render the resulting 3D mesh and its silhouettes in XYZ color space; "
+        "requires the Vedo 3D library"
     )
 
     return parser
@@ -201,8 +207,10 @@ class PointManager:
         def e(x: int, y: int) -> tuple[int, int]:
             return min(x, y), max(x, y)
 
+        # Create rope ladder of quads from series for pulse widths n and n+1.
+        # E.g., at 1nm resolution, for n=0, that includes the edge (0, 471).
         for line_index in range(self.line_count - 1):
-            for index in range(0, self.line_length - 1):
+            for index in range(self.line_length - 1):
                 s = line_index * self.line_length + index
                 t = s + 1
                 u = t + self.line_length
@@ -214,10 +222,15 @@ class PointManager:
                 for edge in [e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]:
                     edges[edge] += 1
 
+                #print(f"l1: {line_index} {index}: {[e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]}")
+
+        # For first & last series, that leaves a hole shaped like a bent spoon.
+        # The handle transitions to bowl at ~32% of series, i.e., the cusp.
         cusp = self.line_cusp
         halfcusp = cusp // 2  # Rounds downward
 
         for base in (0, (self.line_count - 1) * self.line_length):
+            # Fill spoon's handle with another rope ladder of quads.
             for index in range(1, halfcusp + 1):
                 s = base + index - 1
                 t = s + 1
@@ -230,6 +243,10 @@ class PointManager:
                 for edge in [e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]:
                     edges[edge] += 1
 
+                #print(f"l2: {base} {index}: {[e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]}")
+
+            # Fill spoon's bowl with fan of triangles. E.g., at 1nm resolution,
+            # that includes the edge (0, 470).
             for index in range(cusp, self.line_length - 1):
                 s = base
                 t = s + index
@@ -240,12 +257,16 @@ class PointManager:
                 for edge in [e(s, u), e(u, t), e(t, s)]:
                     edges[edge] += 1
 
-        # Determine mesh boundary
+                #print(f"l3: {base} {index}: {[e(s, u), e(u, t), e(t, s)]}")
+
+        # Check for mesh boundary
         boundary = [e for e, count in edges.items() if count == 1]
         boundary.sort()
-
-        # for edge in boundary:
-        #     print(f"{edge[0]} -> {edge[1]}")
+        if boundary:
+            print(
+                "\x1b[1;48;5;220mWARNING: Mesh has boundary with "
+                f"{len(boundary)} unique edges!\x1b[m"
+            )
 
     def write_header(
         self,
@@ -315,7 +336,7 @@ class PointManager:
             self.write_face_data(file)
 
 
-def render(
+def generate(
     space: ColorSpace,
     step_size: int = 2,
     darken: bool = False,
@@ -372,13 +393,33 @@ def render(
                 gamut_points.add(color.to(ColorSpace.Xyz))
 
     if space.is_ok():
-        filename = "cloud-ok.ply"
+        filename = "visual-gamut-ok.ply"
     else:
-        filename = "cloud-xyz.ply"
+        filename = "visual-gamut-xyz.ply"
 
     log(f"Writing {filename}:")
     with open(filename, mode="w", encoding="utf8") as file:
         points.write_all(file, gamut_points)
+
+
+def render() -> None:
+    from vedo import ( # pyright: ignore [reportMissingImports]
+        Mesh, show # pyright: ignore [reportUnknownVariableType]
+    )
+    mesh: Any = Mesh("visual-gamut-xyz.ply")
+    sx = mesh.clone().project_on_plane('x').c('r').x(-3) # sx is 2d
+    sy = mesh.clone().project_on_plane('y').c('g').y(-3)
+    sz = mesh.clone().project_on_plane('z').c('b').z(-3)
+
+    show(mesh,  # pyright: ignore [reportUnknownMemberType]
+        sx, sx.silhouette('2d'), # 2d objects dont need a direction
+        sy, sy.silhouette('2d'),
+        sz, sz.silhouette('2d'),
+        "The Visual Gamut in XYZ",
+        axes=7,
+        viewup='z',
+        bg="#555555",
+    ).close()
 
 
 if __name__ == "__main__":
@@ -405,19 +446,19 @@ if __name__ == "__main__":
 
     sampler = Sampler()
 
-    render(
+    generate(
         ColorSpace.Xyz,
         gamut=gamut,
         planar_gamut=options.planar_gamut,
         mesh=options.mesh,
         step_size=step_size,
         darken=options.darken,
-        alpha=options.alpha,
+        alpha=float(options.alpha)
     )
 
     log()
 
-    render(
+    generate(
         ColorSpace.Oklrab,
         gamut=gamut,
         planar_gamut=options.planar_gamut,
@@ -425,9 +466,11 @@ if __name__ == "__main__":
         sampler=sampler,
         step_size=step_size,
         darken=options.darken,
-        alpha=options.alpha,
+        alpha=float(options.alpha),
     )
 
     log("\nShape of visible gamut (sampled on chroma/hue plane):\n")
     log(str(sampler))
 
+    if options.mesh and options.render:
+        render()
