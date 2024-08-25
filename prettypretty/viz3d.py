@@ -16,8 +16,9 @@ from prettypretty.color.spectrum import ( # pyright: ignore [reportMissingModule
 
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="generate a point cloud for the visual gamut in XYZ as well as "
-        "Oklrab and store the data in 'cloud-xyz.ply' and 'cloud-ok.ply' files"
+        description="generate a point cloud or mesh for the visual gamut in XYZ "
+        "as well as Oklrab and store the data in 'visual-gamut-xyz.ply' and "
+        "'visual-gamut-ok.ply' files"
     )
     parser.add_argument(
         "--gamut", "-g",
