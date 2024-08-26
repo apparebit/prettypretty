@@ -58,12 +58,23 @@ def create_parser() -> argparse.ArgumentParser:
         help="render the resulting 3D mesh and its silhouettes in XYZ color space; "
         "requires the Vedo 3D library"
     )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="run in verbose mode"
+    )
 
     return parser
 
 
 def log(msg: str = "") -> None:
     print(msg, file=sys.stderr)
+
+
+trace_enabled = False
+def trace(msg: str = "") -> None:
+    if trace_enabled:
+        print(msg, file=sys.stderr)
 
 
 class Sampler:
@@ -211,6 +222,9 @@ class PointManager:
         # Create rope ladder of quads from series for pulse widths n and n+1.
         # E.g., at 1nm resolution, for n=0, that includes the edge (0, 471).
         for line_index in range(self.line_count - 1):
+            if trace_enabled:
+                trace("-" * 141)
+
             for index in range(self.line_length - 1):
                 s = line_index * self.line_length + index
                 t = s + 1
@@ -220,10 +234,37 @@ class PointManager:
                 self._faces.append((s, v, u))
                 self._faces.append((s, u, t))
 
+                msg = ""
+                if trace_enabled:
+                    msg = f"pulse {line_index:3} @ {index:3}"
+
                 for edge in [e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]:
                     edges[edge] += 1
 
-                #print(f"l1: {line_index} {index}: {[e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]}")
+                    if trace_enabled:
+                        msg += f" | {edge[0]:7,} -> {edge[1]:7,}"
+
+                trace(msg)
+
+                # Connect end of rope ladder to start of next rope ladder.
+                if index == self.line_length - 2 and line_index < self.line_count - 2:
+                    s = t + 1
+                    v = u + 1
+
+                    self._faces.append((t, u, v))
+                    self._faces.append((t, v, s))
+
+                    msg = ""
+                    if trace_enabled:
+                        msg = f"cross {line_index:3} @ {index:3}"
+
+                    for edge in [e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]:
+                        edges[edge] += 1
+
+                        if trace_enabled:
+                            msg += f" | {edge[0]:7,} -> {edge[1]:7,}"
+
+                    trace(msg)
 
         # For first & last series, that leaves a hole shaped like a bent spoon.
         # The handle transitions to bowl at ~32% of series, i.e., the cusp.
@@ -232,6 +273,9 @@ class PointManager:
 
         for base in (0, (self.line_count - 1) * self.line_length):
             # Fill spoon's handle with another rope ladder of quads.
+            if trace_enabled:
+                trace("-" * 141)
+
             for index in range(1, halfcusp + 1):
                 s = base + index - 1
                 t = s + 1
@@ -241,10 +285,18 @@ class PointManager:
                 self._faces.append((s, v, u))
                 self._faces.append((s, u, t))
 
+                msg = ""
+                if trace_enabled:
+                    label = "#1" if base == 0 else "#2"
+                    msg = f"patch {label}  @ {index:3}"
+
                 for edge in [e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]:
                     edges[edge] += 1
 
-                #print(f"l2: {base} {index}: {[e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]}")
+                    if trace_enabled:
+                        msg += f" | {edge[0]:7,} -> {edge[1]:7,}"
+
+                trace(msg)
 
             # Fill spoon's bowl with fan of triangles. E.g., at 1nm resolution,
             # that includes the edge (0, 470).
@@ -255,19 +307,65 @@ class PointManager:
 
                 self._faces.append((s, u, t))
 
+                msg = ""
+                if trace_enabled:
+                    label = "#1" if base == 0 else "#2"
+                    msg = f"patch {label}  @ {index:3}"
+
                 for edge in [e(s, u), e(u, t), e(t, s)]:
                     edges[edge] += 1
 
-                #print(f"l3: {base} {index}: {[e(s, u), e(u, t), e(t, s)]}")
+                    if trace_enabled:
+                        msg += f" | {edge[0]:7,} -> {edge[1]:7,}"
 
-        # Check for mesh boundary
+                trace(msg)
+
+        r = 0
+        s = self.line_length
+        t = s - 1
+        self._faces.append((r, s, t))
+
+        u = (self.line_count - 1) * self.line_length - 1
+        v = u + 1
+        w = v + self.line_length - 1
+        self._faces.append((u, w, v))
+
+        msg = ""
+        if trace_enabled:
+            msg = f"capstones      "
+
+        for edge in [e(r, s), e(s, t), e(t, r), e(u, w), e(w, v), e(v, u)]:
+            edges[edge] += 1
+
+            if trace_enabled:
+                msg += f" | {edge[0]:7,} -> {edge[1]:7,}"
+
+        trace(msg)
+
+        # Check mesh boundary
         boundary = [e for e, count in edges.items() if count == 1]
+        if len(boundary) == 0:
+            return
+
+        print(
+            "\x1b[1;48;5;220mWARNING: Mesh has boundary with "
+            f"{len(boundary)} unique edges!\x1b[m"
+        )
+
+        if not trace_enabled:
+            return
+
         boundary.sort()
-        if boundary:
-            print(
-                "\x1b[1;48;5;220mWARNING: Mesh has boundary with "
-                f"{len(boundary)} unique edges!\x1b[m"
-            )
+        msg = ""
+        for index, edge in enumerate(boundary):
+            if index % 6 == 0:
+                if index > 0:
+                    trace(msg)
+                msg = "unique edges   "
+
+            msg += f" | {edge[0]:7,} -> {edge[1]:7,}"
+
+        trace(msg)
 
     def write_header(
         self,
@@ -426,6 +524,8 @@ def render() -> None:
 if __name__ == "__main__":
     parser = create_parser()
     options = parser.parse_args()
+    if options.verbose:
+        trace_enabled = True
     if options.gamut is None:
         gamut = None
     else:
