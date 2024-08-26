@@ -15,7 +15,7 @@
 use pyo3::prelude::*;
 
 use crate::{
-    core::{Accumulator, GamutTraversalStep},
+    core::{Sum, GamutTraversalStep},
     Color, ColorSpace, Float,
 };
 
@@ -222,9 +222,9 @@ impl SpectrumTraversalData {
     }
 
     fn pulse(&self, start: usize, width: usize) -> [Float; 3] {
-        let mut xs = Accumulator::default();
-        let mut ys = Accumulator::default();
-        let mut zs = Accumulator::default();
+        let mut xs = Sum::default();
+        let mut ys = Sum::default();
+        let mut zs = Sum::default();
 
         for index in start..start + width {
             let index = index % self.premultiplied.len();
@@ -234,7 +234,7 @@ impl SpectrumTraversalData {
             zs += z;
         }
 
-        [xs.total(), ys.total(), zs.total()]
+        [xs.value(), ys.value(), zs.value()]
     }
 
     fn color_pulse(&self, start: usize, width: usize) -> Color {
