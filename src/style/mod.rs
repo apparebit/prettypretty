@@ -23,7 +23,7 @@ mod format;
 
 pub use color::{AnsiColor, DefaultColor, EmbeddedRgb, GrayGradient, TerminalColor, TrueColor};
 pub use context::{Fidelity, Layer};
-pub use format::{Format, RichText, Style};
+pub use format::{AllFormats, Format, FormatIterator, Formatting, RichText, Style};
 
 // ====================================================================================================================
 

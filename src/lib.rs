@@ -236,11 +236,14 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // --------------------------------------------------------------- color.style
     let modstyle = PyModule::new_bound(m.py(), "style")?;
     modstyle.add("__package__", modcolor_name)?;
+    modstyle.add_class::<crate::style::AllFormats>()?;
     modstyle.add_class::<crate::style::AnsiColor>()?;
     modstyle.add_class::<crate::style::DefaultColor>()?;
     modstyle.add_class::<crate::style::EmbeddedRgb>()?;
     modstyle.add_class::<crate::style::Fidelity>()?;
     modstyle.add_class::<crate::style::Format>()?;
+    modstyle.add_class::<crate::style::FormatIterator>()?;
+    modstyle.add_class::<crate::style::Formatting>()?;
     modstyle.add_class::<crate::style::GrayGradient>()?;
     modstyle.add_class::<crate::style::Layer>()?;
     modstyle.add_class::<crate::style::RichText>()?;
