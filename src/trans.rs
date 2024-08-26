@@ -2,8 +2,6 @@
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
-#[cfg(feature = "pyffi")]
-use pyo3::types::PyInt;
 
 use crate::core::is_achromatic_chroma_hue;
 
@@ -398,21 +396,6 @@ impl HueLightnessTable {
 // Translator
 // ====================================================================================================================
 
-// Convert the constituent terminal colors to their wrapped versions.
-#[cfg(feature = "pyffi")]
-fn into_terminal_color(obj: &Bound<'_, PyAny>) -> PyResult<TerminalColor> {
-    if obj.is_instance_of::<PyInt>() {
-        return obj.extract::<u8>().map(|c| c.into());
-    }
-
-    obj.extract::<TerminalColor>()
-        .or_else(|_| obj.extract::<AnsiColor>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<EmbeddedRgb>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<crate::style::TrueColor>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<GrayGradient>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<DefaultColor>().map(|c| c.into()))
-}
-
 /// A color translator.
 ///
 /// Instances of this struct translate between [`TerminalColor`] and [`Color`]
@@ -539,7 +522,7 @@ impl Translator {
     /// </div>
     pub fn resolve(
         &self,
-        #[pyo3(from_py_with = "into_terminal_color")] color: TerminalColor,
+        #[pyo3(from_py_with = "crate::style::into_terminal_color")] color: TerminalColor,
     ) -> Color {
         self.do_resolve(color)
     }
@@ -902,7 +885,7 @@ impl Translator {
     /// provide the exact same capability.
     pub fn cap(
         &self,
-        #[pyo3(from_py_with = "into_terminal_color")] color: TerminalColor,
+        #[pyo3(from_py_with = "crate::style::into_terminal_color")] color: TerminalColor,
         fidelity: Fidelity,
     ) -> Option<TerminalColor> {
         self.do_cap(color, fidelity)

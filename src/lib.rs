@@ -247,6 +247,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modstyle.add_class::<crate::style::GrayGradient>()?;
     modstyle.add_class::<crate::style::Layer>()?;
     modstyle.add_class::<crate::style::RichText>()?;
+    modstyle.add_function(wrap_pyfunction!(crate::style::style, m)?)?;
     modstyle.add_class::<crate::style::Style>()?;
     modstyle.add_class::<crate::style::TerminalColor>()?;
     modstyle.add_class::<crate::style::TrueColor>()?;

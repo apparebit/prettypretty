@@ -2,6 +2,7 @@
 use pyo3::prelude::*;
 
 use super::{Fidelity, TerminalColor};
+use crate::Color;
 
 use Format::*;
 
@@ -227,14 +228,14 @@ pub struct Formatting(u16);
 #[cfg(not(feature = "pyffi"))]
 impl Formatting {
     /// Create new, empty formatting.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self(0)
     }
 }
 
 /// Negate a formatting's bits.
 #[inline]
-const fn negate_bits(value: u16) -> u16 {
+pub(crate) const fn negate_bits(value: u16) -> u16 {
     // Turn Thin into NotBoldOrThin, which is Bold << 8.
     if Thin.test(value) {
         Bold.set(Thin.clear(value)) << 8
@@ -248,7 +249,7 @@ impl Formatting {
     /// Create new, empty formatting.
     #[cfg(feature = "pyffi")]
     #[new]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self(0)
     }
 
@@ -415,6 +416,8 @@ pub enum Style {
     Text(Formatting),
     Foreground(TerminalColor),
     Background(TerminalColor),
+    HiResFore(Color),
+    HiResBack(Color),
     // ...
 }
 
@@ -431,7 +434,183 @@ impl Style {
             Style::Text(_) => Fidelity::NoColor,
             Style::Foreground(color) => (*color).into(),
             Style::Background(color) => (*color).into(),
+            Style::HiResFore(_) => Fidelity::Full,
+            Style::HiResBack(_) => Fidelity::Full,
         }
+    }
+}
+
+/// A combination of styles.
+#[cfg_attr(feature = "pyffi", pyclass(eq, module = "prettypretty.color.style"))]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct StyleCollection {
+    styles: Vec<Style>,
+}
+
+#[cfg(not(feature = "pyffi"))]
+impl StyleCollection {
+    /// Create a new empty style collection.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Push a foreground color onto this style collection.
+    pub fn foreground(&mut self, color: impl Into<TerminalColor>) {
+        self.styles.push(Style::Foreground(color.into()))
+    }
+
+    /// Push a background color onto this style collection.
+    pub fn background(&mut self, color: impl Into<TerminalColor>) {
+        self.styles.push(Style::Background(color.into()))
+    }
+}
+
+/// Create a new, empty style collection.
+#[cfg_attr(feature = "pyffi", pyfunction)]
+pub fn style() -> StyleCollection {
+    StyleCollection::new()
+}
+
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl StyleCollection {
+    /// Create a new empty style collection.
+    #[cfg(feature = "pyffi")]
+    #[new]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Push a style reset onto this collection.
+    pub fn reset(&mut self) {
+        self.styles.push(Style::Reset())
+    }
+
+    /// Retrieve formatting to modify.
+    ///
+    /// If the last style is formatting, this method removes it from this
+    /// collection and returns the unwrapped formatting. The expectation is that
+    /// the caller creates a new formatting based on the returned value and then
+    /// adds that formatting back into the style collection.
+    fn formatting(&mut self) -> Formatting {
+        if let Some(Style::Text(formatting)) = self.styles.last() {
+            let formatting = *formatting;
+            self.styles.pop();
+            formatting
+        } else {
+            Formatting::new()
+        }
+    }
+
+    /// Add bold formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn bold(&mut self) {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.bold()));
+    }
+
+    /// Add thin formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn thin(&mut self) {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.thin()));
+    }
+
+    /// Add italic formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn italic(&mut self) {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.italic()));
+    }
+
+    /// Add underlined formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn underlined(&mut self) {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.underlined()));
+    }
+
+    /// Add blinking formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn blinking(&mut self) {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.blinking()));
+    }
+
+    /// Add reversed formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn reversed(&mut self) {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.reversed()));
+    }
+
+    /// Add hidden formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn hidden(&mut self) {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.hidden()));
+    }
+
+    /// Add stricken formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn stricken(&mut self) {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.stricken()));
+    }
+
+    /// Push a foreground color onto this style collection.
+    #[cfg(feature = "pyffi")]
+    pub fn foreground(
+        &mut self,
+        #[pyo3(from_py_with = "crate::style::into_terminal_color")] color: TerminalColor,
+    ) {
+        self.styles.push(Style::Foreground(color))
+    }
+
+    /// Push a background color onto this style collection.
+    #[cfg(feature = "pyffi")]
+    pub fn background(
+        &mut self,
+        #[pyo3(from_py_with = "crate::style::into_terminal_color")] color: TerminalColor,
+    ) {
+        self.styles.push(Style::Background(color))
+    }
+
+    /// Push a high-resolution foreground color onto this style collection.
+    pub fn hires_foreground(&mut self, color: Color) {
+        self.styles.push(Style::HiResFore(color))
+    }
+
+    /// Push a high-resolution background color oto this style collection.
+    pub fn hires_background(&mut self, color: Color) {
+        self.styles.push(Style::HiResBack(color))
+    }
+
+    /// Determine the style collection's fidelity.
+    ///
+    /// The fidelity of this style collection is the maximum fidelity of the
+    /// constituent styles.
+    pub fn fidelity(&self) -> Fidelity {
+        self.styles
+            .iter()
+            .map(Style::fidelity)
+            .max()
+            .unwrap_or(Fidelity::Plain)
     }
 }
 
@@ -442,7 +621,7 @@ impl Style {
 )]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RichText {
-    styles: Vec<Style>,
+    styles: StyleCollection,
     text: String,
 }
 
@@ -450,6 +629,7 @@ pub struct RichText {
 impl RichText {
     pub fn fidelity(&self) -> Fidelity {
         self.styles
+            .styles
             .iter()
             .map(Style::fidelity)
             .max()
@@ -463,7 +643,20 @@ impl RichText {
 
 #[cfg(test)]
 mod test {
-    use super::{Bold, Formatting, Thin, Underlined};
+    use super::{negate_bits, Bold, Formatting, NotUnderlined, Thin, Underlined};
+
+    #[test]
+    fn test_format() {
+        let mut value: u16 = 0;
+
+        assert!(!Underlined.test(value));
+        value = Underlined.set(value);
+        assert!(Underlined.test(value));
+        value = negate_bits(value);
+        assert_eq!(value, NotUnderlined.bits());
+        value = Underlined.clear(0xffff);
+        assert_eq!(value, 0xffff & !Underlined.bits());
+    }
 
     #[test]
     fn test_formatting() {

@@ -1101,6 +1101,21 @@ impl TerminalColor {
     }
 }
 
+// Convert the constituent terminal colors to their wrapped versions.
+#[cfg(feature = "pyffi")]
+pub(crate) fn into_terminal_color(obj: &Bound<'_, PyAny>) -> PyResult<TerminalColor> {
+    if obj.is_instance_of::<PyInt>() {
+        return obj.extract::<u8>().map(|c| c.into());
+    }
+
+    obj.extract::<TerminalColor>()
+        .or_else(|_| obj.extract::<AnsiColor>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<EmbeddedRgb>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<crate::style::TrueColor>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<GrayGradient>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<DefaultColor>().map(|c| c.into()))
+}
+
 impl From<DefaultColor> for TerminalColor {
     fn from(color: DefaultColor) -> Self {
         TerminalColor::Default { color }

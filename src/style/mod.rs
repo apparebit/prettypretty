@@ -21,9 +21,12 @@ mod color;
 mod context;
 mod format;
 
+#[cfg(feature = "pyffi")]
+pub(crate) use color::into_terminal_color;
+
 pub use color::{AnsiColor, DefaultColor, EmbeddedRgb, GrayGradient, TerminalColor, TrueColor};
 pub use context::{Fidelity, Layer};
-pub use format::{AllFormats, Format, FormatIterator, Formatting, RichText, Style};
+pub use format::{style, AllFormats, Format, FormatIterator, Formatting, RichText, Style};
 
 // ====================================================================================================================
 
