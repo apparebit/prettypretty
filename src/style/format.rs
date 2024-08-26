@@ -198,6 +198,25 @@ impl Mask {
 // -------------------------------------------------------------------------------------
 
 /// Text formatting other than colors.
+///
+/// There are two fundamentally different representations of a terminal's text
+/// formatting. The first representation captures the *formatting state*, i.e.,
+/// models only attributes that differ from the terminal's default appearance.
+/// The second representation captures *formatting changes*, i.e., models
+/// instructions for changing a terminal's appearance. Both representations are
+/// closely related, since the difference between two formatting states is a
+/// formatting change and applying a formatting change to a terminal replaces
+/// its old formatting state with a new one. Finally, for every format of a
+/// formatting state, a formatting change has options to enable or disable the
+/// format, with the same option possibly disabling more than one format.
+///
+/// Exposing the formatting state to users is preferable because it is simpler.
+/// But prettypretty's implementation necessarily makes formatting changes. To
+/// avoid a proliferation of formatting-related data structures, this struct
+/// reflects a hybrid approach. While it is based on format changes, its public
+/// interface only supports the fluent enabling of formats that differ from the
+/// default appearance. Yet negation and subtraction may very well result in
+/// formatting that disables formats.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, module = "prettypretty.color.style")
@@ -439,5 +458,22 @@ impl RichText {
 
     pub fn text(&self) -> &str {
         &self.text
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{Bold, Formatting, Thin, Underlined};
+
+    #[test]
+    fn test_formatting() {
+        let formatting = Formatting::new().thin().bold().underlined();
+        assert!(formatting.has(Bold));
+        assert!(!formatting.has(Thin));
+        assert!(formatting.has(Underlined));
+
+        for format in formatting.formats() {
+            assert!(matches!(format, Bold | Underlined));
+        }
     }
 }
