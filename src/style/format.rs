@@ -447,44 +447,13 @@ pub struct StyleCollection {
     styles: Vec<Style>,
 }
 
-#[cfg(not(feature = "pyffi"))]
-impl StyleCollection {
-    /// Create a new empty style collection.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Push a foreground color onto this style collection.
-    pub fn foreground(&mut self, color: impl Into<TerminalColor>) {
-        self.styles.push(Style::Foreground(color.into()))
-    }
-
-    /// Push a background color onto this style collection.
-    pub fn background(&mut self, color: impl Into<TerminalColor>) {
-        self.styles.push(Style::Background(color.into()))
-    }
-}
-
 /// Create a new, empty style collection.
 #[cfg_attr(feature = "pyffi", pyfunction)]
 pub fn style() -> StyleCollection {
     StyleCollection::new()
 }
 
-#[cfg_attr(feature = "pyffi", pymethods)]
 impl StyleCollection {
-    /// Create a new empty style collection.
-    #[cfg(feature = "pyffi")]
-    #[new]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Push a style reset onto this collection.
-    pub fn reset(&mut self) {
-        self.styles.push(Style::Reset())
-    }
-
     /// Retrieve formatting to modify.
     ///
     /// If the last style is formatting, this method removes it from this
@@ -499,6 +468,152 @@ impl StyleCollection {
         } else {
             Formatting::new()
         }
+    }
+}
+
+#[cfg(not(feature = "pyffi"))]
+impl StyleCollection {
+    /// Create a new empty style collection.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Push a style reset onto this collection.
+    pub fn reset(&mut self) -> &mut Self {
+        self.styles.push(Style::Reset());
+        self
+    }
+
+    /// Add bold formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn bold(&mut self) -> &mut Self {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.bold()));
+        self
+    }
+
+    /// Add thin formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn thin(&mut self) -> &mut Self {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.thin()));
+        self
+    }
+
+    /// Add italic formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn italic(&mut self) -> &mut Self {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.italic()));
+        self
+    }
+
+    /// Add underlined formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn underlined(&mut self) -> &mut Self {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.underlined()));
+        self
+    }
+
+    /// Add blinking formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn blinking(&mut self) -> &mut Self {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.blinking()));
+        self
+    }
+
+    /// Add reversed formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn reversed(&mut self) -> &mut Self {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.reversed()));
+        self
+    }
+
+    /// Add hidden formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn hidden(&mut self) -> &mut Self {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.hidden()));
+        self
+    }
+
+    /// Add stricken formatting to this style collection.
+    ///
+    /// If the latest style is formatting, this method modifies the latest
+    /// style. Otherwise, it pushes new formatting onto this style collection.
+    pub fn stricken(&mut self) -> &mut Self {
+        let formatting = self.formatting();
+        self.styles.push(Style::Text(formatting.stricken()));
+        self
+    }
+
+    /// Push a foreground color onto this style collection.
+    pub fn foreground(&mut self, color: impl Into<TerminalColor>) -> &mut Self {
+        self.styles.push(Style::Foreground(color.into()));
+        self
+    }
+
+    /// Push a background color onto this style collection.
+    pub fn background(&mut self, color: impl Into<TerminalColor>) -> &mut Self {
+        self.styles.push(Style::Background(color.into()));
+        self
+    }
+
+    /// Push a high-resolution foreground color onto this style collection.
+    pub fn hires_foreground(&mut self, color: Color) -> &mut Self {
+        self.styles.push(Style::HiResFore(color));
+        self
+    }
+
+    /// Push a high-resolution background color oto this style collection.
+    pub fn hires_background(&mut self, color: Color) -> &mut Self {
+        self.styles.push(Style::HiResBack(color));
+        self
+    }
+
+    /// Determine the style collection's fidelity.
+    ///
+    /// The fidelity of this style collection is the maximum fidelity of the
+    /// constituent styles.
+    pub fn fidelity(&self) -> Fidelity {
+        self.styles
+            .iter()
+            .map(Style::fidelity)
+            .max()
+            .unwrap_or(Fidelity::Plain)
+    }
+}
+
+#[cfg(feature = "pyffi")]
+#[pymethods]
+impl StyleCollection {
+    /// Create a new empty style collection.
+    #[cfg(feature = "pyffi")]
+    #[new]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Push a style reset onto this collection.
+    pub fn reset(&mut self) {
+        self.styles.push(Style::Reset());
     }
 
     /// Add bold formatting to this style collection.
@@ -574,31 +689,29 @@ impl StyleCollection {
     }
 
     /// Push a foreground color onto this style collection.
-    #[cfg(feature = "pyffi")]
     pub fn foreground(
         &mut self,
         #[pyo3(from_py_with = "crate::style::into_terminal_color")] color: TerminalColor,
     ) {
-        self.styles.push(Style::Foreground(color))
+        self.styles.push(Style::Foreground(color));
     }
 
     /// Push a background color onto this style collection.
-    #[cfg(feature = "pyffi")]
     pub fn background(
         &mut self,
         #[pyo3(from_py_with = "crate::style::into_terminal_color")] color: TerminalColor,
     ) {
-        self.styles.push(Style::Background(color))
+        self.styles.push(Style::Background(color));
     }
 
     /// Push a high-resolution foreground color onto this style collection.
     pub fn hires_foreground(&mut self, color: Color) {
-        self.styles.push(Style::HiResFore(color))
+        self.styles.push(Style::HiResFore(color));
     }
 
     /// Push a high-resolution background color oto this style collection.
     pub fn hires_background(&mut self, color: Color) {
-        self.styles.push(Style::HiResBack(color))
+        self.styles.push(Style::HiResBack(color));
     }
 
     /// Determine the style collection's fidelity.
