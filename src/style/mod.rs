@@ -50,7 +50,7 @@ mod test {
         let also_magenta = TerminalColor::Ansi {
             color: AnsiColor::Magenta,
         };
-        let also_green = TerminalColor::Rgb6 { color: green };
+        let also_green = TerminalColor::Embedded { color: green };
         let also_gray = TerminalColor::Gray { color: gray };
 
         assert_eq!(also_magenta, TerminalColor::from(5));

@@ -45,12 +45,6 @@ impl TryFrom<usize> for DefaultColor {
     }
 }
 
-impl From<DefaultColor> for TerminalColor {
-    fn from(color: DefaultColor) -> Self {
-        TerminalColor::Default { color }
-    }
-}
-
 // ====================================================================================================================
 // Ansi Color
 // ====================================================================================================================
@@ -205,12 +199,6 @@ impl TryFrom<u8> for AnsiColor {
 impl From<AnsiColor> for u8 {
     fn from(value: AnsiColor) -> u8 {
         value as u8
-    }
-}
-
-impl From<AnsiColor> for TerminalColor {
-    fn from(color: AnsiColor) -> Self {
-        TerminalColor::Ansi { color }
     }
 }
 
@@ -474,19 +462,6 @@ impl From<EmbeddedRgb> for [u8; 3] {
     }
 }
 
-impl From<EmbeddedRgb> for TrueColor {
-    fn from(value: EmbeddedRgb) -> Self {
-        let [r, g, b] = value.into();
-        TrueColor::new(r, g, b)
-    }
-}
-
-impl From<EmbeddedRgb> for TerminalColor {
-    fn from(color: EmbeddedRgb) -> Self {
-        TerminalColor::Rgb6 { color }
-    }
-}
-
 impl From<EmbeddedRgb> for Color {
     fn from(value: EmbeddedRgb) -> Self {
         TrueColor::from(value).into()
@@ -681,19 +656,6 @@ impl From<GrayGradient> for [u8; 3] {
     fn from(value: GrayGradient) -> Self {
         let level = 8 + 10 * value.level();
         [level, level, level]
-    }
-}
-
-impl From<GrayGradient> for TrueColor {
-    fn from(value: GrayGradient) -> TrueColor {
-        let [r, g, b] = value.into();
-        TrueColor::new(r, g, b)
-    }
-}
-
-impl From<GrayGradient> for TerminalColor {
-    fn from(color: GrayGradient) -> Self {
-        TerminalColor::Gray { color }
     }
 }
 
@@ -914,6 +876,20 @@ impl std::ops::Index<usize> for TrueColor {
     }
 }
 
+impl From<EmbeddedRgb> for TrueColor {
+    fn from(value: EmbeddedRgb) -> Self {
+        let [r, g, b] = value.into();
+        TrueColor::new(r, g, b)
+    }
+}
+
+impl From<GrayGradient> for TrueColor {
+    fn from(value: GrayGradient) -> TrueColor {
+        let [r, g, b] = value.into();
+        TrueColor::new(r, g, b)
+    }
+}
+
 impl From<[u8; 3]> for TrueColor {
     fn from(value: [u8; 3]) -> Self {
         TrueColor::new(value[0], value[1], value[2])
@@ -928,12 +904,6 @@ impl From<&Color> for TrueColor {
     fn from(value: &Color) -> Self {
         let [r, g, b] = value.to(ColorSpace::Srgb).to_gamut().to_24bit();
         Self::new(r, g, b)
-    }
-}
-
-impl From<TrueColor> for TerminalColor {
-    fn from(color: TrueColor) -> Self {
-        TerminalColor::Rgb256 { color }
     }
 }
 
@@ -975,9 +945,9 @@ impl core::fmt::Display for TrueColor {
 pub enum TerminalColor {
     Default { color: DefaultColor },
     Ansi { color: AnsiColor },
-    Rgb6 { color: EmbeddedRgb },
+    Embedded { color: EmbeddedRgb },
     Gray { color: GrayGradient },
-    Rgb256 { color: TrueColor },
+    Bits24 { color: TrueColor },
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
@@ -1012,7 +982,7 @@ impl TerminalColor {
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn from_24bit(r: u8, g: u8, b: u8) -> Self {
-        Self::Rgb256 {
+        Self::Bits24 {
             color: TrueColor::new(r, g, b),
         }
     }
@@ -1094,13 +1064,13 @@ impl TerminalColor {
                 let base = if c.is_bright() { 90 } else { 30 } + layer.offset();
                 vec![base + c.to_3bit() as u8]
             }
-            TerminalColor::Rgb6 { color: c } => {
+            TerminalColor::Embedded { color: c } => {
                 vec![38 + layer.offset(), 5, u8::from(*c)]
             }
             TerminalColor::Gray { color: c } => {
                 vec![38 + layer.offset(), 5, u8::from(*c)]
             }
-            TerminalColor::Rgb256 { color: c } => {
+            TerminalColor::Bits24 { color: c } => {
                 vec![38 + layer.offset(), 2, c[0], c[1], c[2]]
             }
         }
@@ -1112,9 +1082,11 @@ impl TerminalColor {
         match self {
             TerminalColor::Default { color: c } => format!("TerminalColor.Default({:?})", c),
             TerminalColor::Ansi { color: c } => format!("TerminalColor.Ansi({:?})", c),
-            TerminalColor::Rgb6 { color: c } => format!("TerminalColor.Rgb6({})", c.__repr__()),
+            TerminalColor::Embedded { color: c } => {
+                format!("TerminalColor.Embedded({})", c.__repr__())
+            }
             TerminalColor::Gray { color: c } => format!("TerminalColor.Gray({})", c.__repr__()),
-            TerminalColor::Rgb256 { color: c } => format!("TerminalColor.Rgb256({})", c.__repr__()),
+            TerminalColor::Bits24 { color: c } => format!("TerminalColor.Bits24({})", c.__repr__()),
         }
     }
 }
@@ -1123,9 +1095,39 @@ impl TerminalColor {
 impl TerminalColor {
     /// Instantiate a new terminal color from the 24-bit RGB coordinates.
     pub fn from_24bit(r: impl Into<u8>, g: impl Into<u8>, b: impl Into<u8>) -> Self {
-        Self::Rgb256 {
+        Self::Bits24 {
             color: TrueColor::new(r.into(), g.into(), b.into()),
         }
+    }
+}
+
+impl From<DefaultColor> for TerminalColor {
+    fn from(color: DefaultColor) -> Self {
+        TerminalColor::Default { color }
+    }
+}
+
+impl From<AnsiColor> for TerminalColor {
+    fn from(color: AnsiColor) -> Self {
+        TerminalColor::Ansi { color }
+    }
+}
+
+impl From<EmbeddedRgb> for TerminalColor {
+    fn from(color: EmbeddedRgb) -> Self {
+        TerminalColor::Embedded { color }
+    }
+}
+
+impl From<GrayGradient> for TerminalColor {
+    fn from(color: GrayGradient) -> Self {
+        TerminalColor::Gray { color }
+    }
+}
+
+impl From<TrueColor> for TerminalColor {
+    fn from(color: TrueColor) -> Self {
+        TerminalColor::Bits24 { color }
     }
 }
 
@@ -1140,7 +1142,7 @@ impl From<u8> for TerminalColor {
                 color: AnsiColor::try_from(value).unwrap(),
             }
         } else if (16..=231).contains(&value) {
-            Self::Rgb6 {
+            Self::Embedded {
                 color: EmbeddedRgb::try_from(value).unwrap(),
             }
         } else {
@@ -1153,7 +1155,7 @@ impl From<u8> for TerminalColor {
 
 impl From<[u8; 3]> for TerminalColor {
     fn from(value: [u8; 3]) -> Self {
-        Self::Rgb256 {
+        Self::Bits24 {
             color: TrueColor(value),
         }
     }
@@ -1166,7 +1168,7 @@ impl From<&Color> for TerminalColor {
     /// converts each coordinate to `u8` before returning a wrapped
     /// [`TrueColor`].
     fn from(value: &Color) -> Self {
-        Self::Rgb256 {
+        Self::Bits24 {
             color: TrueColor::from(value),
         }
     }
@@ -1184,9 +1186,9 @@ impl TryFrom<TerminalColor> for u8 {
         match value {
             TerminalColor::Default { .. } => Err(value),
             TerminalColor::Ansi { color: c } => Ok(u8::from(c)),
-            TerminalColor::Rgb6 { color: c } => Ok(u8::from(c)),
+            TerminalColor::Embedded { color: c } => Ok(u8::from(c)),
             TerminalColor::Gray { color: c } => Ok(u8::from(c)),
-            TerminalColor::Rgb256 { .. } => Err(value),
+            TerminalColor::Bits24 { .. } => Err(value),
         }
     }
 }
@@ -1198,9 +1200,9 @@ impl TryFrom<TerminalColor> for [u8; 3] {
         match value {
             TerminalColor::Default { .. } => Err(value),
             TerminalColor::Ansi { .. } => Err(value),
-            TerminalColor::Rgb6 { color } => Ok(color.into()),
+            TerminalColor::Embedded { color } => Ok(color.into()),
             TerminalColor::Gray { color } => Ok(color.into()),
-            TerminalColor::Rgb256 { color } => Ok(*color.as_ref()),
+            TerminalColor::Bits24 { color } => Ok(*color.as_ref()),
         }
     }
 }

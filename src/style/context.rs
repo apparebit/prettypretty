@@ -232,8 +232,8 @@ impl From<TerminalColor> for Fidelity {
     fn from(value: TerminalColor) -> Self {
         match value {
             TerminalColor::Default { .. } | TerminalColor::Ansi { .. } => Self::Ansi,
-            TerminalColor::Rgb6 { .. } | TerminalColor::Gray { .. } => Self::EightBit,
-            TerminalColor::Rgb256 { .. } => Self::Full,
+            TerminalColor::Embedded { .. } | TerminalColor::Gray { .. } => Self::EightBit,
+            TerminalColor::Bits24 { .. } => Self::Full,
         }
     }
 }

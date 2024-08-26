@@ -224,7 +224,7 @@ black = translator.to_ansi(Color.srgb(0.15, 0.15, 0.15))
 assert black == AnsiColor.Black
 
 maroon = translator.cap(TrueColor(148, 23, 81), Fidelity.EightBit)
-assert maroon == TerminalColor.Rgb6(EmbeddedRgb(2, 0, 1))
+assert maroon == TerminalColor.Embedded(EmbeddedRgb(2, 0, 1))
 ```
 <div class=color-swatch>
 <div style="background-color: #f55;"></div>

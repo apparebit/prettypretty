@@ -126,9 +126,9 @@ class TestColor(unittest.TestCase):
         self.assertListEqual(green.coordinates(), [0.0, 1.0, 0.0])
 
         also_green = style.TerminalColor.from_8bit(46)
-        self.assertIsInstance(also_green, style.TerminalColor.Rgb6)
+        self.assertIsInstance(also_green, style.TerminalColor.Embedded)
         self.assertIsInstance(also_green, style.TerminalColor)
-        assert isinstance(also_green, style.TerminalColor.Rgb6)
+        assert isinstance(also_green, style.TerminalColor.Embedded)
         self.assertIsInstance(also_green.color, style.EmbeddedRgb)
         self.assertEqual(also_green.color, style.EmbeddedRgb(0, 5, 0))
         self.assertListEqual(also_green.color.coordinates(), [0, 5, 0])

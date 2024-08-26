@@ -53,7 +53,7 @@ def test1() -> None:
     assert gray.to_color() == Color.from_24bit(188, 188, 188)
     
     green = TerminalColor.from_8bit(71)
-    assert isinstance(green, TerminalColor.Rgb6)
+    assert isinstance(green, TerminalColor.Embedded)
     also_green = green.color
     assert also_green[0] == 1
     assert also_green[1] == 3
@@ -82,7 +82,7 @@ def test2() -> None:
     assert black == AnsiColor.Black
     
     maroon = translator.cap(TrueColor(148, 23, 81), Fidelity.EightBit)
-    assert maroon == TerminalColor.Rgb6(EmbeddedRgb(2, 0, 1))
+    assert maroon == TerminalColor.Embedded(EmbeddedRgb(2, 0, 1))
 
 
 if __name__ == "__main__":

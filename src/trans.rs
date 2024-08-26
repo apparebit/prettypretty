@@ -841,7 +841,10 @@ impl Translator {
     ///             assert_close_enough!(color[0], c1);
     ///
     ///             let result = translator.to_closest_8bit(&color);
-    ///             assert_eq!(result, TerminalColor::Rgb6 { color: embedded });
+    ///             assert_eq!(
+    ///                 result,
+    ///                 TerminalColor::Embedded { color: embedded }
+    ///             );
     ///         }
     ///     }
     /// }
@@ -1283,7 +1286,10 @@ impl Translator {
     ///             assert_close_enough!(color[0], c1);
     ///
     ///             let result = translator.to_closest_8bit(&color);
-    ///             assert_eq!(result, TerminalColor::Rgb6 { color: embedded });
+    ///             assert_eq!(
+    ///                 result,
+    ///                 TerminalColor::Embedded { color: embedded }
+    ///             );
     ///         }
     ///     }
     /// }
@@ -1354,9 +1360,9 @@ impl Translator {
         match color.into() {
             TerminalColor::Default { color: c } => self.theme[c as usize].clone(),
             TerminalColor::Ansi { color: c } => self.theme[c as usize + 2].clone(),
-            TerminalColor::Rgb6 { color: c } => c.into(),
+            TerminalColor::Embedded { color: c } => c.into(),
             TerminalColor::Gray { color: c } => c.into(),
-            TerminalColor::Rgb256 { color: c } => c.into(),
+            TerminalColor::Bits24 { color: c } => c.into(),
         }
     }
 
@@ -1385,9 +1391,9 @@ impl Translator {
                     TerminalColor::Default { .. } | TerminalColor::Ansi { .. } => {
                         return Some(color);
                     }
-                    TerminalColor::Rgb6 { color: c } => Color::from(c),
+                    TerminalColor::Embedded { color: c } => Color::from(c),
                     TerminalColor::Gray { color: c } => Color::from(c),
-                    TerminalColor::Rgb256 { color: c } => Color::from(c),
+                    TerminalColor::Bits24 { color: c } => Color::from(c),
                 };
 
                 Some(TerminalColor::Ansi {
@@ -1395,7 +1401,7 @@ impl Translator {
                 })
             }
             Fidelity::EightBit => {
-                if let TerminalColor::Rgb256 { color: c } = color {
+                if let TerminalColor::Bits24 { color: c } = color {
                     Some(self.to_closest_8bit(&Color::from(c)))
                 } else {
                     Some(color)

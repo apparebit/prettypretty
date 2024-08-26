@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from typing import Self
 
 from . import Color
@@ -125,7 +126,7 @@ class TerminalColor_Ansi(TerminalColor):
     def color(self) -> AnsiColor: ...
 
 
-class TerminalColor_Rgb6(TerminalColor):
+class TerminalColor_Embedded(TerminalColor):
     """The 6x6x6 RGB cube embedded in 8-bit colors."""
     def __new__(cls, color: EmbeddedRgb) -> Self: ...
     @property
@@ -139,7 +140,7 @@ class TerminalColor_Gray(TerminalColor):
     def color(self) -> GrayGradient: ...
 
 
-class TerminalColor_Rgb256(TerminalColor):
+class TerminalColor_Bits24(TerminalColor):
     """24-bit RGB colors."""
     def __new__(cls, color: TrueColor) -> Self: ...
     @property
@@ -150,9 +151,9 @@ class TerminalColor:
     """Terminal colors."""
     Default = TerminalColor_Default
     Ansi = TerminalColor_Ansi
-    Rgb6 = TerminalColor_Rgb6
+    Embedded = TerminalColor_Embedded
     Gray = TerminalColor_Gray
-    Rgb256 = TerminalColor_Rgb256
+    Bits24 = TerminalColor_Bits24
 
     @staticmethod
     def from_8bit(color: int) -> TerminalColor: ...
