@@ -15,7 +15,7 @@
 use pyo3::prelude::*;
 
 use crate::{
-    core::{Sum, GamutTraversalStep},
+    core::{GamutTraversalStep, Sum},
     Color, ColorSpace, Float,
 };
 
@@ -376,9 +376,6 @@ impl SpectrumTraversal {
         )
     }
 }
-
-#[cfg(not(feature = "pyffi"))]
-impl SpectrumTraversal {}
 
 impl Iterator for SpectrumTraversal {
     type Item = GamutTraversalStep;

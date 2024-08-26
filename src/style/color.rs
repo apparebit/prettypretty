@@ -1,5 +1,5 @@
 #[cfg(feature = "pyffi")]
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyInt};
 
 use super::Layer;
 use crate::error::OutOfBoundsError;
@@ -947,7 +947,7 @@ pub enum TerminalColor {
     Ansi { color: AnsiColor },
     Embedded { color: EmbeddedRgb },
     Gray { color: GrayGradient },
-    Bits24 { color: TrueColor },
+    Full { color: TrueColor },
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
@@ -982,7 +982,7 @@ impl TerminalColor {
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn from_24bit(r: u8, g: u8, b: u8) -> Self {
-        Self::Bits24 {
+        Self::Full {
             color: TrueColor::new(r, g, b),
         }
     }
@@ -1070,7 +1070,7 @@ impl TerminalColor {
             TerminalColor::Gray { color: c } => {
                 vec![38 + layer.offset(), 5, u8::from(*c)]
             }
-            TerminalColor::Bits24 { color: c } => {
+            TerminalColor::Full { color: c } => {
                 vec![38 + layer.offset(), 2, c[0], c[1], c[2]]
             }
         }
@@ -1086,7 +1086,7 @@ impl TerminalColor {
                 format!("TerminalColor.Embedded({})", c.__repr__())
             }
             TerminalColor::Gray { color: c } => format!("TerminalColor.Gray({})", c.__repr__()),
-            TerminalColor::Bits24 { color: c } => format!("TerminalColor.Bits24({})", c.__repr__()),
+            TerminalColor::Full { color: c } => format!("TerminalColor.Full({})", c.__repr__()),
         }
     }
 }
@@ -1095,7 +1095,7 @@ impl TerminalColor {
 impl TerminalColor {
     /// Instantiate a new terminal color from the 24-bit RGB coordinates.
     pub fn from_24bit(r: impl Into<u8>, g: impl Into<u8>, b: impl Into<u8>) -> Self {
-        Self::Bits24 {
+        Self::Full {
             color: TrueColor::new(r.into(), g.into(), b.into()),
         }
     }
@@ -1142,7 +1142,7 @@ impl From<GrayGradient> for TerminalColor {
 
 impl From<TrueColor> for TerminalColor {
     fn from(color: TrueColor) -> Self {
-        TerminalColor::Bits24 { color }
+        TerminalColor::Full { color }
     }
 }
 
@@ -1170,7 +1170,7 @@ impl From<u8> for TerminalColor {
 
 impl From<[u8; 3]> for TerminalColor {
     fn from(value: [u8; 3]) -> Self {
-        Self::Bits24 {
+        Self::Full {
             color: TrueColor(value),
         }
     }
@@ -1183,7 +1183,7 @@ impl From<&Color> for TerminalColor {
     /// converts each coordinate to `u8` before returning a wrapped
     /// [`TrueColor`].
     fn from(value: &Color) -> Self {
-        Self::Bits24 {
+        Self::Full {
             color: TrueColor::from(value),
         }
     }
@@ -1203,7 +1203,7 @@ impl TryFrom<TerminalColor> for u8 {
             TerminalColor::Ansi { color: c } => Ok(u8::from(c)),
             TerminalColor::Embedded { color: c } => Ok(u8::from(c)),
             TerminalColor::Gray { color: c } => Ok(u8::from(c)),
-            TerminalColor::Bits24 { .. } => Err(value),
+            TerminalColor::Full { .. } => Err(value),
         }
     }
 }
@@ -1217,7 +1217,7 @@ impl TryFrom<TerminalColor> for [u8; 3] {
             TerminalColor::Ansi { .. } => Err(value),
             TerminalColor::Embedded { color } => Ok(color.into()),
             TerminalColor::Gray { color } => Ok(color.into()),
-            TerminalColor::Bits24 { color } => Ok(*color.as_ref()),
+            TerminalColor::Full { color } => Ok(*color.as_ref()),
         }
     }
 }

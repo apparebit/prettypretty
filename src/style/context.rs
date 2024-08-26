@@ -233,7 +233,7 @@ impl From<TerminalColor> for Fidelity {
         match value {
             TerminalColor::Default { .. } | TerminalColor::Ansi { .. } => Self::Ansi,
             TerminalColor::Embedded { .. } | TerminalColor::Gray { .. } => Self::EightBit,
-            TerminalColor::Bits24 { .. } => Self::Full,
+            TerminalColor::Full { .. } => Self::Full,
         }
     }
 }

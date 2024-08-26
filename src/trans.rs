@@ -1345,7 +1345,7 @@ impl Translator {
             TerminalColor::Ansi { color: c } => self.theme[c as usize + 2].clone(),
             TerminalColor::Embedded { color: c } => c.into(),
             TerminalColor::Gray { color: c } => c.into(),
-            TerminalColor::Bits24 { color: c } => c.into(),
+            TerminalColor::Full { color: c } => c.into(),
         }
     }
 
@@ -1376,7 +1376,7 @@ impl Translator {
                     }
                     TerminalColor::Embedded { color: c } => Color::from(c),
                     TerminalColor::Gray { color: c } => Color::from(c),
-                    TerminalColor::Bits24 { color: c } => Color::from(c),
+                    TerminalColor::Full { color: c } => Color::from(c),
                 };
 
                 Some(TerminalColor::Ansi {
@@ -1384,7 +1384,7 @@ impl Translator {
                 })
             }
             Fidelity::EightBit => {
-                if let TerminalColor::Bits24 { color: c } = color {
+                if let TerminalColor::Full { color: c } = color {
                     Some(self.to_closest_8bit(&Color::from(c)))
                 } else {
                     Some(color)
