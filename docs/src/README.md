@@ -29,7 +29,7 @@ lightness-based downsampling for optimal selection of ANSI colors.
 🎖️ Prettypretty was featured on the Real Python podcast [episode
 #211](https://realpython.com/podcasts/rpp/211/).
 
-🎖️ Prettypretty's inspired iTerm2's color preferences:
+🎖️ Prettypretty inspired iTerm2's color preferences:
 
 <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/iterm2-color-preferences.jpg"
      alt="iTerm2's color preferences with a polar coordinate grid illustrating theme color values"
@@ -41,6 +41,7 @@ lightness-based downsampling for optimal selection of ANSI colors.
 To find out more, please keep reading this user guide and also leverage the
 following resources:
 
+  * [This User Guide](https://apparebit.github.io/prettypretty/)
   * [Rust API documentation](https://apparebit.github.io/prettypretty/prettypretty/)
     on GitHub, with Python integration
   * [Rust API documentation](https://docs.rs/prettypretty/latest/prettypretty/)
@@ -49,7 +50,7 @@ following resources:
   * [Python type stub](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color/__init__.pyi)
   * [Rust crate](https://crates.io/crates/prettypretty)
   * [Python package](https://pypi.org/project/prettypretty/)
-  * [Repository](https://github.com/apparebit/prettypretty)
+  * [GitHub Repository](https://github.com/apparebit/prettypretty)
   * [Changelog](https://github.com/apparebit/prettypretty/blob/main/CHANGELOG.md)
 
 
