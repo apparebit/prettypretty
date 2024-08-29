@@ -82,6 +82,12 @@ impl std::iter::Sum<Float> for Sum {
     }
 }
 
+impl From<Sum> for Float {
+    fn from(value: Sum) -> Self {
+        value.value()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::Sum;
