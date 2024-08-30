@@ -251,3 +251,32 @@ impl std::fmt::Display for Fidelity {
         f.write_str(s)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::{fidelity_from_environment, Fidelity};
+    use crate::util::FakeEnv;
+
+    #[test]
+    fn test_fidelity() {
+        let env = &mut FakeEnv::new();
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Plain);
+        env.set("TERM", "cygwin");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
+        env.set("TERM_PROGRAM", "iTerm.app");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::EightBit);
+        env.set("TERM_PROGRAM_VERSION", "3.5");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Full);
+        env.set("COLORTERM", "truecolor");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Full);
+        env.set("CI", "");
+        env.set("APPVEYOR", "");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
+        env.set("TF_BUILD", "");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
+        env.set("NO_COLOR", "");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
+        env.set("NO_COLOR", "1");
+        assert_eq!(fidelity_from_environment(env, true), Fidelity::NoColor);
+    }
+}

@@ -37,29 +37,31 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     conversion between color spaces, interpolation between colors,
 //!     calculation of perceptual contrast, as well as gamut testing, clipping,
 //!     and mapping.
-//!   * The [`style`] module models **terminal colors** and other stylistic text
-//!     attributes. Notably, the [`TerminalColor`](crate::style::TerminalColor)
-//!     enum combines, in order from lowest to highest resolution,
+//!   * To help make sense of colors and color spaces, the [`gamut`] and
+//!     [`spectrum`] submodules enable the traversal of the boundaries of a
+//!     **color space gamut** as well as the **human visual gamut**. The
+//!     [plot.py] and [viz3d.py] scripts build on both modules to generate
+//!     helpful color visualizations.
+//!   * The [`style`] module models **terminal colors** and other **text
+//!     formats**. Fluently assembling a style is as easy as invoking
+//!     [`style::stylist()`], followed by some number of methods for colors and
+//!     formats, and then `go()`. Supporting this high-level interface requires
+//!     a surprising number of types. Notably, the
+//!     [`TerminalColor`](crate::style::TerminalColor) enum combines, in order
+//!     from lowest to highest resolution,
 //!     [`DefaultColor`](crate::style::DefaultColor),
 //!     [`AnsiColor`](crate::style::AnsiColor),
 //!     [`EmbeddedRgb`](crate::style::EmbeddedRgb),
 //!     [`GrayGradient`](crate::style::GrayGradient), and
-//!     [`TrueColor`](crate::style::TrueColor). It also implements `From` and
-//!     `FromTry` traits for converting between color representations. For
-//!     embedded RGB colors, they include conversion from/to `u8` and wrapped
-//!     [`TerminalColor`](crate::style::TerminalColor) instances as well as raw
-//!     24-bit (`[u8; 3]`), 24-bit color objects
-//!     ([`TrueColor`](crate::style::TrueColor)), and high-resolution colors
-//!     ([`Color`]). Additionally, [`Format`](crate::style::Format) captures
-//!     other stylistic attributes, [`Style`](crate::style::Style) is the
-//!     enumeration of all style options, and
-//!     [`RichText`](crate::style::RichText) combines styles with text.
-//!   * The [`trans`] module implements more **complicated color conversions**.
-//!     Notably, [`Translation`](crate::trans::Translator) handles conversion
-//!     between ANSI/8-bit colors and high-resolution colors. It includes
-//!     several algorithms for translating from high-resolution to ANSI colors.
-//!     Since that requires mapping practically infinite onto 16 colors, that
-//!     translation is particularly challenging.
+//!     [`TrueColor`](crate::style::TrueColor). A good many `From` and `FromTry`
+//!     implementations cover color conversions that only change representation.
+//!   * The [`trans`] module's [`Translator`](crate::trans::Translator)
+//!     implements more **complicated color conversions**, notably conversion
+//!     between ANSI/8-bit colors and high-resolution colors. Amongst these
+//!     conversions, translation from high-resolution to ANSI colors is
+//!     particularly challenging, as it requires mapping a practically infinite
+//!     number of colors onto 16 only. Hence `Translator` includes several
+//!     algorithms for doing so.
 //!
 //!
 //! ## Feature Flags
@@ -180,6 +182,7 @@ use pyo3::types::PyDict;
 pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modcolor_name = m.name()?;
     let modcolor_name = modcolor_name.to_str()?;
+    let modformat_name = format!("{}.style.format", modcolor_name);
     let modgamut_name = format!("{}.gamut", modcolor_name);
     let modspectrum_name = format!("{}.spectrum", modcolor_name);
     let modobserver_name = format!("{}.std_observer", modspectrum_name);
@@ -236,25 +239,34 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // --------------------------------------------------------------- color.style
     let modstyle = PyModule::new_bound(m.py(), "style")?;
     modstyle.add("__package__", modcolor_name)?;
-    modstyle.add_class::<crate::style::AllFormats>()?;
     modstyle.add_class::<crate::style::AnsiColor>()?;
     modstyle.add_class::<crate::style::DefaultColor>()?;
     modstyle.add_class::<crate::style::EmbeddedRgb>()?;
     modstyle.add_class::<crate::style::Fidelity>()?;
-    modstyle.add_class::<crate::style::Format>()?;
-    modstyle.add_class::<crate::style::FormatIterator>()?;
-    modstyle.add_class::<crate::style::Formatting>()?;
     modstyle.add_class::<crate::style::GrayGradient>()?;
     modstyle.add_class::<crate::style::Layer>()?;
     modstyle.add_class::<crate::style::RichText>()?;
-    modstyle.add_function(wrap_pyfunction!(crate::style::style, m)?)?;
+    modstyle.add_function(wrap_pyfunction!(crate::style::stylist, m)?)?;
     modstyle.add_class::<crate::style::Style>()?;
+    modstyle.add_class::<crate::style::StyleBuilder>()?;
+    modstyle.add_class::<crate::style::StyleToken>()?;
     modstyle.add_class::<crate::style::TerminalColor>()?;
     modstyle.add_class::<crate::style::TrueColor>()?;
     m.add_submodule(&modstyle)?;
 
     // Only change __name__ attribute after submodule has been added.
     modstyle.setattr("__name__", &modstyle_name)?;
+
+    // -------------------------------------------------------- color.style.format
+    let modformat = PyModule::new_bound(m.py(), "format")?;
+    modformat.add("__package__", &modstyle_name)?;
+    modformat.add_class::<crate::style::format::AllAttributes>()?;
+    modformat.add_class::<crate::style::format::Attribute>()?;
+    modformat.add_class::<crate::style::format::AttributeIterator>()?;
+    modformat.add_class::<crate::style::format::Format>()?;
+    modstyle.add_submodule(&modformat)?;
+
+    modformat.setattr("__name__", &modformat_name)?;
 
     // --------------------------------------------------------------- color.trans
     let modtrans = PyModule::new_bound(m.py(), "trans")?;
@@ -278,6 +290,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     py_modules.set_item(&modspectrum_name, modspectrum)?;
     py_modules.set_item(&modobserver_name, modobserver)?;
     py_modules.set_item(&modstyle_name, modstyle)?;
+    py_modules.set_item(&modformat_name, modformat)?;
     py_modules.set_item(&modtrans_name, modtrans)?;
 
     Ok(())
