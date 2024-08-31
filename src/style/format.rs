@@ -19,6 +19,7 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
+use super::Fidelity;
 use Attribute::*;
 
 /// Text attributes other than colors.
@@ -327,6 +328,23 @@ impl Format {
             format: *self,
             all_attributes: Attribute::all(),
         }
+    }
+
+    /// Cap this format by the given terminal fidelity.
+    ///
+    /// If the terminal supports ANSI escape codes, i.e., has a fidelity other
+    /// than [`Fidelity::Plain`], this method returns the format wrapped in
+    /// `Some`. Otherwise, it returns `None`.
+    pub fn cap(&self, fidelity: Fidelity) -> Option<Self> {
+        match fidelity {
+            Fidelity::Plain => None,
+            _ => Some(*self),
+        }
+    }
+
+    /// Get the SGR parameters for this format.
+    pub fn sgr_parameters(&self) -> Vec<u8> {
+        self.attributes().map(|a| a.sgr_parameter()).collect()
     }
 
     /// Negate this format. <i class=python-only>Python only!</i>

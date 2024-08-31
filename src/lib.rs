@@ -37,16 +37,11 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     conversion between color spaces, interpolation between colors,
 //!     calculation of perceptual contrast, as well as gamut testing, clipping,
 //!     and mapping.
-//!   * To help make sense of colors and color spaces, the [`gamut`] and
-//!     [`spectrum`] submodules enable the traversal of the boundaries of a
-//!     **color space gamut** as well as the **human visual gamut**. The
-//!     [plot.py] and [viz3d.py] scripts build on both modules to generate
-//!     helpful color visualizations.
 //!   * The [`style`] module models **terminal colors** and other **text
 //!     formats**. Fluently assembling a style is as easy as invoking
 //!     [`style::stylist()`], followed by some number of methods for colors and
-//!     formats, and then `go()`. Supporting this high-level interface requires
-//!     a surprising number of types. Notably, the
+//!     formats, and then `go()`. However, enabling this high-level interface
+//!     requires a surprising number of types. Notably, the
 //!     [`TerminalColor`](crate::style::TerminalColor) enum combines, in order
 //!     from lowest to highest resolution,
 //!     [`DefaultColor`](crate::style::DefaultColor),
@@ -62,6 +57,12 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     particularly challenging, as it requires mapping a practically infinite
 //!     number of colors onto 16 only. Hence `Translator` includes several
 //!     algorithms for doing so.
+//!   * The [`gamut`] and [`spectrum`] submodules enable the traversal of
+//!     **color space gamuts** and the **human visual gamut**, respectively. The
+//!     [plot.py](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
+//!     and
+//!     [viz3d.py](https://github.com/apparebit/prettypretty/blob/main/prettypretty/viz3d.py)
+//!     scripts leverage them for generating helpful color visualizations.
 //!
 //!
 //! ## Feature Flags
@@ -248,9 +249,10 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modstyle.add_class::<crate::style::RichText>()?;
     modstyle.add_function(wrap_pyfunction!(crate::style::stylist, m)?)?;
     modstyle.add_class::<crate::style::Style>()?;
-    modstyle.add_class::<crate::style::StyleBuilder>()?;
+    modstyle.add_class::<crate::style::Stylist>()?;
     modstyle.add_class::<crate::style::StyleToken>()?;
     modstyle.add_class::<crate::style::TerminalColor>()?;
+    modstyle.add_class::<crate::style::TokenIterator>()?;
     modstyle.add_class::<crate::style::TrueColor>()?;
     m.add_submodule(&modstyle)?;
 

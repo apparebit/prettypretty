@@ -1,57 +1,48 @@
-//! Terminal colors and other stylistic flourishes of text enabled by ANSI
-//! escapes.
+//! Terminal colors and other stylistic flourishes enabled by ANSI escapes.
 //!
-//! The module's basic domain model is extremely simple: Colors and other
-//! formats combine to styles. Styles, in turn, determine the appearance of rich
-//! text. However, in practice, it takes a few more types. In particular, styles
-//! combine some number of style tokens, which include colors and text formats.
-//! Text formats combine some number of text attributes. Formats may very well
-//! disable text attributes, but such formats can only be constructed indirectly
-//! through negation and subtraction.
-//!
-//!
-//! # Styles
-//!
-//! A terminal [`Style`] is fluently assembled by stringing methods off
-//! [`stylist()`] until a final `go()`. For example:
+//! The module's domain model can be described simply as styles with colors and
+//! formatting. In fact, its support for fluently assembling styles very much
+//! feels like that. Consider the first line in the code example, which builds a
+//! bold, underlined, red style:
 //! ```
 //! # use prettypretty::style::{stylist, AnsiColor, format::Format, StyleToken, TerminalColor};
-//! let style = stylist().bold().underlined().foreground(AnsiColor::Red).go();
+//! let style = stylist().bold().foreground(AnsiColor::Red).underlined().go();
 //!
-//! for token in style.tokens() {
+//! for (index, token) in style.tokens().enumerate() {
 //!     match token {
-//!         StyleToken::Format(format) => {
-//!             assert_eq!(format, Format::new().bold().underlined());
-//!         }
 //!         StyleToken::Foreground(color) => {
+//!             assert_eq!(index, 0);
 //!             assert_eq!(color, TerminalColor::Ansi { color: AnsiColor::Red });
+//!         }
+//!         StyleToken::Format(format) => {
+//!             assert_eq!(index, 1);
+//!             assert_eq!(format, Format::new().bold().underlined());
 //!         }
 //!         _ => panic!("unexpected style token {:?}", token)
 //!     }
 //! }
 //! ```
-//! The example uses the [`StyleBuilder`] returned by [`stylist()`] to create a
-//! style comprising bold, underlined, red text. As demonstrated by the loop
-//! iterating over the [`StyleToken`]s, the style builder transparently combined
-//! the bold and underlined attributes into a single format, here wrapped by a
-//! style token.
+//! Alas, as hinted at by the loop below the fluent builder expression, it takes
+//! a number of types to represent the various terminal colors as well as other
+//! formats and to then combine them into a coherent domain model.
 //!
-//! When styles are combined with text, they form [`RichText`].
+//! In particular:
 //!
+//!   * [`TerminalColor`] represents the different color formats supported by
+//!     terminals. It combines [`AnsiColor`], [`DefaultColor`], [`EmbeddedRgb`],
+//!     [`GrayGradient`], and [`TrueColor`].
+//!   * [`Format`](format::Format) combines some number of stylistic
+//!     [`Attribute`](format::Attribute)s of text other than color.
+//!   * [`Style] combines some number of [`StyleToken`]s, each of which can
+//!     represent a [`Color`] or [`TerminalColor`] of the foreground or
+//!     background, a [`Format`], or other changes to the terminal's
+//!     appearance.
+//!   * Amongst helper types, [`Layer`] distinguishes between foreground as well
+//!     as background, and [`Fidelity`] represents a terminal's color support or
+//!     a user's preferences.
 //!
-//! # Terminal Colors
-//!
-//! The unifying [`TerminalColor`] abstraction combines, in order of decreasing
-//! age and increasing resolution, [`DefaultColor`], [`AnsiColor`],
-//! [`EmbeddedRgb`], [`GrayGradient`], and [`TrueColor`]. Out of these, default
-//! and the extended ANSI colors not only have the lowest resolution—one default
-//! color each for foreground and background as well as sixteen extended ANSI
-//! colors—but they also are abstract. That is, their appearance is (coarsely)
-//! defined, but they do not have standardized or widely accepted color values.
-//!
-//! Where possible, `From` and `TryFrom` trait implementations convert between
-//! different terminal color abstractions. More complicated conversions are
-//! implemented by the [`trans`](crate::trans) module.
+//! Additionally, this module defines several iterators and implements
+//! conversions with `From` and `TryFrom`.
 
 mod color;
 mod context;
@@ -63,4 +54,4 @@ pub(crate) use color::into_terminal_color;
 
 pub use color::{AnsiColor, DefaultColor, EmbeddedRgb, GrayGradient, TerminalColor, TrueColor};
 pub use context::{Fidelity, Layer};
-pub use styling::{stylist, RichText, Style, StyleBuilder, StyleToken};
+pub use styling::{stylist, RichText, Style, StyleToken, Stylist, TokenIterator};

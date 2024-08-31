@@ -4,16 +4,15 @@ use pyo3::prelude::*;
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use super::{format::Format, Fidelity, TerminalColor};
-use crate::Color;
+use super::{format::Format, Fidelity, Layer, TerminalColor};
+use crate::{trans::Translator, Color};
 
 /// A style token represents the atomic units of styles, including colors and
 /// other text formats.
 ///
-/// Just like design tokens contribute to a larger design system,
-/// [`StyleToken`]s contribute to [`Style`]s assembled with [`StyleBuilder`]s.
-/// This naming scheme reserves the shortest, most generic term "style" for the
-/// primary abstraction amongst the bunch.
+/// Like design tokens contribute to a larger design system, [`StyleToken`]s
+/// contribute to [`Style`]s. Following the builder pattern, a [`Stylist`]
+/// fluently assembles styles.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, module = "prettypretty.color.style")
@@ -26,20 +25,15 @@ pub enum StyleToken {
     Background(TerminalColor),
     HiResForeground(Color),
     HiResBackground(Color),
-    Link {
-        text: String,
-        href: String,
-        id: Option<String>,
-    },
     // ...
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl StyleToken {
-    /// Determine the terminal fidelity necessary for rendering this style as
-    /// is.
+    /// Determine the terminal fidelity necessary for rendering this style token
+    /// as is.
     ///
-    /// This method necessarily return a fidelity higher than
+    /// This method necessarily returns a fidelity higher than
     /// [`Fidelity::Plain`].
     pub fn fidelity(&self) -> Fidelity {
         match self {
@@ -49,52 +43,97 @@ impl StyleToken {
             Self::Background(color) => (*color).into(),
             Self::HiResForeground(_) => Fidelity::Full,
             Self::HiResBackground(_) => Fidelity::Full,
-            Self::Link { .. } => Fidelity::NoColor,
+        }
+    }
+
+    /// Cap this style token at the given fidelity.
+    ///
+    /// If the fidelity is [`Fidelity::Plain`], this method returns `None`. If
+    /// the fidelity is higher, this method adjusts colors using the given
+    /// translator.
+    pub fn cap(&self, fidelity: Fidelity, translator: &Translator) -> Option<Self> {
+        match self {
+            StyleToken::Reset() => {
+                if matches!(fidelity, Fidelity::Plain) {
+                    None
+                } else {
+                    Some(StyleToken::Reset())
+                }
+            }
+            StyleToken::Format(format) => format.cap(fidelity).map(StyleToken::Format),
+            StyleToken::Foreground(color) => {
+                translator.cap(*color, fidelity).map(StyleToken::Foreground)
+            }
+            StyleToken::Background(color) => {
+                translator.cap(*color, fidelity).map(StyleToken::Background)
+            }
+            StyleToken::HiResForeground(color) => translator
+                .cap(TerminalColor::from(color), fidelity)
+                .map(StyleToken::Foreground),
+            StyleToken::HiResBackground(color) => translator
+                .cap(TerminalColor::from(color), fidelity)
+                .map(StyleToken::Background),
+        }
+    }
+
+    /// Get the SGR parameters for this style token.
+    pub fn sgr_parameters(&self) -> Vec<u8> {
+        match self {
+            StyleToken::Reset() => vec![0],
+            StyleToken::Format(format) => format.sgr_parameters(),
+            StyleToken::Foreground(color) => color.sgr_parameters(Layer::Foreground),
+            StyleToken::Background(color) => color.sgr_parameters(Layer::Background),
+            StyleToken::HiResForeground(color) => {
+                TerminalColor::from(color).sgr_parameters(Layer::Foreground)
+            }
+            StyleToken::HiResBackground(color) => {
+                TerminalColor::from(color).sgr_parameters(Layer::Background)
+            }
         }
     }
 }
 
 // -------------------------------------------------------------------------------------
 
-/// Create a new, empty [`StyleBuilder`].
+/// Create a new, empty [`Stylist`].
 ///
-/// A stylist creates styles, hence the function name.
+/// This convenience function is equivalent to `Stylist::new()`.
 #[cfg_attr(feature = "pyffi", pyfunction)]
-pub fn stylist() -> StyleBuilder {
-    StyleBuilder {
-        tokens: RefCell::new(Vec::new()),
-    }
+pub fn stylist() -> Stylist {
+    Stylist::new()
 }
 
-/// A builder for fluently assembling styles from style tokens.
+/// A stylist is a builder for fluently assembling styles from style tokens.
 ///
-/// In departure from Rust conventions, new builders are created with the
-/// [`stylist()`] function and new styles are forged with the
-/// [`go`](StyleBuilder::go) method. To wit,
-/// ```rust,ignore
-/// let bold_style = stylist().bold().go();
-/// ```
-/// creates a bold style. These idiosyncratic choices are motivated by the
-/// appearance of fluent style definitions, with the above example shorter and
-/// more fluid than
-/// ```rust,compile_fail
-/// let bold_style = StyleBuilder::new().bold().build();
-/// ```
+///
+/// # Uniqueness and Order of Style Tokens
+///
+/// This struct makes *no* guarantees about the order of style tokens in the
+/// built style, except that, if the style includes a reset token, that reset
+/// token is the first one. Otherwise, the implementation of this struct is free
+/// to reorder tokens as it sees fit. It does, however, guarantee that the
+/// resulting style contains at most one reset token, format token, foreground
+/// color, and background color each.
 #[cfg_attr(feature = "pyffi", pyclass(eq, module = "prettypretty.color.style"))]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct StyleBuilder {
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Stylist {
     tokens: RefCell<Vec<StyleToken>>,
 }
 
 #[cfg(feature = "pyffi")]
 #[pymethods]
-impl StyleBuilder {
-    /// Push a style reset onto this builder.
-    #[pyo3(name = "reset")]
-    #[inline]
-    pub fn py_reset(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
-        slf.reset();
-        slf
+impl Stylist {
+    /// Create a new style builder.
+    #[new]
+    pub fn py_new() -> Self {
+        Self::new()
+    }
+
+    /// Create a new style builder that has a reset token as first token.
+    #[pyo3(name = "with_reset")]
+    #[staticmethod]
+    pub fn py_with_reset() -> Self {
+        Self::with_reset()
     }
 
     /// Add bold formatting to this style builder.
@@ -207,28 +246,39 @@ impl StyleBuilder {
     }
 }
 
-impl StyleBuilder {
-    /// Retrieve a format to modify.
-    ///
-    /// If the last style token is a format, this method removes the token from
-    /// this builder and returns the unwrapped format. Otherwise, it creates a
-    /// new format. In either case, the expectation is that the caller updates
-    /// the format and adds it onto this style builder.
-    fn latest_format(&self, tokens: &mut Vec<StyleToken>) -> Format {
-        if let Some(StyleToken::Format(format)) = tokens.last() {
-            let format = *format; // Copy format to appease borrow checker
-            tokens.pop();
-            format
-        } else {
-            Format::new()
+impl Stylist {
+    /// Create a new style builder.
+    pub const fn new() -> Self {
+        Self {
+            tokens: RefCell::new(Vec::new()),
         }
     }
 
-    /// Push a style reset onto this builder.
-    pub fn reset(&self) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        tokens.push(StyleToken::Reset());
-        self
+    /// Create a new style builder with a reset token as its first token.
+    pub fn with_reset() -> Self {
+        Self {
+            tokens: RefCell::new(vec![StyleToken::Reset()]),
+        }
+    }
+
+    /// Retrieve or create a format to modify.
+    ///
+    /// This method is intentionally private!
+    ///
+    /// If any style token is a format, this method removes the format from this
+    /// style builder and returns it. Otherwise, it creates a new, empty format.
+    /// In either case, the expectation is that the caller updates the format
+    /// and adds it back onto this style builder. This method may reorder this
+    /// style builder's tokens.
+    fn latest_format(&self, tokens: &mut Vec<StyleToken>) -> Format {
+        for index in 0..tokens.len() {
+            if let StyleToken::Format(format) = tokens[index] {
+                tokens.swap_remove(index);
+                return format;
+            }
+        }
+
+        Format::new()
     }
 
     /// Add bold formatting to this style builder.
@@ -319,9 +369,50 @@ impl StyleBuilder {
         self
     }
 
+    /// Remove an existing foreground style token.
+    ///
+    /// This method is intentionally private!
+    ///
+    /// This method removes an existing foreground style token, whether
+    /// high-resolution or otherwise, from this style builder. The expectation
+    /// is that the caller adds a different foreground style token onto this
+    /// style builder. This method may reorder this style builder's tokens.
+    fn remove_foreground(&self, tokens: &mut Vec<StyleToken>) {
+        for index in 0..tokens.len() {
+            match tokens[index] {
+                StyleToken::Foreground(_) | StyleToken::HiResForeground(_) => {
+                    tokens.swap_remove(index);
+                    return;
+                }
+                _ => (),
+            }
+        }
+    }
+
+    /// Remove an existing background style token.
+    ///
+    /// This method is intentionally private!
+    ///
+    /// This method removes an existing background style token, whether
+    /// high-resolution or otherwise, from this style builder. The expectation
+    /// is that the caller adds a different background style token onto this
+    /// style builder. This method may reorder this style builder's tokens.
+    fn remove_background(&self, tokens: &mut Vec<StyleToken>) {
+        for index in 0..tokens.len() {
+            match tokens[index] {
+                StyleToken::Foreground(_) | StyleToken::HiResForeground(_) => {
+                    tokens.swap_remove(index);
+                    return;
+                }
+                _ => (),
+            }
+        }
+    }
+
     /// Push a foreground color onto this style builder.
     pub fn foreground(&self, color: impl Into<TerminalColor>) -> &Self {
         let mut tokens = self.tokens.borrow_mut();
+        self.remove_foreground(&mut tokens);
         tokens.push(StyleToken::Foreground(color.into()));
         self
     }
@@ -329,6 +420,7 @@ impl StyleBuilder {
     /// Push a background color onto this style builder.
     pub fn background(&self, color: impl Into<TerminalColor>) -> &Self {
         let mut tokens = self.tokens.borrow_mut();
+        self.remove_background(&mut tokens);
         tokens.push(StyleToken::Background(color.into()));
         self
     }
@@ -336,6 +428,7 @@ impl StyleBuilder {
     /// Push a high-resolution foreground color onto this style builder.
     pub fn hires_foreground(&self, color: Color) -> &Self {
         let mut tokens = self.tokens.borrow_mut();
+        self.remove_foreground(&mut tokens);
         tokens.push(StyleToken::HiResForeground(color));
         self
     }
@@ -343,6 +436,7 @@ impl StyleBuilder {
     /// Push a high-resolution background color oto this style builder.
     pub fn hires_background(&self, color: Color) -> &Self {
         let mut tokens = self.tokens.borrow_mut();
+        self.remove_background(&mut tokens);
         tokens.push(StyleToken::HiResBackground(color));
         self
     }
@@ -367,13 +461,20 @@ impl StyleBuilder {
     feature = "pyffi",
     pyclass(eq, frozen, module = "prettypretty.color.style")
 )]
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Style {
     tokens: Arc<Vec<StyleToken>>,
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl Style {
+    /// Create a new style builder.
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn builder() -> Stylist {
+        Stylist::new()
+    }
+
     /// Get an iterator over the style's tokens.
     pub fn tokens(&self) -> TokenIterator {
         TokenIterator {
@@ -382,16 +483,49 @@ impl Style {
         }
     }
 
-    /// Determine the style collection's fidelity.
-    ///
-    /// The fidelity of this style collection is the maximum fidelity of the
-    /// constituent styles.
+    /// Determine this style's fidelity, which is the maximum fidelity of all
+    /// style tokens.
     pub fn fidelity(&self) -> Fidelity {
         self.tokens
             .iter()
             .map(StyleToken::fidelity)
             .max()
             .unwrap_or(Fidelity::Plain)
+    }
+
+    /// Cap this style to the given fidelity.
+    ///
+    /// If the fidelity is [`Fidelity::Plain`], this method strips the style of
+    /// all tokens that require ANSI escape sequences for implementation (which
+    /// currently is all). Otherwise, it adjusts colors with the given
+    /// translator.
+    pub fn cap(&self, fidelity: Fidelity, translator: &Translator) -> Self {
+        let tokens = self
+            .tokens()
+            .filter_map(|t| t.cap(fidelity, translator))
+            .collect();
+
+        Style {
+            tokens: Arc::new(tokens),
+        }
+    }
+
+    /// Get the SGR parameters for this style.
+    pub fn sgr_parameters(&self) -> Vec<u8> {
+        let mut parameters = Vec::new();
+        for token in self.tokens() {
+            parameters.append(&mut token.sgr_parameters())
+        }
+
+        parameters
+    }
+}
+
+#[cfg(not(feature = "pyffi"))]
+impl Style {
+    /// Create a new style builder.
+    pub fn builder() -> Stylist {
+        Stylist::new()
     }
 }
 
