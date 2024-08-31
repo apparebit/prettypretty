@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use super::{format::Format, Fidelity, Layer, TerminalColor};
+use super::{format::Format, DefaultColor, Fidelity, Layer, TerminalColor};
 use crate::{trans::Translator, Color};
 
 /// A style token represents the atomic units of styles, including colors and
@@ -30,6 +30,17 @@ pub enum StyleToken {
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl StyleToken {
+    /// Determine whether the style token represents a color.
+    pub fn is_color(&self) -> bool {
+        matches!(
+            self,
+            Self::Foreground(_)
+                | Self::Background(_)
+                | Self::HiResForeground(_)
+                | Self::HiResBackground(_)
+        )
+    }
+
     /// Determine the terminal fidelity necessary for rendering this style token
     /// as is.
     ///
@@ -88,6 +99,38 @@ impl StyleToken {
             }
             StyleToken::HiResBackground(color) => {
                 TerminalColor::from(color).sgr_parameters(Layer::Background)
+            }
+        }
+    }
+
+    #[cfg(feature = "pyffi")]
+    pub fn __invert__(&self) -> Option<Self> {
+        !*self
+    }
+}
+
+impl std::ops::Not for StyleToken {
+    type Output = Option<Self>;
+
+    /// Negate this style token.
+    ///
+    /// This method returns a style token to restore the terminal's default
+    /// appearance from this style token or `None` if no updates are required.
+    fn not(self) -> Self::Output {
+        match self {
+            Self::Reset() => None,
+            Self::Format(format) => Some(Self::Format(!format)),
+            Self::Foreground(TerminalColor::Default { .. }) => None,
+            Self::Foreground(_) | Self::HiResForeground(_) => {
+                Some(Self::Foreground(TerminalColor::Default {
+                    color: DefaultColor::Foreground,
+                }))
+            }
+            Self::Background(TerminalColor::Default { .. }) => None,
+            Self::Background(_) | Self::HiResBackground(_) => {
+                Some(Self::Background(TerminalColor::Default {
+                    color: DefaultColor::Background,
+                }))
             }
         }
     }
@@ -475,12 +518,27 @@ impl Style {
         Stylist::new()
     }
 
+    /// Determine whether this style is empty.
+    pub fn is_empty(&self) -> bool {
+        self.tokens.len() == 0
+    }
+
     /// Get an iterator over the style's tokens.
     pub fn tokens(&self) -> TokenIterator {
         TokenIterator {
             tokens: self.tokens.clone(),
             index: 0,
         }
+    }
+
+    /// Determine whether this style includes color.
+    pub fn has_color(&self) -> bool {
+        for token in self.tokens() {
+            if token.is_color() {
+                return true;
+            }
+        }
+        false
     }
 
     /// Determine this style's fidelity, which is the maximum fidelity of all
@@ -519,6 +577,12 @@ impl Style {
 
         parameters
     }
+
+    /// Invert this style. <i class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __invert__(&self) -> Self {
+        !self
+    }
 }
 
 #[cfg(not(feature = "pyffi"))]
@@ -526,6 +590,22 @@ impl Style {
     /// Create a new style builder.
     pub fn builder() -> Stylist {
         Stylist::new()
+    }
+}
+
+impl std::ops::Not for Style {
+    type Output = Self;
+
+    /// Negate this style.
+    ///
+    /// This method returns the style to restore the terminal's default
+    /// appearance from this style, which may be empty.
+    fn not(self) -> Self::Output {
+        let tokens = self.tokens().filter_map(|t| !t).collect();
+
+        Style {
+            tokens: Arc::new(tokens),
+        }
     }
 }
 
