@@ -1,6 +1,6 @@
 import unittest
 
-from prettypretty.color.style.format import (
+from prettypretty.color.style.format import ( # pyright: ignore [reportMissingModuleSource]
     Attribute, Format
 )
 
