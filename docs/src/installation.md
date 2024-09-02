@@ -1,166 +1,131 @@
-# Installation
+# Installing Prettypretty
 
 One of the challenges of bilingual software is the barrier to entry posed by
 tooling. Projects such as prettypretty typically require working toolchains for
 both programming languages and for bridging the foreign-function interface on
-top. Prettypretty's [runner
-script](https://github.com/apparebit/prettypretty/blob/main/rr.sh), also called
-**r²**, tries to automate that barrier away. After downloading the script or
-cloning the repository, just create a fresh directory and execute:
+top.
 
+
+## Ideally: Just Use Packages
+
+Having said that, there is one convenient option that usually works for both
+Rust and Python projects: Just install the prettypretty package.
+
+You install the **Rust package** thusly:
 ```sh
-$ ./rr.sh install
+$ cargo install prettypretty
 ```
 
-The script updates all local packages, installs any missing packages including
-Rust and Python, and creates a virtual environment in the current directory.
-Alas, it currently **only works on Linux or macOS with the APT or Homebrew
-package manager**.
+If you are running Linux, macOS, or Windows, you install the **binary wheel for
+Python** thusly:
+```sh
+$ pip install prettypretty
+```
 
-If that doesn't hold for your computer or you prefer to be more hands-on, keep
-on reading for detailed instructions.
-
-
-## Requirements: Rust and/or Python
-
-Independent of whether you want to use prettypretty from Rust or Python, you'll
-need a **working Rust toolchain** to build the library or extension module from
-source. The [rustup](https://rustup.rs) installer probably is your best option
-for installing the necessary tools in the first place and thereafter for keeping
-them up to date. When I started adding Rust support to prettypretty, I hadn't
-touched Rust in a couple of years, simply ran `rustup update`, and moments later
-had the latest version compiling my code.
-
-Of course, to use the extension module from Python, you also need a **working
-Python interpreter**. As part of continuous integration, prettypretty is tested
-with CPython across Linux, macOS, and Windows.
-
-Prettypretty leverages both programming languages to their fullest and hence
-requires relatively recent versions:
+Either way, prettypretty leverages both programming languages to their fullest
+and hence requires relatively recent versions:
 
   * According to [cargo-msrv](https://github.com/foresterre/cargo-msrv), **the
     minimum supported Rust version is 1.77.2**.
   * According to [vermin](https://github.com/netromdk/vermin), **the minimum
     supported Python version is 3.11.0.**
 
-I expect that, as the project matures, the version lag between minimum and
-latest versions will grow, as it should.
+
+## Fallback: Compile the Extension Module
+
+If installing a binary wheel for Python doesn't work for you, building the
+extension module from source requires:
+
+  * **Rust**: Use [rustup](https://rustup.rs). It is robust and makes staying
+    up-to-date easy. By comparison, when I tried using APT on Linux, the most
+    recent Rust version was 6 months behind the most recent release and couldn't
+    compile prettypretty.
+  * **Python**: Use [CPython](https://github.com/python/cpython).
+    [Python.org](https://www.python.org/downloads/) offers binary installers for
+    macOS and Windows. On Linux, beware of package manager shenanigans. For
+    example, APT's `python3` package is missing Python's `venv` standard library
+    package and you need to install `python3-venv`, too.
+
+If no binary wheel is available and your system has both Rust and Python
+installed, then pip should transparently fall back onto building from source.
+In other words,
+```sh
+$ pip install prettypretty
+```
+should still work.
+
+If it doesn't, building prettypretty's extension module requires a third tool:
+
+  * **Build tool for extension module**: Use [Maturin](https://www.maturin.rs).
+    Options for installing maturin include `pip`, `brew`, and `cargo`. The
+    corresponding incantation starts with the tool name followed by `install`
+    followed by `maturin`.
+
+For example,
+```sh
+$ cargo install maturin
+```
+downloads the source code for maturin and builds the tool. If you still cannot
+run maturin, check the `PATH` environment variable. `$HOME/.cargo/bin` must be
+included.
+
+Once maturin is installed, build the extension module thusly:
+```sh
+$ maturin dev --all-features
+```
 
 
-## Rust Feature Flags
+### Compile-Time Configuration
 
-Prettypretty has two feature flags:
+That last command enabled all of prettypretty's compile-time features. There are
+two:
 
+  * `pyffi` controls prettypretty's Python integration through
+    [PyO3](https://pyo3.rs/), which mostly adds types and methods. It is
+    disabled by default.
   * `f64` selects the eponymous type as floating point type [`Float`] and `u64`
-    as [`Bits`] instead of `f32` as [`Float`] and `u32` as [`Bits`]. This
-    feature flag is enabled by default.
-  * `pyffi` enables Python integration through [PyO3](https://pyo3.rs/),
-    changing some method signatures as well as adding several other methods. It
-    is disabled by default.
-
-The API documentation on
-[docs.rs](https://docs.rs/prettypretty/latest/prettypretty/) is built without
-`pyffi` and hence is Rust-only. The API documentation on
-[GitHub](https://apparebit.github.io/prettypretty/prettypretty/) is built with
-`pyffi` and hence covers Python integration as well. It tags Python-only methods
-as <i class=python-only>Python only!</i> and Rust-only methods as <i
-class=rust-only>Rust only!</i>.
+    as [`Bits`] instead of `f32` as [`Float`] and `u32` as [`Bits`].  It is
+    enabled by default.
 
 
-## Installing the Prettypretty Package
+## Stretch Goal: Install the Works
 
-Once you have Rust and/or Python installed or updated, you are ready to go and
-can use your favorite package manager for installing prettypretty. For Rust,
-that is `cargo`:
+Whether you want to type-check the Python sources, build the documentation, run
+the code blocks embedded in the user guide, or generate visualizations, you'll
+need additional libraries and tools:
 
-```sh
-$ cargo install prettypretty
-```
+  * **Pyright** and **Node.js**: Prettypretty uses
+    [Pyright](https://microsoft.github.io/pyright/#/) for type-checking Python
+    code, largely because mypy is just too buggy. Alas, Pyright is written in
+    JavaScript and requires [Node.js](https://nodejs.org/) to run.
+  * **mdBook**: Building the user guide and running embedded code blocks
+    requires [mdBook](https://github.com/rust-lang/mdBook). Your
+    best best for installing it is `cargo install mdbook`.
+  * **Sphinx**: Building the Python API documentation requires this Python tool
+    and several extensions. Prettypretty's `pyproject.toml` lists all of them
+    under the `project.optional-dependencies.dev` key.
+  * **matplotlib** and **vedo**: Running
+    [prettypretty.plot](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
+    requires the matplotlib package and running
+    [prettypretty.viz3d](https://github.com/apparebit/prettypretty/blob/main/prettypretty/viz3d.py)
+    with the `--render` option requires the vedo package. Prettypretty's
+    `pyproject.toml` lists them under the `project.optional-dependencies.viz`
+    key.
 
-For Python, `uv`, `pip`, or whatever else strikes your fancy are all good. To
-namespace package management functionality, the incantation for `uv` even
-mentions `pip`:
-
-```sh
-$ uv pip install prettypretty
-```
-
-The package's `pyproject.toml` configures the Python build to also enable the
-`pyffi` feature flag.
-
-When building the extension module from source, installation may take a moment.
-It also involves one more tool, [`maturin`](https://github.com/PyO3/maturin). It
-is responsible for creating the binary with the [PyO3](https://pyo3.rs/v0.22.1/)
-integration layer. However, you shouldn't need to install `maturin` yourself.
-Prettypretty's `pyproject.toml` declares `maturin` as its build backend and
-hence `uv` or `pip` or whatever else strikes your fancy should automatically
-install the `maturin` package and then run it. If your Python package manager
-falls into the "whatever else strikes your fancy" category and it doesn't
-install or run `maturin`, please fall back on `uv` or `pip`.
+Yikes! That's getting a bit much. Thankfully, there is another option.
 
 
-## Running prettypretty.plot
+## Salvation: Automating Everythin With r²
 
-Prettypretty's plot script visualizes colors by plotting their chroma/hue on the
-corresponding plane of the Oklrch color space (i.e., the [revised, cylindrical
-version](https://bottosson.github.io/posts/colorpicker/#intermission---a-new-lightness-estimate-for-oklab)
-of Oklab) and their lightness in a separate bar graph. It optionally includes
-any or all boundaries of the sRGB, Display P3, and Rec. 2020 color spaces. For
-this script to work, you also need to install matplotlib:
+If you want the works, pulling everything together is a bit involved. That's why
+I wrote [**r²**](https://github.com/apparebit/prettypretty/blob/main/rr.sh),
+prettypretty's runner script. It installs all dependencies, builds the extension
+module, performs extensive checks, and generates the documentation. To get
+started, try:
 
 ```sh
-$ uv pip install matplotlib
+$ ./rr.sh help
 ```
-
-
-## Building the Documentation
-
-As a bilingual library, prettypretty's documentation also needs to be bilingual
-and hence requires additional tools to build. Notably, in addition to the
-`rustdoc` API documentation generator for Rust, it also requires the `sphinx`
-documentation generator for Python, and the
-[mdBook](https://github.com/rust-lang/mdBook) documentation generator for the
-user guide.
-
-Probably the simplest option for installing `mdBook` is to build it from source:
-
-```sh
-$ cargo install mdbook
-```
-
-Installing the Python packages is a bit more tricky. At least if you are still
-using `pip`. For reasons I don't comprehend, the project maintainers view the
-option to read dependencies from `pyproject.toml` outside from very narrowly
-prescribed circumstances as utterly unacceptable. With `uv`, you simply
-incantate:
-
-```sh
-$ uv pip install --extra doc prettypretty
-```
-
-
-## Automating Everything with r²
-
-Outside of continuous integration, it's up to the developer to correctly invoke
-the various tools with the appropriate options. In case of prettypretty, that's
-quite the number of tools. Worse, since the Rust sources contain numerous
-`#[cfg(...)]` and `#[cfg_attr(...)]` annotations to adjust for Rust or Python
-usage, the `cargo check` and `cargo clippy` code quality checks need to be run
-twice, once without the `pyffi` feature flag and once with it. However,
-documentation is always generated with `pyffi` enabled. And the Rust tests are
-always run with `pyffi` disabled.
-
-If that sounds like too much too remember, I agree. Hence prettypretty's runner
-script [**r²**](https://github.com/apparebit/prettypretty/blob/main/rr.sh)
-orchestrates building and testing, too:
-
-  * `check` the sources;
-  * `build` the sources;
-  * build the `doc`umentation;
-  * do `all` of the above (but not `install`).
-
-The highlighted word also is the (only) argument to **r²** for executing the
-described job. If you omit it, **r²** builds prettypretty.
 
 
 {{#include links.md}}

@@ -20,6 +20,7 @@
 [`OkVersion`]: https://apparebit.github.io/prettypretty/prettypretty/enum.OkVersion.html
 [`OutOfBoundsError`]: https://apparebit.github.io/prettypretty/prettypretty/error/struct.OutOfBoundsError.html
 [`Style`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Style.html
+[`stylist`]: https://apparebit.github.io/prettypretty/prettypretty/style/fn.stylist.html
 [`ThemeEntry`]: https://apparebit.github.io/prettypretty/prettypretty/trans/enum.ThemeEntry.html
 [`ThemeEntryIterator`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.ThemeEntryIterator.html
 [`Translator`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html

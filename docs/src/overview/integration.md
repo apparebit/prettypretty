@@ -2,7 +2,7 @@
 
 To reap the benefits of 2020s color science for 1970s terminal colors, we need
 to be able to translate between terminal and high-resolution colors at will, in
-both directions. I see three major reasons why doing just that is difficult:
+both directions. THere are three reasons why doing just that is difficult:
 
  1. Whereas all high-resolution colors fit into a uniform model of coordinates
     tagged by their color spaces, different kinds of terminal colors have
@@ -11,7 +11,7 @@ both directions. I see three major reasons why doing just that is difficult:
  2. Some of the differences between terminal colors are not just differences of
     representation but rather radically different conceptualizations of color.
     In particular, ANSI colors have no intrinsic color values. On top of that,
-    the default colors are also context-sensitive and hence are of limited use.
+    the default colors are also context-sensitive and hence of limited use.
  3. There are huge differences in the number of available colors: 16 ANSI colors
     versus 256 indexed colors versus 16 million true colors. Curiously, the
     bigger difference when it comes to translating colors is not the one from 16
@@ -23,13 +23,12 @@ representations. For example, with exception of the ANSI colors, 8-bit colors,
 as represented by [`EmbeddedRgb`] and [`GrayGradient`], have well-defined
 formulas for converting to index values, i.e., `u8`, as well as 24-bit color,
 i.e., [`TrueColor`]. True colors, in turn, are easily convertible to
-high-resolution [`Color`]. Meanwhile, [`DefaultColor`], [`AnsiColor`],
-[`EmbeddedRgb`], [`GrayGradient`], and [`TrueColor`] are all trivially
-convertible to [`TerminalColor`]. They should be because [`TerminalColor`]'s
-very purpose is being the unifying wrapper type. Prettypretty accommodates the
-stateless conversions by implementations of the `From<T>` and `TryFrom<T>`
-traits in Rust and static methods in Python. Alas, those can't help translate
-default and ANSI colors.
+high-resolution [`Color`]. Meanwhile, [`AnsiColor`], [`Color`], [`EmbeddedRgb`],
+[`GrayGradient`], and [`TrueColor`] are all trivially convertible to
+[`Colorant`]. But that's also `Colorant`'s very purpose as unifying wrapper
+type. Prettypretty accommodates these conversions with `From<T>` and
+`TryFrom<T>` traits in Rust and static methods in Python. Alas, those can't help
+translate default and ANSI colors.
 
 
 ## Translation Is Necessarily Stateful
@@ -124,11 +123,15 @@ Now that we understand the challenges and the algorithms for overcoming them, we
 turn to [`Translator`]'s interface. We group its method by task:
 
  1. [`Translator::resolve`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.resolve)
-    translates terminal colors to high-resolution colors. Thanks to the
-    `Into<TerminalColor>` trait, Rust code can invoke the method with an
-    instance of `u8`, [`DefaultColor`], [`AnsiColor`], [`EmbeddedRgb`],
-    [`GrayGradient`], [`TrueColor`], or [`TerminalColor`]. Thanks to a custom
-    PyO3 conversion function, Python code can do the exact same.
+    and
+    [`Translator::resolve_all`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.resolve_all)
+    translate any color to a high-resolution color. Thanks to the
+    `Into<Colorant>` trait and a custom PyO3 conversion function, both Rust and
+    Python can invoke either method with an instance of `u8`/`int`,
+    [`AnsiColor`], [`Color`], [`Colorant`], [`EmbeddedRgb`], [`GrayGradient`],
+    or [`TrueColor`]. The difference between the two methods is that `resolve`
+    panics when invoked on a `Colorant::Default`, whereas `resolve_all` does not
+    but also requires a second [`Layer`] argument.
  2. [`Translator::to_closest_8bit`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.to_closest_8bit)
     and
     [`Translator::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.to_ansi)
@@ -155,11 +158,12 @@ turn to [`Translator`]'s interface. We group its method by task:
     results. Ironically, Chalk's tagline is "Terminal string styling done
     right."
  3. [`Translator::cap`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.cap)
-    tanslates terminal colors to terminal colors. Under the hood, it may very
-    well translate a terminal color to a high-resolution color and then match
-    against that color to produce a terminal color again. Use this method to
-    adjust terminal colors to the runtime environment and user preferences,
-    which can be concisely expressed by a [`Fidelity`] level.
+    tanslates reduces the resolution of colors. Like `resolve` and
+    `resolve_all`, this method can be invoked on arbitrary colors. Under the
+    hood, it may very well translate terminal colors to high-resolution colors
+    only to translate them to terminal colors again. Use this method to adjust
+    terminal colors to the runtime environment and user preferences, which can
+    be concisely expressed by a [`Fidelity`] level.
  4. [`Translator::is_dark_theme`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.is_dark_theme) determines whether the color theme used by this
     translator instance is a dark theme.
 

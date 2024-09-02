@@ -1,8 +1,8 @@
 # Developing Prettypretty
 
-Since prettypretty integrates Rust and Python, it not only requires tooling for
-both programming languages but also technology for integrating the two
-ecosystems. To keep development tasks nonetheless manageable, the runner or
+Since prettypretty integrates Rust and Python, it requires tooling for both
+programming languages as well as for integrating between the two. To keep
+development tasks manageable, the runner or
 [**r²**](https://github.com/apparebit/prettypretty/blob/main/rr.sh) script in
 the repository root automates the most common ones. Its only argument is the
 task to perform:
@@ -14,7 +14,7 @@ task to perform:
     Windows) or `prettypretty/color.abi3.so` (on Unix).
   * `check` runs linters, type checkers, and tests for both languages. Tests can
     be found at the end of Rust modules, embedded in the Rust API documentation,
-    embedded in the project guide, and the `test` directory.
+    embedded in the user guide, and the `test` directory.
   * `doc` builds the guide as well as the API documentation for both languages
     combining all three in the `target/doc` directory.
 
@@ -51,19 +51,24 @@ function explicitly sets submodules' `__package__` and `__name__` attributes and
 register them in `sys.modules`.
 
 That last step has the welcome side-effect of making submodules loadable with
-Python's import machinery, without any further customization. Let's say, Python
-is executing a script with an import statement for
-`prettypretty.color.spectrum`. As usual, Python's import machinery first imports
-`prettypretty` then `prettypretty.color`. Since the latter is our extension
-module, Python loads the native code library and executes its initialization
-function. That function, in turn, adds all submodules to `sys.modules`. So, when
-Python's import machinery finally gets to importing
-`prettypretty.color.spectrum` itself, it checks `sys.modules` for an entry with
-that name, which was just added by the extension module initialization function.
-Et voilà!
+Python's import machinery without further customization. Let's say, Python is
+executing a script with an import statement for `prettypretty.color.spectrum`.
+As usual, Python's import machinery first imports `prettypretty` then
+`prettypretty.color`. Since the latter is the extension module, Python loads the
+native code library and executes its initialization function. That function, in
+turn, adds all submodules to `sys.modules`. So, when Python's import machinery
+finally gets to importing `prettypretty.color.spectrum` itself, it checks
+`sys.modules` for an entry with that name, which was just added by the extension
+module initialization function. Et voilà!
 
 As suggested by [PEP 489](https://peps.python.org/pep-0489/), I also
 experimented with symbolic links from the submodules to the actual native
 library. But since all submodules implemented in Rust have `prettypretty.color`
 as parent module, those symbolic links have no impact. Hence, I removed them
 again.
+
+Unfortunately, Pylance is confused about submodules of an extension module and
+currently [generates a false
+warning](https://github.com/microsoft/pylance-release/issues/6269). You'll find
+comments that selectively disable this warning throughout prettypretty's Python
+sources.
