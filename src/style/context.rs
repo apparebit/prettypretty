@@ -1,7 +1,7 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use super::TerminalColor;
+use super::Colorant;
 use crate::util::{Env, Environment};
 
 // ====================================================================================================================
@@ -22,9 +22,20 @@ pub enum Layer {
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl Layer {
+    /// Determine whether this layer is the foreground.
+    pub fn is_foreground(&self) -> bool {
+        matches!(self, Self::Foreground)
+    }
+
+    /// Determine whether this layer is the background.
+    pub fn is_background(&self) -> bool {
+        matches!(self, Self::Background)
+    }
+
     /// Determine the offset for this layer.
     ///
-    /// The offset is added to CSI parameter values for foreground colors.
+    /// The offset is added to the SGR parameter values for foreground colors
+    /// and therefore zero for [`Layer::Foreground`].
     #[inline]
     pub fn offset(&self) -> u8 {
         match self {
@@ -32,30 +43,18 @@ impl Layer {
             Self::Background => 10,
         }
     }
-
-    /// Return a humane description for this layer. <i class=python-only>Python
-    /// only!</i>
-    #[cfg(feature = "pyffi")]
-    pub fn __str__(&self) -> String {
-        format!("{}", self)
-    }
-}
-
-impl std::fmt::Display for Layer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Foreground => f.write_str("Foreground"),
-            Self::Background => f.write_str("Background"),
-        }
-    }
 }
 
 /// The stylistic fidelity of terminal output.
 ///
-/// This enumeration captures levels of stylistic fidelity. It can describe the
-/// capabilities of a terminal or runtime environment (such as CI) as well as
-/// the preferences of a user (notably, `NoColor`).
-///
+/// This enumeration captures levels of stylistic fidelity. The primary use case
+/// is capturing the capabilities of a terminal or runtime environment (such as
+/// CI). But it can also represent the preferences of a user,  notably
+/// [`Fidelity::NoColor`]. The minimum level [`Fidelity::Plain`] and the maximum
+/// level [`Fidelity::HiRes`] both represent capabilities beyond the reach of
+/// ANSI escape codes, with `Plain` denoting that no styling is possible and
+/// `HiRes` denoting colors with a higher resolution than supported by ANSI
+/// escape codes.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, eq_int, frozen, hash, ord, module = "prettypretty.color.style")
@@ -70,8 +69,10 @@ pub enum Fidelity {
     Ansi,
     /// 8-bit indexed colors including ANSI and default colors
     EightBit,
-    /// Full fidelity including 24-bit RGB color.
-    Full,
+    /// 24-bit RGB color.
+    TwentyFourBit,
+    /// High-resolution colors in arbitrary color spaces
+    HiRes,
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
@@ -80,8 +81,10 @@ impl Fidelity {
     /// <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[staticmethod]
-    pub fn from_color(color: TerminalColor) -> Self {
-        color.into()
+    pub fn from_color(
+        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
+    ) -> Self {
+        colorant.into()
     }
 
     /// Determine the fidelity level for terminal output based on environment
@@ -110,16 +113,40 @@ impl Fidelity {
     }
 
     /// Determine whether this fidelity level suffices for rendering the
-    /// terminal color.
-    pub fn covers(&self, color: TerminalColor) -> bool {
-        Fidelity::from(color) <= *self
-    }
-
-    /// Return a humane description for this fidelity. <i
-    /// class=python-only>Python only!</i>
+    /// colorant as is, without conversion.
     #[cfg(feature = "pyffi")]
-    pub fn __str__(&self) -> String {
-        format!("{}", self)
+    #[pyo3(name = "covers")]
+    pub fn py_covers(
+        &self,
+        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
+    ) -> bool {
+        self.covers(colorant)
+    }
+}
+
+impl Fidelity {
+    /// Determine whether this fidelity level suffices for rendering the
+    /// colorant as is, without conversion.
+    #[inline]
+    pub fn covers(&self, colorant: impl Into<Colorant>) -> bool {
+        Fidelity::from(colorant.into()) <= *self
+    }
+}
+
+impl From<&Colorant> for Fidelity {
+    fn from(value: &Colorant) -> Self {
+        match value {
+            Colorant::Default() | Colorant::Ansi(_) => Self::Ansi,
+            Colorant::Embedded(_) | Colorant::Gray(_) => Self::EightBit,
+            Colorant::Rgb(_) => Self::TwentyFourBit,
+            Colorant::HiRes(_) => Self::HiRes,
+        }
+    }
+}
+
+impl From<Colorant> for Fidelity {
+    fn from(value: Colorant) -> Self {
+        Fidelity::from(&value)
     }
 }
 
@@ -143,7 +170,7 @@ pub(crate) fn fidelity_from_environment(env: &impl Environment, has_tty: bool) -
         return Fidelity::Plain; // FIXME Check Windows version!
     } else if env.is_defined("CI") {
         if env.is_defined("GITHUB_ACTIONS") || env.is_defined("GITEA_ACTIONS") {
-            return Fidelity::Full;
+            return Fidelity::TwentyFourBit;
         }
 
         for ci in [
@@ -186,7 +213,7 @@ pub(crate) fn fidelity_from_environment(env: &impl Environment, has_tty: bool) -
 
         return Fidelity::Plain;
     } else if env.has_value("COLORTERM", "truecolor") || env.has_value("TERM", "xterm-kitty") {
-        return Fidelity::Full;
+        return Fidelity::TwentyFourBit;
     } else if env.has_value("TERM_PROGRAM", "Apple_Terminal") {
         return Fidelity::EightBit;
     } else if env.has_value("TERM_PROGRAM", "iTerm.app") {
@@ -198,7 +225,7 @@ pub(crate) fn fidelity_from_environment(env: &impl Environment, has_tty: bool) -
                 .and(charity.next().filter(|c| *c == '.'))
                 .is_some()
             {
-                return Fidelity::Full;
+                return Fidelity::TwentyFourBit;
             }
         }
         return Fidelity::EightBit;
@@ -228,30 +255,6 @@ pub(crate) fn fidelity_from_environment(env: &impl Environment, has_tty: bool) -
     Fidelity::Plain
 }
 
-impl From<TerminalColor> for Fidelity {
-    fn from(value: TerminalColor) -> Self {
-        match value {
-            TerminalColor::Default { .. } | TerminalColor::Ansi { .. } => Self::Ansi,
-            TerminalColor::Embedded { .. } | TerminalColor::Gray { .. } => Self::EightBit,
-            TerminalColor::Full { .. } => Self::Full,
-        }
-    }
-}
-
-impl std::fmt::Display for Fidelity {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Self::Plain => "plain text",
-            Self::NoColor => "no colors",
-            Self::Ansi => "ANSI colors",
-            Self::EightBit => "8-bit colors",
-            Self::Full => "24-bit colors",
-        };
-
-        f.write_str(s)
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::{fidelity_from_environment, Fidelity};
@@ -266,9 +269,15 @@ mod test {
         env.set("TERM_PROGRAM", "iTerm.app");
         assert_eq!(fidelity_from_environment(env, true), Fidelity::EightBit);
         env.set("TERM_PROGRAM_VERSION", "3.5");
-        assert_eq!(fidelity_from_environment(env, true), Fidelity::Full);
+        assert_eq!(
+            fidelity_from_environment(env, true),
+            Fidelity::TwentyFourBit
+        );
         env.set("COLORTERM", "truecolor");
-        assert_eq!(fidelity_from_environment(env, true), Fidelity::Full);
+        assert_eq!(
+            fidelity_from_environment(env, true),
+            Fidelity::TwentyFourBit
+        );
         env.set("CI", "");
         env.set("APPVEYOR", "");
         assert_eq!(fidelity_from_environment(env, true), Fidelity::Ansi);
