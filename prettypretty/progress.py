@@ -78,7 +78,7 @@ def main() -> None:
         style = style.cap(term.fidelity, current_translator())
 
         if style.has_color():
-            term.writeln(f'Using {str(style.foreground)} as color!\n').flush()
+            term.writeln(f'Using {str(style.foreground())} as color!\n').flush()
 
         for percent in progress_reports():
             bar = format_bar(percent, style)

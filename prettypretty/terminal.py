@@ -1177,15 +1177,27 @@ class Terminal:
         """Reset all styles."""
         return self.write_control(Ansi.CSI, 'm')
 
-    def render(self, *fragments: Sequence[Style|str]) -> Self:
+    @overload
+    def render(self, __fragments: Sequence[Style|str]) -> Self:
+        ...
+    @overload
+    def render(self, *__fragments: Style | str) -> Self:
+        ...
+    def render(self, *fragments: Sequence[Style|str] | Style | str) -> Self:
         """Write rich text to terminal output"""
         translator = current_translator()
 
-        for fragment in fragments:
+        if len(fragments) == 1 and isinstance(fragments[0], Sequence):
+            ff = fragments[0]
+        else:
+            ff = fragments
+
+        for fragment in ff:
             if isinstance(fragment, str):
                 self.write(fragment)
-            assert isinstance(fragment, Style)
-            self.write_control(str(fragment.cap(self._fidelity, translator)))
+            else:
+                assert isinstance(fragment, Style)
+                self.write_control(str(fragment.cap(self._fidelity, translator)))
 
         return self
 
