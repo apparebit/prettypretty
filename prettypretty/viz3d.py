@@ -32,7 +32,7 @@ def create_parser() -> argparse.ArgumentParser:
         "with Y=0 or Lr= 0, respectively"
     )
     parser.add_argument(
-        "--mesh",
+        "-m", "--mesh",
         action="store_true",
         help="include face mesh with vertex data; the mesh is formed by connecting "
         "the nth starting wavelength of the mth pulse width with the nth starting "
@@ -53,7 +53,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="make vertex colors transparent, using given alpha between 0 and 1",
     )
     parser.add_argument(
-        "--render",
+        "-r", "--render",
         action="store_true",
         help="render the resulting 3D mesh and its silhouettes in XYZ color space; "
         "requires the Vedo 3D library"
@@ -502,9 +502,16 @@ def generate(
 
 
 def render() -> None:
-    from vedo import ( # pyright: ignore [reportMissingImports]
-        Mesh, show # pyright: ignore [reportUnknownVariableType]
-    )
+    try:
+        from vedo import ( # pyright: ignore [reportMissingImports, reportMissingTypeStubs]
+            Mesh, show # pyright: ignore [reportUnknownVariableType]
+        )
+    except ImportError:
+        log("prettypretty.viz3d requires vedo for rendering the visual gamut.")
+        log("Please install the package, e.g., by executing `pip install vedo`,")
+        log("and then run `python -m prettypretty.viz3d -mr` again.")
+        sys.exit(1)
+
     mesh: Any = Mesh("visual-gamut-xyz.ply")
     sx = mesh.clone().project_on_plane('x').c('r').x(-3) # sx is 2d
     sy = mesh.clone().project_on_plane('y').c('g').y(-3)
@@ -518,14 +525,16 @@ def render() -> None:
         axes=7,
         viewup='z',
         bg="#555555",
-    ).close()
+    ).close() # pyright: ignore [reportOptionalMemberAccess]
 
 
 if __name__ == "__main__":
     parser = create_parser()
     options = parser.parse_args()
+
     if options.verbose:
         trace_enabled = True
+
     if options.gamut is None:
         gamut = None
     else:
@@ -537,13 +546,18 @@ if __name__ == "__main__":
         elif name == "rec2020":
             gamut = ColorSpace.Rec2020
         else:
-            raise ValueError(f"{name} is not a valid gamut name")
+            log(f"gamut {name} is not srgb, p3, or rec2020 (case-insensitive).")
+            sys.exit(1)
+
+    if options.render and not options.mesh:
+        log("The --render option requires the --mesh option.")
+        sys.exit(1)
 
     step_size = 2
     if options.step:
         step_size = int(options.step)
-    if step_size <= 0:
-        raise ValueError(f"{step_size} is not a valid step size")
+    if step_size <= 0 or 10 < step_size:
+        log(f"step size {step_size} is not between 1 and 10.")
 
     sampler = Sampler()
 
