@@ -4,7 +4,9 @@ import random
 import time
 
 from prettypretty.color import Color
-from prettypretty.style_extras import rich, RichText, Style
+from prettypretty.color.style import ( # # pyright: ignore [reportMissingModuleSource]
+    stylist, Style, TrueColor
+)
 from prettypretty.terminal import Terminal
 from prettypretty.theme import current_translator
 
@@ -34,11 +36,11 @@ STEPS = len(BLOCKS) - 1
 WIDTH = 100 // STEPS + (1 if 100 % STEPS != 0 else 0)
 assert WIDTH * STEPS >= 100  # Without the adjustment, this wouldn't hold
 
-LIGHT_MODE_BAR = rich().fg(Color.p3(0.0, 1.0, 0.0)).style()
-DARK_MODE_BAR = rich().fg(3, 151, 49).style()
+LIGHT_MODE_BAR = stylist().foreground(Color.p3(0.0, 1.0, 0.0)).et_voila()
+DARK_MODE_BAR = stylist().foreground(TrueColor(3, 151, 49)).et_voila()
 
 
-def format_bar(percent: float, style: Style) -> RichText:
+def format_bar(percent: float, style: Style) -> list[Style| str]:
     """Generate progress bar for given percentage."""
     percent = min(percent, 100)  # Clamp max at 100.0
 
@@ -51,7 +53,7 @@ def format_bar(percent: float, style: Style) -> RichText:
     bar = bar.ljust(WIDTH, BLOCKS[0])
 
     # Displayed percentage remains nicely floating point
-    return RichText.of('  ┫', style, bar, ~style, '┣', f' {percent:5.1f}%')
+    return ['  ┫', style, bar, ~style, '┣', f' {percent:5.1f}%']
 
 
 def progress_reports() -> Iterator[float]:
@@ -73,14 +75,14 @@ def main() -> None:
         .scoped_style()
     ) as term:
         style = DARK_MODE_BAR if current_translator().is_dark_theme() else LIGHT_MODE_BAR
-        style = style.prepare(term.fidelity)
+        style = style.cap(term.fidelity, current_translator())
 
-        fg = style.foreground
-        term.writeln(f'Using {"no color" if fg is None else str(fg)}\n').flush()
+        if style.has_color():
+            term.writeln(f'Using {str(style.foreground)} as color!\n').flush()
 
         for percent in progress_reports():
             bar = format_bar(percent, style)
-            term.column(0).rich_text(bar).flush()
+            term.column(0).render(bar).flush()
             time.sleep(random.uniform(1/60, 1/10))
 
         term.writeln('\n').flush()

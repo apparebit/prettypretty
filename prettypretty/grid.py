@@ -375,7 +375,7 @@ if __name__ == '__main__':
 
     fidelity = None
     if options.truecolor is not None:
-        fidelity = Fidelity.Full if options.truecolor else Fidelity.EightBit
+        fidelity = Fidelity.TwentyFourBit if options.truecolor else Fidelity.EightBit
 
     with (
         Terminal(fidelity=fidelity)
@@ -392,7 +392,7 @@ if __name__ == '__main__':
         write_color_cube(term, strategy=AnsiConversion.RgbRounding, show_detail=options.detail)
         write_color_cube(term, layer=Layer.Foreground)
 
-        if term.fidelity == Fidelity.Full:
+        if term.fidelity == Fidelity.TwentyFourBit:
             if options.slices:
                 for hold in ('r', 'g', 'b'):
                     for level in (0, 128, 255):
@@ -415,7 +415,9 @@ if __name__ == '__main__':
                 Both columns should have the exact same visual background color.
             """)
 
-        color_mode = 'truecolor' if term.fidelity is Fidelity.Full else '8-bit color'
+        color_mode = (
+            'truecolor' if term.fidelity is Fidelity.TwentyFourBit else '8-bit color'
+        )
         term.writeln('The above charts utilize ', color_mode, ' mode!\n')
 
         color_support = None

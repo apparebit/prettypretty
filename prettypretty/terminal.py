@@ -24,12 +24,11 @@ from typing import (
 from .ansi import Ansi, RawAnsi
 from .color import Color, trans # pyright: ignore [reportMissingModuleSource]
 from .color.style import ( # pyright: ignore [reportMissingModuleSource]
-    Fidelity, Layer, TerminalColor
+    Colorant, Fidelity, Layer, Style, TrueColor
 )
-from .color_types import IntoTerminalColor
+from .color_types import IntoColorant
 from .theme import new_theme, current_translator
 from .ident import identify_terminal, normalize_terminal_name
-from .style_extras import RichText, RichTextElement
 
 
 TerminalMode: TypeAlias = list[Any]
@@ -902,7 +901,7 @@ class Terminal:
         if not response:
             return None
         if response == [0, 38, 2, 1, 6, 65, 234]:
-            return Fidelity.Full
+            return Fidelity.TwentyFourBit
 
         response = (
             self
@@ -1178,40 +1177,16 @@ class Terminal:
         """Reset all styles."""
         return self.write_control(Ansi.CSI, 'm')
 
-    @overload
-    def rich_text(self, fragments: Sequence[RichTextElement], /) -> Self:
-        ...
-    @overload
-    def rich_text(self, *fragments: RichTextElement) -> Self:
-        ...
-    def rich_text(
-        self,
-        *fragments: RichTextElement | Sequence[RichTextElement],
-    ) -> Self:
+    def render(self, *fragments: Sequence[Style|str]) -> Self:
         """Write rich text to terminal output"""
-        # Coerce to actual rich text to simplify fidelity adjustment
-        if (
-            len(fragments) == 1
-            and not isinstance(fragments[0], str)
-            and isinstance(fragments[0], Sequence)
-        ):
-            # Some sequence that may be RichText already
-            rich_text = fragments[0]
-            if not isinstance(rich_text, RichText):
-                rich_text = RichText(tuple(rich_text))
-        else:
-            # A tuple of rich text elements
-            rich_text = RichText(cast(tuple[RichTextElement, ...], fragments))
+        translator = current_translator()
 
-        # Adjust rich text to terminal fidelity and then output contents
-        for fragment in rich_text.prepare(self._fidelity):
+        for fragment in fragments:
             if isinstance(fragment, str):
                 self.write(fragment)
-            else:
-                method, args = fragment.delegate()
-                if method not in _REFLECTED_METHODS:
-                    raise ValueError(f'{method} is not a reflected method')
-                getattr(self, method)(*args)
+            assert isinstance(fragment, Style)
+            self.write_control(str(fragment.cap(self._fidelity, translator)))
+
         return self
 
     def bold(self) -> Self:
@@ -1232,11 +1207,11 @@ class Terminal:
     def fg(self, color: Color, /) -> Self:
         ...
     @overload
-    def fg(self, color: IntoTerminalColor, /) -> Self:
+    def fg(self, color: IntoColorant, /) -> Self:
         ...
     def fg(
         self,
-        c1: int | Color | IntoTerminalColor,
+        c1: int | Color | IntoColorant,
         c2: None | int = None,
         c3: None | int = None,
     ) -> Self:
@@ -1244,21 +1219,19 @@ class Terminal:
         if isinstance(c1, int):
             if c2 is None:
                 assert c3 is None
-                c1 = TerminalColor.from_8bit(c1)
+                c1 = Colorant.of(c1)
             else:
                 assert c3 is not None
-                c1 = TerminalColor.from_24bit(c1, c2, c3)
+                c1 = Colorant.of(TrueColor(c1, c2, c3))
         elif isinstance(c1, Color):
-            c1 = TerminalColor.from_color(c1)
+            c1 = Colorant.of(c1)
 
         translator = current_translator()
         color = translator.cap(c1, self._fidelity)
         if color is not None:
-            self.write_control(
-                Ansi.CSI,
-                *color.sgr_parameters(Layer.Foreground),
-                'm'
-            )
+            params = color.sgr_parameters(Layer.Foreground)
+            if params is not None:
+                self.write_control(Ansi.CSI, *params, 'm')
         return self
 
     @overload
@@ -1271,11 +1244,11 @@ class Terminal:
     def bg(self, color: Color, /) -> Self:
         ...
     @overload
-    def bg(self, color: IntoTerminalColor, /) -> Self:
+    def bg(self, color: IntoColorant, /) -> Self:
         ...
     def bg(
         self,
-        c1: int | Color | IntoTerminalColor,
+        c1: int | Color | IntoColorant,
         c2: None | int = None,
         c3: None | int = None,
     ) -> Self:
@@ -1283,21 +1256,19 @@ class Terminal:
         if isinstance(c1, int):
             if c2 is None:
                 assert c3 is None
-                c1 = TerminalColor.from_8bit(c1)
+                c1 = Colorant.of(c1)
             else:
                 assert c3 is not None
-                c1 = TerminalColor.from_24bit(c1, c2, c3)
+                c1 = Colorant.of(TrueColor(c1, c2, c3))
         elif isinstance(c1, Color):
-            c1 = TerminalColor.from_color(c1)
+            c1 = Colorant.of(c1)
 
         translator = current_translator()
         color = translator.cap(c1, self._fidelity)
         if color is not None:
-            self.write_control(
-                Ansi.CSI,
-                *color.sgr_parameters(Layer.Background),
-                'm'
-            )
+            params = color.sgr_parameters(Layer.Background)
+            if params is not None:
+                self.write_control(Ansi.CSI, *params, 'm')
         return self
 
 
