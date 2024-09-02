@@ -25,11 +25,11 @@ def test0() -> None:
 
 
 def test1() -> None:
-    print('Testing file "docs/src/overview/1970s.md", line 377, chapter "1970s Terminal Colors"',
+    print('Testing file "docs/src/overview/1970s.md", line 384, chapter "1970s Terminal Colors"',
         file=sys.stderr)
     
     from prettypretty.color import Color
-    from prettypretty.color.style import AnsiColor, EmbeddedRgb, GrayGradient, TerminalColor
+    from prettypretty.color.style import AnsiColor, Colorant, EmbeddedRgb, GrayGradient
     from prettypretty.color.style import TrueColor
     red = AnsiColor.BrightRed
     assert red.to_8bit() == 9
@@ -52,9 +52,9 @@ def test1() -> None:
     assert true_gray == TrueColor(188, 188, 188)
     assert gray.to_color() == Color.from_24bit(188, 188, 188)
     
-    green = TerminalColor.from_8bit(71)
-    assert isinstance(green, TerminalColor.Embedded)
-    also_green = green.color
+    green = Colorant.of(71)
+    assert isinstance(green, Colorant.Embedded)
+    also_green = green[0] # The only valid index is 0!
     assert also_green[0] == 1
     assert also_green[1] == 3
     assert also_green[2] == 1
@@ -68,8 +68,8 @@ def test2() -> None:
         file=sys.stderr)
     
     from prettypretty.color import Color, OkVersion
-    from prettypretty.color.style import AnsiColor, EmbeddedRgb, Fidelity
-    from prettypretty.color.style import TerminalColor, TrueColor
+    from prettypretty.color.style import AnsiColor, Colorant, EmbeddedRgb
+    from prettypretty.color.style import Fidelity, TrueColor
     from prettypretty.color.trans import Translator, VGA_COLORS
     red = VGA_COLORS[AnsiColor.BrightRed.to_8bit() + 2]
     assert red == Color.srgb(1.0, 0.333333333333333, 0.333333333333333)
@@ -82,7 +82,7 @@ def test2() -> None:
     assert black == AnsiColor.Black
     
     maroon = translator.cap(TrueColor(148, 23, 81), Fidelity.EightBit)
-    assert maroon == TerminalColor.Embedded(EmbeddedRgb(2, 0, 1))
+    assert maroon == Colorant.Embedded(EmbeddedRgb(2, 0, 1))
 
 
 if __name__ == "__main__":

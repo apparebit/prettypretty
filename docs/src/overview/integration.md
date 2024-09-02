@@ -210,8 +210,8 @@ The Python version is a close match:
 
 ```python
 ~from prettypretty.color import Color, OkVersion
-~from prettypretty.color.style import AnsiColor, EmbeddedRgb, Fidelity
-~from prettypretty.color.style import TerminalColor, TrueColor
+~from prettypretty.color.style import AnsiColor, Colorant, EmbeddedRgb
+~from prettypretty.color.style import Fidelity, TrueColor
 ~from prettypretty.color.trans import Translator, VGA_COLORS
 red = VGA_COLORS[AnsiColor.BrightRed.to_8bit() + 2]
 assert red == Color.srgb(1.0, 0.333333333333333, 0.333333333333333)
@@ -224,7 +224,7 @@ black = translator.to_ansi(Color.srgb(0.15, 0.15, 0.15))
 assert black == AnsiColor.Black
 
 maroon = translator.cap(TrueColor(148, 23, 81), Fidelity.EightBit)
-assert maroon == TerminalColor.Embedded(EmbeddedRgb(2, 0, 1))
+assert maroon == Colorant.Embedded(EmbeddedRgb(2, 0, 1))
 ```
 <div class=color-swatch>
 <div style="background-color: #f55;"></div>
