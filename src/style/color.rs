@@ -6,46 +6,6 @@ use crate::error::OutOfBoundsError;
 use crate::{Color, ColorSpace};
 
 // ====================================================================================================================
-// Default Color
-// ====================================================================================================================
-
-/// The default foreground and background colors.
-///
-/// The default colors are ordered because they are ordered as theme colors.
-#[cfg_attr(
-    feature = "pyffi",
-    pyclass(eq, eq_int, frozen, hash, ord, module = "prettypretty.color.style")
-)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum DefaultColor {
-    Foreground,
-    Background,
-}
-
-#[cfg_attr(feature = "pyffi", pymethods)]
-impl DefaultColor {
-    /// Get the default color's human-readable name.
-    pub fn name(&self) -> &'static str {
-        match self {
-            Self::Foreground => "default foreground color",
-            Self::Background => "default background color",
-        }
-    }
-}
-
-impl TryFrom<usize> for DefaultColor {
-    type Error = OutOfBoundsError;
-
-    fn try_from(value: usize) -> Result<Self, OutOfBoundsError> {
-        match value {
-            0 => Ok(DefaultColor::Foreground),
-            1 => Ok(DefaultColor::Background),
-            _ => Err(OutOfBoundsError::new(value, 0..=1)),
-        }
-    }
-}
-
-// ====================================================================================================================
 // Ansi Color
 // ====================================================================================================================
 
@@ -907,6 +867,12 @@ impl From<&Color> for TrueColor {
     }
 }
 
+impl From<Color> for TrueColor {
+    fn from(value: Color) -> Self {
+        TrueColor::from(&value)
+    }
+}
+
 impl From<TrueColor> for Color {
     fn from(value: TrueColor) -> Self {
         Self::from_24bit(value.0[0], value.0[1], value.0[2])
@@ -921,69 +887,52 @@ impl core::fmt::Display for TrueColor {
 }
 
 // ====================================================================================================================
-// Terminal Color
+// Colorant
 // ====================================================================================================================
 
-/// A terminal color.
-///
-/// This enumeration unifies all five terminal color types, [`DefaultColor`],
-/// [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`], and [`TrueColor`]. It does
-/// not distinguish between ANSI colors as themselves and as 8-bit colors. An
-/// early version of this crate included the corresponding wrapper type, but it
-/// offered no distinct functionality and hence was removed again.
-///
-/// In a departure from common practice, variants are implemented as struct
-/// variants with a single `color` field. This does result in slightly more
-/// verbose Rust patterns, but it also makes the Python classes much easier to
-/// use. The variants for the embedded RGB and 24-bit RGB colors derive their
-/// names from the number of levels per channel.
+/// A colorant for wrapping all color representations.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, module = "prettypretty.color.style")
 )]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum TerminalColor {
-    Default { color: DefaultColor },
-    Ansi { color: AnsiColor },
-    Embedded { color: EmbeddedRgb },
-    Gray { color: GrayGradient },
-    Full { color: TrueColor },
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Colorant {
+    Default(),
+    Ansi(AnsiColor),
+    Embedded(EmbeddedRgb),
+    Gray(GrayGradient),
+    Rgb(TrueColor),
+    HiRes(Color),
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
-impl TerminalColor {
-    /// The default foreground color.
-    pub const FOREGROUND: TerminalColor = TerminalColor::Default {
-        color: DefaultColor::Foreground,
-    };
-
-    /// The default background color.
-    pub const BACKGROUND: TerminalColor = TerminalColor::Default {
-        color: DefaultColor::Background,
-    };
-
-    /// Convert the high-resolution color to a terminal color. <i
-    /// class=python-only>Python only!</i>
+impl Colorant {
+    /// Wrap any color as colorant. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[staticmethod]
-    pub fn from_color(color: &Color) -> Self {
-        Self::from(color)
+    pub fn of(#[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant) -> Self {
+        colorant
     }
 
-    /// Convert the 8-bit index to a terminal color. <i class=python-only>Python
-    /// only!</i>
-    #[cfg(feature = "pyffi")]
-    #[staticmethod]
-    pub fn from_8bit(color: u8) -> Self {
-        Self::from(color)
+    /// Determine whether this colorant is the default.
+    pub fn is_default(&self) -> bool {
+        matches!(self, Colorant::Default())
     }
 
-    /// Instantiate a new terminal color from the 24-bit RGB coordinates.
-    #[cfg(feature = "pyffi")]
-    #[staticmethod]
-    pub fn from_24bit(r: u8, g: u8, b: u8) -> Self {
-        Self::Full {
-            color: TrueColor::new(r, g, b),
+    /// Get the SGR parameters for this colorant.
+    ///
+    /// This method returns `None` if this colorant is a high-resolution color.
+    pub fn sgr_parameters(&self, layer: Layer) -> Option<Vec<u8>> {
+        match self {
+            Self::Default() => Some(vec![39 + layer.offset()]),
+            Self::Ansi(c) => {
+                let base = if c.is_bright() { 90 } else { 30 } + layer.offset();
+                Some(vec![base + c.to_3bit() as u8])
+            }
+            Self::Embedded(c) => Some(vec![38 + layer.offset(), 5, u8::from(*c)]),
+            Self::Gray(c) => Some(vec![38 + layer.offset(), 5, u8::from(*c)]),
+            Self::Rgb(c) => Some(vec![38 + layer.offset(), 2, c[0], c[1], c[2]]),
+            Self::HiRes(_) => None,
         }
     }
 
@@ -991,7 +940,7 @@ impl TerminalColor {
     /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn try_to_8bit(&self) -> PyResult<u8> {
-        u8::try_from(*self).map_err(|_| {
+        u8::try_from(self).map_err(|_| {
             pyo3::exceptions::PyValueError::new_err("unable to convert to 8-bit index")
         })
     }
@@ -1000,240 +949,199 @@ impl TerminalColor {
     /// only!</i>
     #[cfg(feature = "pyffi")]
     pub fn try_to_24bit(&self) -> PyResult<[u8; 3]> {
-        <[u8; 3]>::try_from(*self).map_err(|_| {
+        <[u8; 3]>::try_from(self).map_err(|_| {
             pyo3::exceptions::PyValueError::new_err("unable to convert to 24-bit coordinates")
         })
     }
 
-    /// Determine whether this terminal color is the default color.
-    #[inline]
-    pub fn is_default(&self) -> bool {
-        matches!(self, Self::Default { .. })
-    }
-
-    /// Negate this terminal color.
+    /// Negate this colorant.
     ///
-    /// This method determines the terminal color for restoring the terminal
-    /// layer's default appearance again. If this color is the default color for
-    /// that layer, the appearance does not need to change and this method
-    /// returns `None`. Otherwise, this method returns the default color for the
-    /// layer.
-    pub fn negate(&self, layer: Layer) -> Option<TerminalColor> {
-        match (*self, layer) {
-            (
-                Self::Default {
-                    color: DefaultColor::Foreground,
-                },
-                Layer::Foreground,
-            ) => None,
-            (
-                Self::Default {
-                    color: DefaultColor::Background,
-                },
-                Layer::Background,
-            ) => None,
-            (_, Layer::Foreground) => Some(Self::FOREGROUND),
-            (_, Layer::Background) => Some(Self::BACKGROUND),
+    /// This method computes the color that restores the terminal's default
+    /// appearance again, which is `None` if this colorant is the default color.
+    fn negate(&self) -> Option<Self> {
+        if self.is_default() {
+            None
+        } else {
+            Some(Colorant::Default())
         }
     }
 
-    /// Get the SGR parameters for this terminal color.
+    /// Negate this colorant. <i class=python-only>Python only!</i>
     ///
-    /// This method determines the SGR parameters for setting the given layer,
-    /// i.e., foreground or background, to this terminal color. It returns 1, 3,
-    /// or 5 parameters that may be combined with other SGR parameters into one
-    /// escape sequence, as long as they are properly separated by semicolons.
-    ///
-    /// # Panics
-    ///
-    /// This method panics if it is invoked on a default color with an
-    /// inconsistent layer.
-    pub fn sgr_parameters(&self, layer: Layer) -> Vec<u8> {
-        match self {
-            TerminalColor::Default { color: c } => {
-                if *c as u8 != layer as u8 {
-                    panic!("unable to use default color {:?} for layer {:?}", c, layer);
-                }
-
-                match c {
-                    DefaultColor::Foreground => vec![39],
-                    DefaultColor::Background => vec![49],
-                }
-            }
-            TerminalColor::Ansi { color: c } => {
-                let base = if c.is_bright() { 90 } else { 30 } + layer.offset();
-                vec![base + c.to_3bit() as u8]
-            }
-            TerminalColor::Embedded { color: c } => {
-                vec![38 + layer.offset(), 5, u8::from(*c)]
-            }
-            TerminalColor::Gray { color: c } => {
-                vec![38 + layer.offset(), 5, u8::from(*c)]
-            }
-            TerminalColor::Full { color: c } => {
-                vec![38 + layer.offset(), 2, c[0], c[1], c[2]]
-            }
-        }
+    /// This method determines the color that restores the terminal's default
+    /// appearance again. The result is `None` if the colorant is the default
+    /// and  `Some(Colorant::Default())` otherwise.
+    #[cfg(feature = "pyffi")]
+    pub fn __invert__(&self) -> Option<Self> {
+        self.negate()
     }
 
-    /// Convert to a debug representation. <i class=python-only>Python only!</i>
+    /// Convert this colorant to its debug representation. <i
+    /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         match self {
-            TerminalColor::Default { color: c } => format!("TerminalColor.Default({:?})", c),
-            TerminalColor::Ansi { color: c } => format!("TerminalColor.Ansi({:?})", c),
-            TerminalColor::Embedded { color: c } => {
-                format!("TerminalColor.Embedded({})", c.__repr__())
-            }
-            TerminalColor::Gray { color: c } => format!("TerminalColor.Gray({})", c.__repr__()),
-            TerminalColor::Full { color: c } => format!("TerminalColor.Full({})", c.__repr__()),
+            Self::Default() => "Colorant(default)".to_string(),
+            Self::Ansi(c) => format!("Colorant({:?})", c),
+            Self::Embedded(c) => format!("Colorant({})", c.__repr__()),
+            Self::Gray(c) => format!("Colorant({})", c.__repr__()),
+            Self::Rgb(c) => format!("Colorant({})", c.__repr__()),
+            Self::HiRes(c) => format!("Colorant({})", c.__repr__()),
         }
     }
 }
 
-#[cfg(not(feature = "pyffi"))]
-impl TerminalColor {
-    /// Instantiate a new terminal color from the 24-bit RGB coordinates.
-    pub fn from_24bit(r: impl Into<u8>, g: impl Into<u8>, b: impl Into<u8>) -> Self {
-        Self::Full {
-            color: TrueColor::new(r.into(), g.into(), b.into()),
-        }
+impl std::ops::Not for &Colorant {
+    type Output = Option<Colorant>;
+
+    fn not(self) -> Self::Output {
+        self.negate()
     }
 }
 
-// Convert the constituent terminal colors to their wrapped versions.
+impl std::ops::Not for Colorant {
+    type Output = Option<Colorant>;
+
+    fn not(self) -> Self::Output {
+        self.negate()
+    }
+}
+
+/// Convert any color into a colorant.
 #[cfg(feature = "pyffi")]
-pub(crate) fn into_terminal_color(obj: &Bound<'_, PyAny>) -> PyResult<TerminalColor> {
+pub(crate) fn into_colorant(obj: &Bound<'_, PyAny>) -> PyResult<Colorant> {
     if obj.is_instance_of::<PyInt>() {
         return obj.extract::<u8>().map(|c| c.into());
     }
 
-    obj.extract::<TerminalColor>()
+    obj.extract::<Colorant>()
         .or_else(|_| obj.extract::<AnsiColor>().map(|c| c.into()))
         .or_else(|_| obj.extract::<EmbeddedRgb>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<crate::style::TrueColor>().map(|c| c.into()))
         .or_else(|_| obj.extract::<GrayGradient>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<DefaultColor>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<crate::style::TrueColor>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<Color>().map(|c| c.into()))
 }
 
-impl From<DefaultColor> for TerminalColor {
-    fn from(color: DefaultColor) -> Self {
-        TerminalColor::Default { color }
+impl From<AnsiColor> for Colorant {
+    fn from(value: AnsiColor) -> Self {
+        Self::Ansi(value)
     }
 }
 
-impl From<AnsiColor> for TerminalColor {
-    fn from(color: AnsiColor) -> Self {
-        TerminalColor::Ansi { color }
+impl From<EmbeddedRgb> for Colorant {
+    fn from(value: EmbeddedRgb) -> Self {
+        Self::Embedded(value)
     }
 }
 
-impl From<EmbeddedRgb> for TerminalColor {
-    fn from(color: EmbeddedRgb) -> Self {
-        TerminalColor::Embedded { color }
+impl From<GrayGradient> for Colorant {
+    fn from(value: GrayGradient) -> Self {
+        Self::Gray(value)
     }
 }
 
-impl From<GrayGradient> for TerminalColor {
-    fn from(color: GrayGradient) -> Self {
-        TerminalColor::Gray { color }
-    }
-}
-
-impl From<TrueColor> for TerminalColor {
-    fn from(color: TrueColor) -> Self {
-        TerminalColor::Full { color }
-    }
-}
-
-impl From<u8> for TerminalColor {
-    /// Convert 8-bit index to a terminal color.
-    ///
-    /// Depending on the 8-bit number, this method returns either a wrapped
-    /// ANSI, embedded RGB, or gray gradient color.
+impl From<u8> for Colorant {
     fn from(value: u8) -> Self {
         if (0..=15).contains(&value) {
-            Self::Ansi {
-                color: AnsiColor::try_from(value).unwrap(),
-            }
+            Self::Ansi(AnsiColor::try_from(value).unwrap())
         } else if (16..=231).contains(&value) {
-            Self::Embedded {
-                color: EmbeddedRgb::try_from(value).unwrap(),
-            }
+            Self::Embedded(EmbeddedRgb::try_from(value).unwrap())
         } else {
-            Self::Gray {
-                color: GrayGradient::try_from(value).unwrap(),
-            }
+            Self::Gray(GrayGradient::try_from(value).unwrap())
         }
     }
 }
 
-impl From<[u8; 3]> for TerminalColor {
+impl From<[u8; 3]> for Colorant {
     fn from(value: [u8; 3]) -> Self {
-        Self::Full {
-            color: TrueColor(value),
-        }
+        Self::Rgb(TrueColor(value))
     }
 }
 
-impl From<&Color> for TerminalColor {
-    /// Convert a high-resolution color to a terminal color.
-    ///
-    /// This method first converts the color to gamut-mapped sRGB and then
-    /// converts each coordinate to `u8` before returning a wrapped
-    /// [`TrueColor`].
+impl From<TrueColor> for Colorant {
+    fn from(value: TrueColor) -> Self {
+        Self::Rgb(value)
+    }
+}
+
+impl From<Color> for Colorant {
+    fn from(value: Color) -> Self {
+        Self::HiRes(value)
+    }
+}
+
+impl From<&Color> for Colorant {
     fn from(value: &Color) -> Self {
-        Self::Full {
-            color: TrueColor::from(value),
-        }
+        Self::HiRes(value.clone())
     }
 }
 
-impl TryFrom<TerminalColor> for u8 {
-    type Error = TerminalColor;
+impl TryFrom<&Colorant> for u8 {
+    type Error = Colorant;
 
-    /// Try to convert this terminal color to an 8-bit index.
+    /// Try to convert this colorant to an 8-bit index.
     ///
     /// For ANSI, embedded RGB, and gray gradient colors, this method unwraps
-    /// the color and converts it to an 8-bit index. It returns any other
-    /// terminal color as the error value.
-    fn try_from(value: TerminalColor) -> Result<Self, Self::Error> {
+    /// the colorant and returns the corresponding 8-bit index. It returns any
+    /// other colorant as the error value.
+    fn try_from(value: &Colorant) -> Result<Self, Self::Error> {
         match value {
-            TerminalColor::Default { .. } => Err(value),
-            TerminalColor::Ansi { color: c } => Ok(u8::from(c)),
-            TerminalColor::Embedded { color: c } => Ok(u8::from(c)),
-            TerminalColor::Gray { color: c } => Ok(u8::from(c)),
-            TerminalColor::Full { .. } => Err(value),
+            Colorant::Default() => Err(value.clone()),
+            Colorant::Ansi(c) => Ok(u8::from(*c)),
+            Colorant::Embedded(c) => Ok(u8::from(*c)),
+            Colorant::Gray(c) => Ok(u8::from(*c)),
+            Colorant::Rgb(_) => Err(value.clone()),
+            Colorant::HiRes(_) => Err(value.clone()),
         }
     }
 }
 
-impl TryFrom<TerminalColor> for [u8; 3] {
-    type Error = TerminalColor;
+impl TryFrom<Colorant> for u8 {
+    type Error = Colorant;
 
-    fn try_from(value: TerminalColor) -> Result<Self, Self::Error> {
+    fn try_from(value: Colorant) -> Result<Self, Self::Error> {
+        u8::try_from(&value)
+    }
+}
+
+impl TryFrom<&Colorant> for [u8; 3] {
+    type Error = Colorant;
+
+    fn try_from(value: &Colorant) -> Result<Self, Self::Error> {
         match value {
-            TerminalColor::Default { .. } => Err(value),
-            TerminalColor::Ansi { .. } => Err(value),
-            TerminalColor::Embedded { color } => Ok(color.into()),
-            TerminalColor::Gray { color } => Ok(color.into()),
-            TerminalColor::Full { color } => Ok(*color.as_ref()),
+            Colorant::Default() | Colorant::Ansi(_) => Err(value.clone()),
+            Colorant::Embedded(c) => Ok((*c).into()),
+            Colorant::Gray(c) => Ok((*c).into()),
+            Colorant::Rgb(c) => Ok(*c.as_ref()),
+            Colorant::HiRes(_) => Err(value.clone()),
         }
     }
 }
 
-impl TryFrom<TerminalColor> for Color {
-    type Error = TerminalColor;
+impl TryFrom<Colorant> for [u8; 3] {
+    type Error = Colorant;
 
-    fn try_from(value: TerminalColor) -> Result<Self, Self::Error> {
-        let [r, g, b] = value.try_into()?;
-        Ok(Color::from_24bit(r, g, b))
+    fn try_from(value: Colorant) -> Result<Self, Self::Error> {
+        <[u8; 3]>::try_from(&value)
+    }
+}
+
+impl TryFrom<Colorant> for Color {
+    type Error = Colorant;
+
+    fn try_from(value: Colorant) -> Result<Self, Self::Error> {
+        if let Colorant::HiRes(c) = value {
+            Ok(c)
+        } else {
+            let [r, g, b] = value.try_into()?;
+            Ok(Color::from_24bit(r, g, b))
+        }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::{AnsiColor, EmbeddedRgb, GrayGradient, OutOfBoundsError, TerminalColor, TrueColor};
+    use super::{AnsiColor, Colorant, EmbeddedRgb, GrayGradient, OutOfBoundsError, TrueColor};
 
     #[test]
     fn test_conversion() -> Result<(), OutOfBoundsError> {
@@ -1248,15 +1156,13 @@ mod test {
         assert_eq!(gray.level(), 12);
         assert_eq!(TrueColor::from(gray), TrueColor::new(128, 128, 128));
 
-        let also_magenta = TerminalColor::Ansi {
-            color: AnsiColor::Magenta,
-        };
-        let also_green = TerminalColor::Embedded { color: green };
-        let also_gray = TerminalColor::Gray { color: gray };
+        let also_magenta = Colorant::Ansi(AnsiColor::Magenta);
+        let also_green = Colorant::Embedded(green);
+        let also_gray = Colorant::Gray(gray);
 
-        assert_eq!(also_magenta, TerminalColor::from(5));
-        assert_eq!(also_green, TerminalColor::from(40));
-        assert_eq!(also_gray, TerminalColor::from(244));
+        assert_eq!(also_magenta, Colorant::from(5));
+        assert_eq!(also_green, Colorant::from(40));
+        assert_eq!(also_gray, Colorant::from(244));
 
         assert!(<[u8; 3]>::try_from(also_magenta).is_err());
         assert_eq!(<[u8; 3]>::try_from(also_green), Ok([0_u8, 215, 0]));

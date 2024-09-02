@@ -1,4 +1,5 @@
-//! Stateful conversion between high-resolution and terminal colors.
+//! State and algorithms for the translation between high- and low-resolution
+//! colors.
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
@@ -6,7 +7,7 @@ use pyo3::prelude::*;
 use crate::core::is_achromatic_chroma_hue;
 
 use crate::error::OutOfBoundsError;
-use crate::style::{AnsiColor, DefaultColor, EmbeddedRgb, Fidelity, GrayGradient, TerminalColor};
+use crate::style::{AnsiColor, Colorant, EmbeddedRgb, Fidelity, GrayGradient, Layer};
 use crate::{rgb, Bits, Color, ColorSpace, Float, OkVersion};
 
 // ====================================================================================================================
@@ -31,7 +32,8 @@ pub type Theme = [Color; 18];
 )]
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ThemeEntry {
-    Default(DefaultColor),
+    DefaultForeground(),
+    DefaultBackground(),
     Ansi(AnsiColor),
 }
 
@@ -47,15 +49,10 @@ impl ThemeEntry {
     /// Get this theme entry's human-readable name.
     pub fn name(&self) -> &'static str {
         match self {
-            Self::Default(color) => color.name(),
+            Self::DefaultForeground() => "default foreground",
+            Self::DefaultBackground() => "default background",
             Self::Ansi(color) => color.name(),
         }
-    }
-}
-
-impl From<DefaultColor> for ThemeEntry {
-    fn from(value: DefaultColor) -> Self {
-        ThemeEntry::Default(value)
     }
 }
 
@@ -70,9 +67,9 @@ impl TryFrom<usize> for ThemeEntry {
 
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         if value == 0 {
-            Ok(ThemeEntry::Default(DefaultColor::Foreground))
+            Ok(ThemeEntry::DefaultForeground())
         } else if value == 1 {
-            Ok(ThemeEntry::Default(DefaultColor::Background))
+            Ok(ThemeEntry::DefaultBackground())
         } else if value <= 17 {
             Ok(ThemeEntry::Ansi(AnsiColor::try_from(value as u8 - 2)?))
         } else {
@@ -398,17 +395,17 @@ impl HueLightnessTable {
 
 /// A color translator.
 ///
-/// Instances of this struct translate between [`TerminalColor`] and [`Color`]
-/// and maintain the state for doing so efficiently. The [user
+/// Instances of this struct translate between [`Color`] and other color
+/// representations. They also maintain the state for doing so efficiently. The
+/// [user
 /// guide](https://apparebit.github.io/prettypretty/overview/integration.html)
 /// includes a detailed discussion of challenges posed by translation, solution
-/// approaches, and translator's interface.
+/// approaches, and this struct's interface.
 ///
 /// Since a translator incorporates theme colors, an application should
 /// regenerate its translator if the current theme changes.
 ///
-/// [`Style`](crate::style::Style) uses a translator instance to cap terminal
-/// style tokens.
+/// [`Style`](crate::style::Style) uses a translator instance to cap styles.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.trans"))]
 pub struct Translator {
     /// The theme colors. For converting *to* high-resolution colors.
@@ -495,19 +492,43 @@ impl Translator {
         yb < yf
     }
 
-    /// Resolve the terminal color to a high-resolution color. <i
+    /// Resolve a colorant other than the default to a high-resolution color. <i
     /// class=python-only>Python only!</i>
     ///
-    /// To make the same functionality available to Python as that offered by
-    /// Rust's `impl Into<TerminalColor>`, this version of
-    /// [`Translator::resolve`] uses a custom conversion function.
+    /// This method is exposed as `resolve` in Python. It uses a custom
+    /// conversion function for [`Colorant`]s and hence accepts any color as is.
+    /// The one exception is the default color, see below.
+    ///
+    ///
+    /// # Panics
+    ///
+    /// If the colorant is [`Colorant::Default`]. Use
+    /// [`Translator::py_resolve_all`] if the default colorant needs to be
+    /// resolved, too.
     #[cfg(feature = "pyffi")]
     #[pyo3(name = "resolve")]
     pub fn py_resolve(
         &self,
-        #[pyo3(from_py_with = "crate::style::into_terminal_color")] color: TerminalColor,
+        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
     ) -> Color {
-        self.resolve(color)
+        self.resolve(colorant)
+    }
+
+    /// Resolve any colorant to a high-resolution color. <i
+    /// class=python-only>Python only!</i>
+    ///
+    /// This method is exposed as `resolve_all` in Python. It uses a custom
+    /// conversion function for [`Colorant`]s and hence accepts any color as is.
+    /// If the colorant is guaranteed not to be [`Colorant::Default`],
+    /// [`Translator::resolve`] does not require a layer argument.
+    #[cfg(feature = "pyffi")]
+    #[pyo3(name = "resolve_all")]
+    pub fn py_resolve_all(
+        &self,
+        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
+        layer: Layer,
+    ) -> Color {
+        self.resolve_all(colorant, layer)
     }
 
     /// Convert the high-resolution color into an ANSI color.
@@ -801,14 +822,14 @@ impl Translator {
     /// colors to a high-resolution color in sRGB, which is validated by the
     /// first two assertions, and then uses a translator to convert that color
     /// back to an embedded RGB color. The result is the original color, now
-    /// wrapped as a terminal color, which is validated by the third assertion.
-    /// The example demonstrates that the 216 colors in the embedded RGB cube
-    /// still are closest to themselves after conversion to Oklrch.
+    /// wrapped as a colorant, which is validated by the third assertion. The
+    /// example demonstrates that the 216 colors in the embedded RGB cube still
+    /// are closest to themselves after conversion to Oklrch.
     ///
     /// ```
     /// # use prettypretty::{assert_close_enough, Color, ColorSpace, Float, OkVersion};
     /// # use prettypretty::error::OutOfBoundsError;
-    /// # use prettypretty::style::{EmbeddedRgb, TerminalColor};
+    /// # use prettypretty::style::{Colorant, EmbeddedRgb};
     /// # use prettypretty::trans::{Translator, VGA_COLORS};
     /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
     ///
@@ -829,14 +850,14 @@ impl Translator {
     ///             let result = translator.to_closest_8bit(&color);
     ///             assert_eq!(
     ///                 result,
-    ///                 TerminalColor::Embedded { color: embedded }
+    ///                 Colorant::Embedded(embedded)
     ///             );
     ///         }
     ///     }
     /// }
     /// # Ok::<(), OutOfBoundsError>(())
     /// ```
-    pub fn to_closest_8bit(&self, color: &Color) -> TerminalColor {
+    pub fn to_closest_8bit(&self, color: &Color) -> Colorant {
         use crate::core::{delta_e_ok, find_closest};
 
         let color = color.to(self.space);
@@ -848,7 +869,7 @@ impl Translator {
         .map(|idx| idx as u8 + 16)
         .unwrap();
 
-        TerminalColor::from(index)
+        Colorant::from(index)
     }
 
     /// Find the 8-bit color that comes closest to the given color.
@@ -856,7 +877,7 @@ impl Translator {
     /// This method comparse *all* 8-bit colors including ANSI colors. Prefer to
     /// use [`Translator::to_closest_8bit`] instead, which produces better
     /// results when converting several graduated colors.
-    pub fn to_closest_8bit_with_ansi(&self, color: &Color) -> TerminalColor {
+    pub fn to_closest_8bit_with_ansi(&self, color: &Color) -> Colorant {
         use crate::core::{delta_e_ok, find_closest};
 
         let color = color.to(self.space);
@@ -864,24 +885,28 @@ impl Translator {
             .map(|idx| idx as u8 + 16)
             .unwrap();
 
-        TerminalColor::from(index)
+        Colorant::from(index)
     }
 
-    /// Cap the terminal color by the given fidelity. <i
-    /// class=python-only>Python only!</i>
+    /// Cap the colorant by the given fidelity. <i class=python-only>Python
+    /// only!</i>
     ///
-    /// This method ensures that that a terminal with the fidelity level
-    /// can render the resulting color as follows:
+    /// This method is exposed as `cap` in Python. It ensures that that a
+    /// terminal with the fidelity level can render the resulting color as
+    /// follows:
     ///
     ///   * `Plain`, `NoColor` (fidelity)
     ///       * `None` (result)
     ///   * `Ansi`
     ///       * Unmodified ANSI colors
-    ///       * Downsampled 8-bit and 24-bit colors
+    ///       * Downsampled 8-bit, 24-bit, and high-resolution colors
     ///   * `EightBit`
     ///       * Unmodified ANSI and 8-bit colors
-    ///       * Downsampled 24-bit colors
-    ///   * `Full`
+    ///       * Downsampled 24-bit and high-resolution colors
+    ///   * `TwentyFourBit`
+    ///       * Unmodified ANSI, 8-bit, and 24-bit colors
+    ///       * Downsampled high-resolution colors
+    ///   * `HiRes`
     ///       * Unmodified colors
     ///
     /// To achieve parity with [`Translator::cap`], this method uses a custom
@@ -890,10 +915,10 @@ impl Translator {
     #[pyo3(name = "cap")]
     pub fn py_cap(
         &self,
-        #[pyo3(from_py_with = "crate::style::into_terminal_color")] color: TerminalColor,
+        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
         fidelity: Fidelity,
-    ) -> Option<TerminalColor> {
-        self.cap(color, fidelity)
+    ) -> Option<Colorant> {
+        self.cap(colorant, fidelity)
     }
 
     /// Return a debug representation. <i class=python-only>Python only!</i>
@@ -928,27 +953,48 @@ impl Translator {
 }
 
 impl Translator {
-    /// Resolve the terminal color to a high-resolution color.
+    /// Resolve a colorant other than the default to a high-resolution color.
+    ///
+    ///
+    /// # Panics
+    ///
+    /// If the colorant is [`Colorant::Default`]. If the colorant may include
+    /// the default colorant, use [`Translator::resolve_all`] instead.
+    ///
+    ///
+    pub fn resolve(&self, color: impl Into<Colorant>) -> Color {
+        let color = color.into();
+        if matches!(color, Colorant::Default()) {
+            panic!("Translator::resolve() cannot process the default colorant; use Translator::resolve_all() instead.")
+        }
+        self.resolve_all(color, Layer::Foreground)
+    }
+
+    /// Resolve any colorant to a high-resolution color.
+    ///
     ///
     /// # Examples
     ///
-    /// Thanks to Rust's `Into<TerminalColor>` trait, callers need not wrap
-    /// their default, ANSI, embedded RGB, gray gradient, and true colors before
-    /// calling this method. The Python version uses a custom type conversion
-    /// function to achieve the same effect.
+    /// Thanks to Rust's `Into<Colorant>` trait, callers need not wrap their
+    /// ANSI, embedded RGB, gray gradient, and true colors before calling this
+    /// method. The Python version uses a custom type conversion function to
+    /// achieve the same effect.
     ///
     /// ```
     /// # use prettypretty::{Color, OkVersion};
-    /// # use prettypretty::style::{AnsiColor, DefaultColor, TrueColor};
+    /// # use prettypretty::style::{AnsiColor, Colorant, Layer, TrueColor};
     /// # use prettypretty::trans::{Translator, VGA_COLORS};
     /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
-    /// let blue = translator.resolve(AnsiColor::Blue);
+    /// let blue = translator.resolve_all(
+    ///     AnsiColor::Blue, Layer::Foreground);
     /// assert_eq!(blue, Color::srgb(0.0, 0.0, 0.666666666666667));
     ///
-    /// let black = translator.resolve(DefaultColor::Foreground);
+    /// let black = translator.resolve_all(
+    ///     Colorant::Default(), Layer::Foreground);
     /// assert_eq!(black, Color::srgb(0.0, 0.0, 0.0));
     ///
-    /// let maroon = translator.resolve(TrueColor::new(148, 23, 81));
+    /// let maroon = translator.resolve_all(
+    ///     TrueColor::new(148, 23, 81), Layer::Background);
     /// assert_eq!(maroon, Color::srgb(
     ///     0.5803921568627451, 0.09019607843137255, 0.3176470588235294
     /// ));
@@ -958,17 +1004,18 @@ impl Translator {
     /// <div style="background-color: #000000;"></div>
     /// <div style="background-color: #941751;"></div>
     /// </div>
-    pub fn resolve(&self, color: impl Into<TerminalColor>) -> Color {
+    pub fn resolve_all(&self, color: impl Into<Colorant>, layer: Layer) -> Color {
         match color.into() {
-            TerminalColor::Default { color: c } => self.theme[c as usize].clone(),
-            TerminalColor::Ansi { color: c } => self.theme[c as usize + 2].clone(),
-            TerminalColor::Embedded { color: c } => c.into(),
-            TerminalColor::Gray { color: c } => c.into(),
-            TerminalColor::Full { color: c } => c.into(),
+            Colorant::Default() => self.theme[layer as usize].clone(),
+            Colorant::Ansi(c) => self.theme[c as usize + 2].clone(),
+            Colorant::Embedded(c) => c.into(),
+            Colorant::Gray(c) => c.into(),
+            Colorant::Rgb(c) => c.into(),
+            Colorant::HiRes(c) => c,
         }
     }
 
-    /// Cap the terminal color by the given fidelity.
+    /// Cap the colorant by the given fidelity.
     ///
     /// This method ensures that that a terminal with the fidelity level
     /// can render the resulting color as follows:
@@ -977,48 +1024,53 @@ impl Translator {
     ///       * `None` (result)
     ///   * `Ansi`
     ///       * Unmodified ANSI colors
-    ///       * Downsampled 8-bit and 24-bit colors
+    ///       * Downsampled 8-bit, 24-bit, and high-resolution colors
     ///   * `EightBit`
     ///       * Unmodified ANSI and 8-bit colors
-    ///       * Downsampled 24-bit colors
-    ///   * `Full`
+    ///       * Downsampled 24-bit and high-resolution colors
+    ///   * `TwentyFourBit`
+    ///       * Unmodified ANSI, 8-bit, and 24-bit colors
+    ///       * Downsampled high-resolution colors
+    ///   * `HiRes`
     ///       * Unmodified colors
     ///
     /// The Rust-only implementation uses an `impl` `Into` trait as color
-    /// argument so that it can be invoked with default, ANSI, embedded RGB,
-    /// gray gradient, true, and terminal colors without prior conversion. The
-    /// version exposed to Python uses a custom type conversion function to
-    /// provide the exact same capability.
-    pub fn cap(
-        &self,
-        color: impl Into<TerminalColor>,
-        fidelity: Fidelity,
-    ) -> Option<TerminalColor> {
-        let color = color.into();
+    /// argument so that it can be invoked with ANSI, embedded RGB, gray
+    /// gradient, and true colors without prior conversion. The version exposed
+    /// to Python uses a custom type conversion function to provide the exact
+    /// same capability.
+    pub fn cap(&self, colorant: impl Into<Colorant>, fidelity: Fidelity) -> Option<Colorant> {
+        let color = colorant.into();
         match fidelity {
             Fidelity::Plain | Fidelity::NoColor => None,
             Fidelity::Ansi => {
                 let c = match color {
-                    TerminalColor::Default { .. } | TerminalColor::Ansi { .. } => {
-                        return Some(color);
-                    }
-                    TerminalColor::Embedded { color: c } => Color::from(c),
-                    TerminalColor::Gray { color: c } => Color::from(c),
-                    TerminalColor::Full { color: c } => Color::from(c),
+                    Colorant::Default() | Colorant::Ansi(_) => return Some(color),
+                    Colorant::Embedded(c) => Color::from(c),
+                    Colorant::Gray(c) => Color::from(c),
+                    Colorant::Rgb(c) => Color::from(c),
+                    Colorant::HiRes(c) => c,
                 };
 
-                Some(TerminalColor::Ansi {
-                    color: self.to_ansi(&c),
-                })
+                Some(Colorant::Ansi(self.to_ansi(&c)))
             }
             Fidelity::EightBit => {
-                if let TerminalColor::Full { color: c } = color {
-                    Some(self.to_closest_8bit(&Color::from(c)))
+                let c = match color {
+                    Colorant::Rgb(c) => Color::from(c),
+                    Colorant::HiRes(c) => c,
+                    _ => return Some(color),
+                };
+
+                Some(self.to_closest_8bit(&c))
+            }
+            Fidelity::TwentyFourBit => {
+                if let Colorant::HiRes(c) = color {
+                    Some(Colorant::Rgb(c.into()))
                 } else {
                     Some(color)
                 }
             }
-            Fidelity::Full => Some(color),
+            Fidelity::HiRes => Some(color),
         }
     }
 }
