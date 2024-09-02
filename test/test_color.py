@@ -125,13 +125,15 @@ class TestColor(unittest.TestCase):
         self.assertEqual(green.space(), ColorSpace.Srgb)
         self.assertListEqual(green.coordinates(), [0.0, 1.0, 0.0])
 
-        also_green = style.TerminalColor.from_8bit(46)
-        self.assertIsInstance(also_green, style.TerminalColor.Embedded)
-        self.assertIsInstance(also_green, style.TerminalColor)
-        assert isinstance(also_green, style.TerminalColor.Embedded)
-        self.assertIsInstance(also_green.color, style.EmbeddedRgb)
-        self.assertEqual(also_green.color, style.EmbeddedRgb(0, 5, 0))
-        self.assertListEqual(also_green.color.coordinates(), [0, 5, 0])
+        also_green = style.Colorant.of(46)
+        self.assertIsInstance(also_green, style.Colorant.Embedded)
+        self.assertIsInstance(also_green, style.Colorant)
+        self.assertIsInstance(also_green[0], style.EmbeddedRgb)
+        self.assertEqual(also_green[0], style.EmbeddedRgb(0, 5, 0))
+
+        also_green_unwrapped = also_green[0]
+        assert isinstance(also_green_unwrapped, style.EmbeddedRgb)
+        self.assertListEqual(also_green_unwrapped.coordinates(), [0, 5, 0])
 
         green_too = Color.from_24bit(0, 255, 0)
         self.assertEqual(green_too.space(), ColorSpace.Srgb)
