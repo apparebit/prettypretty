@@ -2,165 +2,34 @@
 use pyo3::prelude::*;
 
 use std::cell::RefCell;
-use std::sync::Arc;
 
-use super::{format::Format, DefaultColor, Fidelity, Layer, TerminalColor};
-use crate::{trans::Translator, Color};
+use super::{format::Format, Colorant, Fidelity, Layer};
+use crate::trans::Translator;
 
-/// A style token represents the atomic units of styles, including colors and
-/// other text formats.
-///
-/// Like design tokens contribute to a larger design system, [`StyleToken`]s
-/// contribute to [`Style`]s. Following the builder pattern, a [`Stylist`]
-/// fluently assembles styles.
-#[cfg_attr(
-    feature = "pyffi",
-    pyclass(eq, frozen, hash, module = "prettypretty.color.style")
-)]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum StyleToken {
-    Reset(),
-    Format(Format),
-    Foreground(TerminalColor),
-    Background(TerminalColor),
-    HiResForeground(Color),
-    HiResBackground(Color),
-    // ...
+// ================================================================================================
+
+/// The state shared between style builders and styles.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+struct StyleData {
+    reset: bool,
+    format: Option<Format>,
+    foreground: Option<Colorant>,
+    background: Option<Colorant>,
 }
 
-#[cfg_attr(feature = "pyffi", pymethods)]
-impl StyleToken {
-    /// Determine whether the style token represents a color.
-    pub fn is_color(&self) -> bool {
-        matches!(
-            self,
-            Self::Foreground(_)
-                | Self::Background(_)
-                | Self::HiResForeground(_)
-                | Self::HiResBackground(_)
-        )
-    }
+// ================================================================================================
 
-    /// Determine the terminal fidelity necessary for rendering this style token
-    /// as is.
-    ///
-    /// This method necessarily returns a fidelity higher than
-    /// [`Fidelity::Plain`].
-    pub fn fidelity(&self) -> Fidelity {
-        match self {
-            Self::Reset() => Fidelity::NoColor,
-            Self::Format(_) => Fidelity::NoColor,
-            Self::Foreground(color) => (*color).into(),
-            Self::Background(color) => (*color).into(),
-            Self::HiResForeground(_) => Fidelity::Full,
-            Self::HiResBackground(_) => Fidelity::Full,
-        }
-    }
-
-    /// Cap this style token at the given fidelity.
-    ///
-    /// If the fidelity is [`Fidelity::Plain`], this method returns `None`. If
-    /// the fidelity is higher, this method adjusts colors using the given
-    /// translator.
-    pub fn cap(&self, fidelity: Fidelity, translator: &Translator) -> Option<Self> {
-        match self {
-            StyleToken::Reset() => {
-                if matches!(fidelity, Fidelity::Plain) {
-                    None
-                } else {
-                    Some(StyleToken::Reset())
-                }
-            }
-            StyleToken::Format(format) => format.cap(fidelity).map(StyleToken::Format),
-            StyleToken::Foreground(color) => {
-                translator.cap(*color, fidelity).map(StyleToken::Foreground)
-            }
-            StyleToken::Background(color) => {
-                translator.cap(*color, fidelity).map(StyleToken::Background)
-            }
-            StyleToken::HiResForeground(color) => translator
-                .cap(TerminalColor::from(color), fidelity)
-                .map(StyleToken::Foreground),
-            StyleToken::HiResBackground(color) => translator
-                .cap(TerminalColor::from(color), fidelity)
-                .map(StyleToken::Background),
-        }
-    }
-
-    /// Get the SGR parameters for this style token.
-    pub fn sgr_parameters(&self) -> Vec<u8> {
-        match self {
-            StyleToken::Reset() => vec![0],
-            StyleToken::Format(format) => format.sgr_parameters(),
-            StyleToken::Foreground(color) => color.sgr_parameters(Layer::Foreground),
-            StyleToken::Background(color) => color.sgr_parameters(Layer::Background),
-            StyleToken::HiResForeground(color) => {
-                TerminalColor::from(color).sgr_parameters(Layer::Foreground)
-            }
-            StyleToken::HiResBackground(color) => {
-                TerminalColor::from(color).sgr_parameters(Layer::Background)
-            }
-        }
-    }
-
-    #[cfg(feature = "pyffi")]
-    pub fn __invert__(&self) -> Option<Self> {
-        !*self
-    }
-}
-
-impl std::ops::Not for StyleToken {
-    type Output = Option<Self>;
-
-    /// Negate this style token.
-    ///
-    /// This method returns a style token to restore the terminal's default
-    /// appearance from this style token or `None` if no updates are required.
-    fn not(self) -> Self::Output {
-        match self {
-            Self::Reset() => None,
-            Self::Format(format) => Some(Self::Format(!format)),
-            Self::Foreground(TerminalColor::Default { .. }) => None,
-            Self::Foreground(_) | Self::HiResForeground(_) => {
-                Some(Self::Foreground(TerminalColor::Default {
-                    color: DefaultColor::Foreground,
-                }))
-            }
-            Self::Background(TerminalColor::Default { .. }) => None,
-            Self::Background(_) | Self::HiResBackground(_) => {
-                Some(Self::Background(TerminalColor::Default {
-                    color: DefaultColor::Background,
-                }))
-            }
-        }
-    }
-}
-
-// -------------------------------------------------------------------------------------
-
-/// Create a new, empty [`Stylist`].
-///
-/// This convenience function is equivalent to `Stylist::new()`.
+/// Create a new stylist, i.e., style builder.
 #[cfg_attr(feature = "pyffi", pyfunction)]
-pub fn stylist() -> Stylist {
+pub const fn stylist() -> Stylist {
     Stylist::new()
 }
 
-/// A stylist is a builder for fluently assembling styles from style tokens.
-///
-///
-/// # Uniqueness and Order of Style Tokens
-///
-/// This struct makes *no* guarantees about the order of style tokens in the
-/// built style, except that, if the style includes a reset token, that reset
-/// token is the first one. Otherwise, the implementation of this struct is free
-/// to reorder tokens as it sees fit. It does, however, guarantee that the
-/// resulting style contains at most one reset token, format token, foreground
-/// color, and background color each.
-#[cfg_attr(feature = "pyffi", pyclass(eq, module = "prettypretty.color.style"))]
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// A stylist is a builder of styles.
+#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.style"))]
+#[derive(Clone, Debug, Default)]
 pub struct Stylist {
-    tokens: RefCell<Vec<StyleToken>>,
+    data: RefCell<StyleData>,
 }
 
 #[cfg(feature = "pyffi")]
@@ -247,9 +116,9 @@ impl Stylist {
     #[pyo3(name = "foreground")]
     pub fn py_foreground(
         slf: PyRef<'_, Self>,
-        #[pyo3(from_py_with = "crate::style::into_terminal_color")] color: TerminalColor,
+        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
     ) -> PyRef<'_, Self> {
-        slf.foreground(color);
+        slf.foreground(colorant);
         slf
     }
 
@@ -257,35 +126,36 @@ impl Stylist {
     #[pyo3(name = "background")]
     pub fn py_background(
         slf: PyRef<'_, Self>,
-        #[pyo3(from_py_with = "crate::style::into_terminal_color")] color: TerminalColor,
+        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
     ) -> PyRef<'_, Self> {
-        slf.background(color);
-        slf
-    }
-
-    /// Push a high-resolution foreground color onto this style builder.
-    #[pyo3(name = "hires_foreground")]
-    pub fn py_hires_foreground(slf: PyRef<'_, Self>, color: Color) -> PyRef<'_, Self> {
-        slf.hires_foreground(color);
-        slf
-    }
-
-    /// Push a high-resolution background color onto this style builder.
-    #[pyo3(name = "hires_background")]
-    pub fn py_hires_background(slf: PyRef<'_, Self>, color: Color) -> PyRef<'_, Self> {
-        slf.hires_background(color);
+        slf.background(colorant);
         slf
     }
 
     /// Finish building and return a new style.
     ///
-    /// This method creates a new style with this builder's style tokens. To
-    /// avoid unnecessary allocations, it moves the list of tokens into the
-    /// returned struct while leaving an empty vector behind.
-    pub fn go(&self) -> Style {
+    /// This method moves the builder's data into the new style and leaves an
+    /// empty builder behind.
+    pub fn et_voila(&self) -> Style {
         Style {
-            tokens: Arc::new(self.tokens.take()),
+            data: self.data.take(),
         }
+    }
+
+    /// Finish building and return a new style.
+    ///
+    /// This method moves the builder's data into the new style and leaves an
+    /// empty builder behind.  Consider using [`Stylist::et_voila`] instead.
+    pub fn build(&self) -> Style {
+        Style {
+            data: self.data.take(),
+        }
+    }
+
+    /// Render a debug representation of this stylist. <i
+    /// class=python-only>Python only!</i>
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
     }
 }
 
@@ -293,225 +163,142 @@ impl Stylist {
     /// Create a new style builder.
     pub const fn new() -> Self {
         Self {
-            tokens: RefCell::new(Vec::new()),
+            data: RefCell::new(StyleData {
+                reset: false,
+                format: None,
+                foreground: None,
+                background: None,
+            }),
         }
     }
 
-    /// Create a new style builder with a reset token as its first token.
+    /// Create a new style builder for a style that resets the terminal
+    /// appearance.
     pub fn with_reset() -> Self {
         Self {
-            tokens: RefCell::new(vec![StyleToken::Reset()]),
+            data: RefCell::new(StyleData {
+                reset: true,
+                format: None,
+                foreground: None,
+                background: None,
+            }),
         }
-    }
-
-    /// Retrieve or create a format to modify.
-    ///
-    /// This method is intentionally private!
-    ///
-    /// If any style token is a format, this method removes the format from this
-    /// style builder and returns it. Otherwise, it creates a new, empty format.
-    /// In either case, the expectation is that the caller updates the format
-    /// and adds it back onto this style builder. This method may reorder this
-    /// style builder's tokens.
-    fn latest_format(&self, tokens: &mut Vec<StyleToken>) -> Format {
-        for index in 0..tokens.len() {
-            if let StyleToken::Format(format) = tokens[index] {
-                tokens.swap_remove(index);
-                return format;
-            }
-        }
-
-        Format::new()
     }
 
     /// Add bold formatting to this style builder.
-    ///
-    /// If the latest style is formatting, this method modifies the latest
-    /// style. Otherwise, it pushes new formatting onto this style collection.
     pub fn bold(&self) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        let format = self.latest_format(&mut tokens);
-        tokens.push(StyleToken::Format(format.bold()));
+        let mut data = self.data.borrow_mut();
+        data.format = Some(data.format.unwrap_or_default().bold());
         self
     }
 
     /// Add thin formatting to this style builder.
-    ///
-    /// If the latest style is formatting, this method modifies the latest
-    /// style. Otherwise, it pushes new formatting onto this style builder.
     pub fn thin(&self) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        let formatting = self.latest_format(&mut tokens);
-        tokens.push(StyleToken::Format(formatting.thin()));
+        let mut data = self.data.borrow_mut();
+        data.format = Some(data.format.unwrap_or_default().thin());
         self
     }
 
     /// Add italic formatting to this style builder.
-    ///
-    /// If the latest style is formatting, this method modifies the latest
-    /// style. Otherwise, it pushes new formatting onto this style builder.
     pub fn italic(&self) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        let formatting = self.latest_format(&mut tokens);
-        tokens.push(StyleToken::Format(formatting.italic()));
+        let mut data = self.data.borrow_mut();
+        data.format = Some(data.format.unwrap_or_default().italic());
         self
     }
 
     /// Add underlined formatting to this style builder.
-    ///
-    /// If the latest style is formatting, this method modifies the latest
-    /// style. Otherwise, it pushes new formatting onto this style builder.
     pub fn underlined(&self) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        let formatting = self.latest_format(&mut tokens);
-        tokens.push(StyleToken::Format(formatting.underlined()));
+        let mut data = self.data.borrow_mut();
+        data.format = Some(data.format.unwrap_or_default().underlined());
         self
     }
 
     /// Add blinking formatting to this style builder.
-    ///
-    /// If the latest style is formatting, this method modifies the latest
-    /// style. Otherwise, it pushes new formatting onto this style builder.
     pub fn blinking(&self) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        let formatting = self.latest_format(&mut tokens);
-        tokens.push(StyleToken::Format(formatting.blinking()));
+        let mut data = self.data.borrow_mut();
+        data.format = Some(data.format.unwrap_or_default().blinking());
         self
     }
 
     /// Add reversed formatting to this style builder.
-    ///
-    /// If the latest style is formatting, this method modifies the latest
-    /// style. Otherwise, it pushes new formatting onto this style builder.
     pub fn reversed(&self) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        let formatting = self.latest_format(&mut tokens);
-        tokens.push(StyleToken::Format(formatting.reversed()));
+        let mut data = self.data.borrow_mut();
+        data.format = Some(data.format.unwrap_or_default().reversed());
         self
     }
 
     /// Add hidden formatting to this style builder.
-    ///
-    /// If the latest style is formatting, this method modifies the latest
-    /// style. Otherwise, it pushes new formatting onto this style builder.
     pub fn hidden(&self) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        let formatting = self.latest_format(&mut tokens);
-        tokens.push(StyleToken::Format(formatting.hidden()));
+        let mut data = self.data.borrow_mut();
+        data.format = Some(data.format.unwrap_or_default().hidden());
         self
     }
 
     /// Add stricken formatting to this style builder.
-    ///
-    /// If the latest style is formatting, this method modifies the latest
-    /// style. Otherwise, it pushes new formatting onto this style builder.
     pub fn stricken(&self) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        let formatting = self.latest_format(&mut tokens);
-        tokens.push(StyleToken::Format(formatting.stricken()));
+        let mut data = self.data.borrow_mut();
+        data.format = Some(data.format.unwrap_or_default().stricken());
         self
     }
 
-    /// Remove an existing foreground style token.
-    ///
-    /// This method is intentionally private!
-    ///
-    /// This method removes an existing foreground style token, whether
-    /// high-resolution or otherwise, from this style builder. The expectation
-    /// is that the caller adds a different foreground style token onto this
-    /// style builder. This method may reorder this style builder's tokens.
-    fn remove_foreground(&self, tokens: &mut Vec<StyleToken>) {
-        for index in 0..tokens.len() {
-            match tokens[index] {
-                StyleToken::Foreground(_) | StyleToken::HiResForeground(_) => {
-                    tokens.swap_remove(index);
-                    return;
-                }
-                _ => (),
-            }
-        }
-    }
-
-    /// Remove an existing background style token.
-    ///
-    /// This method is intentionally private!
-    ///
-    /// This method removes an existing background style token, whether
-    /// high-resolution or otherwise, from this style builder. The expectation
-    /// is that the caller adds a different background style token onto this
-    /// style builder. This method may reorder this style builder's tokens.
-    fn remove_background(&self, tokens: &mut Vec<StyleToken>) {
-        for index in 0..tokens.len() {
-            match tokens[index] {
-                StyleToken::Foreground(_) | StyleToken::HiResForeground(_) => {
-                    tokens.swap_remove(index);
-                    return;
-                }
-                _ => (),
-            }
-        }
-    }
-
-    /// Push a foreground color onto this style builder.
-    pub fn foreground(&self, color: impl Into<TerminalColor>) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        self.remove_foreground(&mut tokens);
-        tokens.push(StyleToken::Foreground(color.into()));
+    /// Add a foreground color to this style builder.
+    pub fn foreground(&self, color: impl Into<Colorant>) -> &Self {
+        let mut data = self.data.borrow_mut();
+        data.foreground = Some(color.into());
         self
     }
 
-    /// Push a background color onto this style builder.
-    pub fn background(&self, color: impl Into<TerminalColor>) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        self.remove_background(&mut tokens);
-        tokens.push(StyleToken::Background(color.into()));
-        self
-    }
-
-    /// Push a high-resolution foreground color onto this style builder.
-    pub fn hires_foreground(&self, color: Color) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        self.remove_foreground(&mut tokens);
-        tokens.push(StyleToken::HiResForeground(color));
-        self
-    }
-
-    /// Push a high-resolution background color oto this style builder.
-    pub fn hires_background(&self, color: Color) -> &Self {
-        let mut tokens = self.tokens.borrow_mut();
-        self.remove_background(&mut tokens);
-        tokens.push(StyleToken::HiResBackground(color));
+    /// Add a background color to this style builder.
+    pub fn background(&self, color: impl Into<Colorant>) -> &Self {
+        let mut data = self.data.borrow_mut();
+        data.background = Some(color.into());
         self
     }
 
     /// Finish building and return a new style.
     ///
-    /// This method creates a new style with this builder's style tokens. To
-    /// avoid unnecessary allocations, it moves the list of tokens into the
-    /// returned struct while leaving an empty vector behind.
+    /// This method moves the builder's data into the new style and leaves an
+    /// empty builder behind.
     #[cfg(not(feature = "pyffi"))]
-    pub fn go(&self) -> Style {
+    pub fn et_voila(&self) -> Style {
         Style {
-            tokens: Arc::new(self.tokens.take()),
+            data: self.data.take(),
+        }
+    }
+
+    /// Finish building and return a new style.
+    ///
+    /// This method moves the builder's data into the new style and leaves an
+    /// empty builder behind.  Consider using [`Stylist::et_voila`] instead.
+    #[cfg(not(feature = "pyffi"))]
+    pub fn build(&self) -> Style {
+        Style {
+            data: self.data.take(),
         }
     }
 }
 
-// -------------------------------------------------------------------------------------
+// ================================================================================================
 
-/// A combination of styles.
+/// A terminal style combines an appearance reset and text format with
+/// foreground and background colors.
+///
+/// All four components are optional. In fact, use of the appearance reset
+/// should be exceptional.
 #[cfg_attr(
     feature = "pyffi",
-    pyclass(eq, frozen, module = "prettypretty.color.style")
+    pyclass(eq, frozen, hash, module = "prettypretty.color.style")
 )]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Style {
-    tokens: Arc<Vec<StyleToken>>,
+    data: StyleData,
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl Style {
     /// Create a new style builder.
+    ///
+    /// Consider using [`stylist()`] instead.
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn builder() -> Stylist {
@@ -520,62 +307,116 @@ impl Style {
 
     /// Determine whether this style is empty.
     pub fn is_empty(&self) -> bool {
-        self.tokens.len() == 0
+        !self.data.reset
+            && self.data.format.is_none()
+            && self.data.foreground.is_none()
+            && self.data.background.is_none()
     }
 
-    /// Get an iterator over the style's tokens.
-    pub fn tokens(&self) -> TokenIterator {
-        TokenIterator {
-            tokens: self.tokens.clone(),
-            index: 0,
-        }
+    /// Determine whether this style resets the terminal's appearance
+    pub fn has_reset(&self) -> bool {
+        self.data.reset
+    }
+
+    /// Get this style's format.
+    pub fn format(&self) -> Option<Format> {
+        self.data.format
     }
 
     /// Determine whether this style includes color.
     pub fn has_color(&self) -> bool {
-        for token in self.tokens() {
-            if token.is_color() {
-                return true;
-            }
-        }
-        false
+        self.data.foreground.is_some() || self.data.background.is_some()
     }
 
-    /// Determine this style's fidelity, which is the maximum fidelity of all
-    /// style tokens.
+    /// Determine this style's foreground color.
+    #[cfg(feature = "pyffi")]
+    #[pyo3(name = "foreground")]
+    pub fn py_foreground(&self) -> Option<Colorant> {
+        self.data.foreground.clone()
+    }
+
+    /// Determine this style's background color.
+    #[cfg(feature = "pyffi")]
+    #[pyo3(name = "background")]
+    pub fn py_background(&self) -> Option<Colorant> {
+        self.data.background.clone()
+    }
+
+    /// Determine this style's fidelity.
+    ///
+    /// This method computes the maximum fidelity of the fidelities implied by
+    /// this style's reset flag, format, foreground color, and background color.
     pub fn fidelity(&self) -> Fidelity {
-        self.tokens
-            .iter()
-            .map(StyleToken::fidelity)
-            .max()
-            .unwrap_or(Fidelity::Plain)
+        *if self.data.reset {
+            Some(Fidelity::NoColor)
+        } else {
+            None
+        }
+        .iter()
+        .chain(self.data.format.map(|_| Fidelity::NoColor).iter())
+        .chain(self.data.foreground.as_ref().map(|c| c.into()).iter())
+        .chain(self.data.background.as_ref().map(|c| c.into()).iter())
+        .max()
+        .unwrap_or(&Fidelity::Plain)
     }
 
     /// Cap this style to the given fidelity.
-    ///
-    /// If the fidelity is [`Fidelity::Plain`], this method strips the style of
-    /// all tokens that require ANSI escape sequences for implementation (which
-    /// currently is all). Otherwise, it adjusts colors with the given
-    /// translator.
     pub fn cap(&self, fidelity: Fidelity, translator: &Translator) -> Self {
-        let tokens = self
-            .tokens()
-            .filter_map(|t| t.cap(fidelity, translator))
-            .collect();
+        let reset = if matches!(fidelity, Fidelity::Plain) {
+            false
+        } else {
+            self.data.reset
+        };
+        let format = self.data.format.and_then(|f| f.cap(fidelity));
+        let foreground = self
+            .data
+            .foreground
+            .clone()
+            .and_then(|c| translator.cap(c, fidelity));
+        let background = self
+            .data
+            .background
+            .clone()
+            .and_then(|c| translator.cap(c, fidelity));
 
-        Style {
-            tokens: Arc::new(tokens),
+        Self {
+            data: StyleData {
+                reset,
+                format,
+                foreground,
+                background,
+            },
         }
     }
 
     /// Get the SGR parameters for this style.
     pub fn sgr_parameters(&self) -> Vec<u8> {
-        let mut parameters = Vec::new();
-        for token in self.tokens() {
-            parameters.append(&mut token.sgr_parameters())
-        }
-
-        parameters
+        if self.data.reset { Some(0_u8) } else { None }
+            .into_iter()
+            .chain(
+                self.data
+                    .format
+                    .map(|f| f.sgr_parameters())
+                    .into_iter()
+                    .flatten(),
+            )
+            .chain(
+                self.data
+                    .foreground
+                    .as_ref()
+                    .and_then(|c| c.sgr_parameters(Layer::Foreground))
+                    .into_iter()
+                    .flatten(),
+            )
+            .chain(
+                self.data
+                    .background
+                    .as_ref()
+                    .and_then(|c| c.sgr_parameters(Layer::Background))
+                    .into_iter()
+                    .flatten(),
+            )
+            .collect()
     }
 
     /// Invert this style. <i class=python-only>Python only!</i>
@@ -583,123 +424,78 @@ impl Style {
     pub fn __invert__(&self) -> Self {
         !self
     }
-}
 
-#[cfg(not(feature = "pyffi"))]
-impl Style {
-    /// Create a new style builder.
-    pub fn builder() -> Stylist {
-        Stylist::new()
+    /// Render a debug representation of this style. <i class=python-only>Python
+    /// only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    /// Render this style as an ANSI SGR escape sequence. <i
+    /// class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __str__(&self) -> String {
+        format!("{}", self)
     }
 }
 
-impl std::ops::Not for Style {
-    type Output = Self;
+impl Style {
+    /// Create a new style builder.
+    ///
+    /// Consider using [`stylist`] instead.
+    #[cfg(not(feature = "pyffi"))]
+    pub fn builder() -> Stylist {
+        Stylist::new()
+    }
+
+    /// Determine this style's foreground color.
+    pub fn foreground(&self) -> Option<&Colorant> {
+        self.data.foreground.as_ref()
+    }
+
+    /// Determine this style's background color.
+    pub fn background(&self) -> Option<&Colorant> {
+        self.data.background.as_ref()
+    }
+}
+
+impl std::ops::Not for &Style {
+    type Output = Style;
 
     /// Negate this style.
     ///
     /// This method returns the style to restore the terminal's default
     /// appearance from this style, which may be empty.
     fn not(self) -> Self::Output {
-        let tokens = self.tokens().filter_map(|t| !t).collect();
-
         Style {
-            tokens: Arc::new(tokens),
+            data: StyleData {
+                reset: false,
+                format: self.data.format.map(|f| !f),
+                foreground: self.data.foreground.as_ref().and_then(|c| !c),
+                background: self.data.background.as_ref().and_then(|c| !c),
+            },
         }
     }
 }
 
-// -------------------------------------------------------------------------------------
+impl std::ops::Not for Style {
+    type Output = Style;
 
-/// An iterator over a style's tokens.
-#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.style"))]
-#[derive(Debug)]
-pub struct TokenIterator {
-    tokens: Arc<Vec<StyleToken>>,
-    index: usize,
-}
-
-#[cfg(feature = "pyffi")]
-#[pymethods]
-impl TokenIterator {
-    /// Access this iterator. <i class=python-only>Python only!</i>
-    pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
-        slf
-    }
-
-    /// Get the next style token. <i class=python-only>Python only!</i>
-    #[cfg(feature = "pyffi")]
-    pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<StyleToken> {
-        slf.next()
+    fn not(self) -> Self::Output {
+        !(&self)
     }
 }
 
-impl Iterator for TokenIterator {
-    type Item = StyleToken;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.tokens.len() <= self.index {
-            None
-        } else {
-            self.index += 1;
-            Some(self.tokens[self.index - 1].clone())
-        }
-    }
-}
-
-// -------------------------------------------------------------------------------------
-
-/// The definition of rich text.
-#[cfg_attr(
-    feature = "pyffi",
-    pyclass(eq, frozen, hash, module = "prettypretty.color.style")
-)]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct RichText {
-    style: Style,
-    text: String,
-}
-
-#[cfg_attr(feature = "pyffi", pymethods)]
-impl RichText {
-    pub fn fidelity(&self) -> Fidelity {
-        self.style.fidelity()
-    }
-
-    pub fn text(&self) -> &str {
-        &self.text
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::{stylist, StyleToken};
-    use crate::style::{format::Format, AnsiColor, TerminalColor};
-
-    #[test]
-    fn test_stylist() {
-        let bold_red = stylist()
-            .bold()
-            .underlined()
-            .foreground(AnsiColor::Red)
-            .go();
-        for (index, token) in bold_red.tokens().enumerate() {
-            match token {
-                StyleToken::Format(format) => {
-                    assert_eq!(index, 0);
-                    assert_eq!(format, Format::new().bold().underlined());
-                }
-                StyleToken::Foreground(color) => {
-                    assert_eq!(index, 1);
-                    assert_eq!(
-                        color,
-                        TerminalColor::Ansi {
-                            color: AnsiColor::Red
-                        }
-                    );
-                }
-                _ => panic!("unexpected style token {:?}", token),
+impl std::fmt::Display for Style {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("\x1b[")?;
+        for (index, param) in self.sgr_parameters().iter().enumerate() {
+            if 0 < index {
+                f.write_str(";")?;
             }
+            f.write_fmt(format_args!("{}", *param))?;
         }
+        f.write_str("m")
     }
 }
