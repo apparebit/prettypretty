@@ -126,6 +126,35 @@ impl AnsiColor {
             BrightWhite => "bright white",
         }
     }
+
+    /// Get an abbreviation for this ANSI color.
+    ///
+    /// This method returns a two-letter abbreviation for this ANSI color. The
+    /// abbreviations for each pair of nonbright and bright colors only differ
+    /// in case, with the nonbright color's abbreviation in lower case and the
+    /// bright color's abbreviation in upper case.
+    pub fn abbr(&self) -> &'static str {
+        use AnsiColor::*;
+
+        match self {
+            Black => "bk",
+            Red => "rd",
+            Green => "gn",
+            Yellow => "yl",
+            Blue => "bu",
+            Magenta => "mg",
+            Cyan => "cn",
+            White => "wt",
+            BrightBlack => "BK",
+            BrightRed => "RD",
+            BrightGreen => "GN",
+            BrightYellow => "YL",
+            BrightBlue => "BU",
+            BrightMagenta => "MG",
+            BrightCyan => "CN",
+            BrightWhite => "WT",
+        }
+    }
 }
 
 impl TryFrom<u8> for AnsiColor {

@@ -5,7 +5,7 @@ import sys
 
 try:
     import matplotlib.pyplot as plt
-    from matplotlib.ticker import FuncFormatter
+    from matplotlib.ticker import FixedFormatter, FixedLocator, FuncFormatter
 except ImportError:
     print("prettypretty.plot requires matplotlib. Please install the package,")
     print("e.g., by executing `pip install matplotlib`, and then")
@@ -133,6 +133,7 @@ class ColorPlotter:
         # Lightness bars
         self._lightness: list[float] = []
         self._bar_color: list[str] = []
+        self._bar_label: list[None | str] = []
 
         # Counts
         self._colors: set[Color] = set()
@@ -165,7 +166,9 @@ class ColorPlotter:
         self.status("                Color    L        Chroma   Hue    Dup")
         self.status("-----------------------------------------------------")
 
-    def add(self, name: str, color: Color, marker: str = "o") -> None:
+    def add(
+        self, name: str, color: Color, marker: str = "o", label: None | str = None
+    ) -> None:
         # Matplotlib is sRGB only
         hex_color = color.to_hex_format()
 
@@ -195,6 +198,7 @@ class ColorPlotter:
         # Display lightness for *all* non-duplicate colors
         self._lightness.append(lr)
         self._bar_color.append(hex_color)
+        self._bar_label.append(label)
 
         # Handle grays
         if oklrch.is_achromatic_threshold(ColorPlotter.ACHROMATIC_THRESHOLD):
@@ -401,7 +405,7 @@ class ColorPlotter:
         else:
             fig: Any = plt.figure(layout="constrained", figsize=(5, 6.5))  # type: ignore
             axes: Any = fig.add_subplot(6, 10, (1, 50), polar=True)
-            light_axes: Any = fig.add_subplot(6, 10, (52, 59))
+            light_axes: Any = fig.add_subplot(6, 10, (51, 60))
 
         # Add spectrum and gamut boundaries if so requested.
         # if with_spectrum or self._chromaticity:
@@ -484,6 +488,7 @@ class ColorPlotter:
         # Make grid appear below points
         axes.set_axisbelow(True)
 
+        lry_offset = 0
         if not self._chromaticity:
             # Add label for gamut boundaries
             if ColorSpace.Srgb in gamuts:
@@ -506,8 +511,20 @@ class ColorPlotter:
                 edgecolor="#000",
                 linewidth=0.5,
             )
+
             light_axes.set_ylim(0, 1)
-            light_axes.get_xaxis().set_visible(False)
+            light_axes.margins(x=0.02, tight=True)
+
+            if all(l is not None for l in self._bar_label):
+                lry_offset = 0.015
+                light_axes.xaxis.set_major_locator(
+                    FixedLocator([*range(len(self._bar_label))])
+                )
+                light_axes.xaxis.set_major_formatter(
+                    FixedFormatter(self._bar_label) # pyright: ignore [reportArgumentType]
+                )
+            else:
+                light_axes.get_xaxis().set_visible(False)
 
         collection_name = collection_name or self._collection_name
         color_kind = color_kind or self._color_kind or "Colors"
@@ -520,7 +537,11 @@ class ColorPlotter:
         else:
             fig.suptitle(title, ha="left", x=0.044, weight="bold", size=13)
             axes.set_title("Hue & Chroma", style="italic", size=13, x=0.11, y=1.01)
-            fig.text(0.045, 0.085, "Lr", fontdict=dict(style="italic", size=13))
+            fig.text(
+                0.09, 0.185 + lry_offset,
+                "Lightness (Lr)",
+                fontdict=dict(style="italic", size=13)
+            )
 
         return fig
 
@@ -585,11 +606,12 @@ def main() -> None:
                 terminal_id = term.request_terminal_identity()
 
             translator = current_translator()
-            for index in [0, 1, 3, 2, 6, 4, 5, 7]:
-                color = translator.resolve(index)
-                plotter.add(trans.ThemeEntry.try_from_index(index + 2).name(), color)
-                color = translator.resolve(index + 8)
-                plotter.add(trans.ThemeEntry.try_from_index(index + 8 + 2).name(), color)
+            for base_index in [0, 1, 3, 2, 6, 4, 5, 7]:
+                for index in [base_index, base_index + 8]:
+                    color = translator.resolve(index)
+                    name = trans.ThemeEntry.try_from_index(index + 2).name()
+                    label = trans.ThemeEntry.try_from_index(index + 2).abbr()
+                    plotter.add(name, color, label=label)
 
     for color in [Color.parse("#" + c) for c in cast(list[str], options.colors) or []]:
         plotter.add("<extra>", color, marker="d")

@@ -54,6 +54,19 @@ impl ThemeEntry {
             Self::Ansi(color) => color.name(),
         }
     }
+
+    /// Get an abbreviation for this theme entry's name.
+    ///
+    /// This method returns a two-letter abbreviations for this theme entry. See
+    /// [`AnsiColor::abbr`] for a description of the abbreviations for ANSI
+    /// colors.
+    pub fn abbr(&self) -> &'static str {
+        match self {
+            Self::DefaultForeground() => "fg",
+            Self::DefaultBackground() => "bg",
+            Self::Ansi(color) => color.abbr(),
+        }
+    }
 }
 
 impl From<AnsiColor> for ThemeEntry {
