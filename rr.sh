@@ -125,9 +125,8 @@ fi
 
 if [ -x "$(command -v brew)" ]; then
     PACKAGE_MANAGER=Homebrew
-    package_update_all() {
+    package_update_manager() {
         brew update
-        brew upgrade
     }
     package_show_name() {
         echo "$1"
@@ -143,9 +142,8 @@ if [ -x "$(command -v brew)" ]; then
     }
 elif [ -x "$(command -v apt-get)" ]; then
     PACKAGE_MANAGER=APT
-    package_update_all() {
+    package_update_manager() {
         sudo apt-get -y update
-        sudo apt-get -y upgrade
     }
     package_show_name() {
         case "$1" in
@@ -167,25 +165,21 @@ elif [ -x "$(command -v apt-get)" ]; then
 else
     # Delay any error until the install option is selected.
     PACKAGE_MANAGER=""
-    package_update_all() {
+    package_update_manager() {
         log ERROR "Could not find apt-get (APT) or brew (Homebrew) package manager!"
         exit 1
     }
     package_show_name() {
-        log ERROR "Could not find apt-get (APT) or brew (Homebrew) package manager!"
-        exit 1
+        package_update_manager
     }
     package_show_extras() {
-        log ERROR "Could not find apt-get (APT) or brew (Homebrew) package manager!"
-        exit 1
+        package_update_manager
     }
     package_is_installed() {
-        log ERROR "Could not find apt-get (APT) or brew (Homebrew) package manager!"
-        exit 1
+        package_update_manager
     }
     package_install() {
-        log ERROR "Could not find apt-get (APT) or brew (Homebrew) package manager!"
-        exit 1
+        package_update_manager
     }
 fi
 
@@ -207,9 +201,27 @@ install_tool() (
     fi
 )
 
+# -----------------------------------------------------------------------------------------------------------
+
+python_dependencies() {
+    extra="$1"
+    ./.venv/bin/python -c "$(cat <<EOT
+import sys
+import tomllib
+try:
+    with open("pyproject.toml", mode="rb") as file:
+        deps = tomllib.load(file)["project"]["optional-dependencies"]
+        print(" ".join(deps["$extra"]))
+except Exception as x:
+    print(str(x), file=sys.stderr)
+EOT
+)"
+}
+
 install() {
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Binary Packages
     print_header "Updating $PACKAGE_MANAGER and installed packages"
-    package_update_all
+    package_update_manager
     >&2 echo
 
     for tool_name in git curl node python3; do
@@ -224,6 +236,7 @@ install() {
         fi
     done
 
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Rust Tooling
     should_restart=false
     if [ ! -x "$(command -v rustup)" ]; then
         # Rustup modifies .profile, .bashrc,... to source $HOME/.cargo/env,
@@ -243,12 +256,23 @@ install() {
         run cargo install --locked "$tool"
     done
 
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Python Packages
     if [ -d ./.venv ]; then
-        log TRACE "Skipping creation of already existing virtual env in ${UNDERLINE}.venv${NOLINE}"
+        log TRACE "Skipping creation of existing virtual env in ${UNDERLINE}.venv${NOLINE}"
     else
         run python3 -m venv .venv
     fi
 
+    print_header "Install or upgrade Python packages"
+    ./.venv/bin/python -m pip install --upgrade pip
+    # shellcheck disable=SC2046
+    ./.venv/bin/python -m pip install --upgrade $(python_dependencies dev) $(python_dependencies viz)
+    echo
+
+    print_header "Install Pyright (via npm)"
+    npm install
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Done!
     if "${should_restart}"; then
         log WARNING "Please restart your current shell to pick up changes to PATH"
     fi

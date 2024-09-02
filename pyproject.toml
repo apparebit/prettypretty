@@ -45,7 +45,10 @@ dev = [
     "sphinx-copybutton",
     "sphinx_design",
     "sphinx-rtd-theme",
+]
+viz = [
     "matplotlib",
+    "vedo",
 ]
 
 
