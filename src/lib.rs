@@ -37,21 +37,29 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     conversion between color spaces, interpolation between colors,
 //!     calculation of perceptual contrast, as well as gamut testing, clipping,
 //!     and mapping.
-//!   * The [`style`] module models **terminal colors** and other **text
-//!     formats**. Fluently assembling a style is as easy as invoking
-//!     [`style::stylist()`], followed by some number of methods for colors and
-//!     formats, and then `go()`. However, enabling this high-level interface
-//!     requires a surprising number of types. Notably, the
-//!     [`TerminalColor`](crate::style::TerminalColor) enum combines, in order
-//!     from lowest to highest resolution,
-//!     [`DefaultColor`](crate::style::DefaultColor),
-//!     [`AnsiColor`](crate::style::AnsiColor),
-//!     [`EmbeddedRgb`](crate::style::EmbeddedRgb),
-//!     [`GrayGradient`](crate::style::GrayGradient), and
-//!     [`TrueColor`](crate::style::TrueColor). A good many `From` and `FromTry`
-//!     implementations cover color conversions that only change representation.
+//!   * The [`style`] module's primary abstraction, [`Style`](style::Style),
+//!     models **terminal appearance** as a text
+//!     [`Format`](style::format::Format) combined with a foreground and
+//!     background [`Colorant`](style::Colorant)s. The latter maximizes
+//!     expressivity by combining the terminal-specific color formats
+//!     [`AnsiColor`](style::AnsiColor), [`EmbeddedRgb`](style::EmbeddedRgb),
+//!     [`GrayGradient`](style::GrayGradient), and
+//!     [`TrueColor`](style::TrueColor) with high-resolution [`Color`].
+//!
+//!     **Using styles** is simple:
+//!
+//!       * Fluently assemble a style with
+//!         [`Style::builder`](style::Style::builder) or
+//!         [`stylist`](style::stylist()).
+//!       * Adjust the style to terminal capabilities with
+//!         [`Style::cap`](style::Style::cap).
+//!       * Apply the style by displaying it, e.g., `print!("{}",style)`.
+//!       * Undo the style by displaying its negation, e.g.,
+//!         `print!("{}",!style)`.
+//!
 //!   * The [`trans`] module's [`Translator`](crate::trans::Translator)
-//!     implements more **complicated color conversions**, notably conversion
+//!     implements **stateful and lossy translation** between color formats,
+//!      **color conversions**, notably conversion
 //!     between ANSI/8-bit colors and high-resolution colors. Amongst these
 //!     conversions, translation from high-resolution to ANSI colors is
 //!     particularly challenging, as it requires mapping a practically infinite
@@ -153,8 +161,8 @@ pub type Bits = u32;
 mod core;
 pub mod error;
 pub mod gamut {
-    //! The machinery for traversing RGB gamut boundaries with
-    //! [`ColorSpace::gamut`](crate::ColorSpace).
+    //! Utility module with the machinery for traversing RGB gamut boundaries
+    //! with [`ColorSpace::gamut`](crate::ColorSpace).
     pub use crate::core::{GamutTraversal, GamutTraversalStep};
 }
 mod object;
@@ -241,18 +249,14 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modstyle = PyModule::new_bound(m.py(), "style")?;
     modstyle.add("__package__", modcolor_name)?;
     modstyle.add_class::<crate::style::AnsiColor>()?;
-    modstyle.add_class::<crate::style::DefaultColor>()?;
+    modstyle.add_class::<crate::style::Colorant>()?;
     modstyle.add_class::<crate::style::EmbeddedRgb>()?;
     modstyle.add_class::<crate::style::Fidelity>()?;
     modstyle.add_class::<crate::style::GrayGradient>()?;
     modstyle.add_class::<crate::style::Layer>()?;
-    modstyle.add_class::<crate::style::RichText>()?;
     modstyle.add_function(wrap_pyfunction!(crate::style::stylist, m)?)?;
     modstyle.add_class::<crate::style::Style>()?;
     modstyle.add_class::<crate::style::Stylist>()?;
-    modstyle.add_class::<crate::style::StyleToken>()?;
-    modstyle.add_class::<crate::style::TerminalColor>()?;
-    modstyle.add_class::<crate::style::TokenIterator>()?;
     modstyle.add_class::<crate::style::TrueColor>()?;
     m.add_submodule(&modstyle)?;
 
