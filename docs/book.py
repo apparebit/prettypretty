@@ -64,7 +64,7 @@ def test1() -> None:
 
 
 def test2() -> None:
-    print('Testing file "docs/src/overview/integration.md", line 211, chapter "Accommodating All Colors"',
+    print('Testing file "docs/src/overview/integration.md", line 215, chapter "Accommodating All Colors"',
         file=sys.stderr)
     
     from prettypretty.color import Color, OkVersion
