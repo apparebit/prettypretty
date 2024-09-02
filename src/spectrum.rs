@@ -1,4 +1,5 @@
-//! The spectral distributions for CIE standard observers and illuminants.
+//! Utility module with the spectral distributions for CIE standard observers
+//! and illuminants.
 //!
 //!   * [`Illuminant`] and [`Observer`] define a simple **interface to data**
 //!     from the corresponding spectral distributions at 1nm resolution.

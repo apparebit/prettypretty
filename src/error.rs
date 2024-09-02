@@ -1,4 +1,4 @@
-//! Prettypretty's errors. <i class=rust-only>Rust only!</i>
+//! Utility module with prettypretty's errors. <i class=rust-only>Rust only!</i>
 
 #[cfg(feature = "pyffi")]
 use pyo3::{exceptions::PyValueError, prelude::*};

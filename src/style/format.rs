@@ -154,6 +154,13 @@ impl AllAttributes {
     pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<Attribute> {
         slf.next()
     }
+
+    /// Get a debug representation for this iterator. <i
+    /// class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
 }
 
 impl Iterator for AllAttributes {

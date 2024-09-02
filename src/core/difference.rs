@@ -103,8 +103,9 @@ fn prepare_coordinate_interpolation(
     intermediate
 }
 
-/// A strategy for interpolating hues used by
-/// [`Color::interpolate`](crate::Color::interpolate).
+/// A choice of strategy for interpolating hues.
+///
+/// This enum is used by [`Color::interpolate`](crate::Color::interpolate).
 ///
 /// Since hues are expressed as angles, the same perceptual hue has an infinite
 /// number of representations modulo 360. Furthermore, there are two ways of
