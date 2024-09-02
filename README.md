@@ -88,7 +88,7 @@ starting point for familiarizing yourself with prettypretty are the scripts:
     defaulting to your terminal's current color scheme. Here's the one for the
     basic theme in Apple's Terminal.app:
 
-    <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/terminal.app-basic.svg"
+    <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/src/deepdive/colortheme/terminal.app-colors.svg"
          alt="colors from the basic theme for Apple's Terminal.app in Oklch" width=300px>
 
   * [prettypretty.grid](https://github.com/apparebit/prettypretty/blob/main/prettypretty/grid.py)
