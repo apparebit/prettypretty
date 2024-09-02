@@ -1,3 +1,5 @@
+"""Utility module for visualizing the human visual gamut."""
+
 from typing import Self
 
 

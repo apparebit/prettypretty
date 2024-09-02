@@ -1,27 +1,26 @@
-from typing import Self
+"""Utility module for traversing the boundary of a color space's gamut."""
+
+from typing import ClassVar, Self
 
 from . import Color
 
 class GamutTraversalStep_MoveTo(GamutTraversalStep):
     """Start new path by moving to color coordinates."""
-    pass
 
 
 class GamutTraversalStep_LineTo(GamutTraversalStep):
     """Continue path by drawing line to color coordinates."""
-    pass
 
 
 class GamutTraversalStep_CloseWith(GamutTraversalStep):
     """Close path by drawing line to color coordinates."""
-    pass
 
 
 class GamutTraversalStep:
     """A step along a path during gamut boundary traversal."""
-    MoveTo = GamutTraversalStep_MoveTo
-    LineTo = GamutTraversalStep_LineTo
-    CloseWith = GamutTraversalStep_CloseWith
+    MoveTo: ClassVar[type[GamutTraversalStep]] = GamutTraversalStep_MoveTo
+    LineTo: ClassVar[type[GamutTraversalStep]] = GamutTraversalStep_LineTo
+    CloseWith: ClassVar[type[GamutTraversalStep]] = GamutTraversalStep_CloseWith
 
     def color(self) -> Color: ...
     def __repr__(self) -> str: ...

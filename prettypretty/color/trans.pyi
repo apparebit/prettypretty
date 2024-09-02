@@ -1,26 +1,34 @@
 from collections.abc import Iterator, Sequence
-from typing import Self
+from typing import ClassVar, Self
 
-from . import Color, OkVersion, style
-
+from . import Color, OkVersion
+from .style import (
+    AnsiColor, Colorant, EmbeddedRgb, Fidelity, GrayGradient, Layer, TrueColor
+)
 
 VGA_COLORS: list[Color] =  ...
 
 
-class ThemeEntry_Default(ThemeEntry):
+class ThemeEntry_DefaultForeground(ThemeEntry):
     """A theme entry for one of the default colors."""
-    def __new__(cls, color: style.DefaultColor) -> Self: ...
+    def __new__(cls) -> Self: ...
+
+
+class ThemeEntry_DefaultBackground(ThemeEntry):
+    """A theme entry for one of the default colors."""
+    def __new__(cls) -> Self: ...
 
 
 class ThemeEntry_Ansi(ThemeEntry):
     """A theme entry for one of the ANSI colors."""
-    def __new__(cls, color: style.AnsiColor) -> Self: ...
+    def __new__(cls, color: AnsiColor) -> Self: ...
 
 
 class ThemeEntry:
     """The 18 colors in a theme."""
-    Default = ThemeEntry_Default
-    Ansi = ThemeEntry_Ansi
+    DefaultForeground: ClassVar[type[ThemeEntry]] = ThemeEntry_DefaultForeground
+    DefaultBackground: ClassVar[type[ThemeEntry]] = ThemeEntry_DefaultBackground
+    Ansi: ClassVar[type[ThemeEntry]] = ThemeEntry_Ansi
 
     @staticmethod
     def try_from_index(index: int) -> ThemeEntry: ...
@@ -47,29 +55,28 @@ class Translator:
     # Translate terminal to high-resolution colors
     def resolve(
         self,
-        color: (
-            style.TerminalColor | style.DefaultColor | style.AnsiColor | style.EmbeddedRgb
-            | style.GrayGradient | style.TrueColor | int
-        ),
+        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+    ) -> Color: ...
+    def resolve_all(
+        self,
+        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        layer: Layer,
     ) -> Color: ...
 
     # Translate high-resolution to ANSI colors
     def to_ansi(self, color: Color) -> Color: ...
     def supports_hue_lightness(self) -> bool: ...
-    def to_ansi_hue_lightness(self, color: Color) -> None | style.AnsiColor: ...
-    def to_closest_ansi(self, color: Color) -> style.AnsiColor: ...
-    def to_ansi_rgb(self, color: Color) -> style.AnsiColor: ...
+    def to_ansi_hue_lightness(self, color: Color) -> None | AnsiColor: ...
+    def to_closest_ansi(self, color: Color) -> AnsiColor: ...
+    def to_ansi_rgb(self, color: Color) -> AnsiColor: ...
 
     # Translate high-resolution to 8-bit colors
-    def to_closest_8bit(self, color: Color) -> style.TerminalColor: ...
-    def to_closest_8bit_with_ansi(self, color: Color) -> style.TerminalColor: ...
+    def to_closest_8bit(self, color: Color) -> Colorant: ...
+    def to_closest_8bit_with_ansi(self, color: Color) -> Colorant: ...
 
     # Cap terminal colors
     def cap(
         self,
-        color: (
-            style.TerminalColor | style.DefaultColor | style.AnsiColor | style.EmbeddedRgb
-            | style.GrayGradient | style.TrueColor | int
-        ),
-        fidelity: style.Fidelity
-    ) -> None | style.TerminalColor: ...
+        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        fidelity: Fidelity,
+    ) -> None | Colorant: ...
