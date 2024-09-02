@@ -74,6 +74,27 @@ impl Attribute {
         AllAttributes(0)
     }
 
+    /// Get the attribute's human-readable name.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Bold => "bold",
+            Thin => "thin",
+            Italic => "italic",
+            Underlined => "underlined",
+            Blinking => "blinking",
+            Reversed => "reversed",
+            Hidden => "hidden",
+            Stricken => "stricken",
+            NotBoldOrThin => "neither bold nor thin",
+            NotItalic => "not italic",
+            NotUnderlined => "not underlined",
+            NotBlinking => "not blinking",
+            NotReversed => "not reversed",
+            NotHidden => "not hidden",
+            NotStricken => "not stricken",
+        }
+    }
+
     /// Get the SGR parameter for this text attribute.
     pub fn sgr_parameter(&self) -> u8 {
         match self {
@@ -371,6 +392,13 @@ impl Format {
     #[cfg(feature = "pyffi")]
     pub fn __sub__(&self, other: &Self) -> Self {
         *self - *other
+    }
+
+    /// Convert this format to its debug representation. <i
+    /// class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
     }
 }
 
