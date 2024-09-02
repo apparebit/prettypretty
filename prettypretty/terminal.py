@@ -24,9 +24,8 @@ from typing import (
 from .ansi import Ansi, RawAnsi
 from .color import Color, trans # pyright: ignore [reportMissingModuleSource]
 from .color.style import ( # pyright: ignore [reportMissingModuleSource]
-    Colorant, Fidelity, Layer, Style, TrueColor
+    AnsiColor, Colorant, EmbeddedRgb, Fidelity, GrayGradient, Layer, Style, TrueColor
 )
-from .color_types import IntoColorant
 from .theme import new_theme, current_translator
 from .ident import identify_terminal, normalize_terminal_name
 
@@ -1219,11 +1218,15 @@ class Terminal:
     def fg(self, color: Color, /) -> Self:
         ...
     @overload
-    def fg(self, color: IntoColorant, /) -> Self:
+    def fg(
+        self,
+        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        /
+    ) -> Self:
         ...
     def fg(
         self,
-        c1: int | Color | IntoColorant,
+        c1: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
         c2: None | int = None,
         c3: None | int = None,
     ) -> Self:
@@ -1256,11 +1259,15 @@ class Terminal:
     def bg(self, color: Color, /) -> Self:
         ...
     @overload
-    def bg(self, color: IntoColorant, /) -> Self:
+    def bg(
+        self,
+        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        /
+    ) -> Self:
         ...
     def bg(
         self,
-        c1: int | Color | IntoColorant,
+        c1: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
         c2: None | int = None,
         c3: None | int = None,
     ) -> Self:
