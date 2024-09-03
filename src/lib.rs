@@ -210,8 +210,8 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // --------------------------------------------------------------- color.gamut
     let modgamut = PyModule::new_bound(m.py(), "gamut")?;
     modgamut.add("__package__", modcolor_name)?;
-    modgamut.add_class::<crate::gamut::GamutTraversal>()?;
-    modgamut.add_class::<crate::gamut::GamutTraversalStep>()?;
+    modgamut.add_class::<gamut::GamutTraversal>()?;
+    modgamut.add_class::<gamut::GamutTraversalStep>()?;
     m.add_submodule(&modgamut)?;
 
     // Only change __name__ attribute after submodule has been added.
@@ -220,18 +220,21 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // --------------------------------------------------------------- color.spectrum
     let modspectrum = PyModule::new_bound(m.py(), "spectrum")?;
     modspectrum.add("__package__", modcolor_name)?;
-    modspectrum.add("CIE_ILLUMINANT_D65", crate::spectrum::CIE_ILLUMINANT_D65)?;
     modspectrum.add(
-        "CIE_OBSERVER_2DEG_1931",
-        crate::spectrum::CIE_OBSERVER_2DEG_1931,
+        "CIE_ILLUMINANT_D65",
+        spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_D65)
+            as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send>),
     )?;
     modspectrum.add(
-        "CIE_OBSERVER_2DEG_2015",
-        crate::spectrum::CIE_OBSERVER_2DEG_2015,
+        "CIE_ILLUMINANT_E",
+        spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_E)
+            as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send>),
     )?;
-    modspectrum.add_class::<crate::spectrum::Illuminant>()?;
-    modspectrum.add_class::<crate::spectrum::Observer>()?;
-    modspectrum.add_class::<crate::spectrum::SpectrumTraversal>()?;
+    modspectrum.add("CIE_OBSERVER_2DEG_1931", spectrum::CIE_OBSERVER_2DEG_1931)?;
+    modspectrum.add("CIE_OBSERVER_2DEG_2015", spectrum::CIE_OBSERVER_2DEG_2015)?;
+    modspectrum.add_class::<spectrum::Illuminant>()?;
+    modspectrum.add_class::<spectrum::Observer>()?;
+    modspectrum.add_class::<spectrum::SpectrumTraversal>()?;
     m.add_submodule(&modspectrum)?;
 
     // Only change __name__ attribute after submodule has been added.
@@ -248,16 +251,16 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // --------------------------------------------------------------- color.style
     let modstyle = PyModule::new_bound(m.py(), "style")?;
     modstyle.add("__package__", modcolor_name)?;
-    modstyle.add_class::<crate::style::AnsiColor>()?;
-    modstyle.add_class::<crate::style::Colorant>()?;
-    modstyle.add_class::<crate::style::EmbeddedRgb>()?;
-    modstyle.add_class::<crate::style::Fidelity>()?;
-    modstyle.add_class::<crate::style::GrayGradient>()?;
-    modstyle.add_class::<crate::style::Layer>()?;
-    modstyle.add_function(wrap_pyfunction!(crate::style::stylist, m)?)?;
-    modstyle.add_class::<crate::style::Style>()?;
-    modstyle.add_class::<crate::style::Stylist>()?;
-    modstyle.add_class::<crate::style::TrueColor>()?;
+    modstyle.add_class::<style::AnsiColor>()?;
+    modstyle.add_class::<style::Colorant>()?;
+    modstyle.add_class::<style::EmbeddedRgb>()?;
+    modstyle.add_class::<style::Fidelity>()?;
+    modstyle.add_class::<style::GrayGradient>()?;
+    modstyle.add_class::<style::Layer>()?;
+    modstyle.add_function(wrap_pyfunction!(style::stylist, m)?)?;
+    modstyle.add_class::<style::Style>()?;
+    modstyle.add_class::<style::Stylist>()?;
+    modstyle.add_class::<style::TrueColor>()?;
     m.add_submodule(&modstyle)?;
 
     // Only change __name__ attribute after submodule has been added.
@@ -266,10 +269,10 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // -------------------------------------------------------- color.style.format
     let modformat = PyModule::new_bound(m.py(), "format")?;
     modformat.add("__package__", &modstyle_name)?;
-    modformat.add_class::<crate::style::format::AllAttributes>()?;
-    modformat.add_class::<crate::style::format::Attribute>()?;
-    modformat.add_class::<crate::style::format::AttributeIterator>()?;
-    modformat.add_class::<crate::style::format::Format>()?;
+    modformat.add_class::<style::format::AllAttributes>()?;
+    modformat.add_class::<style::format::Attribute>()?;
+    modformat.add_class::<style::format::AttributeIterator>()?;
+    modformat.add_class::<style::format::Format>()?;
     modstyle.add_submodule(&modformat)?;
 
     modformat.setattr("__name__", &modformat_name)?;
@@ -277,10 +280,10 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // --------------------------------------------------------------- color.trans
     let modtrans = PyModule::new_bound(m.py(), "trans")?;
     modtrans.add("__package__", modcolor_name)?;
-    modtrans.add_class::<crate::trans::ThemeEntry>()?;
-    modtrans.add_class::<crate::trans::ThemeEntryIterator>()?;
-    modtrans.add_class::<crate::trans::Translator>()?;
-    modtrans.add("VGA_COLORS", crate::trans::VGA_COLORS)?;
+    modtrans.add_class::<trans::ThemeEntry>()?;
+    modtrans.add_class::<trans::ThemeEntryIterator>()?;
+    modtrans.add_class::<trans::Translator>()?;
+    modtrans.add("VGA_COLORS", trans::VGA_COLORS)?;
     m.add_submodule(&modtrans)?;
 
     // Only change __name__ attribute after submodule has been added.

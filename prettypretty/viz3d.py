@@ -10,7 +10,8 @@ from prettypretty.color.gamut import ( # pyright: ignore [reportMissingModuleSou
     GamutTraversalStep
 )
 from prettypretty.color.spectrum import ( # pyright: ignore [reportMissingModuleSource]
-    CIE_ILLUMINANT_D65, CIE_OBSERVER_2DEG_1931, SpectrumTraversal
+    CIE_ILLUMINANT_D65, CIE_ILLUMINANT_E, CIE_OBSERVER_2DEG_1931, Illuminant,
+    SpectrumTraversal
 )
 
 
@@ -19,6 +20,11 @@ def create_parser() -> argparse.ArgumentParser:
         description="generate a point cloud or mesh for the visual gamut in XYZ "
         "as well as Oklrab and store the data in 'visual-gamut-xyz.ply' and "
         "'visual-gamut-ok.ply' files"
+    )
+    parser.add_argument(
+        "--illuminant-e",
+        action="store_true",
+        help="use CIE standard illuminant E instead of D65"
     )
     parser.add_argument(
         "--gamut", "-g",
@@ -445,8 +451,9 @@ def generate(
     mesh: bool = False,
     alpha: float = 1.0,
     sampler: None | Sampler = None,
+    illuminant: Illuminant = CIE_ILLUMINANT_D65,
 ) -> None:
-    traversal = SpectrumTraversal(CIE_ILLUMINANT_D65, CIE_OBSERVER_2DEG_1931)
+    traversal = SpectrumTraversal(illuminant, CIE_OBSERVER_2DEG_1931)
     traversal.set_step_sizes(step_size)
 
     log(f"Traversing visual gamut in {space} with step size {step_size}:")
@@ -560,28 +567,31 @@ if __name__ == "__main__":
         log(f"step size {step_size} is not between 1 and 10.")
 
     sampler = Sampler()
+    illuminant = CIE_ILLUMINANT_E if options.illuminant_e else CIE_ILLUMINANT_D65
 
     generate(
         ColorSpace.Xyz,
+        step_size=step_size,
         gamut=gamut,
         planar_gamut=options.planar_gamut,
         mesh=options.mesh,
-        step_size=step_size,
         darken=options.darken,
-        alpha=float(options.alpha)
+        alpha=float(options.alpha),
+        illuminant=illuminant,
     )
 
     log()
 
     generate(
         ColorSpace.Oklrab,
+        step_size=step_size,
         gamut=gamut,
         planar_gamut=options.planar_gamut,
         mesh=options.mesh,
         sampler=sampler,
-        step_size=step_size,
         darken=options.darken,
         alpha=float(options.alpha),
+        illuminant=illuminant,
     )
 
     log("\nShape of visible gamut (sampled on chroma/hue plane):\n")
