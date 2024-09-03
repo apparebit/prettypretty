@@ -80,9 +80,9 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!   - `f64` enables the use of **double precision** floating point values
 //!     through the `Float` alias used throughout the implementation. It is
 //!     enabled by default.
-//!   - `gamut` enables support for tracing the boundaries of color spaces as
-//!     well as the human visual gamut. That includes the `gamut` and `spectrum`
-//!     modules. This feature is enabled by default.
+//!   - `gamut` enables support for **tracing gamut boundaries**. Notably, it
+//!     includes the `gamut` module for color spaces and `spectrum` module for
+//!     human visual gamut. This feature is enabled by default.
 //!   - `pyffi` enables **Python integration** with [PyO3](https://pyo3.rs/).
 //!     Best used with [Maturin](https://www.maturin.rs) for building the Python
 //!     extension module. It is disabled by default.
