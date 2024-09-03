@@ -18,8 +18,9 @@ pyo3 = { version = "0.22.0", features = ["extension-module", "abi3", "abi3-py311
 
 
 [features]
-default = ["f64"]
+default = ["f64", "gamut"]
 f64 = []
+gamut = []
 pyffi = ["dep:pyo3"]
 
 

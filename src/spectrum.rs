@@ -1,5 +1,5 @@
 //! Utility module with the spectral distributions for CIE standard observers
-//! and illuminants.
+//! and illuminants. <i class=gamut-only>Gamut only!</i>
 //!
 //!   * [`Illuminant`] and [`Observer`] define a simple **interface to data**
 //!     from the corresponding spectral distributions at 1nm resolution.

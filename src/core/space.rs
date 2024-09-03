@@ -148,7 +148,8 @@ impl ColorSpace {
         self.is_rgb()
     }
 
-    /// Create an iterator over this color space's gamut boundaries.
+    /// Create an iterator over this color space's gamut boundaries. <i
+    /// class=gamut-only>Gamut only</i>
     ///
     /// For bounded or RGB color spaces, this method returns an iterator that
     /// traces the boundaries of the color space's gamut. As described in detail
@@ -164,6 +165,7 @@ impl ColorSpace {
     ///
     /// If this color space is not bounded or the segment size is 0 or 1, this
     /// method returns `None`.
+    #[cfg(feature = "gamut")]
     pub fn gamut(&self, edge_length: usize) -> Option<crate::gamut::GamutTraversal> {
         crate::gamut::GamutTraversal::new(*self, edge_length)
     }

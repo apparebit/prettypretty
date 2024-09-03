@@ -34,10 +34,10 @@
 }
 
 /* =================================================================================== *
- * Python-only and Rust-only labels: <i class=python-only></i>
+ * Python-only and Rust-only labels: <i class=python-only>Python only!</i>
  */
 
-.python-only, .rust-only {
+.python-only, .rust-only, .gamut-only {
     font-size: 0.8em;
     display: inline-block;
     border-radius: 0.5em;
@@ -50,3 +50,4 @@
 
 .python-only { background: #84c5fb; }
 .rust-only   { background: #f0ac84; }
+.gamut-only  { background: #ffe06c; }

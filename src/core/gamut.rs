@@ -120,6 +120,7 @@ pub(crate) fn to_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3
 /// corresponding operations. A traversal comprises several paths, each of which
 /// starts with a `MoveTo` and ends with either a `LineTo` or `CloseWith`. The
 /// latter repeats the color of the path's `MoveTo`.
+#[cfg(feature = "gamut")]
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, module = "prettypretty.color.gamut")
@@ -134,6 +135,7 @@ pub enum GamutTraversalStep {
     CloseWith(Color),
 }
 
+#[cfg(feature = "gamut")]
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl GamutTraversalStep {
     /// Get this step's color.
@@ -157,6 +159,7 @@ impl GamutTraversalStep {
 }
 
 /// The gamut traversal's segment.
+#[cfg(feature = "gamut")]
 #[derive(Copy, Clone, Debug)]
 enum GamutEdge {
     Start,
@@ -208,6 +211,7 @@ enum GamutEdge {
 /// or `CloseWith` if closed. The step's color provides the coordinates for the
 /// step. They always are for the color space whose boundaries are being traced
 /// and in-gamut, if barely.
+#[cfg(feature = "gamut")]
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.gamut"))]
 #[derive(Debug)]
 pub struct GamutTraversal {
@@ -219,6 +223,7 @@ pub struct GamutTraversal {
     b: usize,
 }
 
+#[cfg(feature = "gamut")]
 impl GamutTraversal {
     pub(crate) fn new(space: ColorSpace, edge_length: usize) -> Option<Self> {
         if !space.is_rgb() || edge_length < 2 {
@@ -236,6 +241,7 @@ impl GamutTraversal {
     }
 }
 
+#[cfg(feature = "gamut")]
 impl Iterator for GamutTraversal {
     type Item = GamutTraversalStep;
 
@@ -432,9 +438,10 @@ impl Iterator for GamutTraversal {
     }
 }
 
+#[cfg(feature = "gamut")]
 impl std::iter::FusedIterator for GamutTraversal {}
 
-#[cfg(feature = "pyffi")]
+#[cfg(all(feature = "gamut", feature = "pyffi"))]
 #[pymethods]
 impl GamutTraversal {
     /// Get this iterator. <i class=python-only>Python only!</i>
@@ -460,7 +467,7 @@ impl GamutTraversal {
 
 #[cfg(test)]
 mod test {
-    use super::{to_gamut, GamutTraversal, GamutTraversalStep};
+    use super::to_gamut;
     use crate::core::{assert_same_coordinates, convert, ColorSpace};
     use crate::Color;
 
@@ -506,9 +513,10 @@ mod test {
         );
     }
 
+    #[cfg(feature = "gamut")]
     #[test]
     fn test_gamut_iterator() {
-        use GamutTraversalStep::*;
+        use super::{GamutTraversal, GamutTraversalStep, GamutTraversalStep::*};
 
         let boundaries: Vec<GamutTraversalStep> =
             GamutTraversal::new(ColorSpace::Srgb, 2).unwrap().collect();

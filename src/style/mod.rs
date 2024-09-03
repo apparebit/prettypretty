@@ -57,9 +57,8 @@
 //! As demonstrated above, the order of builder method invocations does not
 //! matter. If you set a color more than once, the most recent invocation wins.
 //!
-//! If `stylist()` and `et_voila()` violate your sense of (straight) propriety,
-//! prettypretty does support [`Style::builder()`] and
-//! [`build()`](Stylist::build), too.
+//! If `stylist()` and `et_voila()` are too sassy for you, prettypretty includes
+//! [`Style::builder()`] and [`build()`](Stylist::build) as well.
 //!
 //!
 //! ## Adjust Style to Terminal
