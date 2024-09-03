@@ -163,29 +163,32 @@ Oklab](colortheme/vscode-colors.svg)
 
 Huh? 8+4 colors? What's going on?
 
-Yup. I feel cheated out of colors, too. Especially since there are so few colors
-to go around in the first place. With true colors, I probably wouldn't notice if
-4 colors went AWOL. With ANSI colors, everyone notices. The four missing colors
-aren't quite missing. They just have the exact same color values as the other
-member of the pair.
+Yup. I feel cheated out of colors, too. Especially since there are only 16 ANSI
+colors to begin with. If we were reviewing 24-bit sRGB colors, we might not
+notice if four out of 16,777,216 colors went MIA. But when a quarter of colors
+go MIA, we notice. And not in a good way.
 
-As if red, cyan, blue, and magenta being duplicated wasn't bad enough, the way
-the yellows cosy up to each other they are ready to merge into one as well. The
-theme really contains only one color nicely differentiated pair of regular and
-bright colors.
+Well, technically, those four colors are still there. It's just that the
+nonbright and bright versions of red, cyan, blue, and magenta each have the same
+color values.
 
-But I can't get over the fact that the theme dropped four slots. Why did the
-designed do that? Anyone in the know?
+But it doesn't stop there: The two yellows are pretty darn close to each other
+as well. It seems only a question of time before they also collapse into
+another. The only nicely differentiated colors are the greens.
+
+Why did the theme designer do this? Anyone in the know?
 
 Clearly, we are back to matters of taste. And there simply is no accounting for
-taste. Or the total lack of it. Let's stop there. 😳
+taste. Or the total lack of it. 😳
 
 <center style="margin: 2em 0">⁂</center>
 
-The above figures were all generated with `prettypretty.plot`. While originally
-written to plot color themes and color themes only, I added support for
-arbitrary colors a short while after it became functional. It tries hard to run
-automagically and picks the portion of the a/b plane to show (cutting off the
-zero hue axis at 0.3, 0.4, or 0.5). But you decide what gamuts to display or not
-to display. Pick any combination of sRGB, Display P3, and Rec. 2020. `plot`
-plots 'em colors. And gamuts. And lightnesses... 🤪
+The above figures were all generated with `prettypretty.plot`. While I
+originally set out to plot color themes only, the script was too useful to be
+restricted that way. Hence, you can plot arbitrary colors listed in a text file,
+too. As many or as few as you want. `plot` automatically adjusts the "zoom
+factor" along the chroma axis between 0.3 and 0.6. But you decide whether to
+show gamut boundaries and, if so, for what color spaces. sRGB, Display P3, and
+Rec. 2020. Take your pick.
+
+`plot` 'em colors. `plot` 'em real good! 🤪
