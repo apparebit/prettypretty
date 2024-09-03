@@ -383,8 +383,7 @@ class PointManager:
         file.write("format ascii 1.0\n")
         c = f"Visual gamut in {self._space}, step size {self._step_size}nm, "
         c += "w/mesh" if self._should_generate_mesh else "w/o mesh"
-        file.write(f"comment {c}\n")
-        file.write(f"comment Traced by <https://github.com/apparebit/prettypretty>\n")
+        file.write(f"comment {c} <https://github.com/apparebit/prettypretty>\n")
 
         vertex_count = self.point_count + (0 if include is None else include.point_count)
         file.write(f"element vertex {vertex_count}\n")
