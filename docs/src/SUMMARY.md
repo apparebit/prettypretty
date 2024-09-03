@@ -18,4 +18,3 @@
  - [The Appearance of Progress](deepdive/progressbar.md)
  - [Judgement Day: Color Themes](deepdive/colortheme.md)
  - [Developing Prettypretty](deepdive/development.md)
- - [Rust's Underappreciated Superpower](deepdive/macropower.md)
