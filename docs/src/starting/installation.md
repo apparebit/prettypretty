@@ -128,4 +128,4 @@ $ ./rr.sh help
 ```
 
 
-{{#include links.md}}
+{{#include ../links.md}}

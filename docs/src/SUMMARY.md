@@ -4,13 +4,14 @@
 
 # Getting Started
 
- - [Installing and Building Prettypretty](installation.md)
+ - [Installing and Building Prettypretty](starting/installation.md)
+ - [Prettypretty's One-Two-Three](starting/one-two-three.md)
 
 # All the Colors
 
- - [2020s High-Resolution Colors](overview/2020s.md)
- - [1970s Terminal Colors](overview/1970s.md)
- - [Accommodating All Colors](overview/integration.md)
+ - [2020s High-Resolution Colors](colors/2020s.md)
+ - [1970s Terminal Colors](colors/1970s.md)
+ - [Accommodating All Colors](colors/integration.md)
 
 # Deep Dives
 

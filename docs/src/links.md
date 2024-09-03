@@ -11,6 +11,7 @@
 [`ColorSpace`]: https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html
 [`EmbeddedRgb`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.EmbeddedRgb.html
 [`Fidelity`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Fidelity.html
+[`Fidelity::from_environment`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Fidelity.html#method.from_environment
 [`Float`]: https://apparebit.github.io/prettypretty/prettypretty/type.Float.html
 [`Format`]: https://apparebit.github.io/prettypretty/prettypretty/style/format/struct.Format.html
 [`GrayGradient`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.GrayGradient.html
@@ -24,5 +25,6 @@
 [`ThemeEntry`]: https://apparebit.github.io/prettypretty/prettypretty/trans/enum.ThemeEntry.html
 [`ThemeEntryIterator`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.ThemeEntryIterator.html
 [`Translator`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html
+[`Translator::is_dark_theme`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.is_dark_theme
 [`TrueColor`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.TrueColor.html
 [`VGA_COLORS`]: https://apparebit.github.io/prettypretty/prettypretty/trans/constant.VGA_COLORS.html
