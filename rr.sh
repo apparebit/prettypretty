@@ -328,6 +328,24 @@ unittest.main(
 '
 }
 
+ooh_special() {
+    if [ -z "$1" ]; then code="38;5;16;48;5;45"; else code="$1"; fi
+    if [ -z "$BOLD" ]; then
+        stl=""
+    else
+        stl="$(printf "\e[1;%sm" "$code")"
+    fi
+
+    if [ -z "$2" ]; then msg='Ooh!'; else msg="$2"; fi
+    spc="$(echo "$msg" | tr "[:rune:]" " ")"
+
+    >&2 printf "\n"
+    >&2 printf "%s\n" "$stl  $spc $RESET"
+    >&2 printf "%s\n" "$stl  $msg  $RESET"
+    >&2 printf "%s\n" "$stl  $spc $RESET"
+    >&2 printf "\n"
+}
+
 doc() {
     if [ -d docs ]; then
         run mdbook build docs
@@ -365,8 +383,13 @@ case $target in
         check
         docs
         ;;
+    nop) ;;
+    ooh)
+        ooh_special "$2" "$3"
+        exit 0
+        ;;
     *)
-        log ERROR "\"$target\" is not a valid runner target!"
+        log ERROR "target \"$target\" is not help/install/build/check/doc/all!"
         exit 1
         ;;
 esac
