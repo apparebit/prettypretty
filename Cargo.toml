@@ -18,7 +18,7 @@ pyo3 = { version = "0.22.0", features = ["extension-module", "abi3", "abi3-py311
 
 
 [features]
-default = ["f64", "gamut"]
+default = ["f64"]
 f64 = []
 gamut = []
 pyffi = ["dep:pyo3"]
@@ -31,3 +31,4 @@ crate-type = ["lib", "cdylib"]
 
 [package.metadata.docs.rs]
 all-features = false
+rustdoc-args = ["-e", "./docs/pretty.css"]

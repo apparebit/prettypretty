@@ -3,7 +3,9 @@ use pyo3::prelude::*;
 
 use crate::core::conversion::okxch_to_okxab;
 use crate::core::{convert, delta_e_ok, normalize};
-use crate::{Color, ColorSpace, Float};
+#[cfg(feature = "gamut")]
+use crate::Color;
+use crate::{ColorSpace, Float};
 
 /// Determine whether the coordinates are in gamut for their color space.
 pub(crate) fn in_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> bool {
@@ -469,7 +471,6 @@ impl GamutTraversal {
 mod test {
     use super::to_gamut;
     use crate::core::{assert_same_coordinates, convert, ColorSpace};
-    use crate::Color;
 
     #[test]
     fn test_gamut() {
@@ -517,6 +518,7 @@ mod test {
     #[test]
     fn test_gamut_iterator() {
         use super::{GamutTraversal, GamutTraversalStep, GamutTraversalStep::*};
+        use crate::Color;
 
         let boundaries: Vec<GamutTraversalStep> =
             GamutTraversal::new(ColorSpace::Srgb, 2).unwrap().collect();

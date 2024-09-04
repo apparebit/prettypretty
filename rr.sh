@@ -288,10 +288,12 @@ build() {
 check() {
     run cargo fmt --check
     run cargo check
+    run cargo check --features f64,gamut
     run cargo check --all-features
     run cargo clippy
+    run cargo clippy --features f64,gamut
     run cargo clippy --all-features
-    run cargo test
+    run cargo test --features f64,gamut
 
     if [ -d prettypretty ]; then
         run npm run pyright -- --pythonpath ./.venv/bin/python
