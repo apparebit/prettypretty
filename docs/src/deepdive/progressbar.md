@@ -1,8 +1,8 @@
 # The Appearance of Progress
 
-To explore how command line tools can benefit from a different approach to
-terminal styles, this deep dive explores how to present a progress bar. I picked
-this topic for a few reasons:
+To explore how command line tools can benefit from prettypretty's approach to
+terminal styling, this deep dive explores how to display a progress bar. I
+picked this topic for a few reasons:
 
  1. I've been itching to write a progress bar for quite a while now.
  2. An animated demo often is more interesting than a static one.
@@ -26,15 +26,16 @@ $ cd progress
 $ python -m venv .venv
 $ source .venv/bin/activate
 $ python -m pip install prettypretty
-Downloading prettypretty-0.11.0-py3-none-any.whl (64 kB)
+Downloading prettypretty-0.11.0-cp311-abi3-macosx_10_12_x86_64.whl (420 kB)
 Installing collected packages: prettypretty
 Successfully installed prettypretty-0.11.0
 $ python -m prettypretty.progress
 ```
 
-Please note that prettypretty requires Python 3.11 or later. Furthermore,
-building prettypretty from source requires a number of tools in addition to the
-Rust compiler and Python interpreter. The [runner
+Please note that prettypretty requires Python 3.11 or later. Pre-built binary
+wheels are available for Linux, macOS, and Windows. Building prettypretty from
+source requires a number of tools in addition to the Rust compiler and Python
+interpreter. The [runner
 script](https://github.com/apparebit/prettypretty/blob/main/rr.sh) in the
 repository root has an `install` option to automatically install them on a
 system.
@@ -60,99 +61,131 @@ the same colors more intensely when they are presented in a darker context.
 ## Design Thinking for Terminal Tools
 
 In addition to colors, terminals support a few more attributes for styling text,
-including ones that bolden, slant, or underline text. Of course, we could just
-write the corresponding ANSI escape sequences to the terminal. We'd still adhere
-to best practices and use a nicely encapsulated terminal logger with clearly
-distinguishable styles for status updates versus errors. We certainly could. But
-considerable experience with the web also reminds us that separating
-presentational aspects from content and then treating presentation in a
-principled manner contributes towards the design of more consistent user
-interfaces that offer a better user experience. It also helps with engineering
-by, for example, discouraging code duplication.
+including bold, italic, and underlined. Of course, we could just write the
+corresponding ANSI escape sequences to the terminal. Mind you, we'd still rely
+on a nicely encapsulated terminal logger with clearly distinguishable styles for
+status updates versus error messages. But considerable experience with styling
+the web serves as stark reminder that presentational aspects better be separated
+from content. In fact, maintaining that separation in a principled manner
+typically results in more consistent user interfaces that may just offer a
+better user experience. It also helps with engineering, e.g., by discouraging
+code duplication.
 
-Here then is prettypretty's five-step recipe for applying the lessons of the web
-to terminal user interfaces. Note that this doesn't necessarily imply using CSS
-nor are we required to adhere to web practices only. For instance, whereas
-common web practice focuses on progressive enhancement, that is, assuming
-limited capabilities and leveraging additional features as they become
-available, prettypretty really is in the business of graceful degradation, that
-is, assuming standard capabilities and then downgrading as necessary.
+Achieving something similar for terminal applications is entirely within our
+reach. That doesn't mean we should slavishly follow design methodologies for the
+web and repurpose its technologies. Far from it. For instance, where the web
+encourages progressive enhancement from basic sRGB colors to colors in more
+expressive as well as wide-gamut color spaces, prettypretty goes the opposite
+direction and offers automatic graceful degradation. Here then is prettypretty's
+one-two-three for better terminal styles.
 
 
-### 1. Define Styles
+## 1. Assemble Styles
 
-So it makes eminent sense to also isolate terminal styles from content and get
-started on developing a language of terminal design tokens and, eventually, also
-components. To make this concrete, the progress bar script uses the [`rich`]
-fluent builder to declare two styles:
+If we are to isolate terminal styles from content, we should start by grouping
+the definitions for all application styles together. For the progress bar
+script, that's a grand total of two styles:
 
 ```python,ignore
-LIGHT_MODE_BAR = rich().fg(Color.p3(0.0, 1.0, 0.0)).style()
-DARK_MODE_BAR = rich().fg(3, 151, 49).style()
+LIGHT_MODE_BAR = stylist().foreground(Color.p3(0.0, 1.0, 0.0)).et_voila()
+DARK_MODE_BAR = stylist().foreground(TrueColor(3, 151, 49)).et_voila()
 ```
 <div class=color-swatch>
 <div style="background-color: color(display-p3 0 1 0);"></div>
 <div style="background-color: rgb(3 151 49);"></div>
 </div>
 
-We could instantiate style objects directly but, depending on the number of
-attributes we'd like to set, that won't be very readable. Instead, the [`rich`]
-builder provides a fluent interface to declaring styles and more. For instance,
-it also supports hyperlinks and cursor movements. But for our progress bar, we
-just stick with basic styles. Here's how we might declare a warning style:
-
-```python,ignore
-WARNING = rich().bold.fg(16).bg(220).style()
-```
-<div class=color-swatch>
-<div style="background-color: #000;"></div>
-<div style="background-color: #ffd700;"></div>
-</div>
-
-The style sets the bold text attribute (through a property) as well as
-foreground and background colors (through methods). It happens to use 8-bit
-indexed colors, namely black text on a orange-yellow background.
+If `stylist()` and `et_voila()` are too sassy for you, then `Style.builder()`
+and `build()` will work just as well.
 
 When declaring styles, only include attributes that you want set and nothing
 else. Don't bother with defining styles that undo other styles or incrementally
 transition from one style to another. You can easily and automatically compute
-them with Python's negation `~`, subtraction `-`, and alternative `|` operators.
-In particular, the style `~style` undoes all attributes of `style`, hence
-restoring the terminal to its default appearance. The style `style2 - style1`
-incrementally transitions from `style1` to `style2` (note the reverse order).
-Finally, the style `style1 | style2` lets you recover complete styles from
-incremental transitions by combining all attributes from `style1` and `style2`.
-Beware that `|` does give precedence to the first operand `style1` if both of
-them impact the same attribute.
+them with Python's negation `~` and subtraction `-` operators. In particular,
+the style `~style` undoes all attributes of `style`, hence restoring the
+terminal to its default appearance. The style `style2 - style1` incrementally
+transitions from `style1` to `style2` (note the reverse order).
 
 
-### 2. Prepare Styled Content
+## 2. Adjust Styles
 
-For example, [the last
-line](https://github.com/apparebit/prettypretty/blob/da0d1a6d0277dd3a240a1b49037925036f7e8498/prettypretty/progress.py#L55)
-of the `format_bar` function in the progress bar script uses negation for its
-intended purpose, restoring the default appearance:
+The light mode style uses the green primary of the Display P3 color space for
+background color. As illustrated by the figure below for a 2D projection onto
+the hue/chroma plane of Oklab, the Display P3 color space is strictly larger
+than sRGB and the green primary, by definition, is one of the three most
+distinct colors. That, of course makes the style entirely aspirational because
+(AFAIK) there are no terminals or terminal emulators that support colors other
+than sRGB. In short, command line applications need to adjust styles before
+using them.
 
-```python,ignore
-return RichText.of('  ┫', style, bar, ~style, '┣', f' {percent:5.1f}%')
+<img width=400px src="green-primary-p3.svg" alt="a polar coordinate graph
+     showing two similar irregular shapes nested within each other, with the
+     inner shape's blue corner touching the outer shape close to its blue
+     spike">
+
+The above graph, by the way, was generated with prettypretty:
+```sh
+$ python -m prettypretty.plot -c "color(display-p3 0 1 0)" \
+    --no-light --no-term --gamut srgb --gamut p3 --strong-gamut \
+    -o green-primary-p3.svg
 ```
 
-[`RichText`] is a sequence of strings, styles, and so on that simplifies color
-processing during output. It's not required but it may speed up your code a
-little bit.
 
+### 2.1 Determine Terminal Capabilities and Configuration
 
-### 3. Set Up Terminal
+To fully adjust styles, however, we need to know a little more about the
+script's runtime environment:
 
-The progress bar script's [main
-function](https://github.com/apparebit/prettypretty/blob/da0d1a6d0277dd3a240a1b49037925036f7e8498/prettypretty/progress.py#L67)
-illustrates how to go from style declarations to usable styles and then to
-displaying styled text. It starts out by creating a terminal object, possibly
-overwriting its color fidelity, querying the terminal for its current color
-scheme, hiding the cursor, and scoping all styles. The `with` block ensures that
-the cursor reappears and no custom style leaks into your terminal, even if the
-application raises an exception. In other words, applications should always use
-such a `with` block.
+  * To pick light or dark styles, we need the current display mode.
+  * To pick amongst ANSI colors, we need the color values for the terminal's
+    current color theme.
+  * To produce realistic colors, we need the color formats supported by
+    the terminal.
+
+As it turns out, ANSI escape codes include sequences for querying a terminal's
+current color values, notably for default as well as ANSI colors. Most terminals
+seem to support them as well. Once we know the default colors, we can easily
+deduce the color theme, simply by converting to XYZ color space and then
+comparing the Y or luminance values. If the luminance of the foreground color is
+smaller than that of the background color, the terminal is in light mode and
+vice versa.
+
+As far as supported color formats are concerned, we don't need a list of
+formats, only a maximum level that covers the three scenarios found in the wild,
+ANSI colors only, 8-bit colors (which incorporate ANSI colors), and 24-bit
+colors. To complete our model for these *fidelity* levels, we start with a
+bottom level, no support for ANSI escapes, then add a level for no color to
+cover actual terminals as well as user preferences (e.g., the `NO_COLOR`
+environment variable), then the three support levels found in the wild, and then
+an aspirational top level that includes high-resolution colors:
+
+ 1. No ANSI escapes
+ 2. No colors
+ 3. ANSI colors only
+ 4. 8-bit colors
+ 5. 24-bit colors
+ 6. High-resolution colors
+
+The distinction between the first two levels is, unfortunately, ignored by many
+terminal applications. Yet there are meaningful and important differences
+between the two levels. Without ANSI escapes, application output is append-only,
+which gets in the way of animations and other sophisticated UI effects. Without
+colors, cursor control, alternate screen, URLs, shell integration, and even
+blinking text 😱 are all available and, if properly used, can significantly
+enhance the user experience. In short, terminal applications should recognize
+the difference and support both.
+
+While there are no widely supported ANSI escape sequences to query terminals for
+their fidelity level, environment variables typically provide enough information
+to heuristically determine the fidelity level with high confidence.
+
+Prettypretty's Rust version already implements such a heuristic for fidelity
+level but lacks support for querying the terminal for its color theme.
+Meanwhile, the Python version includes a fairly expressive [`Terminal`]
+abstraction. It's a good thing then that the progress bar script is written in
+Python. 🧐
+
+Its `main` function initializes said terminal thusly:
 
 ```python,ignore
 with (
@@ -163,84 +196,60 @@ with (
 ) as term:
 ```
 
-Writing such a `with` statement in every script does feel a little boilerplaty.
-But that `with` also makes the script more robust by containing style changes.
-Furthermore, it makes explicit when the script queries the terminal for its
-color theme. That requires substantial I/O, as the application needs to write 18
-ANSI escape sequences for requests and then read as many escape sequences for
-responses. Since that leaves plenty of opportunities for things to go wrong,
-exposing the operation in prettypretty's API simply is prudent interface design.
+The constructor accepts `options.fidelity` so that users can override the
+automatically determined fidelity level. `terminal_theme()` queries the terminal
+for its current theme and creates a [`Translator`] based on the theme; the
+instance is accessible through [`current_translator`]. `hidden_cursor()` hides
+the cursor during execution of the `with` statement and `scoped_style()` makes
+sure that the default appearance is restored on errors.
 
-Prettypretty supports several more contextual operations, including for updating
-the [`Terminal.window_title`], using the [`Terminal.alternate_screen`],
-performing [`Terminal.batched_output`], and enabling
-[`Terminal.bracketed_paste`]. You can perform them individually, each in its own
-``with`` statement or, as shown in the above code example, fluently combine them
-into a single `with` statement. In my experience, the latter does make context
-in Python even more ergonomic and is well worth the extra engineering effort.
+That does feel a little boilerplaty. But `terminal_theme()` performs substantial
+I/O, writing 18 ANSI escape sequences to query color values and reading as many
+ANSI escape sequences with color values. That takes time and may fail. So an
+explicit interface is the right choice. The other methods are Python candy and
+there is plenty more of that, including for updating the
+[`Terminal.window_title`], using the [`Terminal.alternate_screen`], performing
+[`Terminal.batched_output`], and enabling [`Terminal.bracketed_paste`]. While
+nice to have, they don't really fit into prettypretty's color-driven mission and
+may be removed in the future.
 
 
-### 4. Adjust Styles to Reality
+### 2.2 Select and Cap Styles
 
-Once the terminal has been set up, the progress bar script uses the
-[`current_translator`]'s [`is_dark_theme`] to pick the attendant style and then
-adjusts that style to the terminal's [`Terminal.fidelity`]:
+The primary benefit of setting up the `Terminal` is access to a [`Translator`],
+which *is* implemented in Rust. Using said translator, picking between styles
+for dark or light mode as well as capping a style's fidelity level becomes
+straight-forward:
 
 ```python,ignore
 style = DARK_MODE_BAR if current_translator().is_dark_theme() else LIGHT_MODE_BAR
-style = style.prepare(term.fidelity)
+style = style.cap(term.fidelity, current_translator())
 ```
 
 Doing so once during startup means that the resulting styles are ready for
-(repeated) display and incurs the overhead of color conversion only once.
-Between [`Style.prepare`] and [`Translator.cap`], updating styles and colors to
-match a given fidelity level also is positively easy.
-
-In other words, "reality," as far as this progress bar is concerned, has two
-dimensions:
-
- 1. Dark or light mode
- 2. The fidelity level
-
-We should probably add one more dimension to the production version:
-
- 3. Contrast level: regular or high
-
-Dark/light mode, regular/high contrast should be familiar from the web. The five
-fidelity levels combine knowledge about terminal capabilities, i.e., the range
-of supported colors, the runtime context, e.g., I/O being redirected, and user
-preferences, e.g., an aversion to or hunger for color, all into a simple five
-step scale:
-
- 1. Plain
- 2. No color
- 3. ANSI color
- 4. 8-bit color
- 5. Full or true color
-
-That definition reflects one distinction that, unfortunately, most terminal
-applications ignore: There is a meaningful and important difference between
-*plain*, i.e., not styling terminal output and hence not using ANSI escape
-sequences, and *no color*, i.e., not using colors but still leveraging ANSI
-escape codes for screen management, cursor movement, and text attributes such as
-bold. The former helps when running tools non-interactively or when capturing
-output as a log. The latter helps when color would be a distraction. Terminal
-applications should support both!
+(repeated) display, while incurring the overhead of color conversion only once.
 
 
-### 5. Display Content
+## 3. Apply Styles
 
-With that, the progress bar script is ready for turning randomized progress
-events progress bar updates. Each update assembles the rich text for the
-progress bar, moves the (invisible) cursor to the beginning of the line, writes
-the rich text to terminal output, and flushes the output:
+We assembled and adjusted the progress bar styles. So all that's left is
+applying them as well. This part is really easy.
 
+The last line of the `format_bar` function uses the assembled and adjusted style.
+```python,ignore
+return ['  ┫', style, bar, ~style, '┣', f' {percent:5.1f}%']
+```
+It also uses the negated style to restore the terminal's default appearance.
+
+Meanwhile, the `main` function includes the following loop:
 ```python,ignore
 for percent in progress_reports():
    bar = format_bar(percent, style)
-   term.column(0).rich_text(bar).flush()
+   term.column(0).render(bar).flush()
    time.sleep(random.uniform(1/60, 1/10))
 ```
+Each iteration processes a progress report by formatting the progress bar and
+writing it to the terminal.
 
 And that's it.
 
@@ -248,60 +257,102 @@ And that's it.
 ## What Does It Take?
 
 Well. There still is more code to `prettypretty.progress`. But much of that code
-is not specific to prettypretty. The scripts line breakdown looks like this:
+is not specific to prettypretty. Here's the breakdown of per-section line counts
+for the script:
 
+| Section          |pretty¹|prettyⁿ| LoC |blank|
+|:---------------- |------:|------:|----:|----:|
+| Imports          |     6 |       |  10 |   1 |
+| Argument parser  |       |       |  18 |     |
+| Module constants |       |     2 |   6 |   1 |
+| Progress bar     |       |     1 |  12 |   2 |
+| Progress reports |       |       |   7 |     |
+| `main()`         |     6 |     3 |  17 |   4 |
+| Calling `main()` |       |       |   2 |     |
+| Between sections |       |       |     |  12 |
+| *Total*          |  *12* |   *6* | *72*| *20*|
 
-| Function         | Lines of Code |
-|:---------------- |:--------------|
-| Imports          | 9             |
-| Argument parser  | 18            |
-| Module constants | 7             |
-| Progress bar     | 14            |
-| Progress reports | 7             |
-| `main()`         | 23            |
-| Calling `main()` | 2             |
-| *Total*          | *80*          |
+The final two columns count *all* lines of the script and distinguish between
+lines-of-code, or LoC, and blank lines, to a total of 72 lines-of-code in a 92
+line script. The middle two columns count lines-of-code specific to prettypretty
+and distinguish between code that is a constant cost of using prettypretty,
+i.e., required only once per module or app, in the pretty¹ column and code that
+is a variable cost of using prettypretty, i.e., required for each distinct
+style, in the prettyⁿ column.
 
-
-Only one line out of 14 for formatting the progress bar is specific to
-prettypretty. Likewise, `main` requires just one line to write out the progress
-bar. Startup has more substance, requiring 8 prettypretty-specific lines of
-code. Then again, 6 of them are very generously spaced.
+Overall, these line counts are encouraging: Code specific to prettypretty
+comprises 18 out of 72 or a quarter of the lines-of-code, even though the script
+does little else than display styled text. Most of the code specific to
+prettypretty, i.e., 12 out of 18 or two thirds of the lines-of-code, is a
+constant cost, i.e., necessary for importing types and initializing the
+terminal. Without prettypretty, using literal ANSI escape sequences, the script
+would still require two lines for first formatting and then writing the progress
+bar. So the line overhead of prettypretty's one-two-three workflow is 6 instead
+of 2 lines-of-code or 3× per style. That seems low for an application that is
+easier to maintain because all styles are defined in one location, accommodates
+light and dark mode depending on terminal, looks great in terminals that support
+better color formats and passable otherwise, and takes user preferences into
+account.
 
 The point: With the right library support, separating styles from content for
-terminals isn't very hard. The potential engineering and user benefits are
-substantial. Of course, I am partial and believe that prettypretty is that right
-library. But even if you disagree on that point, I hope you agree on the larger
-one. And if you disagree on prettypretty being that right library, I want to
-hear from you. Please do [share your constructive
-feedback](https://github.com/apparebit/prettypretty/issues/new).
+terminals is straight-forward. It does take some more code. But the potential
+engineering and user benefits are substantial. Moreover, prettypretty is fast
+becoming that right library support. So, if you are maintaining a Rust or Python
+library for terminal I/O, consider integrating prettypretty's superior color and
+style management. If you are developing a command line application in Rust or
+Python, use prettypretty for styling its output. Most importantly, if you have
+questions or suggestions or any other concerns, please don't hesitate to [reach
+out](https://github.com/apparebit/prettypretty/issues/new). Of course, that
+applies to 🦟 bugs 🕷️ as well.
 
 
 <div class=warning>
 
 ### Change Is in the Air
 
-The previous paragraph requires temporary qualification: Prettypretty's
-Rust-based API has been through three major iterations, one for the original
-Python-based API, one for the rewrite in Rust, and one to clean up and
-consolidate functionality. As a consequence, that part of prettypretty's API is
-fairly polished. The current Python-based API for styles and rich text has not
-had the benefit of my repeated attention. Fluent styles *feel* like the right
-approach to me, yet the current iteration also *feels* a bit clunky to me. So, I
-expect that part of the API to change as I port it over to Rust. But it won't be
-a complete change of direction.
+Prettypretty started out as a Python-only library and is transitioning to a Rust
+library with first-class Python support. I'm also leveraging the transition as
+an opportunity for iterating over prettypretty's public interfaces. Now that
+fluent styles have been implemented in Rust, much of the transition is complete.
+The only major piece of functionality missing from the Rust version is terminal
+I/O. Or at least, some semblance of it: Prettypretty has specific and fairly
+unique needs when it comes to terminal I/O, notably, to interrogate a terminal
+for its current color theme. I strongly believe that the Rust version needs to
+offer support for that as well. It probably would also benefit from a minimal
+and easily replacable I/O driver as well. But those seem to be the limits of
+this library's functionality. In other words, this library still is a few
+releases away from the big 1.0 and those releases will likely entail some API
+churn. But that is also resulting in a cleaner, meaner API.s
+
+</div>
+
+<div class=warning>
+
+### Accessibility
+
+Prettypretty's focus on colors manipulation is not just an aesthetic concern but
+also touches upon accessibility. That is one reason why prettypretty already
+includes a [contrast
+metric](https://apparebit.github.io/prettypretty/prettypretty/struct.Color.html#method.contrast_against)
+that is surprisingly similar to the [Advanced Perceptual Contrast
+Algorithm](https://github.com/Myndex/SAPC-APCA) (APCA). APCA is attractive
+because it clearly outperforms the contrast-ratio metric specified in version
+2.x of the [Web Content Accessibility
+Guidelines](https://www.w3.org/TR/WCAG22/#dfn-contrast-ratio) (WCAG).
+Unfortunately, it also suffers from a license that is—charitably—best described
+as quirky. More importantly, the combination of well-specified application
+styles and a reliable contrast metric enables automatic contrast correction.
+However, accessibility of terminal applications that do more than just emitting
+text remains vastly underexplored.
 
 </div>
 
 [`current_translator`]: https://apparebit.github.io/prettypretty/python/prettypretty/theme.html#prettypretty.theme.current_translator
-[`is_dark_theme`]: https://apparebit.github.io/prettypretty/python/prettypretty/darkmode.html#prettypretty.darkmode.is_dark_theme
-[`rich`]: https://apparebit.github.io/prettypretty/python/prettypretty/style.html#prettypretty.style.rich
-[`RichText`]: https://apparebit.github.io/prettypretty/python/prettypretty/style.html#prettypretty.style.RichText
-[`Style.prepare`]: https://apparebit.github.io/prettypretty/python/prettypretty/style.html#prettypretty.style.Style.prepare
 [`Terminal`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal
 [`Terminal.alternate_screen`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.alternate_screen
 [`Terminal.batched_output`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.batched_output
 [`Terminal.bracketed_paste`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.bracketed_paste
 [`Terminal.fidelity`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.fidelity
 [`Terminal.window_title`]: https://apparebit.github.io/prettypretty/python/prettypretty/terminal.html#prettypretty.terminal.Terminal.window_title
-[`Translator.cap`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.cap
+
+{{#include ../links.md}}

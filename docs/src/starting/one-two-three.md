@@ -10,7 +10,8 @@ prettypretty builds on graceful degradation, i.e., starting with expressive
 styles and automatically adjusting them to user preferences and less capable
 terminals. Very much like CSS, prettypretty delivers better results, when you
 author for variability. Prettypretty's workflow is based on three major steps.
-Here's an overview of them.
+This chapter provides an overview of prettypretty's one-two-three. The [deep
+dive on the progress bar script](../deepdive/progressbar.md) adds, ahem, depth.
 
 
 ## 1. Fluently Assembling Styles
