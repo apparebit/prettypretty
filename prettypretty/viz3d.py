@@ -10,8 +10,8 @@ from prettypretty.color.gamut import ( # pyright: ignore [reportMissingModuleSou
     GamutTraversalStep
 )
 from prettypretty.color.spectrum import ( # pyright: ignore [reportMissingModuleSource]
-    CIE_ILLUMINANT_D65, CIE_ILLUMINANT_E, CIE_OBSERVER_2DEG_1931, Illuminant,
-    SpectrumTraversal
+    CIE_ILLUMINANT_D50, CIE_ILLUMINANT_D65, CIE_ILLUMINANT_E, CIE_OBSERVER_2DEG_1931,
+    CIE_OBSERVER_10DEG_1964, Illuminant, SpectrumTraversal
 )
 
 
@@ -22,9 +22,24 @@ def create_parser() -> argparse.ArgumentParser:
         "'visual-gamut-ok.ply' files"
     )
     parser.add_argument(
-        "--illuminant-e",
+        "--d50",
+        action="store_const",
+        const="D50",
+        dest="illuminant",
+        help="use CIE standard illuminant D50 instead of the default D65"
+    )
+    parser.add_argument(
+        "--e",
+        action="store_const",
+        const="E",
+        default="D65",
+        dest="illuminant",
+        help="use CIE standard illuminant E instead of the default D65"
+    )
+    parser.add_argument(
+        "--ten-degree",
         action="store_true",
-        help="use CIE standard illuminant E instead of D65"
+        help="use CIE 1964 10º standard observer instead of default 1931 2º"
     )
     parser.add_argument(
         "--gamut", "-g",
@@ -147,6 +162,7 @@ class PointManager:
         planar: bool = False,
         mesh: bool = False,
         alpha: float = 1.0,
+        label: None | str = None,
     ) -> None:
         self._step_size = step_size
         self._space = space
@@ -159,6 +175,7 @@ class PointManager:
         self._alpha: int = min(max(int(alpha * 255), 0), 255)
         self._line_count = 0
         self._line_length = 0
+        self._label = label
 
     @property
     def line_count(self) -> int:
@@ -381,7 +398,7 @@ class PointManager:
     ) -> tuple[int, int]:
         file.write("ply\n")
         file.write("format ascii 1.0\n")
-        c = f"Visual gamut in {self._space}, step size {self._step_size}nm, "
+        c = f"Visual gamut in {self._label}, step size {self._step_size}nm, "
         c += "w/mesh" if self._should_generate_mesh else "w/o mesh"
         file.write(f"comment {c} <https://github.com/apparebit/prettypretty>\n")
 
@@ -441,7 +458,10 @@ class PointManager:
 
 
 def generate(
+    *,
     space: ColorSpace,
+    filename: str,
+    label: str,
     step_size: int = 2,
     darken: bool = False,
     gamut: None | ColorSpace = None,
@@ -455,9 +475,9 @@ def generate(
     traversal = SpectrumTraversal(illuminant, CIE_OBSERVER_2DEG_1931)
     traversal.set_step_sizes(step_size)
 
-    log(f"Traversing visual gamut in {space} with step size {step_size}:")
+    log(f"Traversing visual gamut in {label} with step size {step_size}:")
     points = PointManager(
-        step_size=step_size, space=space, darken=darken, mesh=mesh, alpha=alpha
+        step_size=step_size, space=space, darken=darken, mesh=mesh, alpha=alpha, label=label
     )
 
     # Lines resulting from square wave pulses
@@ -507,7 +527,7 @@ def generate(
         points.write_all(file, gamut_points)
 
 
-def render() -> None:
+def render(filename: str, label: str) -> None:
     try:
         from vedo import ( # pyright: ignore [reportMissingImports, reportMissingTypeStubs]
             Mesh, show # pyright: ignore [reportUnknownVariableType]
@@ -518,7 +538,7 @@ def render() -> None:
         log("and then run `python -m prettypretty.viz3d -mr` again.")
         sys.exit(1)
 
-    mesh: Any = Mesh("visual-gamut-xyz.ply")
+    mesh: Any = Mesh(filename)
     sx = mesh.clone().project_on_plane('x').c('r').x(-3) # sx is 2d
     sy = mesh.clone().project_on_plane('y').c('g').y(-3)
     sz = mesh.clone().project_on_plane('z').c('b').z(-3)
@@ -527,7 +547,7 @@ def render() -> None:
         sx, sx.silhouette('2d'), # 2d objects dont need a direction
         sy, sy.silhouette('2d'),
         sz, sz.silhouette('2d'),
-        "The Visual Gamut in XYZ",
+        f"The Visual Gamut in {label}",
         axes=7,
         viewup='z',
         bg="#555555",
@@ -565,11 +585,34 @@ if __name__ == "__main__":
     if step_size <= 0 or 10 < step_size:
         log(f"step size {step_size} is not between 1 and 10.")
 
+    if options.illuminant == "D50":
+        illuminant = CIE_ILLUMINANT_D50
+    elif options.illuminant == "D65":
+        illuminant = CIE_ILLUMINANT_D65
+    elif options.illuminant == "E":
+        illuminant = CIE_ILLUMINANT_E
+    else:
+        raise ValueError(f'invalid option value for illuminant "{options.illuminant}"')
+
+    if options.ten_degree:
+        observer = CIE_OBSERVER_10DEG_1964
+        file_suffix = "10deg"
+        label_suffix = "10º"
+    else:
+        observer = CIE_OBSERVER_2DEG_1931
+        file_suffix = "2deg"
+        label_suffix = "2º"
+
+    file_suffix = f"-{options.illuminant.lower()}-{file_suffix}.ply"
+    label_suffix = f" {options.illuminant}/{label_suffix}"
+
+    filename = "visual-gamut-xyz" + file_suffix
+    label = "XYZ" + label_suffix
+
     sampler = Sampler()
-    illuminant = CIE_ILLUMINANT_E if options.illuminant_e else CIE_ILLUMINANT_D65
 
     generate(
-        ColorSpace.Xyz,
+        space=ColorSpace.Xyz,
         step_size=step_size,
         gamut=gamut,
         planar_gamut=options.planar_gamut,
@@ -577,12 +620,14 @@ if __name__ == "__main__":
         darken=options.darken,
         alpha=float(options.alpha),
         illuminant=illuminant,
+        filename=filename,
+        label=label,
     )
 
     log()
 
     generate(
-        ColorSpace.Oklrab,
+        space=ColorSpace.Oklrab,
         step_size=step_size,
         gamut=gamut,
         planar_gamut=options.planar_gamut,
@@ -591,10 +636,12 @@ if __name__ == "__main__":
         darken=options.darken,
         alpha=float(options.alpha),
         illuminant=illuminant,
+        filename="visual-gamut-ok" + file_suffix,
+        label="Oklrab" + label_suffix,
     )
 
     log("\nShape of visible gamut (sampled on chroma/hue plane):\n")
     log(str(sampler))
 
     if options.mesh and options.render:
-        render()
+        render(filename, label)

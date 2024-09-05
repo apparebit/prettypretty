@@ -164,6 +164,8 @@ pub mod trans;
 mod util;
 
 #[cfg(feature = "gamut")]
+mod cie;
+#[cfg(feature = "gamut")]
 pub mod gamut {
     //! Utility module with the machinery for traversing RGB gamut boundaries
     //! with [`ColorSpace::gamut`](crate::ColorSpace).  <i
@@ -286,6 +288,11 @@ fn register_modgamut(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modspectrum = PyModule::new_bound(m.py(), "spectrum")?;
     modspectrum.add("__package__", modcolor_name)?;
     modspectrum.add(
+        "CIE_ILLUMINANT_D50",
+        spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_D50)
+            as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send>),
+    )?;
+    modspectrum.add(
         "CIE_ILLUMINANT_D65",
         spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_D65)
             as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send>),
@@ -296,7 +303,7 @@ fn register_modgamut(m: &Bound<'_, PyModule>) -> PyResult<()> {
             as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send>),
     )?;
     modspectrum.add("CIE_OBSERVER_2DEG_1931", spectrum::CIE_OBSERVER_2DEG_1931)?;
-    modspectrum.add("CIE_OBSERVER_2DEG_2015", spectrum::CIE_OBSERVER_2DEG_2015)?;
+    modspectrum.add("CIE_OBSERVER_10DEG_1964", spectrum::CIE_OBSERVER_10DEG_1964)?;
     modspectrum.add_class::<spectrum::Illuminant>()?;
     modspectrum.add_class::<spectrum::Observer>()?;
     modspectrum.add_class::<spectrum::SpectrumTraversal>()?;
