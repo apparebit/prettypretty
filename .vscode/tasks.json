@@ -4,16 +4,107 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "group": "build",
-            "label": "Build (Rust and Python)",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "label": "build: maturin dev --all-feaures",
             "type": "shell",
-            "command": "./rr.sh build"
+            "command": "cargo fmt && maturin dev --all-features",
+            "problemMatcher": [
+                "$rustc"
+            ]
         },
         {
-            "group": "test",
-            "label": "Test (Rust and Python)",
+            "label": "Test",
             "type": "shell",
-            "command": "./rr.sh check"
+            "command": "./rr.sh",
+            "args": [
+                "ooh",
+                "''",
+                "Happy, happy,joy, joy"
+            ],
+            "dependsOn": [
+                "rust: cargo check",
+                "rust: cargo check --all-features",
+                "rust: cargo clippy",
+                "rust: cargo clippy --all-features",
+                "rust: cargo test"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "clear": false,
+            },
+            "problemMatcher": [
+                "$rustc"
+            ]
+        },
+        {
+            "type": "cargo",
+            "command": "check",
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "group": "test",
+            "label": "rust: cargo check",
+            "presentation": {
+                "revealProblems": "onProblem",
+            }
+        },
+        {
+            "type": "cargo",
+            "command": "check",
+            "args": [
+                "--all-features"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "group": "test",
+            "label": "rust: cargo check --all-features",
+            "presentation": {
+                "revealProblems": "onProblem",
+            }
+        },
+        {
+            "type": "cargo",
+            "command": "clippy",
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "group": "test",
+            "label": "rust: cargo clippy",
+            "presentation": {
+                "revealProblems": "onProblem",
+            }
+        },
+        {
+            "type": "cargo",
+            "command": "clippy",
+            "args": ["--all-features"],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "group": "test",
+            "label": "rust: cargo clippy --all-features",
+            "presentation": {
+                "revealProblems": "onProblem",
+            }
+        },
+        {
+            "type": "cargo",
+            "command": "test",
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "group": "test",
+            "label": "rust: cargo test",
+            "presentation": {
+                "revealProblems": "onProblem",
+            }
         }
     ]
 }
