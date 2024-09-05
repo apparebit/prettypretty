@@ -1043,8 +1043,13 @@ impl Color {
     /// This method computes the asymmetric, perceptual contrast of text with
     /// this color against a background with the given color. It uses an
     /// algorithm that is surprisingly similar to the [Accessible Perceptual
-    /// Contrast Algorithm](https://github.com/Myndex/apca-w3), version
+    /// Contrast Algorithm](https://github.com/Myndex/apca-w3) (APCA), version
     /// 0.0.98G-4g. This method normalizes both colors.
+    ///
+    /// According to the [bronze level conformance
+    /// criteria](https://readtech.org/ARC/tests/bronze-simple-mode/?tn=criterion)
+    /// for APCA, a contrast of 75 is the minimum for body text and a contrast
+    /// of 90 is desirable.
     pub fn contrast_against(&self, background: &Self) -> f64 {
         let fg = self.to(ColorSpace::Srgb);
         let bg = background.to(ColorSpace::Srgb);
