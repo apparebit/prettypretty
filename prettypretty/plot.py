@@ -41,6 +41,15 @@ def create_parser() -> argparse.ArgumentParser:
             irrespective of their color space and the current display gamut.
             However, since its visualization library (matplotlib) is limited to
             sRGB, each mark's color is gamut-mapped to sRGB.
+        """,
+        epilog="""
+            Plot accepts a subset of CSS color syntax, including hash
+            hexadecimal notation (#123abc) as well as functional notation. For
+            the latter, it recognizes "color(<space> <c1> <c2> <c3>)",
+            "oklab(<l> <a> <b>)", and "oklch(<l> <c> <h>)". Valid color space
+            names are sRGB, linear-sRGB, Display-P3, --linear-Display-P3,
+            Rec2020, --linear-Rec2020, --Oklrab, --Oklrch, XYZ, and XYZ-D65 (all
+            case-insensitive).
         """
     )
     parser.add_argument(
@@ -66,11 +75,21 @@ def create_parser() -> argparse.ArgumentParser:
         "-c", "--color",
         action="append",
         dest="colors",
-        help="also plot color written as six hexadecimal digits"
+        help="also plot color specified in CSS syntax"
     )
     parser.add_argument(
         "-i", "--input",
-        help="read newline-separated colors from the named file",
+        help="read newline-separated colors in CSS syntax from named file",
+    )
+    parser.add_argument(
+        "--no-light",
+        action="store_true",
+        help="don't include bar chart for lightness",
+    )
+    parser.add_argument(
+        "--no-term",
+        action="store_true",
+        help="don't render terminal colors, only those specified with --color and --input",
     )
     parser.add_argument(
         "-g", "--gamut",
@@ -92,11 +111,6 @@ def create_parser() -> argparse.ArgumentParser:
         "--chromaticity",
         action="store_true",
         help="create xy chromaticity diagram"
-    )
-    parser.add_argument(
-        "--illuminant",
-        action="store_true",
-        help="scale color matching function by D65 illuminant",
     )
     parser.add_argument(
         "-o", "--output",
@@ -128,7 +142,7 @@ class ColorPlotter:
 
         # Averaged grays as one
         self._grays: list[float] = []
-        self._gray_mark = None
+        self._gray_mark = "o"
 
         # Lightness bars
         self._lightness: list[float] = []
@@ -203,12 +217,6 @@ class ColorPlotter:
         # Handle grays
         if oklrch.is_achromatic_threshold(ColorPlotter.ACHROMATIC_THRESHOLD):
             self._grays.append(lr)
-            if self._gray_mark is None:
-                self._gray_mark = marker
-            elif marker != self._gray_mark:
-                raise ValueError(
-                    f"inconsistent markers for achromatic color: {marker} vs {self._gray_mark}"
-                )
             return
 
         # Add hue/chroma/mark and update counts accordingly
@@ -226,18 +234,20 @@ class ColorPlotter:
 
     def stop_adding(self) -> None:
         self.status(
-            f"\nAltogether {self.format_counts()} colors, "
-            f" {len(self._grays)} grays, and {self._duplicate_count} duplicates"
+            f"\nTotal: {self._base_count}+{self._extra_count} chromatic colors, "
+            f"{len(self._grays)} achromatic colors, "
+            f"and {self._duplicate_count} duplicates"
         )
 
-    def format_counts(self) -> str:
-        gray_count = len(self._grays)
-        if gray_count == 0 and self._extra_count == 0:
-            return f"{self._base_count}"
+    @property
+    def total_count(self) -> int:
+        return self._base_count + self._extra_count + len(self._grays)
 
-        counts = f"{self._base_count}+{gray_count}"
-        if self._extra_count > 0:
-            counts += f"+{self._extra_count}"
+    def format_counts(self) -> str:
+        counts = f"{self._base_count + self._extra_count}"
+        grays = len(self._grays)
+        if grays > 0:
+            counts += f"+{grays}"
         return counts
 
     def trace_spectrum(
@@ -396,16 +406,20 @@ class ColorPlotter:
         color_kind: None | str = None,
         gamuts: None | list[ColorSpace] = None,
         with_spectrum: bool = False,
-        with_illuminant: bool = False,
+        with_lightness: bool = True,
     ) -> Any:
         if self._chromaticity:
             fig: Any = plt.figure(figsize=(5, 5.5)) # type: ignore
             axes: Any = fig.add_subplot()
-            light_axes = None
+            light_axes: Any = None
+        elif with_lightness:
+            fig = plt.figure(layout="constrained", figsize=(5, 6.5))  # type: ignore
+            axes = fig.add_subplot(6, 10, (1, 50), polar=True)
+            light_axes = fig.add_subplot(6, 10, (51, 60))
         else:
-            fig: Any = plt.figure(layout="constrained", figsize=(5, 6.5))  # type: ignore
-            axes: Any = fig.add_subplot(6, 10, (1, 50), polar=True)
-            light_axes: Any = fig.add_subplot(6, 10, (51, 60))
+            fig = plt.figure(layout="constrained", figsize=(5, 5.5)) # type: ignore
+            axes = fig.add_subplot(polar=True)
+            light_axes = None
 
         # Add spectrum and gamut boundaries if so requested.
         # if with_spectrum or self._chromaticity:
@@ -498,6 +512,7 @@ class ColorPlotter:
             if ColorSpace.Rec2020 in gamuts:
                 self.add_gamut_label(axes, ColorSpace.Rec2020, "Rec. 2020", 0.95, 1.0, 0.18, 1)
 
+        if not self._chromaticity and with_lightness:
             light_axes.set_yticks([0, 0.5, 1], minor=False)
             light_axes.set_yticks([0.25, 0.75], minor=True)
             light_axes.yaxis.grid(True, which="major")
@@ -527,9 +542,16 @@ class ColorPlotter:
                 light_axes.get_xaxis().set_visible(False)
 
         collection_name = collection_name or self._collection_name
-        color_kind = color_kind or self._color_kind or "Colors"
+        color_kind = color_kind or self._color_kind
+
         title = f"{collection_name}: " if collection_name else ""
-        title += f"{self.format_counts()} {color_kind}"
+        title += f"{self.format_counts()} "
+        if color_kind:
+            title += f"{color_kind} "
+        title += "Color"
+        if self.total_count != 1 or self._base_count != 1:
+            title += "s"
+
         title += "" if self._chromaticity else " in Oklab"
         if self._chromaticity:
             fig.suptitle("CIE 1931 xy Chromaticity", weight="bold", size=13)
@@ -537,11 +559,12 @@ class ColorPlotter:
         else:
             fig.suptitle(title, ha="left", x=0.044, weight="bold", size=13)
             axes.set_title("Hue & Chroma", style="italic", size=13, x=0.11, y=1.01)
-            fig.text(
-                0.09, 0.185 + lry_offset,
-                "Lightness (Lr)",
-                fontdict=dict(style="italic", size=13)
-            )
+            if with_lightness:
+                fig.text(
+                    0.09, 0.185 + lry_offset,
+                    "Lightness (Lr)",
+                    fontdict=dict(style="italic", size=13)
+                )
 
         return fig
 
@@ -596,11 +619,7 @@ def main() -> None:
 
     plotter.start_adding()
 
-    if options.input is not None:
-        with open(options.input, mode="r", encoding="utf8") as file:
-            for color in [Color.parse(l) for l in file.readlines() if l.strip()]:
-                plotter.add("", color)
-    else:
+    if not options.no_term:
         with Terminal().cbreak_mode().terminal_theme(options.theme) as term:
             if not options.theme:
                 terminal_id = term.request_terminal_identity()
@@ -613,27 +632,35 @@ def main() -> None:
                     label = trans.ThemeEntry.try_from_index(index + 2).abbr()
                     plotter.add(name, color, label=label)
 
-    for color in [Color.parse("#" + c) for c in cast(list[str], options.colors) or []]:
-        plotter.add("<extra>", color, marker="d")
+    cname = "" if options.no_term else "<extra>"
+    marker = "o" if options.no_term else "d"
+
+    if options.input is not None:
+        with open(options.input, mode="r", encoding="utf8") as file:
+            for color in [Color.parse(l) for l in file.readlines() if l.strip()]:
+                plotter.add(cname, color, marker=marker)
+
+    for color in [Color.parse(c) for c in cast(list[str], options.colors) or []]:
+        plotter.add(cname, color, marker=marker)
 
     plotter.stop_adding()
 
     # ----------------------------------------------------------------------------------
     # Labels and file names
 
-    if options.theme:
-        collection_name = "VGA"
-    elif options.input:
+    if options.no_term:
         collection_name = None
+    elif options.theme:
+        collection_name = "VGA"
     elif terminal_id:
         collection_name = terminal_id[0]
     else:
         collection_name = "Unknown Terminal"
 
-    if options.input:
-        color_kind = "Colors"
+    if options.no_term:
+        color_kind = None
     else:
-        color_kind = "ANSI Colors"
+        color_kind = "ANSI"
 
     if options.output is not None:
         file_name = options.output
@@ -651,7 +678,7 @@ def main() -> None:
         color_kind=color_kind,
         gamuts=gamuts,
         with_spectrum=options.spectrum,
-        with_illuminant=options.illuminant,
+        with_lightness=not options.no_light
     )
     plotter.status(f"Saving plot to `{file_name}`")
     fig.savefig(file_name, bbox_inches="tight")  # type: ignore
