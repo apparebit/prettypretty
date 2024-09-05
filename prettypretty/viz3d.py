@@ -25,6 +25,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--d50",
         action="store_const",
         const="D50",
+        default="D65",
         dest="illuminant",
         help="use CIE standard illuminant D50 instead of the default D65"
     )
@@ -32,7 +33,6 @@ def create_parser() -> argparse.ArgumentParser:
         "--e",
         action="store_const",
         const="E",
-        default="D65",
         dest="illuminant",
         help="use CIE standard illuminant E instead of the default D65"
     )
@@ -86,6 +86,14 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     return parser
+
+
+if sys.stderr.isatty():
+    BOLD = "\x1b[1m"
+    RESET = "\x1b[m"
+else:
+    BOLD = "" # pyright: ignore [reportConstantRedefinition]
+    RESET = "" # pyright: ignore [reportConstantRedefinition]
 
 
 def log(msg: str = "") -> None:
@@ -475,7 +483,7 @@ def generate(
     traversal = SpectrumTraversal(illuminant, CIE_OBSERVER_2DEG_1931)
     traversal.set_step_sizes(step_size)
 
-    log(f"Traversing visual gamut in {label} with step size {step_size}:")
+    log(f"Traversing visual gamut in {BOLD}{label}{RESET} with step size {step_size}:")
     points = PointManager(
         step_size=step_size, space=space, darken=darken, mesh=mesh, alpha=alpha, label=label
     )
@@ -517,12 +525,7 @@ def generate(
             else:
                 gamut_points.add(color.to(ColorSpace.Xyz))
 
-    if space.is_ok():
-        filename = "visual-gamut-ok.ply"
-    else:
-        filename = "visual-gamut-xyz.ply"
-
-    log(f"Writing {filename}:")
+    log(f"Writing {BOLD}{filename}{RESET}:")
     with open(filename, mode="w", encoding="utf8") as file:
         points.write_all(file, gamut_points)
 
