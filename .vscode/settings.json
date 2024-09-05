@@ -25,7 +25,8 @@
         "rustfmt",
         "srgb",
         "systemsy",
-        "tristimulus"
+        "tristimulus",
+        "WCAG"
     ],
     "python.testing.unittestArgs": [
         "-v",
