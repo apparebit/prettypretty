@@ -1,16 +1,84 @@
 //! Utility module with the spectral distributions for CIE standard observers
 //! and illuminants. <i class=gamut-only>Gamut only!</i>
 //!
-//!   * [`Illuminant`] and [`Observer`] define a simple **interface to data**
-//!     from the corresponding spectral distributions at 1nm resolution.
-//!   * [`CIE_ILLUMINANT_D65`], [`CIE_OBSERVER_2DEG_1931`], and
-//!     [`CIE_OBSERVER_2DEG_2015`] provide the **actual data** for several **CIE
-//!     standard distributions**.
-//!   * [`SpectrumTraversal`] delineates the boundaries of the **visual gamut**
-//!     by computes an observer's tristimulus values for square wave pulses.
+#![cfg_attr(
+    feature = "pyffi",
+    doc = "This module reflects a somewhat unsatisfactory compromise between what's
+        possible in Rust and what's necessary for PyO3. In particular, PyO3 requires
+        monomorphic enums/structs with monomorphic method implementations and does not
+        support generic anything. The PyO3 guide justifies this restriction with the
+        fact that the Rust compiler produces monomorphic code only. While correct, PyO3
+        complicates matters significantly by not supporting trait methods, its
+        `#[pymethods]` macro disallowing item-level macros, and its error checking
+        ignoring `#[cfg]` attributes. The impact is noticeable: Whereas the Rust-only
+        version of this module contains three implementations of
+        [`SpectralDistribution`]'s methods, enabling the `pyffi` feature adds three
+        more implementations."
+)]
+//!
+//! The [`SpectralDistribution`] trait defines an interface for mapping
+//! wavelengths to values over a fixed, one-nanometer-aligned range of
+//! wavelengths at one-nanometer resolution. The trait's requirement for a range
+//! of integral nanometer wavelengths is directly reflected in its interface,
+//! which uses `usize` for the range from [`SpectralDistribution::start`] to
+//! [`SpectralDistribution::end`] as well as for looking up the value
+//! [`SpectralDistribution::at`] a given wavelength.
+//!
+//! This module includes the following implementations of the trait:
+//!
+//!   * [`Observer`] is a table-driven implementation of
+//!     `SpectralDistribution<Value=[Float;3]>`.
+//!   * [`TabularDistribution`] is a table-driven implementation of
+//!     `SpectralDistribution<Value=Float>`.
+//!   * [`FixedDistribution`] is an implementation of
+//!     `SpectralDistribution<Value=Float>` with a fixed value.
+#![cfg_attr(
+    feature = "pyffi",
+    doc = "  * [`Illuminant`] is an implementation of
+        `SpectralDistribution<Value=Float>` that wraps a `Box<dyn
+         SpectralDistribution<Value=Float> + Send>`."
+)]
+//!
+#![cfg_attr(
+    feature = "pyffi",
+    doc = "To play nice with PyO3, `Observer` reimplements all but one trait method in
+        its `impl` block. For the same reason, `Illuminant` includes the `Send`
+        bound on `Box`'s type parameter and also reimplements all but one trait
+        method in its `impl` block. Alas, the entirety of `Illuminant`'s existence
+        is motivated by making the concrete illuminants defined by this module
+        accessible to Python. Rust-only code has no need for this struct."
+)]
+//!
+//! Using the above implementations, this module exports the following concrete
+//! illuminants, observers, and analytical approximation:
+//!
+//!   * [`CIE_ILLUMINANT_D65`] approximates daylight around noon.
+//!   * [`CIE_ILLUMINANT_E`] has equal energy.
+//!   * [`CIE_OBSERVER_2DEG_1931`] is the original 2º color matching function
+//!     from 1931.
+//!   * [`CIE_OBSERVER_2DEG_2015`] is the updated 2º color matching function
+//!     from 2015.
 //!   * [`std_observer::x()`], [`std_observer::y()`], and [`std_observer::z()`]
-//!     compute **analytical approximations** for the CIE's 1931 2º **standard
-//!     observer**.
+//!     compute analytical approximations for the CIE's 1931 2º observer.
+//!
+//! Since even the authors of the analytical approximations used floating point
+//! to evaluated their accuracy, their re-implementation in this module is not
+//! restricted to integral wavelengths but also accepts floating point values.
+//!
+//! [`SpectrumTraversal`] is an iterator for tracing the spectral locus or the
+//! human visual gamut. It requires an illuminant and observer as inputs. In
+//! Rust, that can be any `SpectralDistribution<Value=Float>` and
+//! `SpectralDistribution<Value=[Float;3]>`.
+#![cfg_attr(
+    feature = "pyffi",
+    doc = "Meanwhile, the Python constructor is restricted to `&Illuminant`
+        and `&Observer` arguments only. In general, thusly separating a generic
+        Rust constructor from PyO3's monomorphic version would not suffice.
+        However, spectrum traversal's constructors do not retain their inputs,
+        instead keeping the result of premultiplying the two. In other words,
+        the rest of [`SpectrumTraversal`]'s implementation is strictly monomorphic."
+)]
+//!
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
@@ -65,20 +133,19 @@ pub trait SpectralDistribution {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// An illuminant at nanometer resolution.
+/// An illuminant at nanometer resolution. <i class=python-only>Python only!</i>
 ///
 /// This struct exposes all functionality as methods for Python
 /// interoperability. But it doesn't actually implement the functionality of a
 /// spectral distribution and instead forwards all method invocations to a `dyn
 /// SpectralDistribution<Value=Float>`.
-#[cfg_attr(
-    feature = "pyffi",
-    pyclass(frozen, module = "prettypretty.color.trans")
-)]
+#[cfg(feature = "pyffi")]
+#[pyclass(frozen, module = "prettypretty.color.trans")]
 pub struct Illuminant {
     distribution: Box<dyn SpectralDistribution<Value = Float> + Send>,
 }
 
+#[cfg(feature = "pyffi")]
 impl Illuminant {
     /// Create a new illuminant.
     pub fn new(distribution: Box<dyn SpectralDistribution<Value = Float> + Send>) -> Self {
@@ -86,7 +153,8 @@ impl Illuminant {
     }
 }
 
-#[cfg_attr(feature = "pyffi", pymethods)]
+#[cfg(feature = "pyffi")]
+#[pymethods]
 impl Illuminant {
     /// Get a descriptive label for this spectral distribution.
     pub fn label(&self) -> String {
@@ -118,15 +186,12 @@ impl Illuminant {
         self.distribution.at(wavelength)
     }
 
-    /// Get the number of entries. <i class=python-only>Python only!</i>
-    #[cfg(feature = "pyffi")]
+    /// Get the number of entries.
     pub fn __len__(&self) -> usize {
         self.distribution.len()
     }
 
-    /// Get the entry at the given index. <i class=python-only>Python
-    /// only!</i>
-    #[cfg(feature = "pyffi")]
+    /// Get the entry at the given index.
     pub fn __getitem__(&self, index: usize) -> PyResult<Float> {
         self.distribution
             .at(self.distribution.start() + index)
@@ -139,13 +204,13 @@ impl Illuminant {
             })
     }
 
-    /// Get a debug representation. <i class=python-only>Python only!</i>
-    #[cfg(feature = "pyffi")]
+    /// Get a debug representation.
     pub fn __repr__(&self) -> String {
         format!("Illuminant({})", self.label())
     }
 }
 
+#[cfg(feature = "pyffi")]
 impl SpectralDistribution for Illuminant {
     type Value = Float;
 
@@ -155,6 +220,18 @@ impl SpectralDistribution for Illuminant {
 
     fn start(&self) -> usize {
         self.distribution.start()
+    }
+
+    fn end(&self) -> usize {
+        self.distribution.end()
+    }
+
+    fn range(&self) -> std::ops::Range<usize> {
+        self.distribution.range()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.distribution.is_empty()
     }
 
     fn len(&self) -> usize {
@@ -412,7 +489,11 @@ struct SpectrumTraversalData {
 
 impl SpectrumTraversalData {
     /// Create the spectrum traversal data for the observer and illuminant.
-    fn new(illuminant: &Illuminant, observer: &Observer) -> Self {
+    fn new<I, O>(illuminant: &I, observer: &O) -> Self
+    where
+        I: SpectralDistribution<Value = Float>,
+        O: SpectralDistribution<Value = [Float; 3]>,
+    {
         let start = illuminant.start().max(observer.start());
         let end = illuminant.end().min(observer.end());
         let mut premultiplied: Vec<[Float; 3]> = Vec::with_capacity(end - start);
@@ -489,12 +570,13 @@ pub struct SpectrumTraversal {
     width: usize,
 }
 
-#[cfg_attr(feature = "pyffi", pymethods)]
 impl SpectrumTraversal {
-    /// Create a new spectrum traversal.
-    #[cfg(feature = "pyffi")]
-    #[new]
-    pub fn new(illuminant: &Illuminant, observer: &Observer) -> Self {
+    /// Create a new spectrum traversal. <i class=rust-only>Rust only!</i>
+    pub fn new<I, O>(illuminant: &I, observer: &O) -> Self
+    where
+        I: SpectralDistribution<Value = Float>,
+        O: SpectralDistribution<Value = [Float; 3]>,
+    {
         Self {
             data: SpectrumTraversalData::new(illuminant, observer),
             position_incr: 5,
@@ -503,10 +585,14 @@ impl SpectrumTraversal {
             width: 0,
         }
     }
+}
 
-    /// Create a new spectrum traversal.
-    #[cfg(not(feature = "pyffi"))]
-    pub fn new(illuminant: &Illuminant, observer: &Observer) -> Self {
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl SpectrumTraversal {
+    /// Create a new spectrum traversal. <i class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    #[new]
+    pub fn py_new(illuminant: &Illuminant, observer: &Observer) -> Self {
         Self {
             data: SpectrumTraversalData::new(illuminant, observer),
             position_incr: 5,
