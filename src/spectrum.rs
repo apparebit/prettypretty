@@ -619,23 +619,21 @@ impl SpectrumTraversalData {
     }
 }
 
-/// An iterator to delineate the visual gamut.
+/// An iterator to trace the human visual gamut.
 ///
-/// This iterator traverses the boundaries of the visual gamut by computing an
-/// observer's tristimulus values under a given illuminant [for square wave
+/// This iterator computes an observer's tristimulus values under a given
+/// illuminant [for square wave
 /// pulses](https://horizon-lab.org/colorvis/gamutvis.html) of [increasing
-/// widths](https://www.russellcottrell.com/photo/visualGamut.htm).
-///
-/// Every traversal of a square wave pulse across the spectrum is represented as
-/// a line of colors in the XYZ color space. The first pulse is always 1nm wide
-/// and hence the first line always always is the spectral locus for the given
-/// illuminant and observer.
+/// widths](https://www.russellcottrell.com/photo/visualGamut.htm) circling
+/// through the spectrum shared between illuminant and observer. Moreover, it
+/// consecutively yields the tristimulus values for each pulse as a line of
+/// [`GamutTraversalStep`]s. Pulse positions and widths grow with the same
+/// stride, which defaults to 5nm.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.spectrum"))]
 #[derive(Debug)]
 pub struct SpectrumTraversal {
     data: SpectrumTraversalData,
-    position_incr: usize,
-    width_incr: usize,
+    stride: usize,
     position: usize,
     width: usize,
 }
@@ -649,8 +647,7 @@ impl SpectrumTraversal {
     {
         Self {
             data: SpectrumTraversalData::new(illuminant, observer),
-            position_incr: 5,
-            width_incr: 5,
+            stride: 5,
             position: 0,
             width: 0,
         }
@@ -665,32 +662,20 @@ impl SpectrumTraversal {
     pub fn py_new(illuminant: &Illuminant, observer: &Observer) -> Self {
         Self {
             data: SpectrumTraversalData::new(illuminant, observer),
-            position_incr: 5,
-            width_incr: 5,
+            stride: 5,
             position: 0,
             width: 0,
         }
     }
 
-    /// Determine the current step sizes.
-    ///
-    /// This iterator actually uses two distinct step sizes, even though they
-    /// currently cannot be updated independently. The first step size controls
-    /// the stride of starting positions for pulses. The second step size
-    /// controls the stride of pulse widths. Starting positions range from 0 to
-    /// the number of samples. Pulse widths range form 1 to the number of
-    /// samples.
-    pub fn step_sizes(&self) -> (usize, usize) {
-        (self.position_incr, self.width_incr)
+    /// Determine the current stride.
+    pub fn stride(&self) -> usize {
+        self.stride
     }
 
-    /// Update the step size for this traversal.
-    ///
-    /// The given step size is used for selecting the initial position of pulses
-    /// as well as the width of pulses. The current default is 5.
-    pub fn set_step_sizes(&mut self, step_size: std::num::NonZeroUsize) {
-        self.position_incr = step_size.get();
-        self.width_incr = step_size.get();
+    /// Update the stride for this traversal.
+    pub fn set_stride(&mut self, stride: std::num::NonZeroUsize) {
+        self.stride = stride.get();
     }
 
     /// Determine the white point for the spectrum traversal's illuminant and
@@ -724,8 +709,7 @@ impl SpectrumTraversal {
 
         Self {
             data: std::mem::take(&mut self.data),
-            position_incr: self.position_incr,
-            width_incr: self.width_incr,
+            stride: self.stride,
             position: 0,
             width: 0,
         }
@@ -747,11 +731,10 @@ impl SpectrumTraversal {
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         format!(
-            "SpectrumTraversal(position={}+{}, width={}+{}, {})",
+            "SpectrumTraversal(stride={}, position={}, width={}, samples={})",
+            self.stride,
             self.position,
-            self.position_incr,
             self.width,
-            self.width_incr,
             self.data.len(),
         )
     }
@@ -774,10 +757,10 @@ impl Iterator for SpectrumTraversal {
             GamutTraversalStep::LineTo(color)
         };
 
-        self.position += self.position_incr;
+        self.position += self.stride;
 
         if self.data.len() <= self.position {
-            self.width += self.width_incr;
+            self.width += self.stride;
             self.position = 0;
         }
 
