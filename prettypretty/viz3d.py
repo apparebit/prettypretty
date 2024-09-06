@@ -18,9 +18,14 @@ from prettypretty.color.spectrum import ( # pyright: ignore [reportMissingModule
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="generate a point cloud or mesh for the visual gamut in XYZ "
-        "as well as Oklrab and store the data in 'visual-gamut-xyz.ply' and "
-        "'visual-gamut-ok.ply' files"
+        "and store as PLY file in `visual-gamut` directory"
     )
+    parser.add_argument(
+        "--ok",
+        action="store_true",
+        help="show gamut in Oklrab as well"
+    )
+
     parser.add_argument(
         "--d50",
         action="store_const",
@@ -65,8 +70,8 @@ def create_parser() -> argparse.ArgumentParser:
         help="darken vertex colors"
     )
     parser.add_argument(
-        "--step", "-s",
-        help="use given step size (in integral nanometers)"
+        "--stride", "-s",
+        help="use stride s in integral nanometers, with 1 <= s <= 20"
     )
     parser.add_argument(
         "--alpha",
@@ -164,7 +169,7 @@ class PointManager:
     def __init__(
         self,
         *,
-        step_size: int,
+        stride: int,
         space: ColorSpace,
         darken: bool = False,
         planar: bool = False,
@@ -172,7 +177,7 @@ class PointManager:
         alpha: float = 1.0,
         label: None | str = None,
     ) -> None:
-        self._step_size = step_size
+        self._stride = stride
         self._space = space
         self._should_darken = darken
         self._should_project_to_plane = planar
@@ -184,6 +189,8 @@ class PointManager:
         self._line_count = 0
         self._line_length = 0
         self._label = label
+        self._min = [math.inf, math.inf, math.inf]
+        self._max = [-math.inf, -math.inf, -math.inf]
 
     @property
     def line_count(self) -> int:
@@ -211,6 +218,14 @@ class PointManager:
     def face_count(self) -> int:
         return len(self._faces)
 
+    @property
+    def minimum(self) -> list[float]:
+        return self._min
+
+    @property
+    def maximum(self) -> list[float]:
+        return self._max
+
     def mark_newline(self) -> None:
         self._line_count += 1
         if self._line_count == 2:
@@ -218,6 +233,10 @@ class PointManager:
 
     def add(self, color: Color, highlight: None | Color = None) -> None:
         x, y, z = color
+
+        if color.space().is_xyz():
+            self._min = [min(c1, c2) for c1, c2 in zip(self._min, color.coordinates())]
+            self._max = [max(c1, c2) for c1, c2 in zip(self._max, color.coordinates())]
 
         if self._should_project_to_plane:
             if color.space().is_ok():
@@ -406,9 +425,10 @@ class PointManager:
     ) -> tuple[int, int]:
         file.write("ply\n")
         file.write("format ascii 1.0\n")
-        c = f"Visual gamut in {self._label}, step size {self._step_size}nm, "
-        c += "w/mesh" if self._should_generate_mesh else "w/o mesh"
-        file.write(f"comment {c} <https://github.com/apparebit/prettypretty>\n")
+        file.write(
+            f"comment Visual gamut in {self._label} "
+            "<https://github.com/apparebit/prettypretty>\n"
+        )
 
         vertex_count = self.point_count + (0 if include is None else include.point_count)
         file.write(f"element vertex {vertex_count}\n")
@@ -471,7 +491,7 @@ def generate(
     filename: str,
     label: str,
     traversal: SpectrumTraversal,
-    step_size: int = 2,
+    stride: int = 2,
     darken: bool = False,
     gamut: None | ColorSpace = None,
     segment_size: int = 50,
@@ -480,9 +500,9 @@ def generate(
     alpha: float = 1.0,
     sampler: None | Sampler = None,
 ) -> None:
-    log(f"Traversing visual gamut in {BOLD}{label}{RESET} with step size {step_size}:")
+    log(f"Traversing visual gamut in {BOLD}{label}{RESET}:")
     points = PointManager(
-        step_size=step_size, space=space, darken=darken, mesh=mesh, alpha=alpha, label=label
+        stride=stride, space=space, darken=darken, mesh=mesh, alpha=alpha, label=label
     )
 
     # Lines resulting from square wave pulses
@@ -504,11 +524,18 @@ def generate(
     log(f"    {points.line_count:,} lines, each {points.line_length:,} points long")
     log(f"    {points.face_count:,} faces")
 
+    mn = points.minimum
+    mx = points.maximum
+    log(
+        f"    min {mn[0]:.5f} {mn[1]:.5f} {mn[2]:.5f}"
+        f" -- max {mx[0]:.5f} {mx[1]:.5f} {mx[2]:.5f}"
+    )
+
     gamut_points = None
     if gamut is not None:
-        log(f"Traversing color space gamut of {space} with step size {step_size}")
+        log(f"Traversing color space gamut of {space} with stride {stride}")
         gamut_points = PointManager(
-            step_size=step_size, space=space, darken=darken, planar=planar_gamut
+            stride=stride, space=space, darken=darken, planar=planar_gamut
         )
         it = gamut.gamut(segment_size)
         assert it is not None
@@ -579,11 +606,11 @@ if __name__ == "__main__":
         log("The --render option requires the --mesh option.")
         sys.exit(1)
 
-    step_size = 2
-    if options.step:
-        step_size = int(options.step)
-    if step_size <= 0 or 10 < step_size:
-        log(f"step size {step_size} is not between 1 and 10.")
+    stride = 2
+    if options.stride:
+        stride = int(options.stride)
+    if not (1 <= stride <= 20):
+        log(f"stride {stride} is not between 1 and 20 (inclusive).")
 
     if options.illuminant == "D50":
         illuminant = CIE_ILLUMINANT_D50
@@ -604,12 +631,12 @@ if __name__ == "__main__":
         label_suffix = "2º"
 
     traversal = SpectrumTraversal(illuminant, observer)
-    traversal.set_stride(step_size)
+    traversal.set_stride(stride)
 
-    file_suffix = f"-{options.illuminant.lower()}-{file_suffix}.ply"
-    label_suffix = f" {options.illuminant}/{label_suffix}"
+    file_suffix = f"-{options.illuminant.lower()}-{file_suffix}-{stride}nm.ply"
+    label_suffix = f" {options.illuminant}/{label_suffix} @ {stride}nm stride"
 
-    filename = "visual-gamut-xyz" + file_suffix
+    filename = "visual-gamut/xyz" + file_suffix
     label = "XYZ" + label_suffix
 
     sampler = Sampler()
@@ -617,7 +644,7 @@ if __name__ == "__main__":
     generate(
         space=ColorSpace.Xyz,
         traversal=traversal,
-        step_size=step_size,
+        stride=stride,
         gamut=gamut,
         planar_gamut=options.planar_gamut,
         mesh=options.mesh,
@@ -629,22 +656,23 @@ if __name__ == "__main__":
 
     log()
 
-    generate(
-        space=ColorSpace.Oklrab,
-        traversal=traversal.restart(),
-        step_size=step_size,
-        gamut=gamut,
-        planar_gamut=options.planar_gamut,
-        mesh=options.mesh,
-        sampler=sampler,
-        darken=options.darken,
-        alpha=float(options.alpha),
-        filename="visual-gamut-ok" + file_suffix,
-        label="Oklrab" + label_suffix,
-    )
+    if options.ok:
+        generate(
+            space=ColorSpace.Oklrab,
+            traversal=traversal.restart(),
+            stride=stride,
+            gamut=gamut,
+            planar_gamut=options.planar_gamut,
+            mesh=options.mesh,
+            sampler=sampler,
+            darken=options.darken,
+            alpha=float(options.alpha),
+            filename="visual-gamut/ok" + file_suffix,
+            label="Oklrab" + label_suffix,
+        )
 
-    log("\nShape of visible gamut (sampled on chroma/hue plane):\n")
-    log(str(sampler))
+        log("\nShape of visible gamut (sampled on chroma/hue plane):\n")
+        log(str(sampler))
 
     if options.mesh and options.render:
         render(filename, label)
