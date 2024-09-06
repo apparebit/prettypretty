@@ -221,16 +221,16 @@ class PointManager:
         if self._line_count == 2:
             self._line_length = self.point_count
 
-    def add(self, color: Color, highlight: None | Color = None) -> None:
+    def add(self, color: Color, is_xyz: bool, highlight: None | Color = None) -> None:
         x, y, z = color
 
         if self._should_project_to_plane:
-            if color.space().is_ok():
-                # Zero out lightness
-                self._points.append((0, y, z))
-            else:
+            if is_xyz:
                 # Zero out luminosity
                 self._points.append((x, 0, z))
+            else:
+                # Zero out lightness
+                self._points.append((0, y, z))
         else:
             self._points.append((x, y, z))
 
@@ -252,9 +252,6 @@ class PointManager:
     def generate_faces(self) -> None:
         edges = Counter[tuple[int, int]]()
 
-        def e(x: int, y: int) -> tuple[int, int]:
-            return min(x, y), max(x, y)
-
         # Create rope ladder of quads from series for pulse widths n and n+1.
         # E.g., at 1nm resolution, for n=0, that includes the edge (0, 471).
         for line_index in range(self.line_count - 1):
@@ -274,7 +271,8 @@ class PointManager:
                 if trace_enabled:
                     msg = f"pulse {line_index:3} @ {index:3}"
 
-                for edge in [e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]:
+                for edge in [(s, v), (v, u), (s, u), (s, u), (t, u), (s, t)]:
+                    assert edge[0] <= edge[1]
                     edges[edge] += 1
 
                     if trace_enabled:
@@ -294,7 +292,8 @@ class PointManager:
                     if trace_enabled:
                         msg = f"cross {line_index:3} @ {index:3}"
 
-                    for edge in [e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]:
+                    for edge in [(s, v), (u, v), (s, u), (s, u), (t, u), (t, s)]:
+                        assert edge[0] <= edge[1]
                         edges[edge] += 1
 
                         if trace_enabled:
@@ -326,7 +325,8 @@ class PointManager:
                     label = "#1" if base == 0 else "#2"
                     msg = f"patch {label}  @ {index:3}"
 
-                for edge in [e(s, v), e(v, u), e(u, s), e(s, u), e(u, t), e(t, s)]:
+                for edge in [(s, v), (u, v), (s, u), (s, u), (t, u), (s, t)]:
+                    assert edge[0] <= edge[1]
                     edges[edge] += 1
 
                     if trace_enabled:
@@ -348,7 +348,8 @@ class PointManager:
                     label = "#1" if base == 0 else "#2"
                     msg = f"patch {label}  @ {index:3}"
 
-                for edge in [e(s, u), e(u, t), e(t, s)]:
+                for edge in [(s, u), (t, u), (s, t)]:
+                    assert edge[0] <= edge[1]
                     edges[edge] += 1
 
                     if trace_enabled:
@@ -370,7 +371,8 @@ class PointManager:
         if trace_enabled:
             msg = f"capstones      "
 
-        for edge in [e(r, s), e(s, t), e(t, r), e(u, w), e(w, v), e(v, u)]:
+        for edge in [(r, s), (t, s), (r, t), (u, w), (v, w), (u, v)]:
+            assert edge[0] <= edge[1]
             edges[edge] += 1
 
             if trace_enabled:
@@ -490,6 +492,7 @@ def generate(
     points = PointManager(
         stride=stride, space=space, darken=darken, mesh=mesh, alpha=alpha, label=label
     )
+    is_xyz = space.is_xyz()
 
     # Lines resulting from square wave pulses
     for step in traversal:
@@ -499,10 +502,10 @@ def generate(
         color = step.color()
         if sampler:
             sampler.sample(color)
-        if space.is_ok():
-            points.add(color.to(ColorSpace.Oklrab))
+        if is_xyz:
+            points.add(color, True)
         else:
-            points.add(color)
+            points.add(color.to(ColorSpace.Oklrab), False)
 
     points.generate_faces()
 
@@ -530,10 +533,10 @@ def generate(
                 gamut_points.mark_newline()
 
             color = step.color()
-            if space.is_ok():
-                gamut_points.add(color.to(ColorSpace.Oklrab))
+            if is_xyz:
+                gamut_points.add(color.to(ColorSpace.Xyz), True)
             else:
-                gamut_points.add(color.to(ColorSpace.Xyz))
+                gamut_points.add(color.to(ColorSpace.Oklrab), False)
 
     log(f"Writing {BOLD}{filename}{RESET}:")
     with open(filename, mode="w", encoding="utf8") as file:
