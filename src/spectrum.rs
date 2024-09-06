@@ -636,6 +636,8 @@ pub struct SpectrumTraversal {
     stride: usize,
     position: usize,
     width: usize,
+    minimum: [Float; 3],
+    maximum: [Float; 3],
 }
 
 impl SpectrumTraversal {
@@ -650,6 +652,8 @@ impl SpectrumTraversal {
             stride: 5,
             position: 0,
             width: 0,
+            minimum: [Float::INFINITY; 3],
+            maximum: [Float::NEG_INFINITY; 3],
         }
     }
 }
@@ -665,6 +669,8 @@ impl SpectrumTraversal {
             stride: 5,
             position: 0,
             width: 0,
+            minimum: [Float::INFINITY; 3],
+            maximum: [Float::NEG_INFINITY; 3],
         }
     }
 
@@ -687,6 +693,16 @@ impl SpectrumTraversal {
         } else {
             [0.0, 0.0, 0.0]
         }
+    }
+
+    /// Get the smallest three tristimulus components encountered so far.
+    pub fn minimum(&self) -> [Float; 3] {
+        self.minimum
+    }
+
+    /// Get the largest three tristimulus components encountered so far.
+    pub fn maximum(&self) -> [Float; 3] {
+        self.maximum
     }
 
     /// Create a new spectrum traversal that reuses this instance's premultiplied
@@ -712,6 +728,8 @@ impl SpectrumTraversal {
             stride: self.stride,
             position: 0,
             width: 0,
+            minimum: [Float::INFINITY; 3],
+            maximum: [Float::NEG_INFINITY; 3],
         }
     }
 
@@ -751,6 +769,11 @@ impl Iterator for SpectrumTraversal {
         }
 
         let color = self.data.color_pulse(self.position, self.width);
+        for index in 0..3 {
+            self.minimum[index] = self.minimum[index].min(color[index]);
+            self.maximum[index] = self.maximum[index].max(color[index]);
+        }
+
         let result = if self.position == 0 {
             GamutTraversalStep::MoveTo(color)
         } else {

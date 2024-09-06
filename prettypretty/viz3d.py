@@ -189,8 +189,6 @@ class PointManager:
         self._line_count = 0
         self._line_length = 0
         self._label = label
-        self._min = [math.inf, math.inf, math.inf]
-        self._max = [-math.inf, -math.inf, -math.inf]
 
     @property
     def line_count(self) -> int:
@@ -218,14 +216,6 @@ class PointManager:
     def face_count(self) -> int:
         return len(self._faces)
 
-    @property
-    def minimum(self) -> list[float]:
-        return self._min
-
-    @property
-    def maximum(self) -> list[float]:
-        return self._max
-
     def mark_newline(self) -> None:
         self._line_count += 1
         if self._line_count == 2:
@@ -233,10 +223,6 @@ class PointManager:
 
     def add(self, color: Color, highlight: None | Color = None) -> None:
         x, y, z = color
-
-        if color.space().is_xyz():
-            self._min = [min(c1, c2) for c1, c2 in zip(self._min, color.coordinates())]
-            self._max = [max(c1, c2) for c1, c2 in zip(self._max, color.coordinates())]
 
         if self._should_project_to_plane:
             if color.space().is_ok():
@@ -524,8 +510,8 @@ def generate(
     log(f"    {points.line_count:,} lines, each {points.line_length:,} points long")
     log(f"    {points.face_count:,} faces")
 
-    mn = points.minimum
-    mx = points.maximum
+    mn = traversal.minimum()
+    mx = traversal.maximum()
     log(
         f"    min {mn[0]:.5f} {mn[1]:.5f} {mn[2]:.5f}"
         f" -- max {mx[0]:.5f} {mx[1]:.5f} {mx[2]:.5f}"
