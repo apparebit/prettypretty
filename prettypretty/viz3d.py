@@ -11,7 +11,7 @@ from prettypretty.color.gamut import ( # pyright: ignore [reportMissingModuleSou
 )
 from prettypretty.color.spectrum import ( # pyright: ignore [reportMissingModuleSource]
     CIE_ILLUMINANT_D50, CIE_ILLUMINANT_D65, CIE_ILLUMINANT_E, CIE_OBSERVER_2DEG_1931,
-    CIE_OBSERVER_10DEG_1964, Illuminant, SpectrumTraversal
+    CIE_OBSERVER_10DEG_1964, SpectrumTraversal
 )
 
 
@@ -470,6 +470,7 @@ def generate(
     space: ColorSpace,
     filename: str,
     label: str,
+    traversal: SpectrumTraversal,
     step_size: int = 2,
     darken: bool = False,
     gamut: None | ColorSpace = None,
@@ -478,11 +479,7 @@ def generate(
     mesh: bool = False,
     alpha: float = 1.0,
     sampler: None | Sampler = None,
-    illuminant: Illuminant = CIE_ILLUMINANT_D65,
 ) -> None:
-    traversal = SpectrumTraversal(illuminant, CIE_OBSERVER_2DEG_1931)
-    traversal.set_step_sizes(step_size)
-
     log(f"Traversing visual gamut in {BOLD}{label}{RESET} with step size {step_size}:")
     points = PointManager(
         step_size=step_size, space=space, darken=darken, mesh=mesh, alpha=alpha, label=label
@@ -606,6 +603,9 @@ if __name__ == "__main__":
         file_suffix = "2deg"
         label_suffix = "2º"
 
+    traversal = SpectrumTraversal(illuminant, observer)
+    traversal.set_stride(step_size)
+
     file_suffix = f"-{options.illuminant.lower()}-{file_suffix}.ply"
     label_suffix = f" {options.illuminant}/{label_suffix}"
 
@@ -616,13 +616,13 @@ if __name__ == "__main__":
 
     generate(
         space=ColorSpace.Xyz,
+        traversal=traversal,
         step_size=step_size,
         gamut=gamut,
         planar_gamut=options.planar_gamut,
         mesh=options.mesh,
         darken=options.darken,
         alpha=float(options.alpha),
-        illuminant=illuminant,
         filename=filename,
         label=label,
     )
@@ -631,6 +631,7 @@ if __name__ == "__main__":
 
     generate(
         space=ColorSpace.Oklrab,
+        traversal=traversal.restart(),
         step_size=step_size,
         gamut=gamut,
         planar_gamut=options.planar_gamut,
@@ -638,7 +639,6 @@ if __name__ == "__main__":
         sampler=sampler,
         darken=options.darken,
         alpha=float(options.alpha),
-        illuminant=illuminant,
         filename="visual-gamut-ok" + file_suffix,
         label="Oklrab" + label_suffix,
     )
