@@ -121,6 +121,11 @@ impl ColorSpace {
         matches!(*self, Self::Oklch | Self::Oklrch)
     }
 
+    /// Determine whether this color space is XYZ.
+    pub const fn is_xyz(&self) -> bool {
+        matches!(self, Self::Xyz)
+    }
+
     /// Determine whether this color space is RGB.
     ///
     /// RGB color spaces are additive and have red, green, and blue coordinates.
