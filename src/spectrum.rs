@@ -674,7 +674,7 @@ impl SpectrumTraversal {
     {
         let data = SpectrumTraversalData::new(illuminant, observer);
         let stride = stride.get();
-        let remaining = Self::total_steps(data.len(), stride);
+        let remaining = Self::derive_total_count(data.len(), stride);
 
         Self {
             data,
@@ -687,15 +687,23 @@ impl SpectrumTraversal {
         }
     }
 
-    fn total_steps(len: usize, stride: usize) -> usize {
-        let mut lines = (len - 1) / stride;
-        let points = lines + 1;
-        let rem = (len - 1) % stride;
-        if rem > 0 {
-            lines += 1;
+    fn derive_total_count(len: usize, stride: usize) -> usize {
+        Self::derive_line_count(len, stride) * Self::derive_line_length(len, stride)
+    }
+
+    #[inline]
+    fn derive_line_count(len: usize, stride: usize) -> usize {
+        let mut count = (len - 1) / stride;
+        if (len - 1) % stride > 0 {
+            count += 1;
         }
 
-        lines * points
+        count
+    }
+
+    #[inline]
+    fn derive_line_length(len: usize, stride: usize) -> usize {
+        1 + (len - 1) / stride
     }
 }
 
@@ -710,6 +718,17 @@ impl SpectrumTraversal {
         stride: std::num::NonZeroUsize,
     ) -> Self {
         Self::new(illuminant, observer, stride)
+    }
+
+    /// Get the number of lines yielded by this spectrum traversal.
+    pub fn line_count(&self) -> usize {
+        Self::derive_line_count(self.data.len(), self.stride)
+    }
+
+    /// Get the number of colors per line yielded by this spectrum traversal.
+    #[inline]
+    pub fn line_length(&self) -> usize {
+        Self::derive_line_length(self.data.len(), self.stride)
     }
 
     /// Get the traversal's stride.
@@ -758,7 +777,7 @@ impl SpectrumTraversal {
     pub fn restart(&mut self) -> SpectrumTraversal {
         // End this iterator.
         self.width = self.data.len();
-        let remaining = Self::total_steps(self.data.len(), self.stride);
+        let remaining = Self::derive_total_count(self.data.len(), self.stride);
 
         Self {
             data: std::mem::take(&mut self.data),
@@ -856,15 +875,15 @@ pub use crate::cie::CIE_ILLUMINANT_D65;
 pub use crate::cie::CIE_OBSERVER_10DEG_1964;
 pub use crate::cie::CIE_OBSERVER_2DEG_1931;
 
-/// The CIE E standard illuminant at one-nanometer resolution.
+/// The CIE standard illuminant E at 1nm resolution.
 pub const CIE_ILLUMINANT_E: FixedDistribution =
-    FixedDistribution::new("Illuminant E", 300, 530, 53_000.0, 100.0);
+    FixedDistribution::new("Illuminant E", 300, 531, 53_100.0, 100.0);
 
 #[cfg(test)]
 mod test {
     use super::{
-        SpectralDistribution, CIE_ILLUMINANT_D50, CIE_ILLUMINANT_D65, CIE_OBSERVER_10DEG_1964,
-        CIE_OBSERVER_2DEG_1931,
+        GamutTraversalStep, SpectralDistribution, SpectrumTraversal, CIE_ILLUMINANT_D50,
+        CIE_ILLUMINANT_D65, CIE_OBSERVER_10DEG_1964, CIE_OBSERVER_2DEG_1931,
     };
     use crate::core::Sum;
 
@@ -896,6 +915,36 @@ mod test {
                 [x_sum.value(), y_sum.value(), z_sum.value()],
                 observer.checksum()
             );
+        }
+    }
+
+    #[test]
+    fn test_spectrum_traversal() {
+        for (stride, line_count, line_length) in [(9, 53, 53), (10, 47, 48)] {
+            let total = line_count * line_length;
+
+            let mut traversal = SpectrumTraversal::new(
+                &CIE_ILLUMINANT_D65,
+                &CIE_OBSERVER_2DEG_1931,
+                std::num::NonZeroUsize::new(stride).unwrap(),
+            );
+
+            assert_eq!(traversal.line_count(), line_count);
+            assert_eq!(traversal.line_length(), line_length);
+            assert_eq!(traversal.len(), total);
+
+            for index in 0..(line_count * line_length) {
+                let step = traversal.next();
+
+                assert_eq!(traversal.len(), total - index - 1);
+                if index % line_length == 0 {
+                    assert!(matches!(step, Some(GamutTraversalStep::MoveTo(_))));
+                } else {
+                    assert!(matches!(step, Some(GamutTraversalStep::LineTo(_))));
+                }
+            }
+
+            assert!(matches!(traversal.next(), None));
         }
     }
 }
