@@ -407,31 +407,37 @@ impl Observer {
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl Observer {
     /// Get a descriptive label for this observer.
+    #[inline]
     pub fn label(&self) -> String {
         self.label.to_string()
     }
 
     /// Get this observer's starting wavelength.
+    #[inline]
     pub fn start(&self) -> usize {
         self.start
     }
 
     /// Get this observer's ending wavelength.
+    #[inline]
     pub fn end(&self) -> usize {
         self.start + self.data.len()
     }
 
     /// Determine whether this observer is empty.
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.data.len() == 0
     }
 
     /// Determine the number of entries for this observer.
+    #[inline]
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
     /// Get this observer's value for the given wavelength.
+    #[inline]
     pub fn at(&self, wavelength: usize) -> Option<[Float; 3]> {
         if self.start <= wavelength && wavelength < self.start + self.data.len() {
             Some(self.data[wavelength - self.start])
@@ -441,12 +447,14 @@ impl Observer {
     }
 
     /// Get this observer's checksum.
+    #[inline]
     pub fn checksum(&self) -> [Float; 3] {
         self.checksum
     }
 
     /// Get the number of entries. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
+    #[inline]
     pub fn __len__(&self) -> usize {
         self.data.len()
     }
@@ -466,6 +474,7 @@ impl Observer {
 
     /// Get a debug representation. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
+    #[inline]
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
     }
@@ -474,18 +483,22 @@ impl Observer {
 impl SpectralDistribution for Observer {
     type Value = [Float; 3];
 
+    #[inline]
     fn label(&self) -> String {
         self.label.to_string()
     }
 
+    #[inline]
     fn start(&self) -> usize {
         self.start
     }
 
+    #[inline]
     fn len(&self) -> usize {
         self.data.len()
     }
 
+    #[inline]
     fn at(&self, wavelength: usize) -> Option<Self::Value> {
         if self.start <= wavelength && wavelength < self.start + self.data.len() {
             Some(self.data[wavelength - self.start])
@@ -494,6 +507,7 @@ impl SpectralDistribution for Observer {
         }
     }
 
+    #[inline]
     fn checksum(&self) -> Self::Value {
         self.checksum
     }
@@ -545,6 +559,10 @@ pub mod std_observer {
 
 // --------------------------------------------------------------------------------------------------------------------
 
+/// A convenient constant for 1nm.
+pub const ONE_NANOMETER: std::num::NonZeroUsize =
+    unsafe { std::num::NonZeroUsize::new_unchecked(1) };
+
 /// The data for a spectrum traversal.
 ///
 /// This struct stores the spectral distribution resulting from pre-multiplying
@@ -584,10 +602,12 @@ impl SpectrumTraversalData {
         data
     }
 
+    #[inline]
     fn len(&self) -> usize {
         self.premultiplied.len()
     }
 
+    #[inline]
     fn total(&self) -> [Float; 3] {
         self.total_xyz
     }
@@ -608,7 +628,7 @@ impl SpectrumTraversalData {
         [xs.value(), ys.value(), zs.value()]
     }
 
-    fn color_pulse(&self, start: usize, width: usize) -> Color {
+    fn pulse_color(&self, start: usize, width: usize) -> Color {
         let [x, y, z] = self.pulse(start, width);
         let luminosity = self.total_xyz[1];
 
@@ -627,8 +647,12 @@ impl SpectrumTraversalData {
 /// widths](https://www.russellcottrell.com/photo/visualGamut.htm) circling
 /// through the spectrum shared between illuminant and observer. Moreover, it
 /// consecutively yields the tristimulus values for each pulse as a line of
-/// [`GamutTraversalStep`]s. Pulse positions and widths grow with the same
-/// stride, which defaults to 5nm.
+/// [`GamutTraversalStep`]s.
+///
+/// Pulse positions and widths grow with the same stride, which defaults to 5nm.
+/// The first pulse position is 0, whereas the first pulse width is 1nm. As a
+/// result, the first line yielded by this iterator is the spectral locus; it is
+/// best rendered with a stride of 1nm.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.spectrum"))]
 #[derive(Debug)]
 pub struct SpectrumTraversal {
@@ -636,25 +660,42 @@ pub struct SpectrumTraversal {
     stride: usize,
     position: usize,
     width: usize,
+    remaining: usize,
     minimum: [Float; 3],
     maximum: [Float; 3],
 }
 
 impl SpectrumTraversal {
     /// Create a new spectrum traversal. <i class=rust-only>Rust only!</i>
-    pub fn new<I, O>(illuminant: &I, observer: &O) -> Self
+    pub fn new<I, O>(illuminant: &I, observer: &O, stride: std::num::NonZeroUsize) -> Self
     where
         I: SpectralDistribution<Value = Float>,
         O: SpectralDistribution<Value = [Float; 3]>,
     {
+        let data = SpectrumTraversalData::new(illuminant, observer);
+        let stride = stride.get();
+        let remaining = Self::total_steps(data.len(), stride);
+
         Self {
-            data: SpectrumTraversalData::new(illuminant, observer),
-            stride: 5,
+            data,
+            stride,
             position: 0,
             width: 0,
+            remaining,
             minimum: [Float::INFINITY; 3],
             maximum: [Float::NEG_INFINITY; 3],
         }
+    }
+
+    fn total_steps(len: usize, stride: usize) -> usize {
+        let mut lines = (len - 1) / stride;
+        let points = lines + 1;
+        let rem = (len - 1) % stride;
+        if rem > 0 {
+            lines += 1;
+        }
+
+        lines * points
     }
 }
 
@@ -663,25 +704,18 @@ impl SpectrumTraversal {
     /// Create a new spectrum traversal. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[new]
-    pub fn py_new(illuminant: &Illuminant, observer: &Observer) -> Self {
-        Self {
-            data: SpectrumTraversalData::new(illuminant, observer),
-            stride: 5,
-            position: 0,
-            width: 0,
-            minimum: [Float::INFINITY; 3],
-            maximum: [Float::NEG_INFINITY; 3],
-        }
+    pub fn py_new(
+        illuminant: &Illuminant,
+        observer: &Observer,
+        stride: std::num::NonZeroUsize,
+    ) -> Self {
+        Self::new(illuminant, observer, stride)
     }
 
-    /// Determine the current stride.
+    /// Get the traversal's stride.
+    #[inline]
     pub fn stride(&self) -> usize {
         self.stride
-    }
-
-    /// Update the stride for this traversal.
-    pub fn set_stride(&mut self, stride: std::num::NonZeroUsize) {
-        self.stride = stride.get();
     }
 
     /// Determine the white point for the spectrum traversal's illuminant and
@@ -712,25 +746,35 @@ impl SpectrumTraversal {
     /// which easily comprises 1,200 floating point values that took as many
     /// floating point multiplications to generate. It does so by creating a new
     /// iterator while also moving the premultiplied illuminant and observer
-    /// data from this iterator to the new instance. To do safely, it leaves
-    /// behind an empty default value without any entries. As a result, this
-    /// method effectively terminates this iterator. However, the newly created
-    /// iterator starts afresh.
+    /// data from this iterator to the new instance. To do so safely, it leaves
+    /// behind an empty premultiplied data table without any entries. As a
+    /// result, this method effectively terminates this iterator. However, the
+    /// newly created iterator starts afresh.
     ///
     /// This method represents a practical compromise between common Rust
-    /// practice (iterators are not reused), PyO3 disallowing self-methods, and
-    /// the large size of premultiplied illuminant and observer data.
+    /// practice (iterators are not reused), PyO3 disallowing methods that
+    /// consume self, and the large size of premultiplied illuminant and
+    /// observer data.
     pub fn restart(&mut self) -> SpectrumTraversal {
+        // End this iterator.
         self.width = self.data.len();
+        let remaining = Self::total_steps(self.data.len(), self.stride);
 
         Self {
             data: std::mem::take(&mut self.data),
             stride: self.stride,
             position: 0,
             width: 0,
+            remaining,
             minimum: [Float::INFINITY; 3],
             maximum: [Float::NEG_INFINITY; 3],
         }
+    }
+
+    /// Get the number of remaining steps. <i class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __len__(&self) -> usize {
+        self.remaining
     }
 
     /// Get this iterator. <i class=python-only>Python only!</i>
@@ -749,10 +793,11 @@ impl SpectrumTraversal {
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         format!(
-            "SpectrumTraversal(stride={}, position={}, width={}, samples={})",
+            "SpectrumTraversal(stride={}, position={}, width={}, remaining={}, samples={})",
             self.stride,
             self.position,
             self.width,
+            self.remaining,
             self.data.len(),
         )
     }
@@ -768,7 +813,8 @@ impl Iterator for SpectrumTraversal {
             self.width = 1;
         }
 
-        let color = self.data.color_pulse(self.position, self.width);
+        self.remaining -= 1;
+        let color = self.data.pulse_color(self.position, self.width);
         for index in 0..3 {
             self.minimum[index] = self.minimum[index].min(color[index]);
             self.maximum[index] = self.maximum[index].max(color[index]);
@@ -788,6 +834,16 @@ impl Iterator for SpectrumTraversal {
         }
 
         Some(result)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+
+impl std::iter::ExactSizeIterator for SpectrumTraversal {
+    fn len(&self) -> usize {
+        self.remaining
     }
 }
 

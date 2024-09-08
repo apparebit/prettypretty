@@ -257,7 +257,9 @@ class ColorPlotter:
     ) -> None:
         if self._spectrum_traversal is None:
             self._spectrum_traversal = spectrum.SpectrumTraversal(
-                spectrum.CIE_ILLUMINANT_D65, spectrum.CIE_OBSERVER_2DEG_1931
+                spectrum.CIE_ILLUMINANT_D65,
+                spectrum.CIE_OBSERVER_2DEG_1931,
+                spectrum.ONE_NANOMETER,
             )
 
             self._white_point = self._spectrum_traversal.white_point()

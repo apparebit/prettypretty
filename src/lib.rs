@@ -304,6 +304,7 @@ fn register_modgamut(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     modspectrum.add("CIE_OBSERVER_2DEG_1931", spectrum::CIE_OBSERVER_2DEG_1931)?;
     modspectrum.add("CIE_OBSERVER_10DEG_1964", spectrum::CIE_OBSERVER_10DEG_1964)?;
+    modspectrum.add("ONE_NANOMETER", spectrum::ONE_NANOMETER)?;
     modspectrum.add_class::<spectrum::Illuminant>()?;
     modspectrum.add_class::<spectrum::Observer>()?;
     modspectrum.add_class::<spectrum::SpectrumTraversal>()?;

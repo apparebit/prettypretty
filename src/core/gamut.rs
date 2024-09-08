@@ -219,6 +219,7 @@ enum GamutEdge {
 pub struct GamutTraversal {
     space: ColorSpace,
     max_component: usize,
+    remaining: usize,
     edge: GamutEdge,
     r: usize,
     g: usize,
@@ -234,6 +235,7 @@ impl GamutTraversal {
             Some(Self {
                 space,
                 max_component: edge_length - 1,
+                remaining: 12 * edge_length - 5,
                 edge: GamutEdge::Start,
                 r: 0,
                 g: 0,
@@ -255,6 +257,7 @@ impl Iterator for GamutTraversal {
             return None;
         }
 
+        self.remaining -= 1;
         let denominator = self.max_component as Float;
         let color = Color::new(
             self.space,
@@ -438,6 +441,17 @@ impl Iterator for GamutTraversal {
 
         Some(result)
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+
+#[cfg(feature = "gamut")]
+impl std::iter::ExactSizeIterator for GamutTraversal {
+    fn len(&self) -> usize {
+        self.remaining
+    }
 }
 
 #[cfg(feature = "gamut")]
@@ -446,6 +460,11 @@ impl std::iter::FusedIterator for GamutTraversal {}
 #[cfg(all(feature = "gamut", feature = "pyffi"))]
 #[pymethods]
 impl GamutTraversal {
+    /// Get the number of remaining steps.
+    pub fn __len__(&self) -> usize {
+        self.remaining
+    }
+
     /// Get this iterator. <i class=python-only>Python only!</i>
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
@@ -459,8 +478,8 @@ impl GamutTraversal {
     /// Get a debug representation. <i class=python-only>Python only!</i>
     pub fn __repr__(&self) -> String {
         format!(
-            "GamutTraversal([{}, {}, {}] / {}, {:?}, {:?})",
-            self.r, self.g, self.b, self.max_component, self.edge, self.space
+            "GamutTraversal(space={:?}, len={}, edge={:?}, color=[{}, {}, {}])",
+            self.space, self.max_component, self.edge, self.r, self.g, self.b
         )
     }
 }

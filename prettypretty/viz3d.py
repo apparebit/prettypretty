@@ -588,18 +588,19 @@ if __name__ == "__main__":
         elif name == "rec2020":
             gamut = ColorSpace.Rec2020
         else:
-            log(f"gamut {name} is not srgb, p3, or rec2020 (case-insensitive).")
+            log(f"gamut {name} is not srgb, p3, or rec2020 (case-insensitive)!")
             sys.exit(1)
 
     if options.render and not options.mesh:
-        log("The --render option requires the --mesh option.")
+        log("The --render option requires the --mesh option!")
         sys.exit(1)
 
     stride = 2
     if options.stride:
         stride = int(options.stride)
     if not (1 <= stride <= 20):
-        log(f"stride {stride} is not between 1 and 20 (inclusive).")
+        log(f"stride {stride} is not between 1 and 20 (inclusive)!")
+        sys.exit(1)
 
     if options.illuminant == "D50":
         illuminant = CIE_ILLUMINANT_D50
@@ -619,8 +620,7 @@ if __name__ == "__main__":
         file_suffix = "2deg"
         label_suffix = "2º"
 
-    traversal = SpectrumTraversal(illuminant, observer)
-    traversal.set_stride(stride)
+    traversal = SpectrumTraversal(illuminant, observer, stride)
 
     file_suffix = f"-{options.illuminant.lower()}-{file_suffix}-{stride}nm.ply"
     label_suffix = f" {options.illuminant}/{label_suffix} @ {stride}nm stride"
