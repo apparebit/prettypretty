@@ -203,7 +203,7 @@ pub(crate) fn format(
     coordinates: &[Float; 3],
     f: &mut std::fmt::Formatter<'_>,
 ) -> std::fmt::Result {
-    write!(f, "{}", css_prefix(space))?;
+    f.write_fmt(format_args!("{}", css_prefix(space)))?;
 
     let mut factor = (10.0 as Float).powi(f.precision().unwrap_or(5) as i32);
     for (index, coordinate) in coordinates.iter().enumerate() {
@@ -220,9 +220,9 @@ pub(crate) fn format(
             // we do need an explicit precision---of zero!
             let c = (coordinate * factor).round() / factor;
             if c == c.trunc() {
-                write!(f, "{:.0}", c)?;
+                f.write_fmt(format_args!("{:.0}", c))?;
             } else {
-                write!(f, "{}", c)?;
+                f.write_fmt(format_args!("{}", c))?;
             }
         }
 

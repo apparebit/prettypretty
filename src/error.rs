@@ -32,13 +32,12 @@ impl OutOfBoundsError {
 
 impl std::fmt::Display for OutOfBoundsError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "{} should fit into range {}..={}",
+        f.write_fmt(format_args!(
+            "{} does not fit into range {}..={}",
             self.value,
             self.expected.start(),
             self.expected.end()
-        )
+        ))
     }
 }
 
@@ -110,41 +109,36 @@ impl std::fmt::Display for ColorFormatError {
         use ColorFormatError::*;
 
         match *self {
-            UnknownFormat => write!(
-                f,
-                "color format should start with `#`, `color()`, `oklab()`, `oklch()`, or `rgb:`"
+            UnknownFormat => f.write_str(
+                "color format should start with `#`, `color()`, `oklab()`, `oklch()`, or `rgb:`",
             ),
             UnexpectedCharacters => {
-                write!(f, "color format should contain only valid ASCII characters")
+                f.write_str("color format should contain only valid ASCII characters")
             }
-            NoOpeningParenthesis => write!(
-                f,
-                "color format should include an opening parenthesis but has none"
-            ),
-            NoClosingParenthesis => write!(
-                f,
-                "color format should include a closing parenthesis but has none"
-            ),
+            NoOpeningParenthesis => {
+                f.write_str("color format should include an opening parenthesis but has none")
+            }
+            NoClosingParenthesis => {
+                f.write_str("color format should include a closing parenthesis but has none")
+            }
             UnknownColorSpace => {
-                write!(f, "color format should have known color space but does not")
+                f.write_str("color format should have known color space but does not")
             }
-            MissingCoordinate => write!(
-                f,
-                "color format should have 3 coordinates but is missing one",
-            ),
-            OversizedCoordinate => write!(
-                f,
-                "color format coordinates should have 1-4 hex digits but one has more",
-            ),
-            MalformedHex => write!(
-                f,
-                "color format coordinates should be hexadecimal integers but are not",
-            ),
-            MalformedFloat => write!(
-                f,
-                "color format coordinates should be floating point numbers but are not",
-            ),
-            TooManyCoordinates => write!(f, "color format should have 3 coordinates but has more"),
+            MissingCoordinate => {
+                f.write_str("color format should have 3 coordinates but is missing one")
+            }
+            OversizedCoordinate => {
+                f.write_str("color format coordinates should have 1-4 hex digits but one has more")
+            }
+            MalformedHex => {
+                f.write_str("color format coordinates should be hexadecimal integers but are not")
+            }
+            MalformedFloat => {
+                f.write_str("color format coordinates should be floating point numbers but are not")
+            }
+            TooManyCoordinates => {
+                f.write_str("color format should have 3 coordinates but has more")
+            }
         }
     }
 }

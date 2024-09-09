@@ -1129,21 +1129,18 @@ impl Translator {
 
 impl std::fmt::Debug for Translator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "Translator({}, [",
-            if self.space == ColorSpace::Oklab {
-                "OkVersion.Original"
-            } else {
-                "OkVersion.Revised"
-            }
-        )?;
+        let version = if self.space == ColorSpace::Oklab {
+            "OkVersion.Original"
+        } else {
+            "OkVersion.Revised"
+        };
 
+        f.write_fmt(format_args!("Translator({}, [\n", version))?;
         for color in self.theme.iter() {
-            writeln!(f, "    {:?},", color)?;
+            f.write_fmt(format_args!("    {:?},\n", color))?;
         }
 
-        write!(f, "])")
+        f.write_str("])")
     }
 }
 

@@ -1635,7 +1635,10 @@ impl Eq for Color {}
 impl std::fmt::Debug for Color {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let [c1, c2, c3] = self.coordinates;
-        write!(f, "Color({:?}, [{}, {}, {}])", self.space, c1, c2, c3)
+        f.write_fmt(format_args!(
+            "Color({:?}, [{}, {}, {}])",
+            self.space, c1, c2, c3
+        ))
     }
 }
 

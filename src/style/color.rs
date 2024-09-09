@@ -935,7 +935,7 @@ impl From<TrueColor> for Color {
 impl core::fmt::Display for TrueColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let [r, g, b] = *self.as_ref();
-        write!(f, "#{:02x}{:02x}{:02x}", r, g, b)
+        f.write_fmt(format_args!("#{:02x}{:02x}{:02x}", r, g, b))
     }
 }
 
