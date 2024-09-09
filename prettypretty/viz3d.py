@@ -3,6 +3,7 @@ from collections import Counter
 import io
 import math
 import sys
+from textwrap import dedent, indent
 from typing import Any, Self
 
 from prettypretty.color import Color, ColorSpace
@@ -15,63 +16,102 @@ from prettypretty.color.spectrum import ( # pyright: ignore [reportMissingModule
 )
 
 
+if sys.stderr.isatty():
+    BOLD = "\x1b[1m"
+    RESET = "\x1b[m"
+else:
+    BOLD = "" # pyright: ignore [reportConstantRedefinition]
+    RESET = "" # pyright: ignore [reportConstantRedefinition]
+
+
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="generate a point cloud or mesh for the visual gamut in XYZ "
-        "and store as PLY file in `visual-gamut` directory"
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=indent(dedent(f"""
+        {BOLD} Visualization of Human Visual Gamut {RESET}
+
+        Generate a point cloud or mesh for the outer volume of the human visual
+        gamut in the XYZ color space and store as a PLY file in the
+        `visual-gamut` directory.
+
+        Each point's color is the sRGB color resulting from gamut mapping the
+        original XYZ color. In other words, colors are far from accurate.
+
+        The best possible resolution, a stride of 1nm, produces a clean shape
+        with good coverage of the entire gamut's surface. However, it also
+        generates too many vertices (and mesh triangles) for parts of the shape,
+        suggesting the need for mesh simplification. Experiments to identify a
+        strategy yielding good results are on-going.
+
+
+        {BOLD}Mesh Generation{RESET}
+
+        This script uses the standard algorithm for generating points: It shifts
+        and rotates pulses of increasing width across the visible spectrum. Mesh
+        generation is based on two observations:
+
+         1. Points resulting from a pulse with the same width can be arranged on
+            a line. Every line has the same number of points.
+         2. Lines for subsequent pulse widths traverse largely similar paths in
+            3D space shifted by some (varying) distance.
+
+        Mesh generation leverages that structure as follows:
+
+         3. By treating subsequent lines as ropes of a rope ladder, generating
+            virtual quads for much of the gamut body becomes straight-forward.
+            In practice, the quads are divided into two triangles.
+         4. The first and last line leave holes roughly shaped like spoons, with
+            a distinct handle and bowl. The point marking the transition is the
+            cusp.
+
+              - Close the handle by treating both sides as ropes for a rope
+                ladder again. This requires that the cusp's offset from the
+                first line point is not divisible by two (since offset are
+                zero-based).
+              - Mesh the bowl as a fan of triangles. This probably can also be
+                conceptualized as another rope ladder, but a fan of triangles
+                seems simpler.
+
+         5. Add two capstone triangles, which don't quite fit into the fan
+            generation.
+
+        Filling the holes holes remaining after step 4 was easy. But identifying
+        the holes as simple triangles was much harder. Towards that end, mesh
+        generation keeps track of edge counts and reports any remaining
+        boundaries. There are none, but boundary detection remains active.
+        """), "    ")
     )
     parser.add_argument(
         "--ok",
         action="store_true",
         help="show gamut in Oklrab as well"
     )
-
     parser.add_argument(
-        "--d50",
-        action="store_const",
-        const="D50",
+        "--illuminant",
         default="D65",
-        dest="illuminant",
-        help="use CIE standard illuminant D50 instead of the default D65"
+        choices=["D50", "D65", "E"],
+        help="choose between the CIE's D50, D65, and E illuminants",
     )
     parser.add_argument(
-        "--e",
-        action="store_const",
-        const="E",
-        dest="illuminant",
-        help="use CIE standard illuminant E instead of the default D65"
+        "--observer",
+        default="2",
+        choices=["2", "10"],
+        help="choose between the CIE's 1931 2º or the 1964 10º standard observer",
     )
     parser.add_argument(
-        "--ten-degree",
-        action="store_true",
-        help="use CIE 1964 10º standard observer instead of default 1931 2º"
-    )
-    parser.add_argument(
-        "--gamut", "-g",
-        help="plot boundary of gamut for 'sRGB', 'P3', or 'Rec2020' color space "
-        "(with case-insensitive name matching)",
-    )
-    parser.add_argument(
-        "--planar-gamut",
-        action="store_true",
-        help="plot gamut boundary X/Z plane for XYZ and a/b plane for Oklrab, "
-        "with Y=0 or Lr= 0, respectively"
+        "-s", "--stride",
+        help="use stride s measured in integral nanometers, with 1 <= s <= 20"
     )
     parser.add_argument(
         "-m", "--mesh",
         action="store_true",
-        help="include face mesh with vertex data; the mesh is formed by connecting "
-        "the nth starting wavelength of the mth pulse width with the nth starting "
-        "wavelength of the (m-1)th pulse width, much like a rope ladder"
+        help="generate a closed, manifold, triangular mesh covering the entire visual "
+        "gamut",
     )
     parser.add_argument(
         "--darken",
         action="store_true",
-        help="darken vertex colors"
-    )
-    parser.add_argument(
-        "--stride", "-s",
-        help="use stride s in integral nanometers, with 1 <= s <= 20"
+        help="darken vertex colors by reducing their lightness in Oklrab to 90%%"
     )
     parser.add_argument(
         "--alpha",
@@ -89,16 +129,19 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="run in verbose mode"
     )
+    parser.add_argument(
+        "--gamut",
+        choices=["sRGB", "srgb", "P3", "p3", "Rec2020", "rec2020"],
+        help="also plot boundary of gamut for given color space",
+    )
+    parser.add_argument(
+        "--planar-gamut",
+        action="store_true",
+        help="plot gamut boundary on X/Z plane for XYZ and a/b plane for Oklrab, "
+        "with Y=0 or Lr= 0, respectively"
+    )
 
     return parser
-
-
-if sys.stderr.isatty():
-    BOLD = "\x1b[1m"
-    RESET = "\x1b[m"
-else:
-    BOLD = "" # pyright: ignore [reportConstantRedefinition]
-    RESET = "" # pyright: ignore [reportConstantRedefinition]
 
 
 def log(msg: str = "") -> None:
@@ -183,7 +226,7 @@ class PointManager:
         self._should_project_to_plane = planar
         self._should_generate_mesh = mesh
         self._points: list[tuple[float, float, float]] = []
-        self._colors: list[tuple[int, int, int]] = []
+        self._colors: list[tuple[int, int, int] | list[int]] = []
         self._faces: list[tuple[int, int, int]] = []
         self._alpha: int = min(max(int(alpha * 255), 0), 255)
         self._line_count = 0
@@ -222,7 +265,9 @@ class PointManager:
             self._line_length = self.point_count
 
     def add(self, color: Color, is_xyz: bool, highlight: None | Color = None) -> None:
-        x, y, z = color
+        x = color[0]
+        y = color[1]
+        z = color[2]
 
         if self._should_project_to_plane:
             if is_xyz:
@@ -235,33 +280,35 @@ class PointManager:
             self._points.append((x, y, z))
 
         if highlight is not None:
-            r, g, b = highlight.to_24bit()
-            self._colors.append((r, g, b))
+            self._colors.append(highlight.to_24bit())
             return
 
         if self._should_darken:
             lr, c, h = color.to(ColorSpace.Oklrch)
-            color = Color.oklrch(self.darken(lr), c, h)
+            color = Color.oklrch(0.9 * lr, c, h)
 
-        r, g, b = color.to_24bit()
-        self._colors.append((r, g, b))
-
-    def darken(self, l: float) -> float:
-        return 0.9 * l
+        self._colors.append(color.to_24bit())
 
     def generate_faces(self) -> None:
+        # See description in tool help!
+
+        if not self._should_generate_mesh:
+            return
+
+        line_count = self.line_count
+        line_length = self.line_length
         edges = Counter[tuple[int, int]]()
 
         # Create rope ladder of quads from series for pulse widths n and n+1.
         # E.g., at 1nm resolution, for n=0, that includes the edge (0, 471).
-        for line_index in range(self.line_count - 1):
+        for line_index in range(line_count - 1):
             if trace_enabled:
                 trace("-" * 141)
 
-            for index in range(self.line_length - 1):
-                s = line_index * self.line_length + index
+            for index in range(line_length - 1):
+                s = line_index * line_length + index
                 t = s + 1
-                u = t + self.line_length
+                u = t + line_length
                 v = u - 1
 
                 self._faces.append((s, v, u))
@@ -281,7 +328,7 @@ class PointManager:
                 trace(msg)
 
                 # Connect end of rope ladder to start of next rope ladder.
-                if index == self.line_length - 2 and line_index < self.line_count - 2:
+                if index == line_length - 2 and line_index < line_count - 2:
                     s = t + 1
                     v = u + 1
 
@@ -301,20 +348,22 @@ class PointManager:
 
                     trace(msg)
 
-        # For first & last series, that leaves a hole shaped like a bent spoon.
-        # The handle transitions to bowl at ~32% of series, i.e., the cusp.
-        cusp = self.line_cusp
-        halfcusp = cusp // 2  # Rounds downward
+        # For first & last line, that leaves a hole roughly shaped like a bent
+        # spoon. The spoon's handle transitions to the bowl at about 32% of the
+        # line, i.e., at the cusp.
+        line_cusp = self.line_cusp
+        halfcusp = line_cusp // 2  # Rounds downward
 
-        for base in (0, (self.line_count - 1) * self.line_length):
+        for base in (0, (line_count - 1) * line_length):
             # Fill spoon's handle with another rope ladder of quads.
             if trace_enabled:
                 trace("-" * 141)
 
             for index in range(1, halfcusp + 1):
+                # s,t are growing from base,u,v are shrinking from base + line_cusp
                 s = base + index - 1
                 t = s + 1
-                u = base + cusp - index
+                u = base + line_cusp - index
                 v = u + 1
 
                 self._faces.append((s, v, u))
@@ -336,7 +385,7 @@ class PointManager:
 
             # Fill spoon's bowl with fan of triangles. E.g., at 1nm resolution,
             # that includes the edge (0, 470).
-            for index in range(cusp, self.line_length - 1):
+            for index in range(line_cusp, line_length - 1):
                 s = base
                 t = s + index
                 u = t + 1
@@ -358,13 +407,13 @@ class PointManager:
                 trace(msg)
 
         r = 0
-        s = self.line_length
+        s = line_length
         t = s - 1
         self._faces.append((r, s, t))
 
-        u = (self.line_count - 1) * self.line_length - 1
+        u = (line_count - 1) * line_length - 1
         v = u + 1
-        w = v + self.line_length - 1
+        w = v + line_length - 1
         self._faces.append((u, w, v))
 
         msg = ""
@@ -413,6 +462,7 @@ class PointManager:
     ) -> tuple[int, int]:
         file.write("ply\n")
         file.write("format ascii 1.0\n")
+        # Blender chokes on PLY files with more than one comment line. Sad!
         file.write(
             f"comment Visual gamut in {self._label} "
             "<https://github.com/apparebit/prettypretty>\n"
@@ -472,6 +522,7 @@ class PointManager:
             log(f"    {face_count:,} faces")
             self.write_face_data(file)
 
+# --------------------------------------------------------- Generate 3D Points and Mesh
 
 def generate(
     *,
@@ -522,7 +573,7 @@ def generate(
 
     gamut_points = None
     if gamut is not None:
-        log(f"Traversing color space gamut of {space} with stride {stride}")
+        log(f"Traversing color space gamut of {space} with segment size {segment_size}")
         gamut_points = PointManager(
             stride=stride, space=space, darken=darken, planar=planar_gamut
         )
@@ -542,6 +593,7 @@ def generate(
     with open(filename, mode="w", encoding="utf8") as file:
         points.write_all(file, gamut_points)
 
+# ------------------------------------------------------------------ Interactive Viewer
 
 def render(filename: str, label: str) -> None:
     try:
@@ -569,6 +621,7 @@ def render(filename: str, label: str) -> None:
         bg="#555555",
     ).close() # pyright: ignore [reportOptionalMemberAccess]
 
+# =====================================================================================
 
 if __name__ == "__main__":
     parser = create_parser()
@@ -577,6 +630,11 @@ if __name__ == "__main__":
     if options.verbose:
         trace_enabled = True
 
+    if options.render and not options.mesh:
+        log("The --render option requires the --mesh option!")
+        sys.exit(1)
+
+    # ---------------------------------------------------------------- Colorspace Gamut
     if options.gamut is None:
         gamut = None
     else:
@@ -591,17 +649,23 @@ if __name__ == "__main__":
             log(f"gamut {name} is not srgb, p3, or rec2020 (case-insensitive)!")
             sys.exit(1)
 
-    if options.render and not options.mesh:
-        log("The --render option requires the --mesh option!")
+    if options.planar_gamut and gamut is None:
+        log(f"The --planar-gamut option requires the --gamut option")
         sys.exit(1)
 
+    # -------------------------------------------------------------------------- Stride
     stride = 2
     if options.stride:
-        stride = int(options.stride)
+        try:
+            stride = int(options.stride)
+        except:
+            log(f"stride {stride} is not an integer")
+            sys.exit(1)
     if not (1 <= stride <= 20):
         log(f"stride {stride} is not between 1 and 20 (inclusive)!")
         sys.exit(1)
 
+    # ---------------------------------------------------------------------- Illuminant
     if options.illuminant == "D50":
         illuminant = CIE_ILLUMINANT_D50
     elif options.illuminant == "D65":
@@ -609,27 +673,26 @@ if __name__ == "__main__":
     elif options.illuminant == "E":
         illuminant = CIE_ILLUMINANT_E
     else:
-        raise ValueError(f'invalid option value for illuminant "{options.illuminant}"')
+        raise ValueError(f'invalid value for illuminant "{options.illuminant}"')
 
-    if options.ten_degree:
-        observer = CIE_OBSERVER_10DEG_1964
-        file_suffix = "10deg"
-        label_suffix = "10º"
-    else:
+    # ------------------------------------------------------------------------ Observer
+    if options.observer == "2":
         observer = CIE_OBSERVER_2DEG_1931
-        file_suffix = "2deg"
-        label_suffix = "2º"
+    elif options.observer == "10":
+        observer = CIE_OBSERVER_10DEG_1964
+    else:
+        raise ValueError(f'invalid value for observer "{options.observer}"')
 
-    traversal = SpectrumTraversal(illuminant, observer, stride)
-
-    file_suffix = f"-{options.illuminant.lower()}-{file_suffix}-{stride}nm.ply"
-    label_suffix = f" {options.illuminant}/{label_suffix} @ {stride}nm stride"
+    # ---------------------------------------------------------------- Filename & Label
+    degrees = "2" if options.observer else "10"
+    file_suffix = f"-{stride}nm-{options.illuminant.lower()}-{degrees}deg.ply"
+    label_suffix = f": {stride}nm @ {options.illuminant} / {degrees}º"
 
     filename = "visual-gamut/xyz" + file_suffix
     label = "XYZ" + label_suffix
 
-    sampler = Sampler()
-
+    # ---------------------------------------------------------------------- Render XYZ
+    traversal = SpectrumTraversal(illuminant, observer, stride)
     generate(
         space=ColorSpace.Xyz,
         traversal=traversal,
@@ -645,7 +708,10 @@ if __name__ == "__main__":
 
     log()
 
+    # ------------------------------------------------------------------- Render Oklrab
     if options.ok:
+        sampler = Sampler()
+
         generate(
             space=ColorSpace.Oklrab,
             traversal=traversal.restart(),
@@ -663,5 +729,6 @@ if __name__ == "__main__":
         log("\nShape of visible gamut (sampled on chroma/hue plane):\n")
         log(str(sampler))
 
+    # -------------------------------------------------------------- Interactive Viewer
     if options.mesh and options.render:
         render(filename, label)
