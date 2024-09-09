@@ -347,17 +347,16 @@ impl Style {
     /// This method computes the maximum fidelity of the fidelities implied by
     /// this style's reset flag, format, foreground color, and background color.
     pub fn fidelity(&self) -> Fidelity {
-        *if self.data.reset {
-            Some(Fidelity::NoColor)
-        } else {
-            None
-        }
-        .iter()
-        .chain(self.data.format.map(|_| Fidelity::NoColor).iter())
-        .chain(self.data.foreground.as_ref().map(|c| c.into()).iter())
-        .chain(self.data.background.as_ref().map(|c| c.into()).iter())
-        .max()
-        .unwrap_or(&Fidelity::Plain)
+        *self
+            .data
+            .reset
+            .then_some(Fidelity::NoColor)
+            .iter()
+            .chain(self.data.format.map(|_| Fidelity::NoColor).iter())
+            .chain(self.data.foreground.as_ref().map(|c| c.into()).iter())
+            .chain(self.data.background.as_ref().map(|c| c.into()).iter())
+            .max()
+            .unwrap_or(&Fidelity::Plain)
     }
 
     /// Cap this style to the given fidelity.
@@ -367,17 +366,20 @@ impl Style {
         } else {
             self.data.reset
         };
+
         let format = self.data.format.and_then(|f| f.cap(fidelity));
-        let foreground = self
-            .data
-            .foreground
-            .clone()
-            .and_then(|c| translator.cap(c, fidelity));
-        let background = self
-            .data
-            .background
-            .clone()
-            .and_then(|c| translator.cap(c, fidelity));
+
+        let foreground = if let Some(ref colorant) = self.data.foreground {
+            translator.cap_colorant(colorant, fidelity)
+        } else {
+            None
+        };
+
+        let background = if let Some(ref colorant) = self.data.background {
+            translator.cap_colorant(colorant, fidelity)
+        } else {
+            None
+        };
 
         Self {
             data: StyleData {
@@ -389,9 +391,46 @@ impl Style {
         }
     }
 
+    /// Determine the number of SGR parameters required by this style.
+    ///
+    /// If this style includes a high-resolution color, this method returns
+    /// `None`. Otherwise, it returns some number *n*, with
+    /// 1&nbsp;<=&nbsp;*n*&nbsp;<=&nbsp;18.
+    pub fn sgr_parameter_count(&self) -> Option<usize> {
+        let mut count: usize = 0;
+
+        if self.data.reset {
+            count += 1;
+        }
+
+        if let Some(format) = self.data.format {
+            count += format.attribute_count() as usize;
+        }
+
+        if let Some(color) = self.data.foreground.as_ref() {
+            if let Some(number) = color.sgr_parameter_count() {
+                count += number;
+            } else {
+                return None;
+            }
+        }
+
+        if let Some(color) = self.data.background.as_ref() {
+            if let Some(number) = color.sgr_parameter_count() {
+                count += number;
+            } else {
+                return None;
+            }
+        }
+
+        Some(count)
+    }
+
     /// Get the SGR parameters for this style.
     pub fn sgr_parameters(&self) -> Vec<u8> {
-        if self.data.reset { Some(0_u8) } else { None }
+        self.data
+            .reset
+            .then_some(0_u8)
             .into_iter()
             .chain(
                 self.data

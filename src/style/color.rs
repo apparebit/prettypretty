@@ -410,6 +410,7 @@ impl TryFrom<u8> for EmbeddedRgb {
 }
 
 impl AsRef<[u8; 3]> for EmbeddedRgb {
+    #[inline]
     fn as_ref(&self) -> &[u8; 3] {
         &self.0
     }
@@ -430,6 +431,7 @@ impl std::ops::Index<usize> for EmbeddedRgb {
 }
 
 impl From<EmbeddedRgb> for u8 {
+    #[inline]
     fn from(value: EmbeddedRgb) -> u8 {
         let [r, g, b] = value.0;
         16 + 36 * r + 6 * g + b
@@ -451,9 +453,17 @@ impl From<EmbeddedRgb> for [u8; 3] {
     }
 }
 
+impl From<&EmbeddedRgb> for Color {
+    #[inline]
+    fn from(value: &EmbeddedRgb) -> Self {
+        Color::from(TrueColor::from(*value))
+    }
+}
+
 impl From<EmbeddedRgb> for Color {
+    #[inline]
     fn from(value: EmbeddedRgb) -> Self {
-        TrueColor::from(value).into()
+        Color::from(TrueColor::from(value))
     }
 }
 
@@ -636,21 +646,29 @@ impl TryFrom<u8> for GrayGradient {
 }
 
 impl From<GrayGradient> for u8 {
+    #[inline]
     fn from(value: GrayGradient) -> u8 {
         232 + value.0
     }
 }
 
 impl From<GrayGradient> for [u8; 3] {
+    #[inline]
     fn from(value: GrayGradient) -> Self {
         let level = 8 + 10 * value.level();
         [level, level, level]
     }
 }
 
+impl From<&GrayGradient> for Color {
+    fn from(value: &GrayGradient) -> Self {
+        Color::from(TrueColor::from(*value))
+    }
+}
+
 impl From<GrayGradient> for Color {
     fn from(value: GrayGradient) -> Self {
-        TrueColor::from(value).into()
+        Color::from(TrueColor::from(value))
     }
 }
 
@@ -867,14 +885,14 @@ impl std::ops::Index<usize> for TrueColor {
 
 impl From<EmbeddedRgb> for TrueColor {
     fn from(value: EmbeddedRgb) -> Self {
-        let [r, g, b] = value.into();
+        let [r, g, b] = Into::<[u8; 3]>::into(value);
         TrueColor::new(r, g, b)
     }
 }
 
 impl From<GrayGradient> for TrueColor {
     fn from(value: GrayGradient) -> TrueColor {
-        let [r, g, b] = value.into();
+        let [r, g, b] = Into::<[u8; 3]>::into(value);
         TrueColor::new(r, g, b)
     }
 }
@@ -899,6 +917,12 @@ impl From<&Color> for TrueColor {
 impl From<Color> for TrueColor {
     fn from(value: Color) -> Self {
         TrueColor::from(&value)
+    }
+}
+
+impl From<&TrueColor> for Color {
+    fn from(value: &TrueColor) -> Self {
+        Self::from_24bit(value.0[0], value.0[1], value.0[2])
     }
 }
 
@@ -946,6 +970,21 @@ impl Colorant {
     /// Determine whether this colorant is the default.
     pub fn is_default(&self) -> bool {
         matches!(self, Colorant::Default())
+    }
+
+    /// Get the number of SGR parameters required for this colorant.
+    ///
+    /// If this colorant is a high-resolution color, this method returns `None`.
+    /// Otherwise, it returns some 1, 3, or 5.
+    pub fn sgr_parameter_count(&self) -> Option<usize> {
+        match self {
+            Self::Default() => Some(1),
+            Self::Ansi(_) => Some(1),
+            Self::Embedded(_) => Some(3),
+            Self::Gray(_) => Some(3),
+            Self::Rgb(_) => Some(5),
+            Self::HiRes(_) => None,
+        }
     }
 
     /// Get the SGR parameters for this colorant.

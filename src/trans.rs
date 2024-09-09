@@ -912,6 +912,64 @@ impl Translator {
         Colorant::from(index)
     }
 
+    /// Cap the high-resolution color by the given fidelity.
+    ///
+    /// This method borrows the high-resolution color and clones the color only
+    /// in the uncommon case that the fidelity is high-resolution. For that
+    /// reason, prefer this method over [`Translator::cap`] when capping known
+    /// high-resolution colors.
+    pub fn cap_hires(&self, color: &Color, fidelity: Fidelity) -> Option<Colorant> {
+        match fidelity {
+            Fidelity::Plain | Fidelity::NoColor => None,
+            Fidelity::Ansi => Some(Colorant::Ansi(self.to_ansi(color))),
+            Fidelity::EightBit => Some(self.to_closest_8bit(color)),
+            Fidelity::TwentyFourBit => Some(Colorant::Rgb(color.into())),
+            Fidelity::HiRes => Some(Colorant::HiRes(color.clone())),
+        }
+    }
+
+    /// Cap the colorant by the given fidelity.
+    ///
+    /// This method borrows the colorant. It only clones colorants when no
+    /// conversion is necessary and it needs to return the colorant wrapped as
+    /// an option. As a result, it only clones a high-resolution color in the
+    /// uncommon case that the fidelity level also is high-resolution. For that
+    /// reason, prefer this method over [`Translator::cap`] when capping known
+    /// colorants.
+    pub fn cap_colorant(&self, colorant: &Colorant, fidelity: Fidelity) -> Option<Colorant> {
+        match fidelity {
+            Fidelity::Plain | Fidelity::NoColor => None,
+            Fidelity::Ansi => {
+                let hires_color = match colorant {
+                    Colorant::Default() | Colorant::Ansi(_) => return Some(colorant.clone()),
+                    Colorant::Embedded(embedded_rgb) => &Color::from(embedded_rgb),
+                    Colorant::Gray(gray_gradient) => &Color::from(gray_gradient),
+                    Colorant::Rgb(true_color) => &Color::from(true_color),
+                    Colorant::HiRes(hires_color) => hires_color,
+                };
+
+                Some(Colorant::Ansi(self.to_ansi(hires_color)))
+            }
+            Fidelity::EightBit => {
+                let hires_color = match colorant {
+                    Colorant::Rgb(true_color) => &Color::from(true_color),
+                    Colorant::HiRes(ref hires_color) => hires_color,
+                    _ => return Some(colorant.clone()),
+                };
+
+                Some(self.to_closest_8bit(hires_color))
+            }
+            Fidelity::TwentyFourBit => {
+                if let Colorant::HiRes(ref hires_color) = colorant {
+                    Some(Colorant::Rgb(hires_color.into()))
+                } else {
+                    Some(colorant.clone())
+                }
+            }
+            Fidelity::HiRes => Some(colorant.clone()),
+        }
+    }
+
     /// Cap the colorant by the given fidelity. <i class=python-only>Python
     /// only!</i>
     ///
@@ -984,8 +1042,6 @@ impl Translator {
     ///
     /// If the colorant is [`Colorant::Default`]. If the colorant may include
     /// the default colorant, use [`Translator::resolve_all`] instead.
-    ///
-    ///
     pub fn resolve(&self, color: impl Into<Colorant>) -> Color {
         let color = color.into();
         if matches!(color, Colorant::Default()) {
@@ -1063,39 +1119,11 @@ impl Translator {
     /// gradient, and true colors without prior conversion. The version exposed
     /// to Python uses a custom type conversion function to provide the exact
     /// same capability.
+    ///
+    /// Instead of calling this method, whenever possible, Rust code should use
+    /// [`Translator::cap_hires`] or [`Translator::cap_colorant`].
     pub fn cap(&self, colorant: impl Into<Colorant>, fidelity: Fidelity) -> Option<Colorant> {
-        let color = colorant.into();
-        match fidelity {
-            Fidelity::Plain | Fidelity::NoColor => None,
-            Fidelity::Ansi => {
-                let c = match color {
-                    Colorant::Default() | Colorant::Ansi(_) => return Some(color),
-                    Colorant::Embedded(c) => Color::from(c),
-                    Colorant::Gray(c) => Color::from(c),
-                    Colorant::Rgb(c) => Color::from(c),
-                    Colorant::HiRes(c) => c,
-                };
-
-                Some(Colorant::Ansi(self.to_ansi(&c)))
-            }
-            Fidelity::EightBit => {
-                let c = match color {
-                    Colorant::Rgb(c) => Color::from(c),
-                    Colorant::HiRes(c) => c,
-                    _ => return Some(color),
-                };
-
-                Some(self.to_closest_8bit(&c))
-            }
-            Fidelity::TwentyFourBit => {
-                if let Colorant::HiRes(c) = color {
-                    Some(Colorant::Rgb(c.into()))
-                } else {
-                    Some(color)
-                }
-            }
-            Fidelity::HiRes => Some(color),
-        }
+        self.cap_colorant(&colorant.into(), fidelity)
     }
 }
 
