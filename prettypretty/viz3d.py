@@ -87,13 +87,13 @@ def create_parser() -> argparse.ArgumentParser:
         help="show gamut in Oklrab as well"
     )
     parser.add_argument(
-        "--illuminant",
+        "-i", "--illuminant",
         default="D65",
-        choices=["D50", "D65", "E"],
+        choices=["D50", "d50", "D65", "d65", "E", "e"],
         help="choose between the CIE's D50, D65, and E illuminants",
     )
     parser.add_argument(
-        "--observer",
+        "-b", "--observer",
         default="2",
         choices=["2", "10"],
         help="choose between the CIE's 1931 2º or the 1964 10º standard observer",
@@ -464,7 +464,7 @@ class PointManager:
         file.write("format ascii 1.0\n")
         # Blender chokes on PLY files with more than one comment line. Sad!
         file.write(
-            f"comment Visual gamut in {self._label} "
+            f"comment Visual gamut in {self._label}  "
             "<https://github.com/apparebit/prettypretty>\n"
         )
 
@@ -666,14 +666,15 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # ---------------------------------------------------------------------- Illuminant
-    if options.illuminant == "D50":
+    illuminant_name = options.illuminant.upper()
+    if illuminant_name == "D50":
         illuminant = CIE_ILLUMINANT_D50
-    elif options.illuminant == "D65":
+    elif illuminant_name == "D65":
         illuminant = CIE_ILLUMINANT_D65
-    elif options.illuminant == "E":
+    elif illuminant_name == "E":
         illuminant = CIE_ILLUMINANT_E
     else:
-        raise ValueError(f'invalid value for illuminant "{options.illuminant}"')
+        raise ValueError(f'invalid value for illuminant "{illuminant_name}"')
 
     # ------------------------------------------------------------------------ Observer
     if options.observer == "2":
@@ -684,9 +685,8 @@ if __name__ == "__main__":
         raise ValueError(f'invalid value for observer "{options.observer}"')
 
     # ---------------------------------------------------------------- Filename & Label
-    degrees = "2" if options.observer else "10"
-    file_suffix = f"-{stride}nm-{options.illuminant.lower()}-{degrees}deg.ply"
-    label_suffix = f": {stride}nm @ {options.illuminant} / {degrees}º"
+    file_suffix = f"-{stride}nm-{illuminant_name.lower()}-{options.observer}deg.ply"
+    label_suffix = f": {stride}nm @ {illuminant_name} * {options.observer}º"
 
     filename = "visual-gamut/xyz" + file_suffix
     label = "XYZ" + label_suffix
