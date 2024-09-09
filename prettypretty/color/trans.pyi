@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import ClassVar, Self
+from typing import Self
 
 from . import Color, OkVersion
 from .style import (
@@ -26,9 +26,9 @@ class ThemeEntry_Ansi(ThemeEntry):
 
 class ThemeEntry:
     """The 18 colors in a theme."""
-    DefaultForeground: ClassVar[type[ThemeEntry]] = ThemeEntry_DefaultForeground
-    DefaultBackground: ClassVar[type[ThemeEntry]] = ThemeEntry_DefaultBackground
-    Ansi: ClassVar[type[ThemeEntry]] = ThemeEntry_Ansi
+    DefaultForeground = ThemeEntry_DefaultForeground
+    DefaultBackground = ThemeEntry_DefaultBackground
+    Ansi = ThemeEntry_Ansi
 
     @staticmethod
     def try_from_index(index: int) -> ThemeEntry: ...

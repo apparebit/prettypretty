@@ -138,12 +138,12 @@ class Colorant_HiRes(Colorant):
 
 class Colorant:
     """A wrapper for all color representations."""
-    Default: ClassVar[type[Colorant]] = Colorant_Default
-    Ansi: ClassVar[type[Colorant]] = Colorant_Ansi
-    Embedded: ClassVar[type[Colorant]] = Colorant_Embedded
-    Gray: ClassVar[type[Colorant]] = Colorant_Gray
-    Rgb: ClassVar[type[Colorant]] = Colorant_Rgb
-    HiRes: ClassVar[type[Colorant]] = Colorant_HiRes
+    Default = Colorant_Default
+    Ansi = Colorant_Ansi
+    Embedded = Colorant_Embedded
+    Gray = Colorant_Gray
+    Rgb = Colorant_Rgb
+    HiRes = Colorant_HiRes
 
     @staticmethod
     def of(
