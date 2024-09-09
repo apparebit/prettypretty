@@ -16,6 +16,8 @@
 //! attribute can be used as both state and state-change. However, the public
 //! API for fluently constructing arbitrary formats is limited to
 
+use std::iter::ExactSizeIterator;
+
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
@@ -164,6 +166,13 @@ impl AllAttributes {
         }
     }
 
+    /// Get the number of attributes still to be yielded. <i
+    /// class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __len__(&self) -> usize {
+        self.len()
+    }
+
     /// Access this iterator. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
@@ -210,6 +219,18 @@ impl Iterator for AllAttributes {
         self.0 += 1;
 
         Some(attr)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = 15 - self.0 as usize;
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for AllAttributes {
+    #[inline]
+    fn len(&self) -> usize {
+        15 - self.0 as usize
     }
 }
 
@@ -269,7 +290,9 @@ impl Mask {
 /// While it is based on format changes, its public interface only supports the
 /// fluent enabling of text attributes that differ from the default appearance.
 /// Yet negation and subtraction may very well result in formats that also
-/// disable text attributes.
+/// disable text attributes. The implementation does ensure that at most one out
+/// of a group of mutually exclusive attributes is set. Hence, any format can
+/// have at most seven attributes.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, module = "prettypretty.color.style")
@@ -277,9 +300,9 @@ impl Mask {
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Format(u16);
 
-#[cfg(not(feature = "pyffi"))]
 impl Format {
     /// Create a new, empty format.
+    #[inline]
     pub const fn new() -> Self {
         Self(0)
     }
@@ -301,59 +324,79 @@ impl Format {
     /// Create a new, empty format.
     #[cfg(feature = "pyffi")]
     #[new]
-    pub const fn new() -> Self {
+    #[inline]
+    pub const fn py_new() -> Self {
         Self(0)
     }
 
     /// Create a new format like this one that also uses bold font weight.
+    #[inline]
     pub const fn bold(&self) -> Self {
         Self(Bold.set(Mask::Weight.clear(self.0)))
     }
 
     /// Create a new format like this one that also uses thin font weight.
+    #[inline]
     pub const fn thin(&self) -> Self {
         Self(Thin.set(Mask::Weight.clear(self.0)))
     }
 
     /// Create a new format like this one that also uses italic font slant.
+    #[inline]
     pub const fn italic(&self) -> Self {
         Self(Italic.set(Mask::Slant.clear(self.0)))
     }
 
     /// Create a new format like this one that also is underlined.
+    #[inline]
     pub const fn underlined(&self) -> Self {
         Self(Underlined.set(Mask::Underlined.clear(self.0)))
     }
 
     /// Create a new format like this one that also is blinking.
+    #[inline]
     pub const fn blinking(&self) -> Self {
         Self(Blinking.set(Mask::Blinking.clear(self.0)))
     }
 
     /// Create a new format like this one that also is reversed.
+    #[inline]
     pub const fn reversed(&self) -> Self {
         Self(Reversed.set(Mask::Reversed.clear(self.0)))
     }
 
     /// Create a new format like this one that also is hidden.
+    #[inline]
     pub const fn hidden(&self) -> Self {
         Self(Hidden.set(Mask::Hidden.clear(self.0)))
     }
 
     /// Create a new format like this one that also is stricken.
+    #[inline]
     pub const fn stricken(&self) -> Self {
         Self(Stricken.set(Mask::Stricken.clear(self.0)))
     }
 
     /// Determine whether this format includes the given text attribute.
+    #[inline]
     pub const fn has(&self, attr: Attribute) -> bool {
         attr.test(self.0)
     }
 
+    /// Get the number of attributes in this format, which is at most seven.
+    #[inline]
+    pub fn attribute_count(&self) -> u8 {
+        self.0.count_ones() as u8
+    }
+
     /// Get an iterator over the constituent text attributes.
+    ///
+    /// [`Format::attribute_count`] returns the number of attributes yielded by
+    /// this iterator, which is between 0 and seven (inclusive).
     pub fn attributes(&self) -> AttributeIterator {
         AttributeIterator {
             format: *self,
+            remaining: self.attribute_count(),
             all_attributes: Attribute::all(),
         }
     }
@@ -371,6 +414,9 @@ impl Format {
     }
 
     /// Get the SGR parameters for this format.
+    ///
+    /// Note that the [`Format::attribute_count`] also is the number of SGR
+    /// parameters required for this format.
     pub fn sgr_parameters(&self) -> Vec<u8> {
         self.attributes().map(|a| a.sgr_parameter()).collect()
     }
@@ -409,6 +455,7 @@ impl std::ops::Not for Format {
     ///
     /// If a terminal uses this format, the negated format restores the
     /// terminal's default appearance.
+    #[inline]
     fn not(self) -> Self::Output {
         Self(negate_bits(self.0))
     }
@@ -439,12 +486,19 @@ impl std::ops::Sub for Format {
 #[derive(Debug)]
 pub struct AttributeIterator {
     format: Format,
+    remaining: u8,
     all_attributes: AllAttributes,
 }
 
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl AttributeIterator {
+    /// Get the number of remaining attributes. <i class=python-only>Python
+    /// only!</i>
+    pub fn __len__(&self) -> usize {
+        self.len()
+    }
+
     /// Access this iterator. <i class=python-only>Python only!</i>
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
@@ -468,11 +522,23 @@ impl Iterator for AttributeIterator {
                 None => return None,
                 Some(attr) => {
                     if self.format.has(attr) {
+                        self.remaining -= 1;
                         return Some(attr);
                     }
                 }
             }
         }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining as usize, Some(self.remaining as usize))
+    }
+}
+
+impl ExactSizeIterator for AttributeIterator {
+    #[inline]
+    fn len(&self) -> usize {
+        self.remaining as usize
     }
 }
 
@@ -482,7 +548,10 @@ impl std::iter::FusedIterator for AttributeIterator {}
 
 #[cfg(test)]
 mod test {
-    use super::{negate_bits, Bold, Format, NotUnderlined, Thin, Underlined};
+    use super::{
+        negate_bits, Blinking, Bold, Format, NotBlinking, NotBoldOrThin, NotUnderlined, Thin,
+        Underlined,
+    };
 
     #[test]
     fn test_attribute() {
@@ -499,13 +568,44 @@ mod test {
 
     #[test]
     fn test_format() {
+        // Format #1: {Bold, Underlined}
         let format = Format::new().thin().bold().underlined();
-        assert!(format.has(Bold));
+        assert_eq!(format.attribute_count(), 2);
         assert!(!format.has(Thin));
+        assert!(format.has(Bold));
         assert!(format.has(Underlined));
 
-        for format in format.attributes() {
-            assert!(matches!(format, Bold | Underlined));
+        let attributes = format.attributes();
+        assert_eq!(attributes.len(), 2);
+
+        for attr in attributes {
+            assert!(matches!(attr, Bold | Underlined));
+        }
+
+        // Format 2: Not{Bold, Underlined} + Blinking
+        let format = (!format).blinking();
+        assert_eq!(format.attribute_count(), 3);
+        assert!(format.has(Blinking));
+        assert!(format.has(NotBoldOrThin));
+        assert!(format.has(NotUnderlined));
+
+        let attributes = format.attributes();
+        assert_eq!(attributes.len(), 3);
+
+        for attr in attributes {
+            assert!(matches!(attr, Blinking | NotBoldOrThin | NotUnderlined));
+        }
+
+        // Format 3: Not{Not{Bold, Underlined} + Blinking}
+        let format = !format;
+        assert_eq!(format.attribute_count(), 1);
+        assert!(format.has(NotBlinking));
+
+        let attributes = format.attributes();
+        assert_eq!(attributes.len(), 1);
+
+        for attr in attributes {
+            assert!(matches!(attr, NotBlinking));
         }
     }
 }

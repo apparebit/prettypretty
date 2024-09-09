@@ -449,6 +449,7 @@ impl Iterator for GamutTraversal {
 
 #[cfg(feature = "gamut")]
 impl std::iter::ExactSizeIterator for GamutTraversal {
+    #[inline]
     fn len(&self) -> usize {
         self.remaining
     }
@@ -462,7 +463,7 @@ impl std::iter::FusedIterator for GamutTraversal {}
 impl GamutTraversal {
     /// Get the number of remaining steps.
     pub fn __len__(&self) -> usize {
-        self.remaining
+        self.len()
     }
 
     /// Get this iterator. <i class=python-only>Python only!</i>

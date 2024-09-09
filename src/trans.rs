@@ -127,12 +127,23 @@ impl Iterator for ThemeEntryIterator {
     }
 }
 
+impl std::iter::ExactSizeIterator for ThemeEntryIterator {
+    fn len(&self) -> usize {
+        18 - self.index
+    }
+}
+
 impl std::iter::FusedIterator for ThemeEntryIterator {}
-impl std::iter::ExactSizeIterator for ThemeEntryIterator {}
 
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl ThemeEntryIterator {
+    /// Get the number of remaining theme entries. <i class=python-only>Python
+    /// only!</i>
+    pub fn __len__(&self) -> usize {
+        self.len()
+    }
+
     /// Return this iterator. <i class=python-only>Python only!</i>
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf

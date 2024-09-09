@@ -793,7 +793,7 @@ impl SpectrumTraversal {
     /// Get the number of remaining steps. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __len__(&self) -> usize {
-        self.remaining
+        self.len()
     }
 
     /// Get this iterator. <i class=python-only>Python only!</i>
@@ -861,6 +861,7 @@ impl Iterator for SpectrumTraversal {
 }
 
 impl std::iter::ExactSizeIterator for SpectrumTraversal {
+    #[inline]
     fn len(&self) -> usize {
         self.remaining
     }
