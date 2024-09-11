@@ -36,14 +36,20 @@
         `SpectralDistribution<Value=Float>` that wraps a `Box<dyn
          SpectralDistribution<Value=Float> + Send>`."
 )]
+//!   * [`WeightingFactorTable`] is a table-driven implementation of
+//!     `SpectralDistribution<Value=[Float;3]>`. Its data is the
+//!     result of the per-wavelength multiplication of a
+//!     `SpectralDistribution<Value=Float>` and a
+//!     `SpectralDistribution<Value=[Float;3]>`, i.e., an illuminant
+//!     and an observer.
 //!
 #![cfg_attr(
     feature = "pyffi",
-    doc = "To play nice with PyO3 and Python, `Observer` reimplements all but one
-        trait method in its `impl` block. `Illuminant` doesn't event exist unless
-        the `pyffi` feature is enabled. But it still manages to adds two more
-        implementations for most trait methods, one for the trait `impl` and one in
-        its own `impl` block. While that does clutter the module sources somewhat,
+    doc = "To play nice with PyO3 and Python, `Observer` and `Product` reimplement
+        all but one trait method in their `impl` blocks. `Illuminant` doesn't even
+        exist unless the `pyffi` feature is enabled. But it still manages to adds two
+        more implementations for most trait methods, one for the trait `impl` and one
+        in its own `impl` block. While that does clutter the module sources somewhat,
         at least the methods' implementation was trivial. Each method simply forwards
         to another implementation of the same trait. Thereby, `Illuminant` makes
         two different trait implementations appear as the same type in Python and
@@ -84,7 +90,7 @@
 use pyo3::prelude::*;
 
 use crate::{
-    core::{GamutTraversalStep, Sum},
+    core::{GamutTraversalStep, ThreeSum},
     Color, ColorSpace, Float,
 };
 
@@ -515,6 +521,209 @@ impl SpectralDistribution for Observer {
 
 // --------------------------------------------------------------------------------------------------------------------
 
+/// A weighting factor table at nanometer resolution.
+///
+/// A weighting factor table is a spectral distribution representing a choice of
+/// illuminant and observer when computing tristimulus values. The
+/// per-wavelength values are the result of multiplying the illuminant's and
+/// observer's per-wavelength values. As a result, the weighting factor table
+/// also has three floating point numbers as values.
+///
+/// In addition to the methods also implemented by [`SpectralDistribution`] and
+/// [`Observer`], this spectral distribution implements
+/// [`WeightingFactorTable::pulse`] and [`WeightingFactorTable::pulse_color`].
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(frozen, module = "prettypretty.color.spectrum")
+)]
+#[derive(Debug, Default)]
+pub struct WeightingFactorTable {
+    label: String,
+    start: usize,
+    checksum: [Float; 3],
+    data: Vec<[Float; 3]>,
+}
+
+impl WeightingFactorTable {
+    /// Create a new weighting factor table.
+    pub fn new<Illuminant, Observer>(illuminant: &Illuminant, observer: &Observer) -> Self
+    where
+        Illuminant: SpectralDistribution<Value = Float>,
+        Observer: SpectralDistribution<Value = [Float; 3]>,
+    {
+        let start = illuminant.start().max(observer.start());
+        let end = illuminant.end().min(observer.end());
+
+        let mut data: Vec<[Float; 3]> = Vec::with_capacity(end - start);
+        let mut checksum = ThreeSum::new();
+
+        for index in start..end {
+            let [x, y, z] = observer.at(index).unwrap();
+            let s = illuminant.at(index).unwrap() / 100.0;
+            let value = [s * x, s * y, s * z];
+            data.push(value);
+            checksum += value;
+        }
+
+        Self {
+            label: format!("{} / {}", illuminant.label(), observer.label()),
+            start,
+            checksum: checksum.value(),
+            data,
+        }
+    }
+}
+
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl WeightingFactorTable {
+    #[cfg(feature = "pyffi")]
+    #[new]
+    pub fn py_new(illuminant: &Illuminant, observer: &Observer) -> Self {
+        Self::new(illuminant, observer)
+    }
+
+    /// Get a descriptive label for this weighting factor table.
+    #[inline]
+    pub fn label(&self) -> String {
+        self.label.clone()
+    }
+
+    /// Get this weighting factor table's starting wavelength.
+    #[inline]
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    /// Get this weighting factor table's ending wavelength.
+    #[inline]
+    pub fn end(&self) -> usize {
+        self.start + self.data.len()
+    }
+
+    /// Determine whether this weighting factor table is empty.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.data.len() == 0
+    }
+
+    /// Determine the number of entries in this weighting factor table.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Get the weighting factor for the given wavelength.
+    #[inline]
+    pub fn at(&self, wavelength: usize) -> Option<[Float; 3]> {
+        if self.start <= wavelength && wavelength < self.start + self.data.len() {
+            Some(self.data[wavelength - self.start])
+        } else {
+            None
+        }
+    }
+
+    /// Get this weighting factor table's checksum.
+    #[inline]
+    pub fn checksum(&self) -> [Float; 3] {
+        self.checksum
+    }
+
+    /// Compute the sum of weighting factors for a square, unit-height pulse.
+    ///
+    /// This method computes the sum of this weighting factor table's values for
+    /// a square pulse that has the given starting index (not wavelength),
+    /// width, and unit strength. Index values greater or equal to this
+    /// weighting factor table's `end()` transparently wrap to its `start()`.
+    pub fn pulse(&self, start: usize, width: usize) -> [Float; 3] {
+        let mut sum = ThreeSum::new();
+        for index in start..start + width {
+            let index = index % self.data.len();
+            sum += self.data[index];
+        }
+        sum.value()
+    }
+
+    /// Compute the tristimulus values for a square, unit-height pulse.
+    ///
+    /// This method computes the tristimulus values X, Y, Z by dividing the
+    /// result of [`WeightingFactorTable::pulse`] by the sum of the second
+    /// component of all weighting factors, i.e., the maximum luminosity.
+    pub fn pulse_color(&self, start: usize, width: usize) -> Color {
+        let [x, y, z] = self.pulse(start, width);
+
+        Color::new(
+            ColorSpace::Xyz,
+            [
+                x / self.checksum[1],
+                y / self.checksum[1],
+                z / self.checksum[1],
+            ],
+        )
+    }
+
+    /// Get the number of entries. <i class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    #[inline]
+    pub fn __len__(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Get the entry at the given index. <i class=python-only>Python
+    /// only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __getitem__(&self, index: usize) -> PyResult<[Float; 3]> {
+        self.at(self.start + index).ok_or_else(|| {
+            pyo3::exceptions::PyIndexError::new_err(format!(
+                "{} <= index for {}",
+                self.data.len(),
+                self.label
+            ))
+        })
+    }
+
+    /// Get a debug representation. <i class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    #[inline]
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
+impl SpectralDistribution for WeightingFactorTable {
+    type Value = [Float; 3];
+
+    #[inline]
+    fn label(&self) -> String {
+        self.label.clone()
+    }
+
+    #[inline]
+    fn start(&self) -> usize {
+        self.start
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    #[inline]
+    fn at(&self, wavelength: usize) -> Option<Self::Value> {
+        if self.start <= wavelength && wavelength < self.start + self.data.len() {
+            Some(self.data[wavelength - self.start])
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn checksum(&self) -> Self::Value {
+        self.checksum
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 pub mod std_observer {
     //! Free-standing functions related to the CIE standard observer.
 
@@ -563,82 +772,6 @@ pub mod std_observer {
 pub const ONE_NANOMETER: std::num::NonZeroUsize =
     unsafe { std::num::NonZeroUsize::new_unchecked(1) };
 
-/// The data for a spectrum traversal.
-///
-/// This struct stores the spectral distribution resulting from pre-multiplying
-/// the illuminant and observer and then computing the sum totals. It exists to
-/// ensures that the data is not mutated by accident. Like the rest of the
-/// module, this struct assumes one-nanometer resolution.
-#[derive(Debug, Default)]
-struct SpectrumTraversalData {
-    premultiplied: Vec<[Float; 3]>,
-    total_xyz: [Float; 3],
-}
-
-impl SpectrumTraversalData {
-    /// Create the spectrum traversal data for the observer and illuminant.
-    fn new<I, O>(illuminant: &I, observer: &O) -> Self
-    where
-        I: SpectralDistribution<Value = Float>,
-        O: SpectralDistribution<Value = [Float; 3]>,
-    {
-        let start = illuminant.start().max(observer.start());
-        let end = illuminant.end().min(observer.end());
-        let mut premultiplied: Vec<[Float; 3]> = Vec::with_capacity(end - start);
-
-        for index in start..end {
-            let [x, y, z] = observer.at(index).unwrap();
-            let s = illuminant.at(index).unwrap() / 100.0;
-            let ys = y * s;
-            premultiplied.push([x * s, ys, z * s]);
-        }
-
-        let mut data = Self {
-            premultiplied,
-            total_xyz: [0.0, 0.0, 0.0],
-        };
-        data.total_xyz = data.pulse(0, end - start);
-
-        data
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        self.premultiplied.len()
-    }
-
-    #[inline]
-    fn total(&self) -> [Float; 3] {
-        self.total_xyz
-    }
-
-    fn pulse(&self, start: usize, width: usize) -> [Float; 3] {
-        let mut xs = Sum::default();
-        let mut ys = Sum::default();
-        let mut zs = Sum::default();
-
-        for index in start..start + width {
-            let index = index % self.premultiplied.len();
-            let [x, y, z] = self.premultiplied[index];
-            xs += x;
-            ys += y;
-            zs += z;
-        }
-
-        [xs.value(), ys.value(), zs.value()]
-    }
-
-    fn pulse_color(&self, start: usize, width: usize) -> Color {
-        let [x, y, z] = self.pulse(start, width);
-        let luminosity = self.total_xyz[1];
-
-        Color::new(
-            ColorSpace::Xyz,
-            [x / luminosity, y / luminosity, z / luminosity],
-        )
-    }
-}
-
 /// An iterator to trace the human visual gamut.
 ///
 /// This iterator computes an observer's tristimulus values under a given
@@ -656,7 +789,7 @@ impl SpectrumTraversalData {
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.spectrum"))]
 #[derive(Debug)]
 pub struct SpectrumTraversal {
-    data: SpectrumTraversalData,
+    data: WeightingFactorTable,
     stride: usize,
     position: usize,
     width: usize,
@@ -672,7 +805,7 @@ impl SpectrumTraversal {
         I: SpectralDistribution<Value = Float>,
         O: SpectralDistribution<Value = [Float; 3]>,
     {
-        let data = SpectrumTraversalData::new(illuminant, observer);
+        let data = WeightingFactorTable::new(illuminant, observer);
         let stride = stride.get();
         let remaining = Self::derive_total_count(data.len(), stride);
 
@@ -740,7 +873,7 @@ impl SpectrumTraversal {
     /// Determine the white point for the spectrum traversal's illuminant and
     /// observer.
     pub fn white_point(&self) -> [Float; 3] {
-        let [x, y, z] = self.data.total();
+        let [x, y, z] = self.data.checksum();
         if 0.0 < y {
             [x / y, 1.0, z / y]
         } else {
@@ -879,6 +1012,8 @@ pub use crate::cie::CIE_OBSERVER_2DEG_1931;
 /// The CIE standard illuminant E at 1nm resolution.
 pub const CIE_ILLUMINANT_E: FixedDistribution =
     FixedDistribution::new("Illuminant E", 300, 531, 53_100.0, 100.0);
+
+// --------------------------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod test {

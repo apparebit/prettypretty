@@ -308,6 +308,7 @@ fn register_modgamut(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modspectrum.add_class::<spectrum::Illuminant>()?;
     modspectrum.add_class::<spectrum::Observer>()?;
     modspectrum.add_class::<spectrum::SpectrumTraversal>()?;
+    modspectrum.add_class::<spectrum::WeightingFactorTable>()?;
     m.add_submodule(&modspectrum)?;
 
     // Only change __name__ attribute after submodule has been added.
