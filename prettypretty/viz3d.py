@@ -84,7 +84,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ok",
         action="store_true",
-        help="show gamut in Oklrab as well"
+        help="render gamut in the Oklrab color space instead of XYZ"
     )
     parser.add_argument(
         "-i", "--illuminant",
@@ -121,7 +121,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-r", "--render",
         action="store_true",
-        help="render the resulting 3D mesh and its silhouettes in XYZ color space; "
+        help="interactively render the gamut in 3D with projected silhouettes; "
         "requires the Vedo 3D library"
     )
     parser.add_argument(
@@ -264,7 +264,7 @@ class PointManager:
         if self._line_count == 2:
             self._line_length = self.point_count
 
-    def add(self, color: Color, is_xyz: bool, highlight: None | Color = None) -> None:
+    def add(self, *, color: Color, is_xyz: bool, highlight: None | Color = None) -> None:
         x = color[0]
         y = color[1]
         z = color[2]
@@ -491,7 +491,7 @@ class PointManager:
 
     def write_vertex_data(self, file: io.TextIOWrapper) -> None:
         for point, color in zip(self._points, self._colors):
-            f = 100.0
+            f = 100.0 if self._space is ColorSpace.Xyz else 1.0
             x, y, z = point[0] * f, point[1] * f, point[2] * f
             r, g, b = color
             line = f"{x:f} {y:f} {z:f} {r} {g} {b}"
@@ -533,7 +533,7 @@ def generate(
     stride: int = 2,
     darken: bool = False,
     gamut: None | ColorSpace = None,
-    segment_size: int = 50,
+    segment_size: int = 200,
     planar_gamut: bool = False,
     mesh: bool = False,
     alpha: float = 1.0,
@@ -554,9 +554,9 @@ def generate(
         if sampler:
             sampler.sample(color)
         if is_xyz:
-            points.add(color, True)
+            points.add(color=color, is_xyz=True)
         else:
-            points.add(color.to(ColorSpace.Oklrab), False)
+            points.add(color=color.to(ColorSpace.Oklrab), is_xyz=False)
 
     points.generate_faces()
 
@@ -567,27 +567,37 @@ def generate(
     mn = traversal.minimum()
     mx = traversal.maximum()
     log(
-        f"    min {mn[0]:.5f} {mn[1]:.5f} {mn[2]:.5f}"
-        f" -- max {mx[0]:.5f} {mx[1]:.5f} {mx[2]:.5f}"
+        f"    min/max in XYZ: {mn[0]:.5f} {mn[1]:.5f} {mn[2]:.5f}   "
+        f"{mx[0]:.5f} {mx[1]:.5f} {mx[2]:.5f}"
     )
 
     gamut_points = None
     if gamut is not None:
-        log(f"Traversing color space gamut of {space} with segment size {segment_size}")
+        log(f"Traversing {gamut} gamut with segment size {segment_size}")
         gamut_points = PointManager(
             stride=stride, space=space, darken=darken, planar=planar_gamut
         )
+
+        highlight = None
+
         it = gamut.gamut(segment_size)
         assert it is not None
         for step in it:
-            if isinstance(step, GamutTraversalStep.MoveTo):
-                gamut_points.mark_newline()
-
             color = step.color()
             if is_xyz:
-                gamut_points.add(color.to(ColorSpace.Xyz), True)
+                gamut_points.add(
+                    color=color.to(ColorSpace.Xyz),
+                    is_xyz=True,
+                    highlight=highlight,
+                )
             else:
-                gamut_points.add(color.to(ColorSpace.Oklrab), False)
+                gamut_points.add(
+                    color=color.to(ColorSpace.Oklrab),
+                    is_xyz=False,
+                    highlight=highlight,
+                )
+
+        log(f"    {gamut_points.point_count:,} points")
 
     log(f"Writing {BOLD}{filename}{RESET}:")
     with open(filename, mode="w", encoding="utf8") as file:
@@ -595,7 +605,7 @@ def generate(
 
 # ------------------------------------------------------------------ Interactive Viewer
 
-def render(filename: str, label: str) -> None:
+def render(*, filename: str, label: str, is_ok: bool) -> None:
     try:
         from vedo import ( # pyright: ignore [reportMissingImports, reportMissingTypeStubs]
             Mesh, show # pyright: ignore [reportUnknownVariableType]
@@ -607,9 +617,9 @@ def render(filename: str, label: str) -> None:
         sys.exit(1)
 
     mesh: Any = Mesh(filename)
-    sx = mesh.clone().project_on_plane('x').c('r').x(-3) # sx is 2d
-    sy = mesh.clone().project_on_plane('y').c('g').y(-3)
-    sz = mesh.clone().project_on_plane('z').c('b').z(-3)
+    sx = mesh.clone().project_on_plane('x').c('r').x(0 if is_ok else 0)
+    sy = mesh.clone().project_on_plane('y').c('g').y(-0.4 if is_ok else 0)
+    sz = mesh.clone().project_on_plane('z').c('b').z(-0.4 if is_ok else 0)
 
     show(mesh,  # pyright: ignore [reportUnknownMemberType]
         sx, sx.silhouette('2d'), # 2d objects dont need a direction
@@ -629,10 +639,6 @@ if __name__ == "__main__":
 
     if options.verbose:
         trace_enabled = True
-
-    if options.render and not options.mesh:
-        log("The --render option requires the --mesh option!")
-        sys.exit(1)
 
     # ---------------------------------------------------------------- Colorspace Gamut
     if options.gamut is None:
@@ -688,13 +694,14 @@ if __name__ == "__main__":
     file_suffix = f"-{stride}nm-{illuminant_name.lower()}-{options.observer}deg.ply"
     label_suffix = f": {stride}nm @ {illuminant_name} * {options.observer}º"
 
-    filename = "visual-gamut/xyz" + file_suffix
-    label = "XYZ" + label_suffix
+    filename = "visual-gamut/" + ("ok" if options.ok else "xyz") + file_suffix
+    label = ("Oklrab" if options.ok else "XYZ") + label_suffix
 
-    # ---------------------------------------------------------------------- Render XYZ
+    # --------------------------------------------------------------------- Render File
     traversal = SpectrumTraversal(illuminant, observer, stride)
+    sampler = Sampler() if options.ok else None
     generate(
-        space=ColorSpace.Xyz,
+        space=ColorSpace.Oklrab if options.ok else ColorSpace.Xyz,
         traversal=traversal,
         stride=stride,
         gamut=gamut,
@@ -702,33 +709,15 @@ if __name__ == "__main__":
         mesh=options.mesh,
         darken=options.darken,
         alpha=float(options.alpha),
+        sampler=sampler,
         filename=filename,
         label=label,
     )
 
-    log()
-
-    # ------------------------------------------------------------------- Render Oklrab
     if options.ok:
-        sampler = Sampler()
-
-        generate(
-            space=ColorSpace.Oklrab,
-            traversal=traversal.restart(),
-            stride=stride,
-            gamut=gamut,
-            planar_gamut=options.planar_gamut,
-            mesh=options.mesh,
-            sampler=sampler,
-            darken=options.darken,
-            alpha=float(options.alpha),
-            filename="visual-gamut/ok" + file_suffix,
-            label="Oklrab" + label_suffix,
-        )
-
         log("\nShape of visible gamut (sampled on chroma/hue plane):\n")
         log(str(sampler))
 
     # -------------------------------------------------------------- Interactive Viewer
-    if options.mesh and options.render:
-        render(filename, label)
+    if options.render:
+        render(filename=filename, label=label, is_ok=options.ok)
