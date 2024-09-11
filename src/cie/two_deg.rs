@@ -7,7 +7,7 @@ use crate::spectrum::Observer;
 /// 360 to 830 nanometers (both inclusive), and is licensed under [CC BY-SA
 /// 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 pub const CIE_OBSERVER_2DEG_1931: Observer = Observer::new(
-    "2º Observer 1931",
+    "2º (1931)",
     360, // ..830
     [106.865469489595, 106.8569171011719, 106.892251278636],
     &[

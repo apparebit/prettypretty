@@ -6,8 +6,11 @@ use crate::spectrum::TabularDistribution;
 /// sourced from the [CIE](https://doi.org/10.25039/CIE.DS.etgmuqt5), covers the
 /// spectrum from 300 to 830 nanometers (both inclusive), and is licensed under
 /// [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+///
+/// The values of standard illuminants are *not* unit-scaled. D50's maximum
+/// value is 103.003.
 pub const CIE_ILLUMINANT_D50: TabularDistribution = TabularDistribution::new(
-    "Illuminant D50",
+    "D50",
     300, //..=830
     39484.934570,
     &[
@@ -75,8 +78,11 @@ pub const CIE_ILLUMINANT_D50: TabularDistribution = TabularDistribution::new(
 /// [CIE](https://doi.org/10.25039/CIE.DS.hjfjmt59), covers the spectrum from
 /// 300 to 830 nanometers (both inclusive), and is licensed under [CC BY-SA
 /// 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+///
+/// The values of standard illuminants are *not* unit-scaled. D50's maximum
+/// value is 117.812.
 pub const CIE_ILLUMINANT_D65: TabularDistribution = TabularDistribution::new(
-    "Illuminant D65",
+    "D65",
     300, //..=830
     40852.20400,
     &[
