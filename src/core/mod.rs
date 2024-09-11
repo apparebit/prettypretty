@@ -33,8 +33,10 @@ pub(crate) use gamut::{clip, in_gamut, to_gamut};
 pub use gamut::{GamutTraversal, GamutTraversalStep};
 
 // math
-#[cfg(feature = "gamut")]
+#[cfg(all(feature = "gamut", test))]
 pub(crate) use math::sum::Sum;
+#[cfg(feature = "gamut")]
+pub(crate) use math::sum::ThreeSum;
 pub(crate) use math::FloatExt;
 
 // space

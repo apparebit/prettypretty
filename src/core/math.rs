@@ -38,8 +38,12 @@ pub(crate) mod sum {
     }
 
     impl Sum {
+        #[inline]
         pub fn new() -> Self {
-            Self::default()
+            Self {
+                sum: 0.0,
+                compensation: 0.0,
+            }
         }
 
         #[inline]
@@ -86,6 +90,63 @@ pub(crate) mod sum {
 
     impl From<Sum> for Float {
         fn from(value: Sum) -> Self {
+            value.value()
+        }
+    }
+
+    #[derive(Debug, Default)]
+    pub(crate) struct ThreeSum {
+        a: Sum,
+        b: Sum,
+        c: Sum,
+    }
+
+    impl ThreeSum {
+        #[inline]
+        pub fn new() -> Self {
+            Self {
+                a: Sum::new(),
+                b: Sum::new(),
+                c: Sum::new(),
+            }
+        }
+
+        pub fn value(&self) -> [Float; 3] {
+            [self.a.value(), self.b.value(), self.c.value()]
+        }
+    }
+
+    impl std::ops::Add<[Float; 3]> for ThreeSum {
+        type Output = ThreeSum;
+
+        fn add(self, rhs: [Float; 3]) -> Self::Output {
+            let mut lhs = self;
+            lhs += rhs;
+            lhs
+        }
+    }
+
+    impl std::ops::AddAssign<[Float; 3]> for ThreeSum {
+        fn add_assign(&mut self, rhs: [Float; 3]) {
+            let [a, b, c] = rhs;
+            self.a += a;
+            self.b += b;
+            self.c += c;
+        }
+    }
+
+    impl std::iter::Sum<[Float; 3]> for ThreeSum {
+        fn sum<I: Iterator<Item = [Float; 3]>>(iter: I) -> Self {
+            let mut sum = ThreeSum::new();
+            for triple in iter {
+                sum += triple;
+            }
+            sum
+        }
+    }
+
+    impl From<ThreeSum> for [Float; 3] {
+        fn from(value: ThreeSum) -> Self {
             value.value()
         }
     }
