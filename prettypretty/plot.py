@@ -163,8 +163,8 @@ class ColorPlotter:
         self._chromaticity = chromaticity
 
         # Spectrum trace
-        self._spectrum_traversal: None | spectrum.SpectrumTraversal = None
-        self._white_point: list[float] = [math.nan, math.nan, math.nan]
+        self._illuminated_observer: None | spectrum.IlluminatedObserver = None
+        self._white_point: None | Color = None
 
         self._volume = volume
 
@@ -255,20 +255,18 @@ class ColorPlotter:
         axes: Any,
         locus_only: bool = False
     ) -> None:
-        if self._spectrum_traversal is None:
-            self._spectrum_traversal = spectrum.SpectrumTraversal(
+        if self._illuminated_observer is None:
+            self._illuminated_observer = spectrum.IlluminatedObserver(
                 spectrum.CIE_ILLUMINANT_D65,
                 spectrum.CIE_OBSERVER_2DEG_1931,
-                spectrum.ONE_NANOMETER,
             )
-
-            self._white_point = self._spectrum_traversal.white_point()
+            self._white_point = self._illuminated_observer.white_point()
 
         points: tuple[list[float], list[float], list[float], list[str]] = [], [], [], []
         lines2d: list[list[tuple[float, float]]] = []
         all_colors: list[list[str]] = []
 
-        for step in self._spectrum_traversal:
+        for step in self._illuminated_observer.visual_gamut(spectrum.ONE_NANOMETER):
             if isinstance(step, gamut.GamutTraversalStep.MoveTo):
                 lines2d.append([])
                 all_colors.append([])
@@ -281,8 +279,6 @@ class ColorPlotter:
             points[3].append(c.to_hex_format())
             lines2d[-1].append(self.to_2d(c))
             all_colors[-1].append(c.to_hex_format())
-
-        self._spectrum_traversal = self._spectrum_traversal.restart()
 
         if not locus_only:
             f, a = plt.subplots(subplot_kw={"projection": "3d"})  # type: ignore
@@ -432,12 +428,12 @@ class ColorPlotter:
             self.trace_spectrum(axes, locus_only=True)
 
             # Add white point
-            c = Color(ColorSpace.Xyz, self._white_point)
-            x, y = self.to_2d(c)
+            assert self._white_point is not None
+            x, y = self.to_2d(self._white_point)
             self._xs.append(x)
             self._ys.append(y)
             self._marks.append("*")
-            self._mark_colors.append(c.to_hex_format())
+            self._mark_colors.append(self._white_point.to_hex_format())
 
         gamuts = gamuts or []
         for space in gamuts:

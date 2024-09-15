@@ -13,7 +13,7 @@ mod test {
         CIE_ILLUMINANT_D50, CIE_ILLUMINANT_D65, CIE_OBSERVER_10DEG_1964, CIE_OBSERVER_2DEG_1931,
     };
     use crate::core::{Sum, ThreeSum};
-    use crate::spectrum::{SpectralDistribution, WeightingFactorTable};
+    use crate::spectrum::{IlluminatedObserver, SpectralDistribution, ONE_NANOMETER};
     use crate::Float;
 
     #[test]
@@ -56,7 +56,7 @@ mod test {
                 (0.31382, 0.33100),
             ),
         ] {
-            let table = WeightingFactorTable::new(illuminant, observer);
+            let table = IlluminatedObserver::new(illuminant, observer);
             // Check results of range overlap computation
             assert_eq!(table.start(), 360);
             assert_eq!(table.end(), 831);
@@ -73,7 +73,9 @@ mod test {
             assert_eq!(actual_tristimulus, tristimulus);
 
             // Compute tristimulus again, this time with pulse_color()
-            let color = table.pulse_color(0, table.len());
+            let color = table
+                .visual_gamut(ONE_NANOMETER)
+                .pulse_color(0, table.len());
             let [x, y, z] = *color.as_ref();
             let pulse_tristimulus = [round5(x), round5(y), round5(z)];
             assert_eq!(pulse_tristimulus, tristimulus);

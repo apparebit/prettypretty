@@ -36,7 +36,7 @@
         `SpectralDistribution<Value=Float>` that wraps a `Box<dyn
          SpectralDistribution<Value=Float> + Send>`."
 )]
-//!   * [`WeightingFactorTable`] is a table-driven implementation of
+//!   * [`IlluminatedObserver`] is a table-driven implementation of
 //!     `SpectralDistribution<Value=[Float;3]>`. Its data is the
 //!     result of the per-wavelength multiplication of a
 //!     `SpectralDistribution<Value=Float>` and a
@@ -71,9 +71,8 @@
 //! wavelengths.
 //!
 //! Finally, [`SpectrumTraversal`] is an iterator for tracing the spectral locus
-//! or the human visual gamut. It requires an illuminant and observer as inputs.
-//! In Rust, that can be any `SpectralDistribution<Value=Float>` and
-//! `SpectralDistribution<Value=[Float;3]>`, respectively.
+//! or the human visual gamut. It is instantiated with
+//! [`IlluminatedObserver::visual_gamut`].
 #![cfg_attr(
     feature = "pyffi",
     doc = "In Python, the constructor accepts `&Illuminant` and `&Observer`
@@ -86,6 +85,8 @@
 )]
 //!
 
+use std::sync::Arc;
+
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
@@ -96,8 +97,9 @@ use crate::{
 
 /// A spectral distribution at nanometer resolution.
 ///
-/// A concrete implementation must provide methods that return a descriptive
-/// label, a start wavelength, a length, and the spectral distribution's values.
+/// A concrete implementation of this trait must provide methods that return a
+/// descriptive label, a start wavelength, a length, and the spectral
+/// distribution's values.
 ///
 /// This trait requires implementation of `start()` and `len()` instead of just
 /// `range()` because the former two methods allow for more performant default
@@ -266,7 +268,7 @@ impl SpectralDistribution for Illuminant {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// A table-driven spectral distribution.
+/// A table-driven spectral distribution over floating point values.
 #[derive(Debug)]
 pub struct TabularDistribution {
     label: &'static str,
@@ -322,7 +324,7 @@ impl SpectralDistribution for TabularDistribution {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// A spectral distribution with a fixed value.
+/// A spectral distribution with a fixed floating point value.
 pub struct FixedDistribution {
     label: &'static str,
     start: usize,
@@ -381,6 +383,10 @@ impl SpectralDistribution for FixedDistribution {
 // --------------------------------------------------------------------------------------------------------------------
 
 /// A standard observer at nanometer resolution.
+///
+/// The CIE's standard observers, or color matching functions, model human color
+/// perception. Since humans are trichromatic, the per-wavelength values of
+/// standard observers are triples of floating point numbers.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(frozen, module = "prettypretty.color.spectrum")
@@ -521,31 +527,38 @@ impl SpectralDistribution for Observer {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// A weighting factor table at nanometer resolution.
+/// An illuminated observer at nanometer resolution.
 ///
-/// A weighting factor table is a spectral distribution representing a choice of
-/// illuminant and observer when computing tristimulus values. The
-/// per-wavelength values are the result of multiplying the illuminant's and
-/// observer's per-wavelength values. As a result, the weighting factor table
-/// also has three floating point numbers as values.
+/// An illuminated observer is a spectral distribution representing a choice of
+/// illuminant and observer when computing tristimulus values. Its
+/// per-wavelength values are computed by premultiplying the illuminant's and
+/// observer's per-wavelength values. As a result, an illuminated observer, just
+/// like an observer, has three floating point numbers as values.
 ///
-/// In addition to the methods also implemented by [`SpectralDistribution`] and
-/// [`Observer`], this spectral distribution implements
-/// [`WeightingFactorTable::pulse`] and [`WeightingFactorTable::pulse_color`].
+/// When compared to [`SpectralDistribution`] and [`Observer`], this spectral
+/// distribution provides additional functionality through the
+/// [`IlluminatedObserver::minimum`], [`IlluminatedObserver::maximum`],
+/// [`IlluminatedObserver::luminosity`], [`IlluminatedObserver::white_point`],
+/// and [`IlluminatedObserver::visual_gamut`] methods.
+///
+/// ASTM standard E308 refers to the premultiplied values as *weighting
+/// factors*.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(frozen, module = "prettypretty.color.spectrum")
 )]
 #[derive(Debug, Default)]
-pub struct WeightingFactorTable {
+pub struct IlluminatedObserver {
     label: String,
     start: usize,
+    minimum: [Float; 3],
+    maximum: [Float; 3],
     checksum: [Float; 3],
-    data: Vec<[Float; 3]>,
+    data: Arc<Vec<[Float; 3]>>,
 }
 
-impl WeightingFactorTable {
-    /// Create a new weighting factor table.
+impl IlluminatedObserver {
+    /// Create a new illuminated observer.
     pub fn new<Illuminant, Observer>(illuminant: &Illuminant, observer: &Observer) -> Self
     where
         Illuminant: SpectralDistribution<Value = Float>,
@@ -556,63 +569,77 @@ impl WeightingFactorTable {
 
         let mut data: Vec<[Float; 3]> = Vec::with_capacity(end - start);
         let mut checksum = ThreeSum::new();
+        let mut minimum = [Float::INFINITY, Float::INFINITY, Float::INFINITY];
+        let mut maximum = [
+            Float::NEG_INFINITY,
+            Float::NEG_INFINITY,
+            Float::NEG_INFINITY,
+        ];
 
         for index in start..end {
             let [x, y, z] = observer.at(index).unwrap();
             let s = illuminant.at(index).unwrap() / 100.0;
             let value = [s * x, s * y, s * z];
+
             data.push(value);
             checksum += value;
+
+            for c in 0..=2 {
+                minimum[c] = minimum[c].min(value[c]);
+                maximum[c] = maximum[c].max(value[c]);
+            }
         }
 
         Self {
             label: format!("{} / {}", illuminant.label(), observer.label()),
             start,
+            minimum,
+            maximum,
             checksum: checksum.value(),
-            data,
+            data: Arc::new(data),
         }
     }
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
-impl WeightingFactorTable {
+impl IlluminatedObserver {
     #[cfg(feature = "pyffi")]
     #[new]
     pub fn py_new(illuminant: &Illuminant, observer: &Observer) -> Self {
         Self::new(illuminant, observer)
     }
 
-    /// Get a descriptive label for this weighting factor table.
+    /// Get a descriptive label for this illuminated observer.
     #[inline]
     pub fn label(&self) -> String {
         self.label.clone()
     }
 
-    /// Get this weighting factor table's starting wavelength.
+    /// Get this illuminated observer's starting wavelength.
     #[inline]
     pub fn start(&self) -> usize {
         self.start
     }
 
-    /// Get this weighting factor table's ending wavelength.
+    /// Get this illuminated observer's ending wavelength.
     #[inline]
     pub fn end(&self) -> usize {
         self.start + self.data.len()
     }
 
-    /// Determine whether this weighting factor table is empty.
+    /// Determine whether this illuminated observer is empty.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.data.len() == 0
     }
 
-    /// Determine the number of entries in this weighting factor table.
+    /// Determine the number of entries in this illuminated observer.
     #[inline]
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
-    /// Get the weighting factor for the given wavelength.
+    /// Get the premultiplied triple for the given wavelength.
     #[inline]
     pub fn at(&self, wavelength: usize) -> Option<[Float; 3]> {
         if self.start <= wavelength && wavelength < self.start + self.data.len() {
@@ -622,54 +649,61 @@ impl WeightingFactorTable {
         }
     }
 
-    /// Get this weighting factor table's checksum.
+    /// Get this illuminated observer's component-wise minimum.
+    #[inline]
+    pub fn minimum(&self) -> [Float; 3] {
+        self.minimum
+    }
+
+    /// Get this illuminated observer's component-wise maximum.
+    #[inline]
+    pub fn maximum(&self) -> [Float; 3] {
+        self.maximum
+    }
+
+    /// Get this illuminated observer's checksum.
     #[inline]
     pub fn checksum(&self) -> [Float; 3] {
         self.checksum
     }
 
-    /// Compute the sum of weighting factors for a square, unit-height pulse.
+    /// Get this illuminated observer's luminosity.
     ///
-    /// This method computes the sum of this weighting factor table's values for
-    /// a square pulse that has the given starting index (not wavelength),
-    /// width, and unit strength. Index values greater or equal to this
-    /// weighting factor table's `end()` transparently wrap to its `start()`.
-    pub fn pulse(&self, start: usize, width: usize) -> [Float; 3] {
-        let mut sum = ThreeSum::new();
-        for index in start..start + width {
-            let index = index % self.data.len();
-            sum += self.data[index];
-        }
-        sum.value()
+    /// The luminosity is the sum of all values for the second component.
+    #[inline]
+    pub fn luminosity(&self) -> Float {
+        self.checksum[1]
     }
 
-    /// Compute the tristimulus values for a square, unit-height pulse.
-    ///
-    /// This method computes the tristimulus values X, Y, Z by dividing the
-    /// result of [`WeightingFactorTable::pulse`] by the sum of the second
-    /// component of all weighting factors, i.e., the maximum luminosity.
-    pub fn pulse_color(&self, start: usize, width: usize) -> Color {
-        let [x, y, z] = self.pulse(start, width);
-
-        Color::new(
-            ColorSpace::Xyz,
-            [
-                x / self.checksum[1],
-                y / self.checksum[1],
-                z / self.checksum[1],
-            ],
-        )
+    /// Determine the white point for this illuminated observer.
+    pub fn white_point(&self) -> Color {
+        let [x, y, z] = self.checksum;
+        // y/y to handle corner case of y being 0.0
+        #[allow(clippy::eq_op)]
+        Color::new(ColorSpace::Xyz, [x / y, y / y, z / y])
     }
 
-    /// Get the number of entries. <i class=python-only>Python only!</i>
+    /// Create a new spectrum traversal with the given stride.
+    ///
+    /// This method returns an iterator tracing the limits of the human visual
+    /// gamut in the CIE's XYZ color space, as parameterized by this illuminated
+    /// observer's component distributions. The returned iterator implements the
+    /// standard algorithm, shifting and rotating square pulses of unit height
+    /// and increasing widths across this distribution's spectrum.
+    pub fn visual_gamut(&self, stride: std::num::NonZeroUsize) -> SpectrumTraversal {
+        SpectrumTraversal::new(stride, self.luminosity(), self.data.clone())
+    }
+
+    /// Get this illuminated observer's number of values. <i
+    /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[inline]
     pub fn __len__(&self) -> usize {
         self.data.len()
     }
 
-    /// Get the entry at the given index. <i class=python-only>Python
-    /// only!</i>
+    /// Get the entry at the given zero-based index, not wavelength. <i
+    /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __getitem__(&self, index: usize) -> PyResult<[Float; 3]> {
         self.at(self.start + index).ok_or_else(|| {
@@ -681,7 +715,8 @@ impl WeightingFactorTable {
         })
     }
 
-    /// Get a debug representation. <i class=python-only>Python only!</i>
+    /// Get a debug representation for this illuminated observer. <i
+    /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[inline]
     pub fn __repr__(&self) -> String {
@@ -689,7 +724,7 @@ impl WeightingFactorTable {
     }
 }
 
-impl SpectralDistribution for WeightingFactorTable {
+impl SpectralDistribution for IlluminatedObserver {
     type Value = [Float; 3];
 
     #[inline]
@@ -772,51 +807,46 @@ pub mod std_observer {
 pub const ONE_NANOMETER: std::num::NonZeroUsize =
     unsafe { std::num::NonZeroUsize::new_unchecked(1) };
 
-/// An iterator to trace the human visual gamut.
+/// An iterator tracing the visual gamut.
 ///
-/// This iterator computes an observer's tristimulus values under a given
-/// illuminant [for square wave
-/// pulses](https://horizon-lab.org/colorvis/gamutvis.html) of [increasing
-/// widths](https://www.russellcottrell.com/photo/visualGamut.htm) circling
-/// through the spectrum shared between illuminant and observer. Moreover, it
-/// consecutively yields the tristimulus values for each pulse as a line of
-/// [`GamutTraversalStep`]s.
+/// This iterator traces the boundaries of the human visual gamut assuming a
+/// specific illuminant and observer by determining the colors resulting from
+/// [square wave pulses](https://horizon-lab.org/colorvis/gamutvis.html) of
+/// [increasing widths](https://www.russellcottrell.com/photo/visualGamut.htm)
+/// shifted and rotated across the illuminant's and observer's shared spectrum.
+/// Colors resulting from a pulse with the same width form a line.
 ///
-/// Pulse positions and widths grow with the same stride, which defaults to 5nm.
-/// The first pulse position is 0, whereas the first pulse width is 1nm. As a
-/// result, the first line yielded by this iterator is the spectral locus; it is
-/// best rendered with a stride of 1nm.
+/// Pulse positions and widths grow with the same stride. The first pulse
+/// position is 0, whereas the first pulse width is 1nm. As a result, the first
+/// line yielded by this iterator is the spectral locus; it is best rendered
+/// with a stride of 1nm.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.spectrum"))]
 #[derive(Debug)]
 pub struct SpectrumTraversal {
-    data: WeightingFactorTable,
+    data: Arc<Vec<[Float; 3]>>,
+    luminosity: Float,
     stride: usize,
     position: usize,
     width: usize,
     remaining: usize,
-    minimum: [Float; 3],
-    maximum: [Float; 3],
 }
 
 impl SpectrumTraversal {
-    /// Create a new spectrum traversal. <i class=rust-only>Rust only!</i>
-    pub fn new<I, O>(illuminant: &I, observer: &O, stride: std::num::NonZeroUsize) -> Self
-    where
-        I: SpectralDistribution<Value = Float>,
-        O: SpectralDistribution<Value = [Float; 3]>,
-    {
-        let data = WeightingFactorTable::new(illuminant, observer);
+    /// Create a new spectral traversal.
+    ///
+    /// The given data must be the result of premultiplying an illuminant with
+    /// an observer, e.g., an illuminated observer.
+    fn new(stride: std::num::NonZeroUsize, luminosity: Float, data: Arc<Vec<[Float; 3]>>) -> Self {
         let stride = stride.get();
         let remaining = Self::derive_total_count(data.len(), stride);
 
         Self {
             data,
+            luminosity,
             stride,
             position: 0,
             width: 0,
             remaining,
-            minimum: [Float::INFINITY; 3],
-            maximum: [Float::NEG_INFINITY; 3],
         }
     }
 
@@ -842,85 +872,54 @@ impl SpectrumTraversal {
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl SpectrumTraversal {
-    /// Create a new spectrum traversal. <i class=python-only>Python only!</i>
-    #[cfg(feature = "pyffi")]
-    #[new]
-    pub fn py_new(
-        illuminant: &Illuminant,
-        observer: &Observer,
-        stride: std::num::NonZeroUsize,
-    ) -> Self {
-        Self::new(illuminant, observer, stride)
-    }
-
-    /// Get the number of lines yielded by this spectrum traversal.
-    pub fn line_count(&self) -> usize {
-        Self::derive_line_count(self.data.len(), self.stride)
-    }
-
-    /// Get the number of colors per line yielded by this spectrum traversal.
-    #[inline]
-    pub fn line_length(&self) -> usize {
-        Self::derive_line_length(self.data.len(), self.stride)
-    }
-
     /// Get the traversal's stride.
     #[inline]
     pub fn stride(&self) -> usize {
         self.stride
     }
 
-    /// Determine the white point for the spectrum traversal's illuminant and
-    /// observer.
-    pub fn white_point(&self) -> [Float; 3] {
-        let [x, y, z] = self.data.checksum();
-        if 0.0 < y {
-            [x / y, 1.0, z / y]
-        } else {
-            [0.0, 0.0, 0.0]
-        }
+    /// Get the total number of lines yielded by this spectrum traversal.
+    pub fn line_count(&self) -> usize {
+        Self::derive_line_count(self.data.len(), self.stride)
     }
 
-    /// Get the smallest three tristimulus components encountered so far.
-    pub fn minimum(&self) -> [Float; 3] {
-        self.minimum
+    /// Get the total number of colors per line yielded by this spectrum traversal.
+    #[inline]
+    pub fn line_length(&self) -> usize {
+        Self::derive_line_length(self.data.len(), self.stride)
     }
 
-    /// Get the largest three tristimulus components encountered so far.
-    pub fn maximum(&self) -> [Float; 3] {
-        self.maximum
-    }
-
-    /// Create a new spectrum traversal that reuses this instance's premultiplied
-    /// illuminant and observer data.
+    /// Compute the triple for a square, unit-height pulse.
     ///
-    /// This method enables reuse of a spectrum traversal's internal state,
-    /// which easily comprises 1,200 floating point values that took as many
-    /// floating point multiplications to generate. It does so by creating a new
-    /// iterator while also moving the premultiplied illuminant and observer
-    /// data from this iterator to the new instance. To do so safely, it leaves
-    /// behind an empty premultiplied data table without any entries. As a
-    /// result, this method effectively terminates this iterator. However, the
-    /// newly created iterator starts afresh.
-    ///
-    /// This method represents a practical compromise between common Rust
-    /// practice (iterators are not reused), PyO3 disallowing methods that
-    /// consume self, and the large size of premultiplied illuminant and
-    /// observer data.
-    pub fn restart(&mut self) -> SpectrumTraversal {
-        // End this iterator.
-        self.width = self.data.len();
-        let remaining = Self::derive_total_count(self.data.len(), self.stride);
-
-        Self {
-            data: std::mem::take(&mut self.data),
-            stride: self.stride,
-            position: 0,
-            width: 0,
-            remaining,
-            minimum: [Float::INFINITY; 3],
-            maximum: [Float::NEG_INFINITY; 3],
+    /// This method computes the sum of the underlying illuminated observer's
+    /// values from the given start zero-based index (not wavelength) and width.
+    /// Effective index values greater or equal to the underling illuminated
+    /// observer's data table transparently wrap to the beginning of the table.
+    pub fn pulse(&self, start: usize, width: usize) -> [Float; 3] {
+        let mut sum = ThreeSum::new();
+        for index in start..start + width {
+            let index = index % self.data.len();
+            sum += self.data[index];
         }
+        sum.value()
+    }
+
+    /// Compute the XYZ color for a square, unit-height pulse.
+    ///
+    /// This method normalizes the result of [`SpectrumTraversal::pulse`] by
+    /// dividing it with the illuminated observer's luminosity before wrapping
+    /// it as a high-resolution color in the XYZ color space.
+    pub fn pulse_color(&self, start: usize, width: usize) -> Color {
+        let [x, y, z] = self.pulse(start, width);
+
+        Color::new(
+            ColorSpace::Xyz,
+            [
+                x / self.luminosity,
+                y / self.luminosity,
+                z / self.luminosity,
+            ],
+        )
     }
 
     /// Get the number of remaining steps. <i class=python-only>Python only!</i>
@@ -935,7 +934,7 @@ impl SpectrumTraversal {
         slf
     }
 
-    /// Get the next item. <i class=python-only>Python only!</i>
+    /// Get the next step. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<GamutTraversalStep> {
         slf.next()
@@ -966,11 +965,7 @@ impl Iterator for SpectrumTraversal {
         }
 
         self.remaining -= 1;
-        let color = self.data.pulse_color(self.position, self.width);
-        for index in 0..3 {
-            self.minimum[index] = self.minimum[index].min(color[index]);
-            self.maximum[index] = self.maximum[index].max(color[index]);
-        }
+        let color = self.pulse_color(self.position, self.width);
 
         let result = if self.position == 0 {
             GamutTraversalStep::MoveTo(color)
@@ -1018,7 +1013,7 @@ pub const CIE_ILLUMINANT_E: FixedDistribution =
 #[cfg(test)]
 mod test {
     use super::{
-        GamutTraversalStep, SpectralDistribution, SpectrumTraversal, CIE_ILLUMINANT_D50,
+        GamutTraversalStep, IlluminatedObserver, SpectralDistribution, CIE_ILLUMINANT_D50,
         CIE_ILLUMINANT_D65, CIE_OBSERVER_10DEG_1964, CIE_OBSERVER_2DEG_1931,
     };
     use crate::core::Sum;
@@ -1059,11 +1054,9 @@ mod test {
         for (stride, line_count, line_length) in [(9, 53, 53), (10, 47, 48)] {
             let total = line_count * line_length;
 
-            let mut traversal = SpectrumTraversal::new(
-                &CIE_ILLUMINANT_D65,
-                &CIE_OBSERVER_2DEG_1931,
-                std::num::NonZeroUsize::new(stride).unwrap(),
-            );
+            let mut traversal =
+                IlluminatedObserver::new(&CIE_ILLUMINANT_D65, &CIE_OBSERVER_2DEG_1931)
+                    .visual_gamut(std::num::NonZeroUsize::new(stride).unwrap());
 
             assert_eq!(traversal.line_count(), line_count);
             assert_eq!(traversal.line_length(), line_length);

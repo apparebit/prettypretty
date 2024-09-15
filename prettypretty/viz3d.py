@@ -12,7 +12,7 @@ from prettypretty.color.gamut import ( # pyright: ignore [reportMissingModuleSou
 )
 from prettypretty.color.spectrum import ( # pyright: ignore [reportMissingModuleSource]
     CIE_ILLUMINANT_D50, CIE_ILLUMINANT_D65, CIE_ILLUMINANT_E, CIE_OBSERVER_2DEG_1931,
-    CIE_OBSERVER_10DEG_1964, SpectrumTraversal
+    CIE_OBSERVER_10DEG_1964, IlluminatedObserver
 )
 
 
@@ -529,7 +529,7 @@ def generate(
     space: ColorSpace,
     filename: str,
     label: str,
-    traversal: SpectrumTraversal,
+    illuminated_observer: IlluminatedObserver,
     stride: int = 2,
     darken: bool = False,
     gamut: None | ColorSpace = None,
@@ -546,7 +546,7 @@ def generate(
     is_xyz = space.is_xyz()
 
     # Lines resulting from square wave pulses
-    for step in traversal:
+    for step in illuminated_observer.visual_gamut(stride):
         if isinstance(step, GamutTraversalStep.MoveTo):
             points.mark_newline()
 
@@ -564,8 +564,8 @@ def generate(
     log(f"    {points.line_count:,} lines, each {points.line_length:,} points long")
     log(f"    {points.face_count:,} faces")
 
-    mn = traversal.minimum()
-    mx = traversal.maximum()
+    mn = illuminated_observer.minimum()
+    mx = illuminated_observer.maximum()
     log(
         f"    min/max in XYZ: {mn[0]:.5f} {mn[1]:.5f} {mn[2]:.5f}   "
         f"{mx[0]:.5f} {mx[1]:.5f} {mx[2]:.5f}"
@@ -698,11 +698,11 @@ if __name__ == "__main__":
     label = ("Oklrab" if options.ok else "XYZ") + label_suffix
 
     # --------------------------------------------------------------------- Render File
-    traversal = SpectrumTraversal(illuminant, observer, stride)
+    illuminated_observer = IlluminatedObserver(illuminant, observer)
     sampler = Sampler() if options.ok else None
     generate(
         space=ColorSpace.Oklrab if options.ok else ColorSpace.Xyz,
-        traversal=traversal,
+        illuminated_observer=illuminated_observer,
         stride=stride,
         gamut=gamut,
         planar_gamut=options.planar_gamut,
