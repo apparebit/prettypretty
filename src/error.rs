@@ -55,7 +55,6 @@ impl From<OutOfBoundsError> for PyErr {
 /// The enumeration started out with additional information but PyO3 only
 /// supports unit variants without associated state. Thankfully, the attendant
 /// loss of information is rather limited.
-#[cfg_attr(feature = "pyffi", pyclass(eq, eq_int))]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ColorFormatError {
     /// A color format that does not start with a known prefix such as `#` or
@@ -102,13 +101,19 @@ pub enum ColorFormatError {
     /// A color format with more than three coordinates. For example,
     /// `rgb:1/2/3/4` has one coordinate too many.
     TooManyCoordinates,
+
+    /// An OSC escape sequence with a color is for another theme entry.
+    WrongThemeColor,
+
+    /// A OSC escape sequence with a color is malformed.
+    MalformedThemeColor,
 }
 
 impl std::fmt::Display for ColorFormatError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use ColorFormatError::*;
 
-        match *self {
+        match self {
             UnknownFormat => f.write_str(
                 "color format should start with `#`, `color()`, `oklab()`, `oklch()`, or `rgb:`",
             ),
@@ -139,6 +144,10 @@ impl std::fmt::Display for ColorFormatError {
             TooManyCoordinates => {
                 f.write_str("color format should have 3 coordinates but has more")
             }
+            WrongThemeColor => {
+                f.write_str("OSC escape sequence with color is for the wrong theme entry")
+            }
+            MalformedThemeColor => f.write_str("OSC escape sequence with color is malformed"),
         }
     }
 }

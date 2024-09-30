@@ -4,9 +4,9 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use crate::core::is_achromatic_chroma_hue;
+use crate::core::{is_achromatic_chroma_hue, parse_x};
 
-use crate::error::OutOfBoundsError;
+use crate::error::{ColorFormatError, OutOfBoundsError};
 use crate::style::{AnsiColor, Colorant, EmbeddedRgb, Fidelity, GrayGradient, Layer};
 use crate::{rgb, Bits, Color, ColorSpace, Float, OkVersion};
 
@@ -22,15 +22,18 @@ use crate::{rgb, Bits, Color, ColorSpace, Float, OkVersion};
 /// used just like a slice or vector. So, here we are.
 pub type Theme = [Color; 18];
 
-/// A helper for naming the slots of color themes.
+/// The entries of a color theme.
 ///
-/// This enumeration combines the default and ANSI colors to identify the 18
-/// entries of a color theme in order.
+/// This enumeration combines two variants for the default foreground and
+/// background color with another variant that wraps an [`AnsiColor`], in that
+/// order, to identify the 18 entries of a color theme. Displaying a theme entry
+/// produces the ANSI escape sequence used to query a terminal for the
+/// corresponding color.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, ord, module = "prettypretty.color.trans")
 )]
-#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ThemeEntry {
     DefaultForeground(),
     DefaultBackground(),
@@ -67,6 +70,51 @@ impl ThemeEntry {
             Self::Ansi(color) => color.abbr(),
         }
     }
+
+    /// Parse the response to a theme color query.
+    ///
+    /// The string should contain the escape sequence *without* the leading OSC
+    /// and trailing ST or BEL controls. This method validates that the response
+    /// is for this theme entry indeed.
+    pub fn parse_response(&self, s: &str) -> Result<Color, ColorFormatError> {
+        let s = match self {
+            Self::DefaultForeground() => s.strip_prefix("10;"),
+            Self::DefaultBackground() => s.strip_prefix("11;"),
+            Self::Ansi(color) => {
+                // Consume parameter for ANSI colors
+                let s = s
+                    .strip_prefix("4;")
+                    .ok_or(ColorFormatError::MalformedThemeColor)?;
+
+                // Consume color code
+                let code = *color as u8;
+                if code < 10 {
+                    s.strip_prefix(char::from(b'0' + code))
+                } else {
+                    s.strip_prefix('1')
+                        .and_then(|s| s.strip_prefix(char::from(b'0' + code - 10)))
+                }
+                .and_then(|s| s.strip_prefix(';'))
+            }
+        }
+        .ok_or(ColorFormatError::WrongThemeColor)?;
+
+        Ok(Color::new(ColorSpace::Srgb, parse_x(s)?))
+    }
+
+    /// Render a debug representation for this theme entry. <i
+    /// class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    /// Render an ANSI escape sequence to query a terminal for this theme
+    /// entry's current color. <i class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __str__(&self) -> String {
+        format!("{}", self)
+    }
 }
 
 impl From<AnsiColor> for ThemeEntry {
@@ -87,6 +135,18 @@ impl TryFrom<usize> for ThemeEntry {
             Ok(ThemeEntry::Ansi(AnsiColor::try_from(value as u8 - 2)?))
         } else {
             Err(OutOfBoundsError::new(value, 0..=17))
+        }
+    }
+}
+
+impl std::fmt::Display for ThemeEntry {
+    /// Get an ANSI escape sequence to query a terminal for this theme entry's
+    /// current color.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DefaultForeground() => f.write_str("\x1b]10;?\x1b\\"),
+            Self::DefaultBackground() => f.write_str("\x1b]11;?\x1b\\"),
+            Self::Ansi(color) => f.write_fmt(format_args!("\x1b]4;{};?\x1b\\", *color as u8)),
         }
     }
 }
@@ -1148,10 +1208,23 @@ impl std::fmt::Debug for Translator {
 
 #[cfg(test)]
 mod test {
-    use super::{Translator, VGA_COLORS};
+    use super::{ThemeEntry, Translator, VGA_COLORS};
     use crate::error::OutOfBoundsError;
     use crate::style::AnsiColor;
     use crate::{Color, OkVersion};
+
+    #[test]
+    fn test_theme_entry() {
+        assert_eq!(
+            format!("{}", ThemeEntry::DefaultForeground()),
+            "\x1b]10;?\x1b\\"
+        );
+
+        assert_eq!(
+            ThemeEntry::Ansi(AnsiColor::BrightGreen).to_string(),
+            "\x1b]4;10;?\x1b\\".to_string()
+        )
+    }
 
     #[test]
     fn test_translator() -> Result<(), OutOfBoundsError> {

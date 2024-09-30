@@ -65,6 +65,13 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     requires mapping a practically infinite number of colors onto 16 colors,
 //!     four of which are achromatic. `Translator` includes several algorithms
 //!     for doing so.
+//!   * The [`escape`] module's [`Scanner`](crate::escape::Scanner) makes
+//!     **integration of terminal I/O** as simple as possible by hiding quite
+//!     quite a bit of complex state machinery for parsing ANSI escape sequences
+//!     behind a simple interface. That way, an application can easily query the
+//!     terminal for its current color theme, which
+//!     [`Translator`](crate::trans::Translator) requires for high-quality
+//!     translation to ANSI colors.
 //!   * The optional [`gamut`] and [`spectrum`] submodules enable the traversal
 //!     of **color space gamuts** and the **human visual gamut**, respectively.
 //!     The
@@ -107,31 +114,34 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!
 //! ## BYOIO: Bring Your Own (Terminal) I/O
 //!
-//! Currently, the one significant difference in features between the Python and
-//! Rust versions is that the latter does not yet include its own facilities for
-//! styled text and terminal I/O. However, correctly implementing the
-//! recommended workflow for terminal styles requires an instance of
-//! [`Translator`](crate::trans::Translator) with the colors of the *current
-//! terminal theme*.
+//! Unlike prettypretty's Python version, the Rust version has no facilities for
+//! terminal I/O. That is your application's responsibility, which gives you the
+//! freedom to use either synchronous or asynchronous I/O as well as the
+//! terminal abstractions most to your liking. At the same time,
+//! [`Translator`](crate::trans::Translator) requires a list with the terminal's
+//! current colors so that it can provide high-quality translation to ANSI
+//! colors. That, in turn, requires querying the terminal with appropriate ANSI
+//! escape sequences and then parsing the ANSI escape sequences returned as
+//! responses, which can be challenging to implement from scratch.
 //!
-//! An application should use the ANSI escape sequences
-//! ```text
-//! <OSC> ("10" | "11") ";?" <ST>
-//! ```
-//! and
-//! ```text
-//! <OSC> "4;" ("0" | "1" | .. "15") ";?" <ST>
-//! ```
-//! to query the terminal for the two default and 16 extended ANSI colors. The
-//! responses are ANSI escape sequences with the exact same prefix as requests,
-//! up to and excluding the question mark, followed by the color in X Windows
-//! `rgb:` format, followed by ST. Once prefix and suffix are stripped from the
-//! response, an application can use the `FromStr` trait to parse the X Windows
-//! color format into a color object.
+//! To simplify the integration effort as much as possible, prettypretty
+//! provides two helper types, a higher-level one
 //!
-//! As usual, OSC stands for the character sequence `\x1b]` (escape, closing
-//! square bracket) and ST stands for the character sequence `\x1b\\` (escape,
-//! backslash). Some terminals answer with `\x0b` (bell) instead of ST.
+//!  1. [`Translator::theme_entries`](crate::trans::Translator::theme_entries)
+//!     iterates over all 18 [`ThemeEntry`](crate::trans::ThemeEntry) instances
+//!     for the colors in a terminal color theme. Writing an entry's display to
+//!     the terminal writes the corresponding query as an ANSI escape sequence.
+//!     [`ThemeEntry::parse_response`](crate::trans::ThemeEntry::parse_response)
+//!     parses the color from the response, also an ANSI escape sequence.
+//!  2. [`Scanner`](crate::escape::Scanner) takes care of the low-level parsing
+//!     of escape sequences. It consumes exactly the right number of bytes, no
+//!     less, no more. And it always leaves the terminal's input stream in a
+//!     reasonable state, even when the ANSI escape sequence is malformed.
+//!
+//! See the [`escape`] module's documentation, for an example of the inner loop
+//! that feeds bytes to a scanner until an escape sequence is complete and then
+//! parses the buffered sequence with the theme entry's
+//! [`parse_response`](crate::trans::ThemeEntry::parse_response) method.
 //!
 //!
 //! ## Acknowledgements
@@ -163,6 +173,7 @@ pub type Bits = u32;
 
 mod core;
 pub mod error;
+pub mod escape;
 mod object;
 pub mod style;
 pub mod trans;
@@ -200,6 +211,7 @@ use pyo3::types::PyDict;
 pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modcolor_name = m.name()?;
     let modcolor_name = modcolor_name.to_str()?;
+    let modescape_name = format!("{}.escape", modcolor_name);
     let modformat_name = format!("{}.style.format", modcolor_name);
     let modstyle_name = format!("{}.style", modcolor_name);
     let modtrans_name = format!("{}.trans", modcolor_name);
@@ -212,6 +224,17 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<HueInterpolation>()?;
     m.add_class::<Interpolator>()?;
     m.add_class::<OkVersion>()?;
+
+    // ------------------------------------------------------------------- color.escape
+    let modescape = PyModule::new_bound(m.py(), "escape")?;
+    modescape.add("__package__", modcolor_name)?;
+    modescape.add_class::<escape::Control>()?;
+    modescape.add_class::<escape::Continuation>()?;
+    modescape.add_class::<escape::Scanner>()?;
+    m.add_submodule(&modescape)?;
+
+    // Only change __name__ attribute after submodule has been added.
+    modescape.setattr("__name__", &modescape_name)?;
 
     // -------------------------------------------------------------------- color.style
     let modstyle = PyModule::new_bound(m.py(), "style")?;
@@ -260,6 +283,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py_modules: Bound<'_, PyDict> = PyModule::import_bound(m.py(), "sys")?
         .getattr("modules")?
         .downcast_into()?;
+    py_modules.set_item(&modescape_name, modescape)?;
     py_modules.set_item(&modstyle_name, modstyle)?;
     py_modules.set_item(&modformat_name, modformat)?;
     py_modules.set_item(&modtrans_name, modtrans)?;

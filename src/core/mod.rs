@@ -43,4 +43,4 @@ pub(crate) use math::FloatExt;
 pub use space::ColorSpace;
 
 // string
-pub(crate) use string::{format, parse};
+pub(crate) use string::{format, parse, parse_x};

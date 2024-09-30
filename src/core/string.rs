@@ -32,12 +32,12 @@ fn parse_hashed(s: &str) -> Result<[u8; 3], ColorFormatError> {
 /// Parse a color in X Windows format. If successful, this function returns
 /// three pairs with the number of hexadecimal digits and the numeric value for
 /// each coordinate.
-fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
+pub(crate) fn parse_x(s: &str) -> Result<[Float; 3], ColorFormatError> {
     if !s.starts_with("rgb:") {
         return Err(ColorFormatError::UnknownFormat);
     }
 
-    fn parse_coordinate(s: Option<&str>, _: usize) -> Result<(u8, u16), ColorFormatError> {
+    fn parse_coordinate(s: Option<&str>, _: usize) -> Result<Float, ColorFormatError> {
         let t = s.ok_or(ColorFormatError::MissingCoordinate)?;
         if t.is_empty() {
             return Err(ColorFormatError::MissingCoordinate);
@@ -46,7 +46,7 @@ fn parse_x(s: &str) -> Result<[(u8, u16); 3], ColorFormatError> {
         }
 
         let n = u16::from_str_radix(t, 16).map_err(|_| ColorFormatError::MalformedHex)?;
-        Ok((t.len() as u8, n))
+        Ok(n as Float / (16_u32.pow(t.len() as u32) - 1) as Float)
     }
 
     // SAFETY: unwrap() is safe because we tested for just that prefix above.
@@ -157,12 +157,7 @@ pub(crate) fn parse(s: &str) -> Result<(ColorSpace, [Float; 3]), ColorFormatErro
             ],
         ))
     } else if s.starts_with("rgb:") {
-        fn scale(len_and_value: (u8, u16)) -> Float {
-            len_and_value.1 as Float / (16_i32.pow(len_and_value.0 as u32) - 1) as Float
-        }
-
-        let [c1, c2, c3] = parse_x(s)?;
-        Ok((ColorSpace::Srgb, [scale(c1), scale(c2), scale(c3)]))
+        Ok((ColorSpace::Srgb, parse_x(s)?))
     } else {
         parse_css(s)
     }
@@ -269,11 +264,19 @@ mod test {
     fn test_parse_x() -> Result<(), ColorFormatError> {
         assert_eq!(
             parse_x("rgb:a/bb/ccc")?,
-            [(1_u8, 0xa_u16), (2, 0xbb), (3, 0xccc)]
+            [
+                0xa as Float / 0xf as Float,
+                0xbb as Float / 0xff as Float,
+                0xccc as Float / 0xfff as Float
+            ]
         );
         assert_eq!(
             parse_x("rgb:0123/4567/89ab")?,
-            [(4_u8, 0x123_u16), (4, 0x4567), (4, 0x89ab)]
+            [
+                0x123 as Float / 0xffff as Float,
+                0x4567 as Float / 0xffff as Float,
+                0x89ab as Float / 0xffff as Float
+            ]
         );
         assert_eq!(
             parse_x("rgbi:0.1/0.1/0.1"),
