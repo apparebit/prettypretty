@@ -957,6 +957,13 @@ impl Scanner {
     pub fn consume(&self) -> Result<&str, std::str::Utf8Error> {
         self.machine.retained_str()
     }
+
+    /// Get a debug representation for this scanner. <i class=python-only>Python
+    /// only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __repr__(&self) -> String {
+        format!("Scanner({:?})", self.machine)
+    }
 }
 
 // ================================================================================================
