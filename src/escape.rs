@@ -870,6 +870,24 @@ pub enum Continuation {
     Consume,
 }
 
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl Continuation {
+    /// Determine whether this continuation is abort.
+    pub fn is_abort(&self) -> bool {
+        matches!(self, Self::Abort)
+    }
+
+    /// Determine whether this continuation is continue.
+    pub fn is_continue(&self) -> bool {
+        matches!(self, Self::Continue)
+    }
+
+    /// Determine whether this continuation is consume.
+    pub fn is_consume(&self) -> bool {
+        matches!(self, Self::Consume)
+    }
+}
+
 /// A scanner for escape sequences.
 ///
 /// This struct exposes a much simplified interface to a fully general state
@@ -895,11 +913,23 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    /// Create a new escape sequence scanner.
+    /// The scanner's default capacity.
+    pub const DEFAULT_CAPACITY: usize = 23;
+
+    /// Create a new escape sequence scanner. The scanner's capacity is set just
+    /// large enough for parsing responses to color queries.
     pub fn new() -> Self {
-        // "4;15;rgb:ffff/ffff/ffff".len() == 23
+        Self::with_capacity(Self::DEFAULT_CAPACITY)
+    }
+
+    /// Create a new escape sequence scanner with the given capacity. Since the
+    /// input to a scanner cannot be trusted, the scanner's capacity is fixed
+    /// and does not grow. But it also determines what escape sequences can be
+    /// parsed with the scanner, since buffer overflows result in abort
+    /// continuations.
+    pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            machine: StateMachine::with_capacity(23),
+            machine: StateMachine::with_capacity(capacity),
         }
     }
 }
@@ -914,10 +944,14 @@ impl Default for Scanner {
 impl Scanner {
     /// Create a new escape sequence scanner. <i class=python-only>Python
     /// only!</i>
+    ///
+    /// The default capacity is just enough to parse OSC sequences with theme
+    /// colors.
     #[cfg(feature = "pyffi")]
     #[new]
-    pub fn py_new() -> Self {
-        Self::new()
+    #[pyo3(signature = (capacity=Scanner::DEFAULT_CAPACITY))]
+    pub fn py_new(capacity: usize) -> Self {
+        Self::with_capacity(capacity)
     }
 
     /// Reset this escape sequence scanner.
