@@ -40,8 +40,23 @@ pub enum ThemeEntry {
     Ansi(AnsiColor),
 }
 
+impl ThemeEntry {
+    /// Create a new iterator over all theme entries in canonical order.
+    pub fn all() -> ThemeEntryIterator {
+        ThemeEntryIterator::new()
+    }
+}
+
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl ThemeEntry {
+    /// Create a new iterator over all theme entries in canonical order.
+    #[cfg(feature = "pyffi")]
+    #[pyo3(name = "all")]
+    #[staticmethod]
+    pub fn py_all() -> ThemeEntryIterator {
+        ThemeEntryIterator::new()
+    }
+
     /// Try getting the theme entry for the given index.
     #[cfg(feature = "pyffi")]
     #[staticmethod]
@@ -556,13 +571,6 @@ impl Translator {
             ansi,
             eight_bit,
         }
-    }
-
-    /// Create a new iterator over theme entries.
-    #[cfg(feature = "pyffi")]
-    #[staticmethod]
-    pub fn theme_entries() -> ThemeEntryIterator {
-        ThemeEntryIterator::new()
     }
 
     /// Determine whether this translator's color theme is a dark theme.
@@ -1086,11 +1094,6 @@ impl Translator {
             ansi,
             eight_bit,
         }
-    }
-
-    /// Create a new iterator over theme entries.
-    pub fn theme_entries() -> ThemeEntryIterator {
-        ThemeEntryIterator::new()
     }
 }
 

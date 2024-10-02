@@ -65,13 +65,13 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     requires mapping a practically infinite number of colors onto 16 colors,
 //!     four of which are achromatic. `Translator` includes several algorithms
 //!     for doing so.
-//!   * The [`escape`] module's [`Scanner`](crate::escape::Scanner) makes
-//!     **integration of terminal I/O** as simple as possible by hiding quite
-//!     quite a bit of complex state machinery for parsing ANSI escape sequences
-//!     behind a simple interface. That way, an application can easily query the
-//!     terminal for its current color theme, which
-//!     [`Translator`](crate::trans::Translator) requires for high-quality
-//!     translation to ANSI colors.
+//!   * The [`escape`] module's [`Scanner`](crate::escape::Scanner) tries to
+//!     make **integration of terminal I/O** as simple as possible by
+//!     encapsulating much of the machinery for parsing ANSI escape sequences.
+//!     When combined with [`ThemeEntry`](crate::trans::ThemeEntry), the two
+//!     types provide all functionality for extracting the current color theme
+//!     from the terminal and passing it to
+//!     [`Translator`](crate::trans::Translator), with exception of actual I/O.
 //!   * The optional [`gamut`] and [`spectrum`] submodules enable the traversal
 //!     of **color space gamuts** and the **human visual gamut**, respectively.
 //!     The
@@ -115,33 +115,19 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! ## BYOIO: Bring Your Own (Terminal) I/O
 //!
 //! Unlike prettypretty's Python version, the Rust version has no facilities for
-//! terminal I/O. That is your application's responsibility, which gives you the
-//! freedom to use either synchronous or asynchronous I/O as well as the
-//! terminal abstractions most to your liking. At the same time,
-//! [`Translator`](crate::trans::Translator) requires a list with the terminal's
-//! current colors so that it can provide high-quality translation to ANSI
-//! colors. That, in turn, requires querying the terminal with appropriate ANSI
-//! escape sequences and then parsing the ANSI escape sequences returned as
-//! responses, which can be challenging to implement from scratch.
+//! terminal I/O. In part, that reflects the limited facilities of Rust's
+//! standard library. In part, that is a deliberate decision given the split
+//! between sync and async Rust. At the same time, prettypretty's
+//! [`Translator`](crate::trans::Translator) requires the terminal's current
+//! color theme so that it can provide high-quality translation to ANSI colors.
 //!
-//! To simplify the integration effort as much as possible, prettypretty
-//! provides two helper types, a higher-level one
-//!
-//!  1. [`Translator::theme_entries`](crate::trans::Translator::theme_entries)
-//!     iterates over all 18 [`ThemeEntry`](crate::trans::ThemeEntry) instances
-//!     for the colors in a terminal color theme. Writing an entry's display to
-//!     the terminal writes the corresponding query as an ANSI escape sequence.
-//!     [`ThemeEntry::parse_response`](crate::trans::ThemeEntry::parse_response)
-//!     parses the color from the response, also an ANSI escape sequence.
-//!  2. [`Scanner`](crate::escape::Scanner) takes care of the low-level parsing
-//!     of escape sequences. It consumes exactly the right number of bytes, no
-//!     less, no more. And it always leaves the terminal's input stream in a
-//!     reasonable state, even when the ANSI escape sequence is malformed.
-//!
-//! See the [`escape`] module's documentation, for an example of the inner loop
-//! that feeds bytes to a scanner until an escape sequence is complete and then
-//! parses the buffered sequence with the theme entry's
-//! [`parse_response`](crate::trans::ThemeEntry::parse_response) method.
+//! To simplify the integration effort, prettypretty includes
+//! [`ThemeEntry`](crate::trans::ThemeEntry) for querying the terminal and
+//! parsing the response as well as [`Scanner`](crate::escape::Scanner) for
+//! reading just the bytes belonging to an ANSI escape sequence. The [`escape`]
+//! module's documentation illustrates the use of the two types and also
+//! discusses some of the finer points of error handling, including suggested
+//! solution approaches.
 //!
 //!
 //! ## Acknowledgements
