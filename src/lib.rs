@@ -65,12 +65,12 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     requires mapping a practically infinite number of colors onto 16 colors,
 //!     four of which are achromatic. `Translator` includes several algorithms
 //!     for doing so.
-//!   * The [`escape`] module's [`Scanner`](crate::escape::Scanner) tries to
+//!   * The [`escape`] module's [`VtScanner`](crate::escape::VtScanner) tries to
 //!     make **integration of terminal I/O** as simple as possible by
 //!     encapsulating much of the machinery for parsing ANSI escape sequences.
 //!     When combined with [`ThemeEntry`](crate::trans::ThemeEntry), the two
-//!     types provide all functionality for extracting the current color theme
-//!     from the terminal and passing it to
+//!     types provide all the functionality for extracting the current color
+//!     theme from the terminal and passing it to
 //!     [`Translator`](crate::trans::Translator), with exception of actual I/O.
 //!   * The optional [`gamut`] and [`spectrum`] submodules enable the traversal
 //!     of **color space gamuts** and the **human visual gamut**, respectively.
@@ -123,7 +123,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!
 //! To simplify the integration effort, prettypretty includes
 //! [`ThemeEntry`](crate::trans::ThemeEntry) for querying the terminal and
-//! parsing the response as well as [`Scanner`](crate::escape::Scanner) for
+//! parsing the response as well as [`VtScanner`](crate::escape::VtScanner) for
 //! reading just the bytes belonging to an ANSI escape sequence. The [`escape`]
 //! module's documentation illustrates the use of the two types and also
 //! discusses some of the finer points of error handling, including suggested
@@ -214,9 +214,9 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // ------------------------------------------------------------------- color.escape
     let modescape = PyModule::new_bound(m.py(), "escape")?;
     modescape.add("__package__", modcolor_name)?;
+    modescape.add_class::<escape::Action>()?;
     modescape.add_class::<escape::Control>()?;
-    modescape.add_class::<escape::Continuation>()?;
-    modescape.add_class::<escape::Scanner>()?;
+    modescape.add_class::<escape::VtScanner>()?;
     m.add_submodule(&modescape)?;
 
     // Only change __name__ attribute after submodule has been added.

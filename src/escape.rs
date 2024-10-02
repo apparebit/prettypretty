@@ -1,58 +1,57 @@
-//! Helper functionality for consuming ANSI escape sequences.
+//! Processing terminal queries and responses.
 //!
-//! This module provides the low-level [`Scanner`] interface for reading ANSI
-//! escape sequences from a terminal's input without leaving the input stream in
-//! an ill-defined state upon errors.
+//! This module facilitates integration with terminal I/O without implementing
+//! I/O. In particular, [`VtScanner`] represents the state machine for
+//! recognizing ANSI escape sequences, including DEC's extensions. It is best
+//! combined with the [`trans`](crate::trans) module's
+//! [`ThemeEntry`](crate::trans::ThemeEntry) for representing the 18 colors in a
+//! theme, issueing queries, and parsing responses.
 //!
 //!
 //! # Prelude
 //!
-//! To query a terminal for its color theme, the terminal integration first puts
-//! the terminal into cbreak or raw mode. It then iterates over
-//! [`ThemeEntry::all`](crate::trans::ThemeEntry::all) to query the terminal for
-//! all 18 theme colors, i.e., the default foreground and background colors
-//! followed by the 16 ANSI colors.
+//! Before interrogating the terminal, an application must put the terminal into
+//! cbreak or raw mode. It then iterates over
+//! [`ThemeEntry::all`](crate::trans::ThemeEntry::all) and queries the terminal
+//! for the corresponding color for each of the 18 theme colors, i.e., the
+//! default foreground and background colors as well as the 16 ANSI colors.
 //!
 //!
-//! # Example #1: Processing Byte by Byte
+//! # Example #1: Bytewise Steps
 //!
-//! The example code below illustrates the use of [`Scanner::process`] and
-//! acting on its continuation result.
+//! The first example illustrates the use of
+//! [`ThemeEntry`](crate::trans::ThemeEntry) and [`VtScanner`]
+//! for determining a theme color with byte by byte steps.
 //!
 //! ```
 //! # use prettypretty::{Color, error::ColorFormatError};
-//! # use prettypretty::escape::{Continuation, Scanner};
+//! # use prettypretty::escape::VtScanner;
 //! # use prettypretty::style::AnsiColor;
 //! # use prettypretty::trans::ThemeEntry;
 //! # fn the_trial() -> Result<Color, ColorFormatError> {
-//! // Writing `format!("{}", entry)` to the terminal issues the query.
+//! // Write `format!("{}", entry)` to terminal to issue the query.
 //! let entry = ThemeEntry::Ansi(AnsiColor::Red);
 //!
-//! // Here are the bytes of what might be the response.
+//! // The response should be an ANSI escape sequence like this one.
 //! let mut terminal_input = b"\x1b]4;1;rgb:df/28/27\x07".iter();
 //!
-//! let mut scanner = Scanner::new();
+//! let mut scanner = VtScanner::new();
 //! loop {
-//!     // Read next byte and feed it to Scanner::process.
+//!     // Read next byte and feed it to Scanner::step.
 //!     let byte = *terminal_input.next().unwrap();
-//!     match scanner.process(byte) {
+//!     scanner.step(byte);
 //!
-//!         // On continue, keep reading and feeding...
-//!         Continuation::Continue => (),
-//!
-//!         // On abort, return error...
-//!         Continuation::Abort => {
-//!             return Err(ColorFormatError::MalformedThemeColor);
-//!         }
-//!
-//!         // On complete, parse payload as color
-//!         Continuation::Complete => {
-//!             let payload = scanner
-//!                 .completed_string()
-//!                 .or(Err(ColorFormatError::MalformedThemeColor))?;
-//!             return entry.parse_response(payload);
-//!         }
+//!     if scanner.did_abort() {
+//!         // The input is malformed.
+//!         return Err(ColorFormatError::MalformedThemeColor);
+//!     } else if scanner.did_complete() {
+//!         // The input is a well-formed escape sequence.
+//!         let payload = scanner
+//!             .completed_string()
+//!             .or(Err(ColorFormatError::MalformedThemeColor))?;
+//!         return entry.parse_response(payload);
 //!     }
+//!     // Otherwise, keep on stepping bytes from the input.
 //! }
 //! # }
 //! # fn main() {
@@ -65,46 +64,35 @@
 //! </div>
 //! <br>
 //!
-//! As shown in the example, the result of [`Scanner::process`] determines what
-//! a caller should do next:
-//!
-//!   * As long as [`Scanner::process`] returns [`Continuation::Continue`], a
-//!     terminal integration should keep reading individual bytes from terminal
-//!     input and passing them to scanner by invoking `process` again.
-//!   * If the result is [`Continuation::Abort`], the ANSI escape sequence was
-//!     malformed. The caller may signal an error or immediately try to read
-//!     another escape sequence.
-//!   * If the result is [`Continuation::Complete`], the ANSI escape sequence is
-//!     complete. The caller can use [`Scanner::completed_control`],
-//!     [`Scanner::completed_bytes`], and [`Scanner::completed_string`] to
-//!     access control and payload of the ANSI escape sequence.
-//!
-//! The continuation processing inside the loop is fairly boilerplaty, which
-//! suggests an opportunity for further abstraction.
+//! Even though the code does not use it, [`VtScanner::step`] does return a
+//! result, namely the external [`Action`] to perform. But [`VtScanner::step`]
+//! also implements enough action processing itself, so that we don't need to
+//! even look at the return value. Having said that, the calling code must check
+//! for erroneous completion with [`VtScanner::did_abort`] and successful
+//! completion with [`VtScanner::did_complete`], as illustrated in the example.
 //!
 //!
 //! # Example #2: Processing the Entire Escape Sequence
 //!
-//! Indeed, as shown below, the entire loop can be replaced with an invocation
-//! of [`Scanner::run_to_string`]. While more concise, this method does impose
-//! use of `std::io::Error` as the error type. [`Scanner::run_to_bytes`]
-//! provides the same functionality, except it returns the parsed bytes without
-//! conversion to a string slice.
+//! If that seems a bit boilerplaty, then that's because it is. The second
+//! example illustrates how to replace most of the loop with a single method
+//! invocation.
 //!
 //! ```
 //! # use std::io::ErrorKind;
 //! # use prettypretty::Color;
-//! # use prettypretty::escape::{Continuation, Scanner};
+//! # use prettypretty::escape::VtScanner;
 //! # use prettypretty::style::AnsiColor;
 //! # use prettypretty::trans::ThemeEntry;
 //! # fn the_trial() -> std::io::Result<Color> {
-//! // As before for theme entry, terminal input, and scanner:
+//! // Define theme entry, terminal input, and scanner as before.
 //! let entry = ThemeEntry::Ansi(AnsiColor::Red);
 //! let mut terminal_input = b"\x1b]4;1;rgb:df/28/27\x07".iter();
-//! let mut scanner = Scanner::new();
+//! let mut scanner = VtScanner::new();
 //!
-//! // Move the (faux) terminal input into the closure.
-//! let payload = scanner.run_to_string(
+//! // Step_until_string() does all necessary stepping.
+//! let payload = scanner.step_until_string(
+//!     // It requires callback for reading terminal input.
 //!     move || Ok(*terminal_input.next().unwrap()))?;
 //!
 //! // Use error payload to carry more specific error.
@@ -122,52 +110,51 @@
 //! </div>
 //! <br>
 //!
-//! In addition to parsing escape sequences as just illustrated, the terminal
-//! integration also needs to correctly handle all error conditions, which may
-//! add complexity.
+//! While certainly more concise, [`VtScanner::step_until_bytes`] and
+//! [`VtScanner::step_until_string`] currently do have drawback: They hardcode
+//! the shared error type to be `std::io::Error`. As it turns out, error
+//! handling gets tricky in other ways as well.
 //!
 //!
 //! # Error Handling #1: When Abort Consumes a Byte
 //!
-//! [`Scanner`] tries to read just the bytes of an ANSI escape sequence from the
-//! input, no more, no less, and thereby avoid interaction with subsequent
-//! content. By precisely modelling a terminal's state machine when consuming
-//! the input byte by byte, the implementation achieves that for well-formed
-//! ANSI escape sequences. However, that is impossible when the input byte
-//! starts a new escape sequence and thereby aborts parsing of the current one.
+//! By precisely modelling a terminal's state machine and consuming the input
+//! byte by byte, [`VtScanner`]'s implementation consumes just the bytes of an
+//! ANSI escape sequence from the input, no more, no less. That, however, is
+//! impossible for bytes that start a new escape sequence and thereby also abort
+//! the current escape sequence. That doesn't pose a problem, as long as the
+//! application keeps parsing escape sequences with the same scanner.
 //!
-//! Still, that doesn't pose a problem—as long as the application keeps reading
-//! ANSI escape sequences from the input with the same scanner.
-//!
-//! However, if an application also consumes terminal input in some other way,
-//! it effectively needs to put the extra byte back into the input stream. It
-//! also should reset the scanner before using it again. Unfortunately,
-//! prettypretty can't really help with putting the byte back, since the best
+//! But if the application consumes terminal input in some other way, it
+//! effectively needs to put the extra byte back into the input stream. Plus, it
+//! should reset the scanner before every use. Unfortunately, prettypretty can't
+//! really help with putting the byte back into the input, since the best
 //! strategy for doing so depends on the application. But it can help with
-//! detection of such troublesome bytes—if [`Scanner::process`] returns
-//! [`Continuation::Abort`] and [`Control::is_sequence_start`] returns `true`
-//! for `process`' input. When using [`Scanner::run_to_bytes`] or
-//! [`Scanner::run_to_string`], [`Scanner::last_byte`] exposes the most recent
-//! byte passed to `process`.
+//! detecting such troublesome bytes. [`VtScanner::did_abort`] and
+//! [`Control::is_sequence_start`] together spell trouble. When using
+//! [`VtScanner::step_until_bytes`] or [`VtScanner::step_until_string`],
+//! [`VtScanner::last_byte`] exposes the last byte passed to `step`.
 //!
 //!
 //! # Error Handling #2: Buffer Overflow
 //!
-//! [`Scanner`] buffers the payload of an ANSI escape sequence. Since its input
-//! may come from untrusted sources, the implementation limits the buffer's
-//! capacity and does *not* adjust it, even when running out of space. That is
-//! not a problem when querying a terminal for its colors because the buffer is
-//! correctly dimensioned for this use case (with a capacity of only 23 bytes).
-//! That may, however, pose a problem when parsing other ANSI escape sequences.
-//! An application can detect this error condition with
-//! [`Scanner::did_overflow`]. It can also increase the capacity of a new
-//! scanner with [`Scanner::with_capacity`] in Rust or an explicit capacity
+//! [`VtScanner`] buffers the payload of an ANSI escape sequence. Since its
+//! input may come from untrusted sources, the implementation limits the
+//! buffer's capacity and does *not* adjust it, even when filling all available
+//! space. That is not a problem when querying a terminal for its colors because
+//! the buffer is correctly dimensioned for this use case (with a capacity of
+//! only 23 bytes). That may, however, pose a problem when parsing other ANSI
+//! escape sequences. An application can detect this error condition with
+//! [`VtScanner::did_overflow`]. It can also increase the capacity of a new
+//! scanner with [`VtScanner::with_capacity`] in Rust or an explicit capacity
 //! argument for the constructor in Python.
 
 use std::io::{Error, ErrorKind};
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
+
+// ================================================================================================
 
 /// Controls used in ANSI escape sequences.
 ///
@@ -287,80 +274,15 @@ impl std::fmt::Display for Control {
     }
 }
 
-/// The current state when processing terminal I/O.
-#[derive(Copy, Clone, Debug)]
-enum State {
-    Ground,
-    Escape,
-    EscapeIntermediate,
-    ApcString,
-    ApcEnd,
-    CsiEntry,
-    CsiParam,
-    CsiIntermediate,
-    CsiIgnore,
-    DcsEntry,
-    DcsParam,
-    DcsIntermediate,
-    DcsPassthrough,
-    DcsPassthroughEnd,
-    DcsIgnore,
-    DcsIgnoreEnd,
-    OscString,
-    OscEnd,
-    PmString,
-    PmEnd,
-    SosString,
-    SosEnd,
-}
+// ------------------------------------------------------------------------------------------------
 
-impl State {
-    // /// Determine whether this is the ground state.
-    // pub fn is_ground(&self) -> bool {
-    //     matches!(self, Self::Ground)
-    // }
-
-    // /// Determine whether this is the escape state.
-    // pub fn is_escape(&self) -> bool {
-    //     matches!(self, Self::Escape)
-    // }
-
-    /// Determine the number of steps into parsing an escape sequence
-    /// corresponding to this state.
-    ///
-    /// This method treats `Ground` as step 0, `Escape` as step 1, and all other
-    /// states as step 2.
-    pub fn step(&self) -> usize {
-        match self {
-            Self::Ground => 0,
-            Self::Escape => 1,
-            _ => 2,
-        }
-    }
-
-    // /// Determine the kind of escape sequence currently being parsed.
-    // ///
-    // /// Unless this state is the ground state, this method returns a [`Control`]
-    // /// other than `BEL` or `ST`.
-    // pub fn control(&self) -> Option<Control> {
-    //     use State::*;
-    //     match self {
-    //         Ground => None,
-    //         Escape | EscapeIntermediate => Some(Control::ESC),
-    //         ApcString | ApcEnd => Some(Control::APC),
-    //         CsiEntry | CsiParam | CsiIntermediate | CsiIgnore => Some(Control::CSI),
-    //         DcsEntry | DcsParam | DcsIntermediate | DcsPassthrough | DcsPassthroughEnd
-    //         | DcsIgnore | DcsIgnoreEnd => Some(Control::DCS),
-    //         OscString | OscEnd => Some(Control::OSC),
-    //         PmString | PmEnd => Some(Control::PM),
-    //         SosString | SosEnd => Some(Control::SOS),
-    //     }
-    // }
-}
-
-/// An action when processing terminal I/O.
-#[derive(Copy, Clone, Debug)]
-enum Action {
+/// An external action when processing terminal I/O.
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, frozen, hash, module = "prettypretty.color.escape")
+)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Action {
     /// Print current byte.
     ///
     /// By simply passing through bytes that are not ANSI escape sequences,
@@ -386,7 +308,7 @@ enum Action {
     ///
     /// Instead of directly matching this action, use [`Action::is_retained`] to
     /// determine whether the current byte should be retained, since
-    /// [`Action:DispatchCsi`] and [`Action::DispatchEsc`] are retained, too.
+    /// [`Action::DispatchCsi`] and [`Action::DispatchEsc`] are retained, too.
     ///
     /// This action replaces the `collect`, `osc_put`, `param`, and `put`
     /// actions in [Williams' state machine
@@ -443,11 +365,12 @@ enum Action {
     DispatchSos,
 }
 
+#[cfg_attr(feature = "pyffi", pymethods)]
 impl Action {
-    // /// Determine whether this action is [`Action::Print`].
-    // pub fn is_print(&self) -> bool {
-    //     matches!(self, Self::Print)
-    // }
+    /// Determine whether this action is [`Action::Print`].
+    pub fn is_print(&self) -> bool {
+        matches!(self, Self::Print)
+    }
 
     /// Determine whether the action is [`Action::Start`].
     #[inline]
@@ -507,6 +430,91 @@ impl Action {
 }
 
 // ================================================================================================
+// State Machine States and Transitions
+
+/// The current state when processing terminal I/O.
+#[derive(Copy, Clone, Debug)]
+enum State {
+    Ground,
+    Escape,
+    EscapeIntermediate,
+    ApcString,
+    ApcEnd,
+    CsiEntry,
+    CsiParam,
+    CsiIntermediate,
+    CsiIgnore,
+    DcsEntry,
+    DcsParam,
+    DcsIntermediate,
+    DcsPassthrough,
+    DcsPassthroughEnd,
+    DcsIgnore,
+    DcsIgnoreEnd,
+    OscString,
+    OscEnd,
+    PmString,
+    PmEnd,
+    SosString,
+    SosEnd,
+}
+
+impl State {
+    // /// Determine whether this is the ground state.
+    // pub fn is_ground(&self) -> bool {
+    //     matches!(self, Self::Ground)
+    // }
+
+    // /// Determine whether this is the escape state.
+    // pub fn is_escape(&self) -> bool {
+    //     matches!(self, Self::Escape)
+    // }
+
+    /// Determine the number of transitions from the ground state.
+    ///
+    /// This method assumes C0 controls only. Hence, controls such as CSI
+    /// require two characters and result in states two transitions from the
+    /// ground state.
+    ///
+    /// This method treats `Ground` as zero states away from itself, `Escape` as
+    /// one state away from the ground
+    /// This method treats `Ground` as step 0, `Escape` as step 1, and all other
+    /// states as step 2.
+    pub fn ground_transitions(&self) -> usize {
+        use State::*;
+
+        match self {
+            Ground => 0,
+            Escape => 1,
+            EscapeIntermediate | ApcString | CsiEntry | DcsEntry | OscString | PmString
+            | SosString => 2,
+            ApcEnd | CsiParam | CsiIntermediate | CsiIgnore | DcsParam | DcsIntermediate
+            | DcsPassthrough | DcsIgnore | OscEnd | PmEnd | SosEnd => 3,
+            DcsPassthroughEnd | DcsIgnoreEnd => 4,
+        }
+    }
+
+    // /// Determine the kind of escape sequence currently being parsed.
+    // ///
+    // /// Unless this state is the ground state, this method returns a [`Control`]
+    // /// other than `BEL` or `ST`.
+    // pub fn control(&self) -> Option<Control> {
+    //     use State::*;
+    //     match self {
+    //         Ground => None,
+    //         Escape | EscapeIntermediate => Some(Control::ESC),
+    //         ApcString | ApcEnd => Some(Control::APC),
+    //         CsiEntry | CsiParam | CsiIntermediate | CsiIgnore => Some(Control::CSI),
+    //         DcsEntry | DcsParam | DcsIntermediate | DcsPassthrough | DcsPassthroughEnd
+    //         | DcsIgnore | DcsIgnoreEnd => Some(Control::DCS),
+    //         OscString | OscEnd => Some(Control::OSC),
+    //         PmString | PmEnd => Some(Control::PM),
+    //         SosString | SosEnd => Some(Control::SOS),
+    //     }
+    // }
+}
+
+// ------------------------------------------------------------------------------------------------
 
 const fn otherwise(b: u8, state: State) -> (State, Action) {
     use Action::*;
@@ -814,21 +822,27 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 
 // ================================================================================================
 
-/// A state machine for parsing ANSI escape sequences.
+/// A state machine for scanning terminal input or output.
 ///
-/// This struct implements a state machine for recognizing ANSI escape
-/// sequences. Like the Alacritty's [vte](https://github.com/alacritty/vte) and
-/// Wezterm's [vtparse](https://github.com/wez/wezterm) crates, the
-/// implementation is based on Paul Flo Williams' [parser for DEC's
-/// ANSI-compatible video terminals](https://vt100.net/emu/dec_ansi_parser).
-/// Unlike these two crates and Williams' original, this version has been
-/// streamlined to be simpler and more uniform. Hence, it does not distinguish
-/// between entering, remaining in, and exiting a state, instead only featuring
-/// transitions from state to state (which may be the same). Furthermore, it
-/// replace the original's `collect`, `osc_put`, `param`, and `put` actions for
-/// handling the current byte with [`Action::Retain`].
+/// Like Alacritty's [vte](https://github.com/alacritty/vte) and Wezterm's
+/// [vtparse](https://github.com/wez/wezterm) crates, this type leverages Paul
+/// Flo Williams' [parser for DEC's ANSI-compatible video
+/// terminals](https://vt100.net/emu/dec_ansi_parser). However, unlike these two
+/// crates and Williams' original, this version features a streamlined state
+/// machine model. For each step, the state machine simply consumes a byte as
+/// input and produces an [`Action`] as output. Internally, it also transitions
+/// from one state to another.
+///
+/// Since the state machine primarily targets applications that interrogate a
+/// terminal with ANSI escape sequences, processing escape sequence payloads as
+/// bytes arrive provides little benefit while also imposing explicit state
+/// management on considerably more code. Hence, this type buffers incoming
+/// bytes and provides the complete payload upon dispatch of an escape sequence.
+/// That way, it replaces the original's *collect*, *osc_put*, *param*, and
+/// *put* actions with just a *retain* action.
+#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.escape"))]
 #[derive(Debug)]
-struct StateMachine {
+pub struct VtScanner {
     previous_state: State,
     state: State,
     buffer: Vec<u8>,
@@ -837,14 +851,18 @@ struct StateMachine {
     last_action: Action,
 }
 
-impl StateMachine {
-    /// Create a new buffering state machine with default capacity.
+impl VtScanner {
+    /// The scanner's default capacity, which is optimized for recognizing
+    /// terminal responses with theme colors.
+    pub const DEFAULT_CAPACITY: usize = 23;
+
+    /// Create a new scanner with the default capacity.
     #[inline]
     pub fn new() -> Self {
-        Self::with_capacity(1024)
+        Self::with_capacity(Self::DEFAULT_CAPACITY)
     }
 
-    /// Create a new buffering state machine with the given capacity.
+    /// Create a new scanner with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             previous_state: State::Ground,
@@ -857,15 +875,27 @@ impl StateMachine {
     }
 }
 
-impl Default for StateMachine {
+impl Default for VtScanner {
     #[inline]
     fn default() -> Self {
-        Self::new()
+        Self::with_capacity(Self::DEFAULT_CAPACITY)
     }
 }
 
-impl StateMachine {
-    /// Reset this state machine.
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl VtScanner {
+    /// Create a new scanner. <i class=python-only>Python only!</i>
+    ///
+    /// The default capacity is just enough to parse terminal responses with
+    /// theme colors.
+    #[cfg(feature = "pyffi")]
+    #[new]
+    #[pyo3(signature = (capacity=VtScanner::DEFAULT_CAPACITY))]
+    pub fn py_new(capacity: usize) -> Self {
+        Self::with_capacity(capacity)
+    }
+
+    /// Reset this scanner.
     pub fn reset(&mut self) {
         self.previous_state = State::Ground;
         self.state = State::Ground;
@@ -875,13 +905,19 @@ impl StateMachine {
         self.last_action = Action::Ignore;
     }
 
-    // /// Determine this state machine's internal buffer capacity.
-    // pub fn capacity(&self) -> usize {
-    //     self.buffer.capacity()
-    // }
+    /// Determine this scanner's internal buffer capacity.
+    pub fn capacity(&self) -> usize {
+        self.buffer.capacity()
+    }
 
-    /// Process the given byte.
-    pub fn process(&mut self, byte: u8) -> Action {
+    /// Process the given input byte.
+    ///
+    /// This method performs a state machine step, transitioning the internal
+    /// state and producing an external action. For [`Action::Start`],
+    /// [`Action::Retain`], [`Action::DispatchCsi`], and
+    /// [`Action::DispatchEsc`], it also updates the internal buffer, clearing
+    /// it for `Start` and adding the input for the other three actions.
+    pub fn step(&mut self, byte: u8) -> Action {
         let byte = if 0xa0 <= byte { byte - 0x80 } else { byte };
         let (state, action) = transition(self.state, byte);
 
@@ -904,45 +940,47 @@ impl StateMachine {
         action
     }
 
-    /// Determine the most recently processed byte.
+    /// Determine the input byte for the last step.
     #[inline]
     pub fn last_byte(&self) -> u8 {
         self.last_byte
     }
 
-    // /// Determine whether the internal buffer is empty.
-    // pub fn is_empty(&self) -> bool {
-    //     self.buffer.is_empty()
-    // }
+    /// Determine whether the internal buffer is empty.
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
 
-    // /// Determine the number of bytes buffered for the current escape sequence.
-    // pub fn len(&self) -> usize {
-    //     self.buffer.len()
-    // }
+    /// Determine the current number of buffered bytes.
+    pub fn len(&self) -> usize {
+        self.buffer.len()
+    }
 
-    /// Determine whether the internal buffer did overflow.
+    /// Determine whether the internal buffer did overflow since the last start
+    /// action.
     #[inline]
     pub fn did_overflow(&self) -> bool {
         self.did_overflow
     }
 
-    /// Determine whether the last byte aborted an ANSI escape sequence.
+    /// Determine whether the last step aborted an ANSI escape sequence.
     pub fn did_abort(&self) -> bool {
-        let previous = self.previous_state.step();
-        let current = self.state.step();
+        // We only need to distinguish between 0, 1, and 2+ transitions
+        let previous = self.previous_state.ground_transitions().min(2);
+        let current = self.state.ground_transitions().min(2);
 
         if current < previous {
-            // Stepping back without dispatch implies an abort.
+            // Abort is transitions from ground shrinking without dispatch action
             !self.last_action.is_dispatch()
         } else if current == 2 && previous == 2 {
-            // With both states at level 2, the start action implies an abort.
+            // Abort is transitions from ground equally high with start action
             self.last_action.is_start()
         } else {
             false
         }
     }
 
-    /// Determine whether the last byte completed an ANSI escape sequence.
+    /// Determine whether the last step completed an ANSI escape sequence.
     #[inline]
     pub fn did_complete(&self) -> bool {
         self.last_action.is_dispatch()
@@ -950,17 +988,20 @@ impl StateMachine {
 
     /// Determine the control for the just completed ANSI escape sequence.
     ///
-    /// If [`StateMachine::did_complete`], this method returns the corresponding
+    /// If [`VtScanner::did_complete`], this method returns the corresponding
     /// control. Otherwise, it returns `None`.
     #[inline]
     pub fn completed_control(&self) -> Option<Control> {
         self.last_action.control()
     }
 
-    /// Access the payload for the just completed ANSI escape sequence.
+    /// Access the payload for the just completed ANSI escape sequence as a byte
+    /// slice.
     ///
-    /// If [`StateMachine::did_complete`], this method returns the payload of
-    /// the corresponding ANSI escape sequence.
+    /// If [`VtScanner::did_complete`], this method returns the payload of the
+    /// corresponding ANSI escape sequence as a byte slice. Otherwise, it
+    /// returns an empty slice. [`VtScanner::completed_string`] does the same,
+    /// except it returns a string slice.
     #[inline]
     pub fn completed_bytes(&self) -> &[u8] {
         if self.did_complete() {
@@ -973,252 +1014,76 @@ impl StateMachine {
     /// Access the payload for the just completed ANSI escape sequence as a
     /// string slice.
     ///
-    /// If [`StateMachine::did_complete`], this method returns the payload of
-    /// the corresponding ANSI escape sequence as a string slice.
+    /// If [`VtScanner::did_complete`], this method returns the payload of the
+    /// corresponding ANSI escape sequence as a string slice. Otherwise, it
+    /// returns an empty slice. [`VtScanner::completed_bytes`] does the same,
+    /// except it returns a byte slice.
     #[inline]
     pub fn completed_string(&self) -> Result<&str, std::str::Utf8Error> {
         std::str::from_utf8(self.completed_bytes())
-    }
-}
-
-// ------------------------------------------------------------------------------------------------
-
-/// An enumeration of continuation options.
-///
-/// [`Scanner::process`] returns this variant to instruct the caller of how to
-/// progress.
-#[cfg_attr(
-    feature = "pyffi",
-    pyclass(eq, frozen, hash, module = "prettypretty.color.escape")
-)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Continuation {
-    /// Abort scanning a malformed escape sequence.
-    ///
-    /// [`Scanner::process`] returns this continuation only after consuming all
-    /// bytes belonging to the malformed escape sequence. Hence, it is possible
-    /// to try reading another escape sequence from the same source right away.
-    Abort,
-
-    /// Continue scanning the escape sequence.
-    ///
-    /// [`Scanner::process`] returns this continuation as long as it requires
-    /// another byte to scan the escape sequence. The caller should retrieve
-    /// another byte from the source and invoke the `process` method with it.
-    Continue,
-
-    /// Complete the scanned escape sequence.
-    ///
-    /// [`Scanner::process`] returns this continuation when it has successfully
-    /// scanned an entire escape sequence. The caller should invoke
-    /// [`Scanner::completed_bytes`] or [`Scanner::completed_string`] to consume
-    /// the payload of the escape sequence. It can also use
-    /// [`Scanner::completed_control`] to inquire about the kind of escape
-    /// sequence.
-    Complete,
-}
-
-#[cfg_attr(feature = "pyffi", pymethods)]
-impl Continuation {
-    /// Determine whether this continuation is abort.
-    #[inline]
-    pub fn is_abort(&self) -> bool {
-        matches!(self, Self::Abort)
-    }
-
-    /// Determine whether this continuation is continue.
-    #[inline]
-    pub fn is_continue(&self) -> bool {
-        matches!(self, Self::Continue)
-    }
-
-    /// Determine whether this continuation is consume.
-    #[inline]
-    pub fn is_complete(&self) -> bool {
-        matches!(self, Self::Complete)
-    }
-}
-
-/// A scanner for escape sequences.
-///
-/// The module documentation for [`escape`](crate::escape) explains the use of
-/// this type, providing code examples and elaborating on some of the finer
-/// points of error handling.
-#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.escape"))]
-#[derive(Debug)]
-pub struct Scanner {
-    machine: StateMachine,
-}
-
-impl Scanner {
-    /// The scanner's default capacity.
-    pub const DEFAULT_CAPACITY: usize = 23;
-
-    /// Create a new escape sequence scanner. The scanner's capacity is set just
-    /// large enough for parsing responses to color queries.
-    pub fn new() -> Self {
-        Self::with_capacity(Self::DEFAULT_CAPACITY)
-    }
-
-    /// Create a new escape sequence scanner with the given capacity. Since the
-    /// input to a scanner cannot be trusted, the scanner's capacity is fixed
-    /// and does not grow. But it also determines what escape sequences can be
-    /// parsed with the scanner, since buffer overflows result in abort
-    /// continuations.
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            machine: StateMachine::with_capacity(capacity),
-        }
-    }
-}
-
-impl Default for Scanner {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg_attr(feature = "pyffi", pymethods)]
-impl Scanner {
-    /// Create a new escape sequence scanner. <i class=python-only>Python
-    /// only!</i>
-    ///
-    /// The default capacity is just enough to parse OSC sequences with theme
-    /// colors.
-    #[cfg(feature = "pyffi")]
-    #[new]
-    #[pyo3(signature = (capacity=Scanner::DEFAULT_CAPACITY))]
-    pub fn py_new(capacity: usize) -> Self {
-        Self::with_capacity(capacity)
-    }
-
-    /// Reset this escape sequence scanner.
-    #[inline]
-    pub fn reset(&mut self) {
-        self.machine.reset()
-    }
-
-    /// Process the given byte and return the continuation.
-    pub fn process(&mut self, byte: u8) -> Continuation {
-        self.machine.process(byte);
-
-        if self.machine.did_complete() {
-            Continuation::Complete
-        } else if self.machine.did_abort() {
-            Continuation::Abort
-        } else {
-            Continuation::Continue
-        }
-    }
-
-    /// Determine the most recently processed byte.
-    #[inline]
-    pub fn last_byte(&self) -> u8 {
-        self.machine.last_byte()
-    }
-
-    /// Determine whether the internal buffer did overflow.
-    #[inline]
-    pub fn did_overflow(&self) -> bool {
-        self.machine.did_overflow()
-    }
-
-    /// Determine the control leading the scanned escape sequence.
-    ///
-    /// If the continuation is [`Continuation::Complete`], this method returns
-    /// the control that started the scanned escape sequence.
-    #[inline]
-    pub fn completed_control(&self) -> Option<Control> {
-        self.machine.completed_control()
-    }
-
-    /// Access the scanned ANSI escape sequence.
-    ///
-    /// If [`Scanner::process`] returned [`Continuation::Complete`], this method
-    /// returns the payload without leading control and, for escape sequences
-    /// other than CSI or ESC, trailing control. Otherwise, this method returns
-    /// an empty slice.
-    ///
-    /// If [`Scanner::did_overflow`] returns `true`, the internal buffer did not
-    /// have sufficient capacity to store all bytes of the ANSI escape sequence.
-    ///
-    /// [`Scanner::completed_string`] returns the same data as string slice.
-    /// [`Scanner::completed_control`] returns the leading control.
-    #[inline]
-    pub fn completed_bytes(&self) -> &[u8] {
-        self.machine.completed_bytes()
-    }
-
-    /// Access the scanned ANSI escape sequence.
-    ///
-    /// If [`Scanner::process`] returned [`Continuation::Complete`], this method
-    /// returns the payload without leading control and, for escape sequences
-    /// other than CSI or ESC, trailing control. Otherwise, this method returns
-    /// an empty slice.
-    ///
-    /// If [`Scanner::did_overflow`] returns `true`, the internal buffer did not
-    /// have sufficient capacity to store all bytes of the ANSI escape sequence.
-    ///
-    /// [`Scanner::completed_bytes`] returns the same data as a byte slice.
-    /// [`Scanner::completed_control`] returns the leading control.
-    #[inline]
-    pub fn completed_string(&self) -> Result<&str, std::str::Utf8Error> {
-        self.machine.completed_string()
     }
 
     /// Get a debug representation for this scanner. <i class=python-only>Python
     /// only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
-        format!("Scanner({:?})", self.machine)
+        format!("Scanner({:?})", self)
     }
 }
 
-impl Scanner {
-    /// Scan an ANSI escape sequence to completion and return the payload's
-    /// bytes. <i class=rust-only>Rust only!</i>
+impl VtScanner {
+    /// Scan an escape sequence and return its payload as a byte slice. <i
+    /// class=rust-only>Rust only!</i>
     ///
-    /// This method repeatedly calls [`Scanner::process`] on the result of
-    /// `read` until the returned continuation is not [`Continuation::Continue`]
-    /// anymore and, unless scanning has been aborted, returns the result of
-    /// [`Scanner::completed_bytes`]. While convenient, this method does force
-    /// the error type to `std::io::Error`.
+    /// This method repeatedly calls [`VtScanner::step`] on the bytes returned
+    /// by the `read` closure until this scanner [`VtScanner::did_abort`] or
+    /// [`VtScanner::did_complete`], returning an error in the former case and
+    /// the payload's bytes in the latter case. This method also returns an
+    /// error, if the `read` closure fails at reading a byte from terminal
+    /// input.
     ///
-    /// [`Scanner::did_overflow`] and [`Scanner::completed_control`] can still
-    /// be called after this method has returned. Furthermore, the last
-    /// processed byte can be accessed through [`Scanner::last_byte`].
-    pub fn run_to_bytes<F>(&mut self, mut read: F) -> std::io::Result<&[u8]>
+    /// It is safe to call [`VtScanner::completed_control`] after this method
+    /// has returned with a byte slice. The last consumed input byte can be
+    /// accessed through [`VtScanner::last_byte`].
+    ///
+    /// [`VtScanner::step_until_string`] does the same, except it returns a
+    /// string slice.
+    pub fn step_until_bytes<F>(&mut self, mut read: F) -> std::io::Result<&[u8]>
     where
         F: FnMut() -> std::io::Result<u8>,
     {
         loop {
             let byte = read()?;
-            match self.process(byte) {
-                Continuation::Continue => (),
-                Continuation::Abort => return Err(ErrorKind::InvalidData.into()),
-                Continuation::Complete => return Ok(self.completed_bytes()),
+            self.step(byte);
+            if self.did_abort() {
+                return Err(ErrorKind::InvalidData.into());
+            } else if self.did_complete() {
+                return Ok(self.completed_bytes());
             }
         }
     }
 
-    /// Scan an ANSI escape sequence to completion and return the payload's
-    /// string slice. <i class=rust-only>Rust only!</i>
+    /// Scan an escape sequence and return its payload as a string slice. <i
+    /// class=rust-only>Rust only!</i>
     ///
-    /// This method repeatedly calls [`Scanner::process`] on the result of
-    /// `read` until the returned continuation is not [`Continuation::Continue`]
-    /// anymore and, unless scanning has been aborted, returns the result of
-    /// [`Scanner::completed_string`]. While convenient, this method does force
-    /// the error type to `std::io::Error`, including for the conversion from a
-    /// byte slice to a UTF-8 string.
+    /// This method repeatedly calls [`VtScanner::step`] on the bytes returned
+    /// by the `read` closure until this scanner [`VtScanner::did_abort`] or
+    /// [`VtScanner::did_complete`], returning an error in the former case and
+    /// the payload's string in the latter case. This method also returns an
+    /// error, if the `read` closure fails at reading a byte from terminal
+    /// input.
     ///
-    /// [`Scanner::did_overflow`] and [`Scanner::completed_control`] can still
-    /// be called after this method has returned. Furthermore, the last
-    /// processed byte can be accessed through [`Scanner::last_byte`].
-    pub fn run_to_string<F>(&mut self, read: F) -> std::io::Result<&str>
+    /// It is safe to call [`VtScanner::completed_control`] after this method
+    /// has returned with a string slice. The last consumed input byte can be
+    /// accessed through [`VtScanner::last_byte`].
+    ///
+    /// [`VtScanner::step_until_bytes`] does the same, except it returns a byte
+    /// slice.
+    pub fn step_until_string<F>(&mut self, read: F) -> std::io::Result<&str>
     where
         F: FnMut() -> std::io::Result<u8>,
     {
-        let bytes = self.run_to_bytes(read)?;
+        let bytes = self.step_until_bytes(read)?;
         std::str::from_utf8(bytes).map_err(|e| Error::new(ErrorKind::InvalidData, e))
     }
 }
