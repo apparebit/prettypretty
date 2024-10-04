@@ -60,7 +60,7 @@ Prettypretty leverages both programming languages to their fullest and hence
 requires relatively recent versions:
 
   * According to [cargo-msrv](https://github.com/foresterre/cargo-msrv), **the
-    minimum supported Rust version is 1.77.2**.
+    minimum supported Rust version is 1.79.0**.
   * According to [vermin](https://github.com/netromdk/vermin), **the minimum
     supported Python version is 3.11.0.**
 
