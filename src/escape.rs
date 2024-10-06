@@ -866,7 +866,7 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 ///     [`Action::Start`], without consuming that byte.
 ///   * When trying to access the payload of an escape sequence, make sure that
 ///     the payload has not been cut off, i.e., [`VtScanner::did_overflow`]
-///    returns `false`.
+///     returns `false`.
 ///   * When aborting an escape sequence, do not consume the byte if it starts
 ///     another escape sequence as well, i.e., [`Control::is_sequence_start`]
 ///     returns `true`.
@@ -1021,7 +1021,7 @@ impl VtScanner {
     ///
     /// If this method returns `true`, the control and payload of the escape
     /// sequence are accessible with [`VtScanner::completed_control`],
-    /// [`VtScanner::completed_bytes`], and [`VtScanner::completed:string`].
+    /// [`VtScanner::completed_bytes`], and [`VtScanner::completed_string`].
     /// However, the payload is cut off if [`VtScanner::did_overflow`] also
     /// returns `true`.
     #[inline]
