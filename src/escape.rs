@@ -1,153 +1,175 @@
 //! Processing terminal queries and responses.
 //!
-//! This module facilitates integration with terminal I/O without implementing
-//! I/O. In particular, [`VtScanner`] represents the state machine for
-//! recognizing ANSI escape sequences, including DEC's extensions. It is best
-//! combined with the [`trans`](crate::trans) module's
-//! [`ThemeEntry`](crate::trans::ThemeEntry) for representing the 18 colors in a
-//! theme, issueing queries, and parsing responses.
+//! This module facilitates the integration of terminal I/O with [`VtScanner`].
+//! It implements the state machine for recognizing ANSI escape sequences,
+//! including DEC extensions. As illustrated in the code examples below, it is
+//! best combined with the [`trans`](crate::trans) module's
+//! [`ThemeEntry`](crate::trans::ThemeEntry) for querying a terminal for theme
+//! colors and parsing its responses.
+//!
+//! To determine a terminal's current color theme, the application first puts
+//! the terminal into cbreak or raw mode and then iterates over
+//! [`ThemeEntry::all`](crate::trans::ThemeEntry::all), i.e., the default
+//! foreground, default background, and 16 ANSI colors.
 //!
 //!
-//! # Prelude
+//! # Example #1: Byte by Byte
 //!
-//! Before interrogating the terminal, an application must put the terminal into
-//! cbreak or raw mode. It then iterates over
-//! [`ThemeEntry::all`](crate::trans::ThemeEntry::all) and queries the terminal
-//! for the corresponding color for each of the 18 theme colors, i.e., the
-//! default foreground and background colors as well as the 16 ANSI colors.
-//!
-//!
-//! # Example #1: Bytewise Steps
-//!
-//! The first example illustrates the use of
-//! [`ThemeEntry`](crate::trans::ThemeEntry) and [`VtScanner`]
-//! for determining a theme color with byte by byte steps.
+//! The following example code sketches querying the terminal for a theme color
+//! and turning the response into a color with help of a [`VtScanner`]:
 //!
 //! ```
 //! # use prettypretty::{Color, error::ColorFormatError};
 //! # use prettypretty::escape::VtScanner;
 //! # use prettypretty::style::AnsiColor;
 //! # use prettypretty::trans::ThemeEntry;
-//! # fn the_trial() -> Result<Color, ColorFormatError> {
 //! // Write `format!("{}", entry)` to terminal to issue the query.
 //! let entry = ThemeEntry::Ansi(AnsiColor::Red);
 //!
 //! // The response should be an ANSI escape sequence like this one.
 //! let mut terminal_input = b"\x1b]4;1;rgb:df/28/27\x07".iter();
 //!
+//! // Let's process the response with a scanner.
 //! let mut scanner = VtScanner::new();
-//! loop {
-//!     // Read next byte and feed it to Scanner::step.
+//! let color = loop {
+//!     // Read byte and feed it to scanner's step() method.
 //!     let byte = *terminal_input.next().unwrap();
 //!     scanner.step(byte);
 //!
 //!     if scanner.did_abort() {
-//!         // The input is malformed.
-//!         return Err(ColorFormatError::MalformedThemeColor);
+//!         // The escape sequence is malformed.
+//!         break Err(ColorFormatError::MalformedThemeColor);
 //!     } else if scanner.did_complete() {
-//!         // The input is a well-formed escape sequence.
-//!         let payload = scanner
+//!         // Parse the escape sequence's payload as a color.
+//!         break scanner
 //!             .completed_string()
-//!             .or(Err(ColorFormatError::MalformedThemeColor))?;
-//!         return entry.parse_response(payload);
+//!             .or(Err(ColorFormatError::MalformedThemeColor))
+//!             .and_then(|payload| entry.parse_response(payload))
 //!     }
-//!     // Otherwise, keep on stepping bytes from the input.
-//! }
-//! # }
-//! # fn main() {
-//! #     let result = the_trial().unwrap();
-//! #     assert_eq!(result, Color::from_24bit(0xdf, 0x28, 0x27));
-//! # }
+//!
+//!     // Keep on stepping...
+//! };
+//!
+//! assert_eq!(color.unwrap(), Color::from_24bit(0xdf, 0x28, 0x27));
 //! ```
 //! <div class=color-swatch>
 //! <div style="background-color: #df2827;"></div>
 //! </div>
 //! <br>
 //!
-//! Even though the code does not use it, [`VtScanner::step`] does return a
-//! result, namely the external [`Action`] to perform. But [`VtScanner::step`]
-//! also implements enough action processing itself, so that we don't need to
-//! even look at the return value. Having said that, the calling code must check
-//! for erroneous completion with [`VtScanner::did_abort`] and successful
-//! completion with [`VtScanner::did_complete`], as illustrated in the example.
+//! As shown, consuming an escape sequence requires little more than stepping
+//! through the input with [`VtScanner::step`] until either
+//! [`VtScanner::did_abort`] or [`VtScanner::did_complete`]. Once complete,
+//! [`VtScanner::completed_bytes`] and [`VtScanner::completed_string`] return
+//! the escape sequence's payload. The example uses
+//! [`ThemeEntry::parse_response`](crate::trans::ThemeEntry::parse_response)
+//! to parse the payload into a color.
 //!
 //!
-//! # Example #2: Processing the Entire Escape Sequence
+//! # Error Handling
 //!
-//! If that seems a bit boilerplaty, then that's because it is. The second
-//! example illustrates how to replace most of the loop with a single method
-//! invocation.
+//! The above code is functional but not very robust. It fails to handle three
+//! critical error conditions. Let's discuss each in turn.
+//!
+//! First, a terminal's input may contain content other than escape sequences.
+//! While [`VtScanner`] knows how to handle that, the above example code does
+//! not. Fixing that requires checking whether the result of [`VtScanner::step`]
+//! for the first byte is [`Action::Start`] and otherwise leaving the input
+//! untouched (which requires a look-ahead of one byte).
+//!
+//! Second, [`VtScanner`] buffers an escape sequence's payload. Since terminal
+//! input cannot be trusted, the buffer capacity cannot be changed after
+//! creation of a scanner. [`VtScanner::new`] allocates a buffer barely large
+//! enough for processing terminal colors but no more. An application can check
+//! whether the payload did fit into the buffer with [`VtScanner::did_overflow`].
+//!
+//! Third, [`VtScanner`] can detect the end of a well-formed escape sequence
+//! without look-ahead. In that case, [`VtScanner::step`] returns one of the
+//! dispatch actions and [`VtScanner::did_complete`] returns `true`. However, it
+//! cannot detect all malformed escape sequences without looking at the next
+//! byte. In particular, if a byte starts a new escape sequence, i.e.,
+//! [`Control::is_sequence_start`] returns `true`, it also aborts the current
+//! escape sequence. In that case, an application should effectively put the
+//! byte back into input stream.
+//!
+//!
+//! # Example #2: With a Buffered Reader
+//!
+//! One-byte look-ahead requires some form of buffering. Rust's
+//! `std::io::BufRead` trait fits the bill quite nicely:
 //!
 //! ```
-//! # use std::io::ErrorKind;
+//! # use std::io::{BufRead, Error, ErrorKind};
 //! # use prettypretty::Color;
-//! # use prettypretty::escape::VtScanner;
+//! # use prettypretty::escape::{Action, Control, VtScanner};
 //! # use prettypretty::style::AnsiColor;
 //! # use prettypretty::trans::ThemeEntry;
-//! # fn the_trial() -> std::io::Result<Color> {
-//! // Define theme entry, terminal input, and scanner as before.
 //! let entry = ThemeEntry::Ansi(AnsiColor::Red);
-//! let mut terminal_input = b"\x1b]4;1;rgb:df/28/27\x07".iter();
+//! let mut terminal_input = b"\x1b]4;1;rgb:df/28/27\x07".as_slice();
+//!
 //! let mut scanner = VtScanner::new();
+//! let mut first = true;
 //!
-//! // Step_until_string() does all necessary stepping.
-//! let payload = scanner.step_until_string(
-//!     // It requires callback for reading terminal input.
-//!     move || Ok(*terminal_input.next().unwrap()))?;
+//! let response = 'colorful: loop {
+//!     // Track how many bytes to consume.
+//!     let mut count = 0;
+//!     let bytes = terminal_input.fill_buf()?;
 //!
-//! // Use error payload to carry more specific error.
-//! return entry
-//!     .parse_response(payload)
-//!     .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e));
-//! # }
-//! # fn main() {
-//! #     let result = the_trial().unwrap();
-//! #     assert_eq!(result, Color::from_24bit(0xdf, 0x28, 0x27));
-//! # }
+//!     for byte in bytes {
+//!         let action = scanner.step(*byte);
+//!
+//!         // Make sure that first byte starts escape sequence.
+//!         if first {
+//!             first = false;
+//!             if action != Action::Start {
+//!                 return Err(ErrorKind::InvalidData.into());
+//!             }
+//!         }
+//!
+//!         if scanner.did_abort() {
+//!             // Determine whether to consume last byte.
+//!             if !Control::is_sequence_start(*byte) {
+//!                 count += 1;
+//!             }
+//!             terminal_input.consume(count);
+//!             return Err(ErrorKind::InvalidData.into());
+//!
+//!         } else if scanner.did_complete() {
+//!             // Always consume last byte.
+//!             terminal_input.consume(count + 1);
+//!             if scanner.did_overflow() {
+//!                 return Err(ErrorKind::OutOfMemory.into());
+//!             } else {
+//!                 break 'colorful scanner.completed_string()
+//!                     .map_err(|e| Error::new(
+//!                         ErrorKind::InvalidData, e
+//!                     ))?;
+//!             }
+//!         }
+//!
+//!         count += 1;
+//!     }
+//!
+//!     // Consume buffer before trying to fill another.
+//!     terminal_input.consume(count);
+//! };
+//!
+//! // Parse payload and validate color.
+//! let color = entry
+//!     .parse_response(response)
+//!     .map_err(|e| Error::new(ErrorKind::InvalidData, e));
+//! assert_eq!(color.unwrap(), Color::from_24bit(0xdf, 0x28, 0x27));
+//! # Ok::<(), Error>(())
 //! ```
 //! <div class=color-swatch>
 //! <div style="background-color: #df2827;"></div>
 //! </div>
 //! <br>
 //!
-//! While certainly more concise, [`VtScanner::step_until_bytes`] and
-//! [`VtScanner::step_until_string`] currently do have drawback: They hardcode
-//! the shared error type to be `std::io::Error`. As it turns out, error
-//! handling gets tricky in other ways as well.
-//!
-//!
-//! # Error Handling #1: When Abort Consumes a Byte
-//!
-//! By precisely modelling a terminal's state machine and consuming the input
-//! byte by byte, [`VtScanner`]'s implementation consumes just the bytes of an
-//! ANSI escape sequence from the input, no more, no less. That, however, is
-//! impossible for bytes that start a new escape sequence and thereby also abort
-//! the current escape sequence. That doesn't pose a problem, as long as the
-//! application keeps parsing escape sequences with the same scanner.
-//!
-//! But if the application consumes terminal input in some other way, it
-//! effectively needs to put the extra byte back into the input stream. Plus, it
-//! should reset the scanner before every use. Unfortunately, prettypretty can't
-//! really help with putting the byte back into the input, since the best
-//! strategy for doing so depends on the application. But it can help with
-//! detecting such troublesome bytes. [`VtScanner::did_abort`] and
-//! [`Control::is_sequence_start`] together spell trouble. When using
-//! [`VtScanner::step_until_bytes`] or [`VtScanner::step_until_string`],
-//! [`VtScanner::last_byte`] exposes the last byte passed to `step`.
-//!
-//!
-//! # Error Handling #2: Buffer Overflow
-//!
-//! [`VtScanner`] buffers the payload of an ANSI escape sequence. Since its
-//! input may come from untrusted sources, the implementation limits the
-//! buffer's capacity and does *not* adjust it, even when filling all available
-//! space. That is not a problem when querying a terminal for its colors because
-//! the buffer is correctly dimensioned for this use case (with a capacity of
-//! only 23 bytes). That may, however, pose a problem when parsing other ANSI
-//! escape sequences. An application can detect this error condition with
-//! [`VtScanner::did_overflow`]. It can also increase the capacity of a new
-//! scanner with [`VtScanner::with_capacity`] in Rust or an explicit capacity
-//! argument for the constructor in Python.
+//! As so happens, that's pretty much the implementation of [`VtScanner::scan`],
+//! except the latter does not parse the payload. The corresponding integration
+//! with asynchronous I/O should look similar, except that `fill_buf()` probably
+//! will need `await`ing.
 
 use std::io::{Error, ErrorKind};
 
@@ -829,17 +851,30 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// Flo Williams' [parser for DEC's ANSI-compatible video
 /// terminals](https://vt100.net/emu/dec_ansi_parser). However, unlike these two
 /// crates and Williams' original, this version features a streamlined state
-/// machine model. For each step, the state machine simply consumes a byte as
-/// input and produces an [`Action`] as output. Internally, it also transitions
-/// from one state to another.
+/// machine model. For each step, this version simply consumes a byte and
+/// produces an action, while internally transitioning from state to state as
+/// necessary. This version also treats all bytes that belong to an escape
+/// sequence's payload the same by retaining them in its internal buffer. That
+/// way, [`Action::Retain`] replaces the *collect*, *osc_put*, *param*, and
+/// *put* actions of the original and obviates the *osc_start*, *osc_end*,
+/// *hook*, and *unhook* actions entirely.
 ///
-/// Since the state machine primarily targets applications that interrogate a
-/// terminal with ANSI escape sequences, processing escape sequence payloads as
-/// bytes arrive provides little benefit while also imposing explicit state
-/// management on considerably more code. Hence, this type buffers incoming
-/// bytes and provides the complete payload upon dispatch of an escape sequence.
-/// That way, it replaces the original's *collect*, *osc_put*, *param*, and
-/// *put* actions with just a *retain* action.
+/// Correct use of [`VtScanner`] requires handling the following corner cases:
+///
+///   * When trying to scan an escape sequence, make sure that the first byte
+///     does indeed start one, i.e., [`VtScanner::step`] returns
+///     [`Action::Start`], without consuming that byte.
+///   * When trying to access the payload of an escape sequence, make sure that
+///     the payload has not been cut off, i.e., [`VtScanner::did_overflow`]
+///    returns `false`.
+///   * When aborting an escape sequence, do not consume the byte if it starts
+///     another escape sequence as well, i.e., [`Control::is_sequence_start`]
+///     returns `true`.
+///
+/// The documentation for the [`escape`](crate::escape) module provides more
+/// detail and an example for how to correctly handle all three corner cases
+/// based on the implementation of [`VtScanner::scan`]. Alas, that method
+/// handles synchronous I/O with `BufRead` only.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.escape"))]
 #[derive(Debug)]
 pub struct VtScanner {
@@ -958,6 +993,8 @@ impl VtScanner {
 
     /// Determine whether the internal buffer did overflow since the last start
     /// action.
+    ///
+    /// If this method returns `true`, an escape sequence's payload is cut off.
     #[inline]
     pub fn did_overflow(&self) -> bool {
         self.did_overflow
@@ -981,6 +1018,12 @@ impl VtScanner {
     }
 
     /// Determine whether the last step completed an ANSI escape sequence.
+    ///
+    /// If this method returns `true`, the control and payload of the escape
+    /// sequence are accessible with [`VtScanner::completed_control`],
+    /// [`VtScanner::completed_bytes`], and [`VtScanner::completed:string`].
+    /// However, the payload is cut off if [`VtScanner::did_overflow`] also
+    /// returns `true`.
     #[inline]
     pub fn did_complete(&self) -> bool {
         self.last_action.is_dispatch()
@@ -988,8 +1031,9 @@ impl VtScanner {
 
     /// Determine the control for the just completed ANSI escape sequence.
     ///
-    /// If [`VtScanner::did_complete`], this method returns the corresponding
-    /// control. Otherwise, it returns `None`.
+    /// As long as [`VtScanner::did_complete`] returns `false`, this method
+    /// returns `None`. If it returns `true`, this method returns the escape
+    /// sequence's control.
     #[inline]
     pub fn completed_control(&self) -> Option<Control> {
         self.last_action.control()
@@ -998,10 +1042,13 @@ impl VtScanner {
     /// Access the payload for the just completed ANSI escape sequence as a byte
     /// slice.
     ///
-    /// If [`VtScanner::did_complete`], this method returns the payload of the
-    /// corresponding ANSI escape sequence as a byte slice. Otherwise, it
-    /// returns an empty slice. [`VtScanner::completed_string`] does the same,
-    /// except it returns a string slice.
+    /// As long as [`VtScanner::did_complete`] returns `false`, this method
+    /// returns an empty slice. If it returns `true`, this method returns the
+    /// escape sequence's payload as a byte slice. However, the payload is cut
+    /// off if [`VtScanner::did_overflow`] returns `true`.
+    ///
+    /// [`VtScanner::completed_bytes`] does the same, except it returns a byte
+    /// slice.
     #[inline]
     pub fn completed_bytes(&self) -> &[u8] {
         if self.did_complete() {
@@ -1014,10 +1061,13 @@ impl VtScanner {
     /// Access the payload for the just completed ANSI escape sequence as a
     /// string slice.
     ///
-    /// If [`VtScanner::did_complete`], this method returns the payload of the
-    /// corresponding ANSI escape sequence as a string slice. Otherwise, it
-    /// returns an empty slice. [`VtScanner::completed_bytes`] does the same,
-    /// except it returns a byte slice.
+    /// As long as [`VtScanner::did_complete`] returns `false`, this method
+    /// returns an empty slice. If it returns `true`, this method returns the
+    /// escape sequence's payload as a string slice. However, the payload is cut
+    /// off if [`VtScanner::did_overflow`] returns `true`.
+    ///
+    /// [`VtScanner::completed_bytes`] does the same, except it returns a byte
+    /// slice.
     #[inline]
     pub fn completed_string(&self) -> Result<&str, std::str::Utf8Error> {
         std::str::from_utf8(self.completed_bytes())
@@ -1032,58 +1082,88 @@ impl VtScanner {
 }
 
 impl VtScanner {
-    /// Scan an escape sequence and return its payload as a byte slice. <i
+    /// Scan an escape sequence and returns its payload as a byte slice. <i
     /// class=rust-only>Rust only!</i>
     ///
-    /// This method repeatedly calls [`VtScanner::step`] on the bytes returned
-    /// by the `read` closure until this scanner [`VtScanner::did_abort`] or
-    /// [`VtScanner::did_complete`], returning an error in the former case and
-    /// the payload's bytes in the latter case. This method also returns an
-    /// error, if the `read` closure fails at reading a byte from terminal
-    /// input.
+    /// This method [`VtScanner::step`]s through the given reader's bytes.
     ///
-    /// It is safe to call [`VtScanner::completed_control`] after this method
-    /// has returned with a byte slice. The last consumed input byte can be
-    /// accessed through [`VtScanner::last_byte`].
+    /// If the first byte triggers [`Action::Start`], i.e., is the first byte of
+    /// an escape sequence, this method consumes the reader's bytes until the
+    /// escape sequence is aborted or completed. In the latter case, this method
+    /// returns the payload as a byte slice. In either case, this method does
+    /// not consume the last byte, if it also starts a new escape sequence.
     ///
-    /// [`VtScanner::step_until_string`] does the same, except it returns a
-    /// string slice.
-    pub fn step_until_bytes<F>(&mut self, mut read: F) -> std::io::Result<&[u8]>
+    /// If the first byte does not trigger `Start`, this method returns an error
+    /// without consuming the byte.
+    ///
+    /// [`VtScanner::scan_string`] does the same except it returns a string
+    /// slice.
+    pub fn scan<R>(&mut self, mut reader: R) -> std::io::Result<&[u8]>
     where
-        F: FnMut() -> std::io::Result<u8>,
+        R: std::io::BufRead,
     {
+        let mut first = true;
+
         loop {
-            let byte = read()?;
-            self.step(byte);
-            if self.did_abort() {
-                return Err(ErrorKind::InvalidData.into());
-            } else if self.did_complete() {
-                return Ok(self.completed_bytes());
+            let mut count = 0;
+            let bytes = reader.fill_buf()?;
+
+            for byte in bytes {
+                let action = self.step(*byte);
+
+                // To be an escape sequence, the first byte must trigger Start.
+                if first {
+                    first = false;
+                    if action != Action::Start {
+                        return Err(ErrorKind::InvalidData.into());
+                    }
+                }
+
+                if self.did_abort() {
+                    // Only consume final byte if it doesn't start escape sequence.
+                    if !Control::is_sequence_start(*byte) {
+                        count += 1;
+                    }
+
+                    reader.consume(count);
+                    return Err(ErrorKind::InvalidData.into());
+                } else if self.did_complete() {
+                    reader.consume(count + 1);
+
+                    if self.did_overflow() {
+                        return Err(ErrorKind::OutOfMemory.into());
+                    } else {
+                        return Ok(self.completed_bytes());
+                    }
+                }
+
+                count += 1;
             }
+
+            reader.consume(count);
         }
     }
 
-    /// Scan an escape sequence and return its payload as a string slice. <i
+    /// Scan an escape sequence and returns its payload as a string slice. <i
     /// class=rust-only>Rust only!</i>
     ///
-    /// This method repeatedly calls [`VtScanner::step`] on the bytes returned
-    /// by the `read` closure until this scanner [`VtScanner::did_abort`] or
-    /// [`VtScanner::did_complete`], returning an error in the former case and
-    /// the payload's string in the latter case. This method also returns an
-    /// error, if the `read` closure fails at reading a byte from terminal
-    /// input.
+    /// This method [`VtScanner::step`]s through the given reader's bytes.
     ///
-    /// It is safe to call [`VtScanner::completed_control`] after this method
-    /// has returned with a string slice. The last consumed input byte can be
-    /// accessed through [`VtScanner::last_byte`].
+    /// If the first byte triggers [`Action::Start`], i.e., is the first byte of
+    /// an escape sequence, this method consumes the reader's bytes until the
+    /// escape sequence is aborted or completed. In the latter case, this method
+    /// returns the payload as a string slice. In either case, this method does
+    /// not consume the last byte, if it also starts a new escape sequence.
     ///
-    /// [`VtScanner::step_until_bytes`] does the same, except it returns a byte
-    /// slice.
-    pub fn step_until_string<F>(&mut self, read: F) -> std::io::Result<&str>
+    /// If the first byte does not trigger `Start`, this method returns an error
+    /// without consuming the byte.
+    ///
+    /// [`VtScanner::scan`] does the same, except it returns a byte slice.
+    pub fn scan_string<R>(&mut self, reader: R) -> std::io::Result<&str>
     where
-        F: FnMut() -> std::io::Result<u8>,
+        R: std::io::BufRead,
     {
-        let bytes = self.step_until_bytes(read)?;
+        let bytes = self.scan(reader)?;
         std::str::from_utf8(bytes).map_err(|e| Error::new(ErrorKind::InvalidData, e))
     }
 }
