@@ -166,12 +166,27 @@
 //! </div>
 //! <br>
 //!
-//! As so happens, that's pretty much the implementation of [`VtScanner::scan`],
-//! except the latter does not parse the payload. The corresponding integration
-//! with asynchronous I/O should look similar, except that `fill_buf()` probably
-//! will need `await`ing.
+//! As so happens, the above code example pretty much covers the functionality
+//! of [`VtScanner::scan`], except that the latter does not parse a color from
+//! the payload and replaces the two conditional blocks gated by
+//! [`VtScanner::did_abort`] and [`VtScanner::did_complete`] with the more
+//! concise expression:
+//!
+//! ```ignore
+//! if self.did_finish() {
+//!     self.consume_on_finish(count, reader);
+//!     break 'colorful self.string_on_finish()?;
+//! }
+//! ```
+//!
+//! [`VtScanner::did_finish`] checks whether an escape sequence was aborted or
+//! completed. [`VtScanner::consume_on_finish`] invokes the reader's `consume`
+//! method with the correct number of bytes, which does not include the current
+//! byte if it starts a new escape sequence. [`VtScanner::bytes_on_finish`] and
+//! [`VtScanner::string_on_finish`] return either an I/O error or the escape
+//! sequence payload as a byte or string slice wrapped in a result.
 
-use std::io::{Error, ErrorKind};
+use std::io::{BufRead, Error, ErrorKind};
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
@@ -941,6 +956,10 @@ impl VtScanner {
     }
 
     /// Determine this scanner's internal buffer capacity.
+    ///
+    /// Unlike `Vec<T>`, a scanner's capacity does not change after creation.
+    /// This is a security precaution, since the bytes processed by this type
+    /// may originate from untrusted users.
     pub fn capacity(&self) -> usize {
         self.buffer.capacity()
     }
@@ -987,6 +1006,9 @@ impl VtScanner {
     }
 
     /// Determine the current number of buffered bytes.
+    ///
+    /// This method returns a number between zero and the
+    /// [`VtScanner::capacity`].
     pub fn len(&self) -> usize {
         self.buffer.len()
     }
@@ -994,7 +1016,14 @@ impl VtScanner {
     /// Determine whether the internal buffer did overflow since the last start
     /// action.
     ///
-    /// If this method returns `true`, an escape sequence's payload is cut off.
+    /// If this method returns `true`, this scanner's internal buffer had
+    /// insufficient capacity and cut off the escape sequence's payload. As a
+    /// security measure, a scanner's capacity can only be set during creation.
+    /// To do so, invoke [`VtScanner::with_capacity`] from Rust or
+    /// [`VtScanner`]'s constructor from Python with an appropriate quantity.
+    /// The default capacity, i.e., 23 bytes, is barely large enough for
+    /// scanning escape sequences with theme colors. Many escape sequences may
+    /// be significantly longer.
     #[inline]
     pub fn did_overflow(&self) -> bool {
         self.did_overflow
@@ -1073,6 +1102,42 @@ impl VtScanner {
         std::str::from_utf8(self.completed_bytes())
     }
 
+    /// Determine whether the last step aborted or completed an ANSI escape
+    /// sequence.
+    #[inline]
+    pub fn did_finish(&self) -> bool {
+        self.did_abort() || self.did_complete()
+    }
+
+    /// Determine the result that finishes the escape sequence.
+    ///
+    /// If scanning the escape sequence did complete without overflow, this
+    /// method returns the payload as a byte slice. Otherwise, it returns an
+    /// appropriate I/O error.
+    pub fn bytes_on_finish(&self) -> std::io::Result<&[u8]> {
+        if self.did_complete() {
+            if self.did_overflow() {
+                return Err(ErrorKind::OutOfMemory.into());
+            } else {
+                return Ok(self.completed_bytes());
+            }
+        } else if self.did_abort() {
+            return Err(ErrorKind::InvalidData.into());
+        } else {
+            return Err(ErrorKind::Other.into());
+        }
+    }
+
+    /// Determine the result that finishes the escape sequence.
+    ///
+    /// If scanning the escape sequence did complete without overflow, this
+    /// method returns the payload as a string slice. Otherwise, it returns an
+    /// appropriate I/O error.
+    pub fn string_on_finish(&self) -> std::io::Result<&str> {
+        let bytes = self.bytes_on_finish()?;
+        std::str::from_utf8(bytes).map_err(|e| Error::new(ErrorKind::InvalidData, e))
+    }
+
     /// Get a debug representation for this scanner. <i class=python-only>Python
     /// only!</i>
     #[cfg(feature = "pyffi")]
@@ -1082,6 +1147,32 @@ impl VtScanner {
 }
 
 impl VtScanner {
+    /// Consume processed bytes from reader, while also accounting for the
+    /// current byte.
+    ///
+    /// If this scanner did abort or complete an escape sequence, this method
+    /// consumes at least processed bytes from the reader and returns `true`. It
+    /// consumes an additional byte, if the most recent byte completed the
+    /// escape sequence or if it aborted the escape sequence and does not start
+    /// a new escape sequence. However, if the most recent byte aborted the
+    /// escape sequence while also starting a new one, it is not consumed. That
+    /// way, it can still start that escape sequence.
+    pub fn consume_on_finish<R: BufRead>(&self, processed: usize, reader: &mut R) {
+        let processed = if self.did_complete() {
+            processed + 1
+        } else if self.did_abort() {
+            if Control::is_sequence_start(self.last_byte) {
+                processed
+            } else {
+                processed + 1
+            }
+        } else {
+            return;
+        };
+
+        reader.consume(processed);
+    }
+
     /// Scan an escape sequence and returns its payload as a byte slice. <i
     /// class=rust-only>Rust only!</i>
     ///
@@ -1098,10 +1189,7 @@ impl VtScanner {
     ///
     /// [`VtScanner::scan_string`] does the same except it returns a string
     /// slice.
-    pub fn scan<R>(&mut self, mut reader: R) -> std::io::Result<&[u8]>
-    where
-        R: std::io::BufRead,
-    {
+    pub fn scan<R: BufRead>(&mut self, reader: &mut R) -> std::io::Result<&[u8]> {
         let mut first = true;
 
         loop {
@@ -1111,7 +1199,7 @@ impl VtScanner {
             for byte in bytes {
                 let action = self.step(*byte);
 
-                // To be an escape sequence, the first byte must trigger Start.
+                // For an escape sequence, first byte triggers Start
                 if first {
                     first = false;
                     if action != Action::Start {
@@ -1119,22 +1207,9 @@ impl VtScanner {
                     }
                 }
 
-                if self.did_abort() {
-                    // Only consume final byte if it doesn't start escape sequence.
-                    if !Control::is_sequence_start(*byte) {
-                        count += 1;
-                    }
-
-                    reader.consume(count);
-                    return Err(ErrorKind::InvalidData.into());
-                } else if self.did_complete() {
-                    reader.consume(count + 1);
-
-                    if self.did_overflow() {
-                        return Err(ErrorKind::OutOfMemory.into());
-                    } else {
-                        return Ok(self.completed_bytes());
-                    }
+                if self.did_finish() {
+                    self.consume_on_finish(count, reader);
+                    return self.bytes_on_finish();
                 }
 
                 count += 1;
@@ -1159,10 +1234,7 @@ impl VtScanner {
     /// without consuming the byte.
     ///
     /// [`VtScanner::scan`] does the same, except it returns a byte slice.
-    pub fn scan_string<R>(&mut self, reader: R) -> std::io::Result<&str>
-    where
-        R: std::io::BufRead,
-    {
+    pub fn scan_string<R: BufRead>(&mut self, reader: &mut R) -> std::io::Result<&str> {
         let bytes = self.scan(reader)?;
         std::str::from_utf8(bytes).map_err(|e| Error::new(ErrorKind::InvalidData, e))
     }
