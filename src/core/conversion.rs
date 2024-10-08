@@ -564,7 +564,7 @@ pub(crate) fn convert(
         Oklrch => xyz_to_oklrch(&intermediate),
         Oklrab => xyz_to_oklrab(&intermediate),
         Xyz => intermediate,
-        XyzD50 => d65_to_d50(&intermediate)
+        XyzD50 => d65_to_d50(&intermediate),
     }
 }
 
