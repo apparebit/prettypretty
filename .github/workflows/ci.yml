@@ -64,15 +64,6 @@ jobs:
     - name: Build extension module
       run: pip install -e .[dev]
 
-    - name: Create symbolic links
-      if: runner.os != 'Windows'
-      run: |
-        mkdir -p prettypretty/color
-        ln -s '../color.abi3.so' prettypretty/color/gamut.abi3.so
-        ln -s '../color.abi3.so' prettypretty/color/spectrum.abi3.so
-        ln -s '../color.abi3.so' prettypretty/color/style.abi3.so
-        ln -s '../color.abi3.so' prettypretty/color/trans.abi3.so
-
     - name: Typecheck and test Python code
       run: python -m runtest
 
