@@ -343,6 +343,36 @@ fn xyz_to_oklab(value: &[Float; 3]) -> [Float; 3] {
 
 // --------------------------------------------------------------------------------------------------------------------
 
+#[rustfmt::skip]
+#[allow(clippy::excessive_precision)]
+const D65_TO_D50: [[Float; 3]; 3] = [
+    [  1.0479297925449969,   0.022946870601609652, -0.05019226628920524  ],
+    [  0.02962780877005599,  0.9904344267538799,   -0.017073799063418826 ],
+    [ -0.009243040646204504, 0.015055191490298152,  0.7518742814281371   ],
+];
+
+#[rustfmt::skip]
+#[allow(clippy::excessive_precision)]
+const D50_TO_D65: [[Float; 3]; 3] = [
+    [  0.955473421488075,    -0.02309845494876471,  0.06325924320057072  ],
+    [ -0.0283697093338637,    1.0099953980813041,   0.021041441191917323 ],
+    [  0.012314014864481998, -0.020507649298898964, 1.330365926242124    ],
+];
+
+/// Convert XYZ D65 to XYZ D50 using the (linear) Bradford method. This is a
+/// one-hop, direct conversion.
+fn d65_to_d50(value: &[Float; 3]) -> [Float; 3] {
+    multiply(&D65_TO_D50, value)
+}
+
+/// Convert XYZ D65 to XYZ D50 using the (linear) Bradford method. This is a
+/// one-hop, direct conversion.
+pub fn d50_to_d65(value: &[Float; 3]) -> [Float; 3] {
+    multiply(&D50_TO_D65, value)
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 /// Convert coordinates for sRGB to XYZ. This is a two-hop conversion.
 #[inline]
 fn srgb_to_xyz(value: &[Float; 3]) -> [Float; 3] {
@@ -518,6 +548,7 @@ pub(crate) fn convert(
         Oklrch => oklrch_to_xyz(&coordinates),
         Oklrab => oklrab_to_xyz(&coordinates),
         Xyz => coordinates,
+        XyzD50 => d50_to_d65(&coordinates),
     };
 
     // 3b. Convert from root XYZ to target color space on different branch
@@ -533,6 +564,7 @@ pub(crate) fn convert(
         Oklrch => xyz_to_oklrch(&intermediate),
         Oklrab => xyz_to_oklrab(&intermediate),
         Xyz => intermediate,
+        XyzD50 => d65_to_d50(&intermediate)
     }
 }
 
@@ -555,6 +587,7 @@ mod test {
         oklrch: [Float; 3],
         oklrab: [Float; 3],
         xyz: [Float; 3],
+        xyz_d50: [Float; 3],
     }
 
     const BLACK: Representations = Representations {
@@ -570,6 +603,7 @@ mod test {
         oklrch: [0.0, 0.0, Float::NAN],
         oklrab: [0.0, 0.0, 0.0],
         xyz: [0.0, 0.0, 0.0],
+        xyz_d50: [0.0, 0.0, 0.0],
     };
 
     const YELLOW: Representations = Representations {
@@ -593,6 +627,7 @@ mod test {
             0.17600139371700052,
         ],
         xyz: [0.6235868473237722, 0.635031101987136, 0.08972950140152941],
+        xyz_d50: [0.6635434850467424, 0.6459001538545541, 0.07126198065563918],
     };
 
     const BLUE: Representations = Representations {
@@ -620,6 +655,7 @@ mod test {
             -0.1836287492414715,
         ],
         xyz: [0.22832473003420622, 0.20025321836938534, 0.80506528557483],
+        xyz_d50: [0.20345542047334936, 0.1913569200613913, 0.6062123188831731],
     };
 
     const WHITE: Representations = Representations {
@@ -632,9 +668,10 @@ mod test {
         linear_rec2020: [1.0000000000000004, 1.0, 0.9999999999999999],
         oklch: [1.0000000000000002, 0.0, Float::NAN],
         oklab: [1.0000000000000002, -4.996003610813204e-16, 0.0],
-        xyz: [0.9504559270516717, 1.0, 1.0890577507598784],
         oklrch: [1.0000000000000002, 0.0, Float::NAN],
         oklrab: [1.0000000000000002, 0.0, 0.0],
+        xyz: [0.9504559270516717, 1.0, 1.0890577507598784],
+        xyz_d50: [0.9642956764295678, 1.0, 0.8251046025104604],
     };
 
     #[test]
@@ -700,6 +737,12 @@ mod test {
 
             let oklch_too = oklrxx_to_oklxx(&oklrch);
             assert_same_coordinates!(Oklch, &oklch_too, &color.oklch);
+
+            let xyz_d50 = d65_to_d50(&xyz);
+            assert_same_coordinates!(XyzD50, &xyz_d50, &color.xyz_d50);
+
+            let xyz_again = d50_to_d65(&xyz_d50);
+            assert_same_coordinates!(Xyz, &xyz_again, &color.xyz);
         }
     }
 

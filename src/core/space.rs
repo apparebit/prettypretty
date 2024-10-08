@@ -91,8 +91,11 @@ use pyo3::prelude::*;
 ///
 /// [XYZ](https://en.wikipedia.org/wiki/CIE_1931_color_space) serves as
 /// foundational color space. Notably, all conversions between unrelated color
-/// spaces go through XYZ. This crate uses XYZ with the [D65 standard
-/// illuminant](https://en.wikipedia.org/wiki/Standard_illuminant), *not* D50.
+/// spaces go through XYZ. Since sRGB, Display P3, and Oklab use the [D65
+/// standard illuminant](https://en.wikipedia.org/wiki/Standard_illuminant),
+/// this crate uses XYZ with D65 as its reference color space. But XYZ with the
+/// D50 standard illuminant is available, too. Chromatic adaptation between the
+/// two versions of XYZ uses the (linear) Bradford method.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, eq_int, frozen, hash, module = "prettypretty.color")
@@ -110,6 +113,7 @@ pub enum ColorSpace {
     Oklrab,
     Oklrch,
     Xyz,
+    XyzD50,
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
@@ -199,6 +203,7 @@ impl std::fmt::Display for ColorSpace {
             Oklch => "Oklch",
             Oklrch => "Oklrch",
             Xyz => "XYZ D65",
+            XyzD50 => "XYZ D50",
         };
 
         f.write_str(s)

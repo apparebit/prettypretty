@@ -61,7 +61,7 @@ pub(crate) fn parse_x(s: &str) -> Result<[Float; 3], ColorFormatError> {
     Ok([c1, c2, c3])
 }
 
-const COLOR_SPACES: [(&str, ColorSpace); 10] = [
+const COLOR_SPACES: [(&str, ColorSpace); 11] = [
     ("srgb", ColorSpace::Srgb),
     ("linear-srgb", ColorSpace::LinearSrgb),
     ("display-p3", ColorSpace::DisplayP3),
@@ -72,13 +72,15 @@ const COLOR_SPACES: [(&str, ColorSpace); 10] = [
     ("--oklrch", ColorSpace::Oklrch),
     ("xyz", ColorSpace::Xyz),
     ("xyz-d65", ColorSpace::Xyz),
+    ("xyz-d50", ColorSpace::XyzD50),
 ];
 
 /// Parse a subset of valid CSS color formats. This function recognizes only the
 /// `oklab()`, `oklch()`, and `color()` functions. The color space for the
-/// latter must be `srgb`, `linear-srgb`, `display-p3`, `rec2020`, `xyz`, or one
-/// of the non-standard color spaces `--linear-display-p3`, `--linear-rec2020`,
-/// `--oklrab`, and `--oklrch`. Coordinates must not have units including `%`.
+/// latter must be `srgb`, `linear-srgb`, `display-p3`, `rec2020`, `xyz`,
+/// `xyz-d65`, `xyz-d50`, or one of the non-standard color spaces
+/// `--linear-display-p3`, `--linear-rec2020`, `--oklrab`, and `--oklrch`.
+/// Coordinates must not have units including `%`.
 fn parse_css(s: &str) -> Result<(ColorSpace, [Float; 3]), ColorFormatError> {
     use ColorSpace::*;
 
@@ -179,6 +181,7 @@ fn css_prefix(space: ColorSpace) -> &'static str {
         Oklrab => "color(--oklrab ",
         Oklrch => "color(--oklrch ",
         Xyz => "color(xyz ",
+        XyzD50 => "color(xyz-d50 ",
     }
 }
 
