@@ -535,7 +535,7 @@ class Terminal:
         being convenient to read. Finally, it writes the resulting text to this
         terminal's output. This method does not flush the output.
         """
-        lines = [l.strip() for l in text.splitlines()]
+        lines = [line.strip() for line in text.splitlines()]
         start = stop = 0
 
         while True:

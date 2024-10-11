@@ -23,10 +23,10 @@ from .color import (
     close_enough,
     Color,
     ColorSpace,
-    gamut, # pyright: ignore [reportMissingModuleSource]
     spectrum, # pyright: ignore [reportMissingModuleSource]
     trans, # pyright: ignore [reportMissingModuleSource]
 )
+from .color.gamut import GamutTraversalStep # pyright: ignore [reportMissingModuleSource]
 from .theme import current_translator
 
 
@@ -267,7 +267,7 @@ class ColorPlotter:
         all_colors: list[list[str]] = []
 
         for step in self._illuminated_observer.visual_gamut(spectrum.ONE_NANOMETER):
-            if isinstance(step, gamut.GamutTraversalStep.MoveTo):
+            if isinstance(step, GamutTraversalStep.MoveTo):
                 lines2d.append([])
                 all_colors.append([])
                 if locus_only and len(lines2d) > 1:
@@ -329,7 +329,7 @@ class ColorPlotter:
             all_points.append(pt)
             all_colors.append(hex_format)
 
-            if isinstance(step, gamut.GamutTraversalStep.CloseWith):
+            if isinstance(step, GamutTraversalStep.CloseWith):
                 break
 
         assert close_enough(all_points[0][0], all_points[-1][0])
@@ -528,7 +528,7 @@ class ColorPlotter:
             light_axes.set_ylim(0, 1)
             light_axes.margins(x=0.02, tight=True)
 
-            if all(l is not None for l in self._bar_label):
+            if all(label is not None for label in self._bar_label):
                 lry_offset = 0.015
                 light_axes.xaxis.set_major_locator(
                     FixedLocator([*range(len(self._bar_label))])
@@ -635,7 +635,7 @@ def main() -> None:
 
     if options.input is not None:
         with open(options.input, mode="r", encoding="utf8") as file:
-            for color in [Color.parse(l) for l in file.readlines() if l.strip()]:
+            for color in [Color.parse(line) for line in file.readlines() if line.strip()]:
                 plotter.add(cname, color, marker=marker)
 
     for color in [Color.parse(c) for c in cast(list[str], options.colors) or []]:

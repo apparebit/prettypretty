@@ -249,7 +249,8 @@ def write_hires_slice(
 ) -> None:
     frame = FramedBoxes(term, 32, min_width=1)
     label = '/'.join(
-        f'{l.upper()}={level}' if l == hold else l.upper() for l in ('r', 'g', 'b')
+        f'{axis.upper()}={level}' if axis == hold else axis.upper()
+        for axis in ('r', 'g', 'b')
     )
     frame.top(
         ('Downsampled ' if eight_bit_only else '')

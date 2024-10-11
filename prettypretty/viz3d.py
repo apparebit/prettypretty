@@ -418,7 +418,7 @@ class PointManager:
 
         msg = ""
         if trace_enabled:
-            msg = f"capstones      "
+            msg = "capstones      "
 
         for edge in [(r, s), (t, s), (r, t), (u, w), (v, w), (u, v)]:
             assert edge[0] <= edge[1]
@@ -656,7 +656,7 @@ if __name__ == "__main__":
             sys.exit(1)
 
     if options.planar_gamut and gamut is None:
-        log(f"The --planar-gamut option requires the --gamut option")
+        log("The --planar-gamut option requires the --gamut option")
         sys.exit(1)
 
     # -------------------------------------------------------------------------- Stride
@@ -664,7 +664,7 @@ if __name__ == "__main__":
     if options.stride:
         try:
             stride = int(options.stride)
-        except:
+        except ValueError:
             log(f"stride {stride} is not an integer")
             sys.exit(1)
     if not (1 <= stride <= 20):
