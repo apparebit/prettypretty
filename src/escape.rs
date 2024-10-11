@@ -1117,14 +1117,14 @@ impl VtScanner {
     pub fn bytes_on_finish(&self) -> std::io::Result<&[u8]> {
         if self.did_complete() {
             if self.did_overflow() {
-                return Err(ErrorKind::OutOfMemory.into());
+                Err(ErrorKind::OutOfMemory.into())
             } else {
-                return Ok(self.completed_bytes());
+                Ok(self.completed_bytes())
             }
         } else if self.did_abort() {
-            return Err(ErrorKind::InvalidData.into());
+            Err(ErrorKind::InvalidData.into())
         } else {
-            return Err(ErrorKind::Other.into());
+            Err(ErrorKind::Other.into())
         }
     }
 
