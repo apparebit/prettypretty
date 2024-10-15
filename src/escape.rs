@@ -42,7 +42,7 @@
 //!     } else if scanner.did_complete() {
 //!         // Parse the escape sequence's payload as a color.
 //!         break scanner
-//!             .completed_string()
+//!             .completed_str()
 //!             .or(Err(ColorFormatError::MalformedThemeColor))
 //!             .and_then(|payload| entry.parse_response(payload))
 //!     }
@@ -60,10 +60,10 @@
 //! As shown, consuming an escape sequence requires little more than stepping
 //! through the input with [`VtScanner::step`] until either
 //! [`VtScanner::did_abort`] or [`VtScanner::did_complete`]. Once complete,
-//! [`VtScanner::completed_bytes`] and [`VtScanner::completed_string`] return
-//! the escape sequence's payload. The example uses
-//! [`ThemeEntry::parse_response`](crate::trans::ThemeEntry::parse_response)
-//! to parse the payload into a color.
+//! [`VtScanner::completed_bytes`] and [`VtScanner::completed_str`] return the
+//! escape sequence's payload. The example uses
+//! [`ThemeEntry::parse_response`](crate::trans::ThemeEntry::parse_response) to
+//! parse the payload into a color.
 //!
 //!
 //! # Error Handling
@@ -118,15 +118,13 @@
 //!     for byte in bytes {
 //!         let action = scanner.step(*byte);
 //!
-//!         // Make sure that first byte starts escape sequence.
 //!         if first {
+//!             // Make sure the first byte starts escape sequence.
 //!             first = false;
 //!             if action != Action::Start {
 //!                 return Err(ErrorKind::InvalidData.into());
 //!             }
-//!         }
-//!
-//!         if scanner.did_abort() {
+//!         } else if scanner.did_abort() {
 //!             // Determine whether to consume last byte.
 //!             if !Control::is_sequence_start(*byte) {
 //!                 count += 1;
@@ -140,13 +138,14 @@
 //!             if scanner.did_overflow() {
 //!                 return Err(ErrorKind::OutOfMemory.into());
 //!             } else {
-//!                 break 'colorful scanner.completed_string()
+//!                 break 'colorful scanner.completed_str()
 //!                     .map_err(|e| Error::new(
 //!                         ErrorKind::InvalidData, e
 //!                     ))?;
 //!             }
 //!         }
 //!
+//!         // The byte is safe to consume.
 //!         count += 1;
 //!     }
 //!
@@ -167,15 +166,15 @@
 //! <br>
 //!
 //! As so happens, the above code example pretty much covers the functionality
-//! of [`VtScanner::scan`], except that the latter does not parse a color from
-//! the payload and replaces the two conditional blocks gated by
+//! of [`VtScanner::scan_bytes`], except that the latter does not parse a color
+//! from the payload and replaces the two conditional blocks gated by
 //! [`VtScanner::did_abort`] and [`VtScanner::did_complete`] with the more
 //! concise expression:
 //!
 //! ```ignore
 //! if self.did_finish() {
 //!     self.consume_on_finish(count, reader);
-//!     break 'colorful self.string_on_finish()?;
+//!     break 'colorful self.str_on_finish()?;
 //! }
 //! ```
 //!
@@ -183,8 +182,8 @@
 //! completed. [`VtScanner::consume_on_finish`] invokes the reader's `consume`
 //! method with the correct number of bytes, which does not include the current
 //! byte if it starts a new escape sequence. [`VtScanner::bytes_on_finish`] and
-//! [`VtScanner::string_on_finish`] return either an I/O error or the escape
-//! sequence payload as a byte or string slice wrapped in a result.
+//! [`VtScanner::str_on_finish`] return the escape sequence payload as a byte or
+//! string slice, respectively, wrapped in a result—or an I/O error.
 
 use std::io::{BufRead, Error, ErrorKind};
 
@@ -507,17 +506,9 @@ impl State {
     //     matches!(self, Self::Escape)
     // }
 
-    /// Determine the number of transitions from the ground state.
-    ///
-    /// This method assumes C0 controls only. Hence, controls such as CSI
-    /// require two characters and result in states two transitions from the
-    /// ground state.
-    ///
-    /// This method treats `Ground` as zero states away from itself, `Escape` as
-    /// one state away from the ground
-    /// This method treats `Ground` as step 0, `Escape` as step 1, and all other
-    /// states as step 2.
-    pub fn ground_transitions(&self) -> usize {
+    /// Determine the minimum number of transitions required to reach this
+    /// state from the ground state using C0 controls only.
+    pub fn ground_distance(&self) -> usize {
         use State::*;
 
         match self {
@@ -553,11 +544,11 @@ impl State {
 
 // ------------------------------------------------------------------------------------------------
 
-const fn otherwise(b: u8, state: State) -> (State, Action) {
+const fn otherwise(byte: u8, state: State) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x00..=0x17 | 0x19 | 0x1c..=0x1f => (state, Execute),
         0x18 | 0x1a => (Ground, Execute),
         0x1b => (Escape, Start),
@@ -578,24 +569,24 @@ const fn otherwise(b: u8, state: State) -> (State, Action) {
 // ------------------------------------------------------------------------------------------------
 // Ground
 
-const fn ground(b: u8) -> (State, Action) {
+const fn ground(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x20..=0x7f => (Ground, Print),
-        _ => otherwise(b, Ground),
+        _ => otherwise(byte, Ground),
     }
 }
 
 // ------------------------------------------------------------------------------------------------
 // Escape
 
-const fn escape(b: u8) -> (State, Action) {
+const fn escape(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x20..=0x2f => (EscapeIntermediate, Retain),
         0x30..=0x4f | 0x51..=0x57 | 0x59 | 0x5a | 0x5c | 0x60..=0x7e => (Ground, DispatchEsc),
         0x50 => (DcsEntry, Start),
@@ -604,18 +595,18 @@ const fn escape(b: u8) -> (State, Action) {
         0x5d => (OscString, Start),
         0x5e => (PmString, Start),
         0x5f => (ApcString, Start),
-        _ => otherwise(b, Escape),
+        _ => otherwise(byte, Escape),
     }
 }
 
-const fn escape_intermediate(b: u8) -> (State, Action) {
+const fn escape_intermediate(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x20..=0x2f => (EscapeIntermediate, Retain),
         0x30..=0x7e => (Ground, DispatchEsc),
-        _ => otherwise(b, EscapeIntermediate),
+        _ => otherwise(byte, EscapeIntermediate),
     }
 }
 
@@ -624,27 +615,27 @@ const fn escape_intermediate(b: u8) -> (State, Action) {
 
 macro_rules! string_command {
     ($name1:ident($state1:ident) => $name2:ident($state2:ident) => $action:expr) => {
-        const fn $name1(b: u8) -> (State, Action) {
+        const fn $name1(byte: u8) -> (State, Action) {
             use Action::*;
             use State::*;
 
-            match b {
+            match byte {
                 0x00..=0x06 | 0x08..=0x17 | 0x19 | 0x1c..=0x1f => ($state1, Ignore),
                 0x07 => (Ground, $action),
                 0x1b => ($state2, Ignore),
                 0x20..=0x7f => ($state1, Ignore),
                 0x9c => (Ground, $action),
-                _ => otherwise(b, $state1),
+                _ => otherwise(byte, $state1),
             }
         }
 
-        const fn $name2(b: u8) -> (State, Action) {
+        const fn $name2(byte: u8) -> (State, Action) {
             use Action::*;
             use State::*;
 
-            match b {
+            match byte {
                 0x5c => (Ground, $action),
-                _ => otherwise(b, Ground),
+                _ => otherwise(byte, Ground),
             }
         }
     };
@@ -657,171 +648,171 @@ string_command!(apc_string(ApcString) => apc_end(ApcEnd) => DispatchApc);
 // ------------------------------------------------------------------------------------------------
 // OSC
 
-const fn osc_string(b: u8) -> (State, Action) {
+const fn osc_string(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x00..=0x06 | 0x08..=0x17 | 0x19 | 0x1c..=0x1f => (OscString, Ignore),
         0x07 => (Ground, DispatchOsc),
         0x1b => (OscEnd, Ignore),
         0x20..=0x7f => (OscString, Retain),
         0x9c => (Ground, DispatchOsc),
-        _ => otherwise(b, OscString),
+        _ => otherwise(byte, OscString),
     }
 }
 
-const fn osc_end(b: u8) -> (State, Action) {
+const fn osc_end(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x5c => (Ground, DispatchOsc),
-        _ => otherwise(b, Ground),
+        _ => otherwise(byte, Ground),
     }
 }
 
 // ------------------------------------------------------------------------------------------------
 // CSI
 
-const fn csi_entry(b: u8) -> (State, Action) {
+const fn csi_entry(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x20..=0x2f => (CsiIntermediate, Retain),
         0x30..=0x39 | 0x3b..=0x3f => (CsiParam, Retain),
         0x3a => (CsiIgnore, Ignore),
         0x40..=0x7e => (Ground, DispatchCsi),
-        _ => otherwise(b, CsiEntry),
+        _ => otherwise(byte, CsiEntry),
     }
 }
 
-const fn csi_param(b: u8) -> (State, Action) {
+const fn csi_param(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x20..=0x2f => (CsiIntermediate, Retain),
         0x30..=0x39 | 0x3b => (CsiParam, Retain),
         0x3a | 0x3c..=0x3f => (CsiIgnore, Ignore),
         0x40..=0x7e => (Ground, DispatchCsi),
-        _ => otherwise(b, CsiParam),
+        _ => otherwise(byte, CsiParam),
     }
 }
 
-const fn csi_intermediate(b: u8) -> (State, Action) {
+const fn csi_intermediate(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x20..=0x2f => (CsiIntermediate, Retain),
         0x30..=0x3f => (CsiIgnore, Ignore),
         0x40..=0x7e => (Ground, DispatchCsi),
-        _ => otherwise(b, CsiIntermediate),
+        _ => otherwise(byte, CsiIntermediate),
     }
 }
 
-const fn csi_ignore(b: u8) -> (State, Action) {
+const fn csi_ignore(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x20..=0x3f => (CsiIgnore, Ignore),
         0x40..=0x7e => (Ground, Ignore),
-        _ => otherwise(b, CsiIgnore),
+        _ => otherwise(byte, CsiIgnore),
     }
 }
 
 // ------------------------------------------------------------------------------------------------
 // DCS
 
-const fn dcs_entry(b: u8) -> (State, Action) {
+const fn dcs_entry(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x00..=0x17 | 0x19 | 0x1c..=0x1f => (DcsEntry, Ignore),
         0x20..=0x2f => (DcsIntermediate, Retain),
         0x30..=0x39 | 0x3b..=0x3f => (DcsParam, Retain),
         0x3a => (DcsIgnore, Ignore),
         0x40..=0x7e => (DcsPassthrough, Retain),
-        _ => otherwise(b, DcsEntry),
+        _ => otherwise(byte, DcsEntry),
     }
 }
 
-const fn dcs_param(b: u8) -> (State, Action) {
+const fn dcs_param(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x00..=0x17 | 0x19 | 0x1c..=0x1f => (DcsParam, Ignore),
         0x20..=0x2f => (DcsIntermediate, Retain),
         0x30..=0x39 | 0x3b => (DcsParam, Retain),
         0x3a | 0x3c..=0x3f => (DcsIgnore, Ignore),
         0x40..=0x7e => (DcsPassthrough, Retain),
-        _ => otherwise(b, DcsParam),
+        _ => otherwise(byte, DcsParam),
     }
 }
 
-const fn dcs_intermediate(b: u8) -> (State, Action) {
+const fn dcs_intermediate(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x00..=0x17 | 0x19 | 0x1c..=0x1f => (DcsIntermediate, Ignore),
         0x20..=0x2f => (DcsIntermediate, Retain),
         0x30..=0x3f => (DcsIgnore, Ignore),
         0x40..=0x7e => (DcsPassthrough, Retain),
-        _ => otherwise(b, DcsIntermediate),
+        _ => otherwise(byte, DcsIntermediate),
     }
 }
 
-const fn dcs_passthrough(b: u8) -> (State, Action) {
+const fn dcs_passthrough(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x00..=0x06 | 0x08..=0x17 | 0x19 | 0x1c..=0x1f => (DcsPassthrough, Retain),
         0x07 => (Ground, DispatchDcs),
         0x1b => (DcsPassthroughEnd, Ignore),
         0x20..=0x7e => (DcsPassthrough, Retain),
         0x9c => (Ground, DispatchDcs),
-        _ => otherwise(b, DcsPassthrough),
+        _ => otherwise(byte, DcsPassthrough),
     }
 }
 
-const fn dcs_passthrough_end(b: u8) -> (State, Action) {
+const fn dcs_passthrough_end(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x5c => (Ground, DispatchDcs),
-        _ => otherwise(b, Ground),
+        _ => otherwise(byte, Ground),
     }
 }
 
-const fn dcs_ignore(b: u8) -> (State, Action) {
+const fn dcs_ignore(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x00..=0x06 | 0x08..=0x17 | 0x19 | 0x1c..=0x1f => (DcsIgnore, Ignore),
         0x07 => (Ground, Ignore),
         0x1b => (DcsIgnoreEnd, Ignore),
         0x20..=0x7f => (DcsIgnore, Ignore),
         0x9c => (Ground, Ignore),
-        _ => otherwise(b, DcsIgnore),
+        _ => otherwise(byte, DcsIgnore),
     }
 }
 
-const fn dcs_ignore_end(b: u8) -> (State, Action) {
+const fn dcs_ignore_end(byte: u8) -> (State, Action) {
     use Action::*;
     use State::*;
 
-    match b {
+    match byte {
         0x5c => (Ground, Ignore),
-        _ => otherwise(b, Ground),
+        _ => otherwise(byte, Ground),
     }
 }
 
@@ -866,13 +857,23 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// Flo Williams' [parser for DEC's ANSI-compatible video
 /// terminals](https://vt100.net/emu/dec_ansi_parser). However, unlike these two
 /// crates and Williams' original, this version features a streamlined state
-/// machine model. For each step, this version simply consumes a byte and
-/// produces an action, while internally transitioning from state to state as
-/// necessary. This version also treats all bytes that belong to an escape
-/// sequence's payload the same by retaining them in its internal buffer. That
-/// way, [`Action::Retain`] replaces the *collect*, *osc_put*, *param*, and
-/// *put* actions of the original and obviates the *osc_start*, *osc_end*,
-/// *hook*, and *unhook* actions entirely.
+/// machine model:
+///
+///  1. For each step, this version takes a byte and produces an action, while
+///     internally transitioning from state to state as necessary. However,
+///     neither states nor state transitions are externally accessible, only
+///     higher-level properties of the state machine.
+///  2. This version also treats all bytes that belong to an escape sequence's
+///     payload the same by retaining them in its internal buffer. That way,
+///     [`Action::Retain`] replaces the *collect*, *osc_put*, *param*, and *put*
+///     actions of the original and obviates the *osc_start*, *osc_end*, *hook*,
+///     and *unhook* actions entirely.
+///
+/// The disadvantage of thusly simplifying the state machine is that code using
+/// this version probably needs to reparse (parts of) escape sequences. As a
+/// result, this version is better suited to applications that need to scan
+/// terminal input for responses to queries than the implementation of a
+/// terminal.
 ///
 /// Correct use of [`VtScanner`] requires handling the following corner cases:
 ///
@@ -882,14 +883,13 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 ///   * When trying to access the payload of an escape sequence, make sure that
 ///     the payload has not been cut off, i.e., [`VtScanner::did_overflow`]
 ///     returns `false`.
-///   * When aborting an escape sequence, do not consume the byte if it starts
-///     another escape sequence as well, i.e., [`Control::is_sequence_start`]
-///     returns `true`.
+///   * When aborting an escape sequence, do not consume the final byte if it
+///     starts another escape sequence as well, i.e.,
+///     [`Control::is_sequence_start`] returns `true`.
 ///
 /// The documentation for the [`escape`](crate::escape) module provides more
-/// detail and an example for how to correctly handle all three corner cases
-/// based on the implementation of [`VtScanner::scan`]. Alas, that method
-/// handles synchronous I/O with `BufRead` only.
+/// detail and an example illustrating how to use synchronous I/O with `BufRead`
+/// to correctly handle all three corner cases.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.escape"))]
 #[derive(Debug)]
 pub struct VtScanner {
@@ -960,6 +960,7 @@ impl VtScanner {
     /// Unlike `Vec<T>`, a scanner's capacity does not change after creation.
     /// This is a security precaution, since the bytes processed by this type
     /// may originate from untrusted users.
+    #[inline]
     pub fn capacity(&self) -> usize {
         self.buffer.capacity()
     }
@@ -1001,6 +1002,7 @@ impl VtScanner {
     }
 
     /// Determine whether the internal buffer is empty.
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.buffer.is_empty()
     }
@@ -1009,6 +1011,7 @@ impl VtScanner {
     ///
     /// This method returns a number between zero and the
     /// [`VtScanner::capacity`].
+    #[inline]
     pub fn len(&self) -> usize {
         self.buffer.len()
     }
@@ -1031,17 +1034,22 @@ impl VtScanner {
 
     /// Determine whether the last step aborted an ANSI escape sequence.
     pub fn did_abort(&self) -> bool {
-        // We only need to distinguish between 0, 1, and 2+ transitions
-        let previous = self.previous_state.ground_transitions().min(2);
-        let current = self.state.ground_transitions().min(2);
+        // We only need to distinguish between 0, 1, and 2+ transitions.
+        let previous = self.previous_state.ground_distance().min(2);
+        let current = self.state.ground_distance().min(2);
 
         if current < previous {
-            // Abort is transitions from ground shrinking without dispatch action
+            // If the current state is closer to ground than the previous state,
+            // an abort happened if the state machine did not dispatch.
             !self.last_action.is_dispatch()
-        } else if current == 2 && previous == 2 {
-            // Abort is transitions from ground equally high with start action
+        } else if current == previous && 0 < current {
+            // If neither state is ground and both are equally far from ground,
+            // an abort happened if the last action as a start action.
             self.last_action.is_start()
         } else {
+            // If both states are ground, there is no escape sequence. If the
+            // current state is further from ground than the previous state, an
+            // escape sequence is starting. In either case, there was no abort.
             false
         }
     }
@@ -1050,7 +1058,7 @@ impl VtScanner {
     ///
     /// If this method returns `true`, the control and payload of the escape
     /// sequence are accessible with [`VtScanner::completed_control`],
-    /// [`VtScanner::completed_bytes`], and [`VtScanner::completed_string`].
+    /// [`VtScanner::completed_bytes`], and [`VtScanner::completed_str`].
     /// However, the payload is cut off if [`VtScanner::did_overflow`] also
     /// returns `true`.
     #[inline]
@@ -1060,9 +1068,8 @@ impl VtScanner {
 
     /// Determine the control for the just completed ANSI escape sequence.
     ///
-    /// As long as [`VtScanner::did_complete`] returns `false`, this method
-    /// returns `None`. If it returns `true`, this method returns the escape
-    /// sequence's control.
+    /// If this scanner did just complete an ANSI escape sequence, this method
+    /// returns the escape sequence's control. Otherwise, it returns `None`.
     #[inline]
     pub fn completed_control(&self) -> Option<Control> {
         self.last_action.control()
@@ -1071,12 +1078,13 @@ impl VtScanner {
     /// Access the payload for the just completed ANSI escape sequence as a byte
     /// slice.
     ///
-    /// As long as [`VtScanner::did_complete`] returns `false`, this method
-    /// returns an empty slice. If it returns `true`, this method returns the
-    /// escape sequence's payload as a byte slice. However, the payload is cut
-    /// off if [`VtScanner::did_overflow`] returns `true`.
+    /// If [`VtScanner::did_complete`] returns `true`, this method returns the
+    /// payload of the escape sequence as a byte slice. However, if
+    /// [`VtScanner::did_overflow`] also returns `true`, the payload is
+    /// incomplete. If this scanner did not complete an escape sequence, this
+    /// method returns an empty byte slice.
     ///
-    /// [`VtScanner::completed_bytes`] does the same, except it returns a byte
+    /// [`VtScanner::completed_str`] does the same, except it returns a string
     /// slice.
     #[inline]
     pub fn completed_bytes(&self) -> &[u8] {
@@ -1090,15 +1098,16 @@ impl VtScanner {
     /// Access the payload for the just completed ANSI escape sequence as a
     /// string slice.
     ///
-    /// As long as [`VtScanner::did_complete`] returns `false`, this method
-    /// returns an empty slice. If it returns `true`, this method returns the
-    /// escape sequence's payload as a string slice. However, the payload is cut
-    /// off if [`VtScanner::did_overflow`] returns `true`.
+    /// If [`VtScanner::did_complete`] returns `true`, this method returns the
+    /// payload of the escape sequence as a string slice. However, if
+    /// [`VtScanner::did_overflow`] also returns `true`, the payload is
+    /// incomplete. If this scanner did not complete an escape sequence, this
+    /// method returns an empty string slice.
     ///
     /// [`VtScanner::completed_bytes`] does the same, except it returns a byte
     /// slice.
     #[inline]
-    pub fn completed_string(&self) -> Result<&str, std::str::Utf8Error> {
+    pub fn completed_str(&self) -> Result<&str, std::str::Utf8Error> {
         std::str::from_utf8(self.completed_bytes())
     }
 
@@ -1114,6 +1123,9 @@ impl VtScanner {
     /// If scanning the escape sequence did complete without overflow, this
     /// method returns the payload as a byte slice. Otherwise, it returns an
     /// appropriate I/O error.
+    ///
+    /// [`VtScanner::str_on_finish`] does the same, except it returns a string
+    /// slice.
     pub fn bytes_on_finish(&self) -> std::io::Result<&[u8]> {
         if self.did_complete() {
             if self.did_overflow() {
@@ -1133,7 +1145,10 @@ impl VtScanner {
     /// If scanning the escape sequence did complete without overflow, this
     /// method returns the payload as a string slice. Otherwise, it returns an
     /// appropriate I/O error.
-    pub fn string_on_finish(&self) -> std::io::Result<&str> {
+    ///
+    /// [`VtScanner::bytes_on_finish`] does the same, except it returns a byte
+    /// slice.
+    pub fn str_on_finish(&self) -> std::io::Result<&str> {
         let bytes = self.bytes_on_finish()?;
         std::str::from_utf8(bytes).map_err(|e| Error::new(ErrorKind::InvalidData, e))
     }
@@ -1150,13 +1165,11 @@ impl VtScanner {
     /// Consume processed bytes from reader, while also accounting for the
     /// current byte.
     ///
-    /// If this scanner did abort or complete an escape sequence, this method
-    /// consumes at least processed bytes from the reader and returns `true`. It
-    /// consumes an additional byte, if the most recent byte completed the
-    /// escape sequence or if it aborted the escape sequence and does not start
-    /// a new escape sequence. However, if the most recent byte aborted the
-    /// escape sequence while also starting a new one, it is not consumed. That
-    /// way, it can still start that escape sequence.
+    /// If [`VtScanner::did_finish`] returns `true`, this method consumes at
+    /// least processed bytes from the reader. It also consumes the most recent
+    /// byte—as long as that byte did not abort the escape sequence while also
+    /// starting a new one. If this scanner did not finish an escape sequence,
+    /// this method does nothing.
     pub fn consume_on_finish<R: BufRead>(&self, processed: usize, reader: &mut R) {
         let processed = if self.did_complete() {
             processed + 1
@@ -1187,9 +1200,8 @@ impl VtScanner {
     /// If the first byte does not trigger `Start`, this method returns an error
     /// without consuming the byte.
     ///
-    /// [`VtScanner::scan_string`] does the same except it returns a string
-    /// slice.
-    pub fn scan<R: BufRead>(&mut self, reader: &mut R) -> std::io::Result<&[u8]> {
+    /// [`VtScanner::scan_str`] does the same except it returns a string slice.
+    pub fn scan_bytes<R: BufRead>(&mut self, reader: &mut R) -> std::io::Result<&[u8]> {
         let mut first = true;
 
         loop {
@@ -1205,9 +1217,7 @@ impl VtScanner {
                     if action != Action::Start {
                         return Err(ErrorKind::InvalidData.into());
                     }
-                }
-
-                if self.did_finish() {
+                } else if self.did_finish() {
                     self.consume_on_finish(count, reader);
                     return self.bytes_on_finish();
                 }
@@ -1233,9 +1243,9 @@ impl VtScanner {
     /// If the first byte does not trigger `Start`, this method returns an error
     /// without consuming the byte.
     ///
-    /// [`VtScanner::scan`] does the same, except it returns a byte slice.
-    pub fn scan_string<R: BufRead>(&mut self, reader: &mut R) -> std::io::Result<&str> {
-        let bytes = self.scan(reader)?;
+    /// [`VtScanner::scan_bytes`] does the same, except it returns a byte slice.
+    pub fn scan_str<R: BufRead>(&mut self, reader: &mut R) -> std::io::Result<&str> {
+        let bytes = self.scan_bytes(reader)?;
         std::str::from_utf8(bytes).map_err(|e| Error::new(ErrorKind::InvalidData, e))
     }
 }
