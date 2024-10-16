@@ -2,51 +2,130 @@
 
 ## v0.11.0 (2024-xx-xx)
 
-### New Features
+### The Modularized API
 
-While the implementation has been carefully modularized from day 1, the public
-API of prettypretty was small enough to fit into a single module. However, since
-I was adding new features that required the introduction of new public types, I
-decided to modularize the public API as well. New modules include [`error`],
-[`gamut`], [`spectrum`], [`style`], and [`trans`].
+This version introduces significant new functionality while also reorganizing
+already existing functionality. To avoid cognitive overload while using
+prettypretty, the public API now is modularized. The three primary modules and
+their main types are:
 
-Other noteworthy new features are:
+  - `prettypretty` provides high-resolution colors through
+    [`ColorSpace`](https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html)
+    and [`Color`](https://apparebit.github.io/prettypretty/prettypretty/struct.Color.html)
+  - `prettypretty::style` abstracts over terminal styles with
+    [`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)
+    and the many color representations with
+    [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html).
+  - `prettypretty::trans` defines
+    [`Translator`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html)
+    née `Sampler` for translating between the color representations.
 
-  * Add [`Illuminant`] and [`Observer`] to represent critical spectral
-    distributions. The CIE's 2º standard observer for 1931 and 2015 as well as
-    the D65 illuminant are included at one-nanometer resolution.
-  * Add [`ColorSpace::gamut`] for traversing RGB color space boundaries. The
-    method returns a [`GamutTraversal`] iterator yielding
-    [`GamutTraversalStep`]s.
-  * Add [`Color::hue_chroma`] and [`Color::xy_chromaticity`] for plotting colors
-    in 2D.
+They are supported by a few utility modules:
+
+  - `prettypretty::error` is a utility module defining prettypretty's error
+    types.
+  - `prettypretty::escape` is a utility module defining a low-level parser for
+    ANSI escape codes.
+
+Support for color gamuts and spectral distributions is optional, conditioned on
+the `gamut` feature. It is disabled by default in Rust but enabled in Python,
+consistent with the latter ecosystem favoring a "batteries included" approach.
+
+  - `prettypretty::gamut` is a utility module defining an iterator for
+    traversing color space gamuts.
+  - `prettypretty::spectrum` adds support for spectral distributions and their
+    iterators, notably the CIE
+    [D50](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_ILLUMINANT_D50.html),
+    [D65](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_ILLUMINANT_D65.html),
+    and
+    [E](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_ILLUMINANT_E.html)
+    illuminants as well as the [2º
+    (1931)](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_OBSERVER_2DEG_1931.html)
+    and [10º
+    (1964)](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_OBSERVER_10DEG_1964.html)
+    observers.
 
 
-### Changes
+### New Functionality
 
-  * Rename `Sampler` to `Translator`.
-  * Edit documentation for correctness and clarity.
+New functionality includes:
+
+  * [`ColorSpace::XyzD50`](https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html#variant.XyzD50)
+    adds support for the XYZ color space with a D50 illuminant. Chromatic
+    adaptation uses the (linear) Bradford method.
+  * [`Color::hue_chroma`](https://apparebit.github.io/prettypretty/prettypretty/struct.Color.html#method.hue_chroma)
+    and
+    [`Color::xy_chromaticity`](https://apparebit.github.io/prettypretty/prettypretty/struct.Color.html#method.xy_chromaticity)
+    map a color's three dimensions down to two.
+  * [`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)
+    represents a terminal style and
+    [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html)
+    represents a color, with the latter replacing `TerminalColor`.
+  * [`ColorSpace::gamut`](https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html#method.gamut)
+    returns an iterator traversing the color space's gamut; it is implemented by
+    the
+    [`gamut`](https://apparebit.github.io/prettypretty/prettypretty/gamut/index.html)
+    module. This method requires the `gamut` feature.
+  * The
+    [`spectrum`](https://apparebit.github.io/prettypretty/prettypretty/spectrum/index.html)
+    module defines several
+    [`SpectralDistribution`](https://apparebit.github.io/prettypretty/prettypretty/spectrum/trait.SpectralDistribution.html)s
+    including the CIE
+    [D50](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_ILLUMINANT_D50.html),
+    [D65](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_ILLUMINANT_D65.html),
+    and
+    [E](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_ILLUMINANT_E.html)
+    illuminants as well as the [2º
+    (1931)](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_OBSERVER_2DEG_1931.html)
+    and [10º
+    (1964)](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_OBSERVER_10DEG_1964.html)
+    observers. It also defines
+    [`SpectrumTraversal`](https://apparebit.github.io/prettypretty/prettypretty/spectrum/struct.SpectrumTraversal.html)
+    for iterating over the spectral locus and human visual gamut. This
+    functionality requires the `gamut` feature.
+  * The
+    [`escape`](https://apparebit.github.io/prettypretty/prettypretty/escape/index.html)
+    module's
+    [`VtScanner`](https://apparebit.github.io/prettypretty/prettypretty/escape/struct.VtScanner.html)
+    provides a low-level interface for reading ANSI escape sequences from a
+    terminal's input stream, whereas the
+    [`trans`](https://apparebit.github.io/prettypretty/prettypretty/trans/index.html)
+    module's
+    [`ThemeEntry`](https://apparebit.github.io/prettypretty/prettypretty/trans/enum.ThemeEntry.html)
+    provides the high-level interface for querying the terminal for its color
+    theme.
+  * The new
+    [`viz3d.py`](https://github.com/apparebit/prettypretty/blob/main/prettypretty/viz3d.py)
+    script uses the `spectrum` module to generate a 3D mesh of the human visual
+    gamut.
+  * The output of the
+    [`plot.py`](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
+    script has been significantly improved; it now visualizes lightness as well,
+    with regular and bright colors grouped together.
+
+Except a lightweight implementation of synchronous terminal I/O, prettypretty is
+approaching feature-completeness.
 
 
 ## v0.10.0 (2024-07-12)
 
 ### New Features
 
-  * Like [`Color::from_24bit`], the `rgb` macro creates sRGB colors from 24-bit
+  * Like `Color::from_24bit`, the `rgb` macro creates sRGB colors from 24-bit
     integer coordinates. Unlike the method, the macro can appear in const
     expressions.
 
 
 ### Changes
 
-  * Rename `Sampler::adjust` to [`Sampler::cap`]
+  * Rename `Sampler::adjust` to `Sampler::cap`
   * Improve documentation with many small edits, new overview and summary,
     and disabling the `pyffi` feature flag on docs.rs
 
 
 ### Bug Fixes
 
-  * [`Fidelity::from_environment`] now correctly classifies iTerm 3.x as having
+  * `Fidelity::from_environment` now correctly classifies iTerm 3.x as having
     full fidelity.
 
 
@@ -73,24 +152,20 @@ spread methods over up to three `impl` blocks. But hey, it works really well! �
 
 ### Translating High-Resolution to ANSI Colors
 
-[`Sampler`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html)
-is the new one-stop abstraction for translating colors, from terminal to
-high-resolution, high-resolution to terminal, and terminal to terminal colors.
-It makes translation between color representation more convenient and it is more
-powerful.
+`Sampler` is the new one-stop abstraction for translating colors, from terminal
+to high-resolution, high-resolution to terminal, and terminal to terminal
+colors. It makes translation between color representation more convenient and it
+is more powerful.
 
-Notably,
-[`Sampler::to_ansi_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_ansi_hue_lightness)
-implements a new algorithm for converting high-resolution colors to the 16 ANSI
-colors. For color themes that roughly observe the semantics of ANSI colors
-(e.g., when sorted by hue, red and bright red come before yellow and bright
-yellow, which in turn come before green and bright green and so on), it produces
-more accurate results by first using hue to select a pair of regular and bright
-ANSI colors and then lightness to select the best match. For color themes that
-violate the new algorithm's invariants,
-[`Sampler::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Sampler.html#method.to_ansi)
-transparently and automatically falls back to brute force search for the closest
-color.
+Notably, `Sampler::to_ansi_hue_lightness` implements a new algorithm for
+converting high-resolution colors to the 16 ANSI colors. For color themes that
+roughly observe the semantics of ANSI colors (e.g., when sorted by hue, red and
+bright red come before yellow and bright yellow, which in turn come before green
+and bright green and so on), it produces more accurate results by first using
+hue to select a pair of regular and bright ANSI colors and then lightness to
+select the best match. For color themes that violate the new algorithm's
+invariants, `Sampler::to_ansi` transparently and automatically falls back to
+brute force search for the closest color.
 
 ### Other Major Improvements
 
@@ -122,13 +197,11 @@ High-resolution colors are simpler to use and support more operations:
 
 Terminal colors have a more coherent model:
 
-  - [`TerminalColor`](https://apparebit.github.io/prettypretty/prettypretty/enum.TerminalColor.html)
-    combines the different kinds of colors supported by terminals, i.e., the
-    default foreground and background colors, ANSI colors, 8-bit colors
-    including the 6x6x6 embedded RGB cube and the 24-step gray gradient, as well
-    as 24-bit "true" colors.
-  - [`DefaultColor`](https://apparebit.github.io/prettypretty/prettypretty/enum.DefaultColor.html)
-    correctly models that there are two, albeit context-sensitive default
-    colors, one for the foreground and one for the background.
+  - `TerminalColor` combines the different kinds of colors supported by
+    terminals, i.e., the default foreground and background colors, ANSI colors,
+    8-bit colors including the 6x6x6 embedded RGB cube and the 24-step gray
+    gradient, as well as 24-bit "true" colors.
+  - `DefaultColor` correctly models that there are two, albeit context-sensitive
+    default colors, one for the foreground and one for the background.
 
 
