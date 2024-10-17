@@ -57,13 +57,18 @@ jobs:
     - name: Set up stable Rust
       run: rustup toolchain install stable
 
+    # GitHub actions has a function, hashFiles(), that would be great here,
+    # except hashFiles doesn't work for files outside GITHUB_WORKSPACE.
+    # While Python runs cross-platform, step output requires uniform shell.
+    # If we use bash, we might as well use good ol' test.
     - name: Check for mdBook
       id: mdbook-exists
+      shell: bash
       run: |
-        python -c 'from pathlib import Path; print(f"v={(Path.home()/".cargo"/"bin"/"mdbook").exists()}")' >> $GITHUB_OUTPUT
+        [ -f "~/.cargo/bin/mdbook" ] || echo "v=install" >> $GITHUB_OUTPUT
 
     - name: Install mdBook
-      if: steps.mdbook-exists.outputs.v == 'False'
+      if: steps.mdbook-exists.outputs.v == 'install'
       run: cargo install mdbook
 
     - name: Check Rust code (with & without features)
