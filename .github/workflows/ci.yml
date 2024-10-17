@@ -57,12 +57,13 @@ jobs:
     - name: Set up stable Rust
       run: rustup toolchain install stable
 
-    - run: |
-        echo ">>>"${{ hashFiles('~/.cargo/bin/mdbook') }}"<<<"
-        ls ~/.cargo/bin
+    - name: Check for mdBook
+      id: mdbook-exists
+      run: |
+        python -c 'from pathlib import Path; print(f"v={(Path.home()/".cargo"/"bin"/"mdbook").exists()}")' >> $GITHUB_OUTPUT
 
     - name: Install mdBook
-      if: hashFiles('~/.cargo/bin/mdbook') == ''
+      if: steps.mdbook-exists.outputs.v == 'False'
       run: cargo install mdbook
 
     - name: Check Rust code (with & without features)
