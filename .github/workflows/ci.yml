@@ -60,12 +60,13 @@ jobs:
     # GitHub actions has a function, hashFiles(), that would be great here,
     # except hashFiles doesn't work for files outside GITHUB_WORKSPACE.
     # While Python runs cross-platform, step output requires uniform shell.
-    # If we use bash, we might as well use good ol' test.
+    # Since we are forcing bash, we can also use `test` --- without quotes
+    # around the file so that tilde expansion works.
     - name: Check for mdBook
       id: mdbook-exists
       shell: bash
       run: |
-        [ -f "~/.cargo/bin/mdbook" ] || echo "v=install" >> $GITHUB_OUTPUT
+        if [ ! -f ~/.cargo/bin/mdbook ]; then echo "v=install" >> $GITHUB_OUTPUT; fi
 
     - name: Install mdBook
       if: steps.mdbook-exists.outputs.v == 'install'
