@@ -58,6 +58,7 @@ jobs:
       run: rustup toolchain install stable
 
     - name: Install mdBook
+      if: hashFiles('~/.cargo/bin/mdbook') == ''
       run: cargo install mdbook
 
     - name: Check Rust code (with & without features)
