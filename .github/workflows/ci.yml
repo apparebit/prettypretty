@@ -57,6 +57,10 @@ jobs:
     - name: Set up stable Rust
       run: rustup toolchain install stable
 
+    - run: |
+        echo ">>>"${{ hashFiles('~/.cargo/bin/mdbook') }}"<<<"
+        ls ~/.cargo/bin
+
     - name: Install mdBook
       if: hashFiles('~/.cargo/bin/mdbook') == ''
       run: cargo install mdbook
