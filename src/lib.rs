@@ -65,7 +65,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     requires mapping a practically infinite number of colors onto 16 colors,
 //!     four of which are achromatic. `Translator` includes several algorithms
 //!     for doing so.
-//!   * The [`escape`] module's [`VtScanner`](crate::escape::VtScanner) tries to
+//!   * The [`termio`] module's [`VtScanner`](crate::termio::VtScanner) tries to
 //!     make **integration of terminal I/O** as simple as possible by
 //!     encapsulating much of the machinery for parsing ANSI escape sequences.
 //!     When combined with [`ThemeEntry`](crate::trans::ThemeEntry), the two
@@ -123,8 +123,8 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!
 //! To simplify the integration effort, prettypretty includes
 //! [`ThemeEntry`](crate::trans::ThemeEntry) for querying the terminal and
-//! parsing the response as well as [`VtScanner`](crate::escape::VtScanner) for
-//! reading just the bytes belonging to an ANSI escape sequence. The [`escape`]
+//! parsing the response as well as [`VtScanner`](crate::termio::VtScanner) for
+//! reading just the bytes belonging to an ANSI escape sequence. The [`termio`]
 //! module's documentation illustrates the use of the two types and also
 //! discusses some of the finer points of error handling, including suggested
 //! solution approaches.
@@ -159,9 +159,9 @@ pub type Bits = u32;
 
 mod core;
 pub mod error;
-pub mod escape;
 mod object;
 pub mod style;
+pub mod termio;
 pub mod trans;
 mod util;
 
@@ -197,9 +197,9 @@ use pyo3::types::PyDict;
 pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modcolor_name = m.name()?;
     let modcolor_name = modcolor_name.to_str()?;
-    let modescape_name = format!("{}.escape", modcolor_name);
     let modformat_name = format!("{}.style.format", modcolor_name);
     let modstyle_name = format!("{}.style", modcolor_name);
+    let modtermio_name = format!("{}.termio", modcolor_name);
     let modtrans_name = format!("{}.trans", modcolor_name);
 
     // -------------------------------------------------------------------------- color
@@ -210,17 +210,6 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<HueInterpolation>()?;
     m.add_class::<Interpolator>()?;
     m.add_class::<OkVersion>()?;
-
-    // ------------------------------------------------------------------- color.escape
-    let modescape = PyModule::new_bound(m.py(), "escape")?;
-    modescape.add("__package__", modcolor_name)?;
-    modescape.add_class::<escape::Action>()?;
-    modescape.add_class::<escape::Control>()?;
-    modescape.add_class::<escape::VtScanner>()?;
-    m.add_submodule(&modescape)?;
-
-    // Only change __name__ attribute after submodule has been added.
-    modescape.setattr("__name__", &modescape_name)?;
 
     // -------------------------------------------------------------------- color.style
     let modstyle = PyModule::new_bound(m.py(), "style")?;
@@ -251,6 +240,17 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     modformat.setattr("__name__", &modformat_name)?;
 
+    // ------------------------------------------------------------------- color.termio
+    let modtermio = PyModule::new_bound(m.py(), "termio")?;
+    modtermio.add("__package__", modcolor_name)?;
+    modtermio.add_class::<termio::Action>()?;
+    modtermio.add_class::<termio::Control>()?;
+    modtermio.add_class::<termio::VtScanner>()?;
+    m.add_submodule(&modtermio)?;
+
+    // Only change __name__ attribute after submodule has been added.
+    modtermio.setattr("__name__", &modtermio_name)?;
+
     // -------------------------------------------------------------------- color.trans
     let modtrans = PyModule::new_bound(m.py(), "trans")?;
     modtrans.add("__package__", modcolor_name)?;
@@ -269,9 +269,9 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py_modules: Bound<'_, PyDict> = PyModule::import_bound(m.py(), "sys")?
         .getattr("modules")?
         .downcast_into()?;
-    py_modules.set_item(&modescape_name, modescape)?;
     py_modules.set_item(&modstyle_name, modstyle)?;
     py_modules.set_item(&modformat_name, modformat)?;
+    py_modules.set_item(&modtermio_name, modtermio)?;
     py_modules.set_item(&modtrans_name, modtrans)?;
 
     #[cfg(feature = "gamut")]

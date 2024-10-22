@@ -84,9 +84,9 @@ New functionality includes:
     for iterating over the spectral locus and human visual gamut. This
     functionality requires the `gamut` feature.
   * The
-    [`escape`](https://apparebit.github.io/prettypretty/prettypretty/escape/index.html)
+    [`termio`](https://apparebit.github.io/prettypretty/prettypretty/termio/index.html)
     module's
-    [`VtScanner`](https://apparebit.github.io/prettypretty/prettypretty/escape/struct.VtScanner.html)
+    [`VtScanner`](https://apparebit.github.io/prettypretty/prettypretty/termio/struct.VtScanner.html)
     provides a low-level interface for reading ANSI escape sequences from a
     terminal's input stream, whereas the
     [`trans`](https://apparebit.github.io/prettypretty/prettypretty/trans/index.html)

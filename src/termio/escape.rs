@@ -1,189 +1,25 @@
-//! Processing terminal queries and responses.
+//! Utilities for integrating terminal I/O.
 //!
-//! This module facilitates the integration of terminal I/O with [`VtScanner`].
-//! It implements the state machine for recognizing ANSI escape sequences,
-//! including DEC extensions. As illustrated in the code examples below, it is
-//! best combined with the [`trans`](crate::trans) module's
-//! [`ThemeEntry`](crate::trans::ThemeEntry) for querying a terminal for theme
-//! colors and parsing its responses.
+//! Bringing your own terminal I/O sounds great on paper. It doesn't force sync
+//! or async I/O on your application. If async, it doesn't lock down the
+//! (possibly wrong) runtime. In short, it promises flexibility straight out of
+//! the crate. But the reality of bringing your own terminal I/O gets gnarly
+//! real fast, especially if you want to a robust integration. So this module
+//! provides utilities for seamless integration with terminal I/O:
 //!
-//! To determine a terminal's current color theme, the application first puts
-//! the terminal into cbreak or raw mode and then iterates over
-//! [`ThemeEntry::all`](crate::trans::ThemeEntry::all), i.e., the default
-//! foreground, default background, and 16 ANSI colors.
+//! Notably, [`VtScanner`] implements the state machine for recognizing ANSI
+//! escape sequences, including DEC extensions. As illustrated in the code
+//! examples for that struct, it is best combined with the
+//! [`trans`](crate::trans) module's [`ThemeEntry`](crate::trans::ThemeEntry)
+//! for querying a terminal for theme colors and parsing its responses.
 //!
-//!
-//! # Example #1: Byte by Byte
-//!
-//! The following example code sketches querying the terminal for a theme color
-//! and turning the response into a color with help of a [`VtScanner`]:
-//!
-//! ```
-//! # use prettypretty::{Color, error::ColorFormatError};
-//! # use prettypretty::escape::VtScanner;
-//! # use prettypretty::style::AnsiColor;
-//! # use prettypretty::trans::ThemeEntry;
-//! // Write `format!("{}", entry)` to terminal to issue the query.
-//! let entry = ThemeEntry::Ansi(AnsiColor::Red);
-//!
-//! // The response should be an ANSI escape sequence like this one.
-//! let mut terminal_input = b"\x1b]4;1;rgb:df/28/27\x07".iter();
-//!
-//! // Let's process the response with a scanner.
-//! let mut scanner = VtScanner::new();
-//! let color = loop {
-//!     // Read byte and feed it to scanner's step() method.
-//!     let byte = *terminal_input.next().unwrap();
-//!     scanner.step(byte);
-//!
-//!     if scanner.did_abort() {
-//!         // The escape sequence is malformed.
-//!         break Err(ColorFormatError::MalformedThemeColor);
-//!     } else if scanner.did_complete() {
-//!         // Parse the escape sequence's payload as a color.
-//!         break scanner
-//!             .completed_str()
-//!             .or(Err(ColorFormatError::MalformedThemeColor))
-//!             .and_then(|payload| entry.parse_response(payload))
-//!     }
-//!
-//!     // Keep on stepping...
-//! };
-//!
-//! assert_eq!(color.unwrap(), Color::from_24bit(0xdf, 0x28, 0x27));
-//! ```
-//! <div class=color-swatch>
-//! <div style="background-color: #df2827;"></div>
-//! </div>
-//! <br>
-//!
-//! As shown, consuming an escape sequence requires little more than stepping
-//! through the input with [`VtScanner::step`] until either
-//! [`VtScanner::did_abort`] or [`VtScanner::did_complete`]. Once complete,
-//! [`VtScanner::completed_bytes`] and [`VtScanner::completed_str`] return the
-//! escape sequence's payload. The example uses
-//! [`ThemeEntry::parse_response`](crate::trans::ThemeEntry::parse_response) to
-//! parse the payload into a color.
-//!
-//!
-//! # Error Handling
-//!
-//! The above code is functional but not very robust. It fails to handle three
-//! critical error conditions. Let's discuss each in turn.
-//!
-//! First, a terminal's input may contain content other than escape sequences.
-//! While [`VtScanner`] knows how to handle that, the above example code does
-//! not. Fixing that requires checking whether the result of [`VtScanner::step`]
-//! for the first byte is [`Action::Start`] and otherwise leaving the input
-//! untouched (which requires a look-ahead of one byte).
-//!
-//! Second, [`VtScanner`] buffers an escape sequence's payload. Since terminal
-//! input cannot be trusted, the buffer capacity cannot be changed after
-//! creation of a scanner. [`VtScanner::new`] allocates a buffer barely large
-//! enough for processing terminal colors but no more. An application can check
-//! whether the payload did fit into the buffer with [`VtScanner::did_overflow`].
-//!
-//! Third, [`VtScanner`] can detect the end of a well-formed escape sequence
-//! without look-ahead. In that case, [`VtScanner::step`] returns one of the
-//! dispatch actions and [`VtScanner::did_complete`] returns `true`. However, it
-//! cannot detect all malformed escape sequences without looking at the next
-//! byte. In particular, if a byte starts a new escape sequence, i.e.,
-//! [`Control::is_sequence_start`] returns `true`, it also aborts the current
-//! escape sequence. In that case, an application should effectively put the
-//! byte back into input stream.
-//!
-//!
-//! # Example #2: With a Buffered Reader
-//!
-//! One-byte look-ahead requires some form of buffering. Rust's
-//! `std::io::BufRead` trait fits the bill quite nicely:
-//!
-//! ```
-//! # use std::io::{BufRead, Error, ErrorKind};
-//! # use prettypretty::Color;
-//! # use prettypretty::escape::{Action, Control, VtScanner};
-//! # use prettypretty::style::AnsiColor;
-//! # use prettypretty::trans::ThemeEntry;
-//! let entry = ThemeEntry::Ansi(AnsiColor::Red);
-//! let mut terminal_input = b"\x1b]4;1;rgb:df/28/27\x07".as_slice();
-//!
-//! let mut scanner = VtScanner::new();
-//! let mut first = true;
-//!
-//! let response = 'colorful: loop {
-//!     // Track how many bytes to consume.
-//!     let mut count = 0;
-//!     let bytes = terminal_input.fill_buf()?;
-//!
-//!     for byte in bytes {
-//!         let action = scanner.step(*byte);
-//!
-//!         if first {
-//!             // Make sure the first byte starts escape sequence.
-//!             first = false;
-//!             if action != Action::Start {
-//!                 return Err(ErrorKind::InvalidData.into());
-//!             }
-//!         } else if scanner.did_abort() {
-//!             // Determine whether to consume last byte.
-//!             if !Control::is_sequence_start(*byte) {
-//!                 count += 1;
-//!             }
-//!             terminal_input.consume(count);
-//!             return Err(ErrorKind::InvalidData.into());
-//!
-//!         } else if scanner.did_complete() {
-//!             // Always consume last byte.
-//!             terminal_input.consume(count + 1);
-//!             if scanner.did_overflow() {
-//!                 return Err(ErrorKind::OutOfMemory.into());
-//!             } else {
-//!                 break 'colorful scanner.completed_str()
-//!                     .map_err(|e| Error::new(
-//!                         ErrorKind::InvalidData, e
-//!                     ))?;
-//!             }
-//!         }
-//!
-//!         // The byte is safe to consume.
-//!         count += 1;
-//!     }
-//!
-//!     // Consume buffer before trying to fill another.
-//!     terminal_input.consume(count);
-//! };
-//!
-//! // Parse payload and validate color.
-//! let color = entry
-//!     .parse_response(response)
-//!     .map_err(|e| Error::new(ErrorKind::InvalidData, e));
-//! assert_eq!(color.unwrap(), Color::from_24bit(0xdf, 0x28, 0x27));
-//! # Ok::<(), Error>(())
-//! ```
-//! <div class=color-swatch>
-//! <div style="background-color: #df2827;"></div>
-//! </div>
-//! <br>
-//!
-//! As so happens, the above code example pretty much covers the functionality
-//! of [`VtScanner::scan_bytes`], except that the latter does not parse a color
-//! from the payload and replaces the two conditional blocks gated by
-//! [`VtScanner::did_abort`] and [`VtScanner::did_complete`] with the more
-//! concise expression:
-//!
-//! ```ignore
-//! if self.did_finish() {
-//!     self.consume_on_finish(count, reader);
-//!     break 'colorful self.str_on_finish()?;
-//! }
-//! ```
-//!
-//! [`VtScanner::did_finish`] checks whether an escape sequence was aborted or
-//! completed. [`VtScanner::consume_on_finish`] invokes the reader's `consume`
-//! method with the correct number of bytes, which does not include the current
-//! byte if it starts a new escape sequence. [`VtScanner::bytes_on_finish`] and
-//! [`VtScanner::str_on_finish`] return the escape sequence payload as a byte or
-//! string slice, respectively, wrapped in a result—or an I/O error.
+//! Next, `tty` and `RawIO` provide a baseline implementation of terminal I/O
+//! using a minimal set of Posix features in addition to the Rust standard
+//! library. Since that implies blocking reads, `RawIO` unblocks reads with a
+//! dedicated thread and queue. It may not be the fastest or most scalable
+//! approach. But it surely suffices for querying the terminal for its current
+//! color theme, a critical requirement for
+//! [`Translator`](crate::trans::Translator).
 
 use std::io::{BufRead, Error, ErrorKind};
 
@@ -209,7 +45,7 @@ use pyo3::prelude::*;
 /// Displaying an instance writes out the corresponding control.
 #[cfg_attr(
     feature = "pyffi",
-    pyclass(eq, frozen, hash, module = "prettypretty.color.escape")
+    pyclass(eq, frozen, hash, module = "prettypretty.color.termio")
 )]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Control {
@@ -315,7 +151,7 @@ impl std::fmt::Display for Control {
 /// An external action when processing terminal I/O.
 #[cfg_attr(
     feature = "pyffi",
-    pyclass(eq, frozen, hash, module = "prettypretty.color.escape")
+    pyclass(eq, frozen, hash, module = "prettypretty.color.termio")
 )]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Action {
@@ -404,6 +240,7 @@ pub enum Action {
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl Action {
     /// Determine whether this action is [`Action::Print`].
+    #[inline]
     pub fn is_print(&self) -> bool {
         matches!(self, Self::Print)
     }
@@ -496,10 +333,10 @@ enum State {
 }
 
 impl State {
-    // /// Determine whether this is the ground state.
-    // pub fn is_ground(&self) -> bool {
-    //     matches!(self, Self::Ground)
-    // }
+    /// Determine whether this is the ground state.
+    pub fn is_ground(&self) -> bool {
+        matches!(self, Self::Ground)
+    }
 
     // /// Determine whether this is the escape state.
     // pub fn is_escape(&self) -> bool {
@@ -856,8 +693,8 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// [vtparse](https://github.com/wez/wezterm) crates, this type leverages Paul
 /// Flo Williams' [parser for DEC's ANSI-compatible video
 /// terminals](https://vt100.net/emu/dec_ansi_parser). However, unlike these two
-/// crates and Williams' original, this version features a streamlined state
-/// machine model:
+/// crates and Williams' specification, this implementation features a
+/// streamlined state machine model:
 ///
 ///  1. For each step, this version takes a byte and produces an action, while
 ///     internally transitioning from state to state as necessary. However,
@@ -870,9 +707,9 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 ///     and *unhook* actions entirely.
 ///
 /// The disadvantage of thusly simplifying the state machine is that code using
-/// this version probably needs to reparse (parts of) escape sequences. As a
+/// `VtScanner` probably needs to reparse (parts of) escape sequences. As a
 /// result, this version is better suited to applications that need to scan
-/// terminal input for responses to queries than the implementation of a
+/// terminal input for responses to queries than for the implementation of a
 /// terminal.
 ///
 /// Correct use of [`VtScanner`] requires handling the following corner cases:
@@ -887,10 +724,236 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 ///     starts another escape sequence as well, i.e.,
 ///     [`Control::is_sequence_start`] returns `true`.
 ///
-/// The documentation for the [`escape`](crate::escape) module provides more
-/// detail and an example illustrating how to use synchronous I/O with `BufRead`
-/// to correctly handle all three corner cases.
-#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.escape"))]
+/// Alas, before exploring how to address those corner cases, we might want to
+/// start by parsing an escape sequence first. In particular, let's explore how
+/// to query a terminal for its current color theme. Let's also assume that the
+/// application already put the terminal into cbreak (or raw) mode and is
+/// iterating over [`ThemeEntry::all`](crate::trans::ThemeEntry::all), i.e., the
+/// default foreground, default background, and 16 ANSI colors.
+///
+///
+/// # Example #1: Byte by Byte
+///
+/// The following example code sketches one pass through that loop, which
+/// queries the terminal for a particular theme color, ANSI red. We display the
+/// theme entry on the terminal, which writes the corresponding query as an ANSI
+/// escape sequence, and then turn the response into a color object with help of
+/// [`VtScanner`].
+///
+/// ```
+/// # use prettypretty::{Color, error::ColorFormatError};
+/// # use prettypretty::termio::VtScanner;
+/// # use prettypretty::style::AnsiColor;
+/// # use prettypretty::trans::ThemeEntry;
+/// // Write `format!("{}", entry)` to the terminal to issue the query.
+/// let entry = ThemeEntry::Ansi(AnsiColor::Red);
+///
+/// // The response should be an ANSI escape sequence like this one.
+/// let mut input = b"\x1b]4;1;rgb:df/28/27\x07".iter();
+///
+/// // Let's process the escape sequence with a scanner.
+/// let mut scanner = VtScanner::new();
+/// let color = loop {
+///     // Read byte and feed it to scanner's step() method.
+///     let byte = *input.next().unwrap();
+///     scanner.step(byte);
+///
+///     if scanner.did_abort() {
+///         // The escape sequence is malformed.
+///         break Err(ColorFormatError::MalformedThemeColor);
+///     } else if scanner.did_complete() {
+///         // Parse the escape sequence's payload as a color.
+///         break scanner
+///             .completed_str()
+///             .or(Err(ColorFormatError::MalformedThemeColor))
+///             .and_then(|payload| entry.parse_response(payload))
+///     }
+///
+///     // Keep on stepping...
+/// };
+///
+/// assert_eq!(color.unwrap(), Color::from_24bit(0xdf, 0x28, 0x27));
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #df2827;"></div>
+/// </div>
+/// <br>
+///
+/// As shown, consuming an escape sequence requires little more than stepping
+/// through the input with [`VtScanner::step`] until either
+/// [`VtScanner::did_abort`] or [`VtScanner::did_complete`] returns `true`. Once
+/// complete, [`VtScanner::completed_bytes`] and [`VtScanner::completed_str`]
+/// return the escape sequence's payload. The example uses
+/// [`ThemeEntry::parse_response`](crate::trans::ThemeEntry::parse_response) to
+/// turn that payload into a color.
+///
+///
+/// # Three Corner Cases
+///
+/// The above code is functional but not very robust. It fails to handle the
+/// three corner cases introduced earlier. Let's consider each in turn.
+///
+/// First, a terminal's input may contain content other than escape sequences.
+/// While [`VtScanner`]'s state machine knows how to handle other content as
+/// well, the above example code does not. Fixing that requires checking whether
+/// the result of [`VtScanner::step`] for the first byte is [`Action::Start`]
+/// and otherwise leaving the input untouched. That effectively requires a
+/// look-ahead of one byte.
+///
+/// Second, [`VtScanner`] buffers an escape sequence's payload. Since terminal
+/// input cannot be trusted, the buffer capacity must not change in response to
+/// the input. [`VtScanner::new`] allocates a buffer just large enough for
+/// processing terminal colors but no more. If you plan on processing other
+/// escape sequences, you should right-size the buffer with
+/// [`VtScanner::with_capacity`]. In either case, your application should always
+/// check whether the payload did fit into the buffer with
+/// [`VtScanner::did_overflow`]. If the buffer did overflow, the bad news is
+/// that either you got the capacity wrong or the terminal is under adversarial
+/// control indeed. The good news is that, unlike for most buffer overflows,
+/// memory safety wasn't compromised; the payload was truncated instead.
+///
+/// Third, [`VtScanner`] can detect the end of a well-formed escape sequence
+/// without look-ahead. In that case, [`VtScanner::step`] returns an action,
+/// whose [`Action::is_dispatch`] is `true`. Conveniently,
+/// [`VtScanner::did_complete`] is `true` as well. However, `VtScanner` cannot
+/// detect all malformed escape sequences without looking at the next byte. In
+/// particular, if a byte starts a new escape sequence, i.e.,
+/// [`Control::is_sequence_start`] returns `true`, it necessarily aborts the
+/// current escape sequence as well. In short, an application finds out whether
+/// it may consume a byte only after stepping `VtScanner` with that byte. That
+/// effectively requires a look-ahead of one byte (again).
+///
+///
+/// # Example #2: With a Buffered Reader
+///
+/// One-byte look-ahead implies some form of buffering. Rust's
+/// `std::io::BufRead` trait fits the bill quite nicely:
+///
+/// ```
+/// # use std::io::{BufRead, Error, ErrorKind};
+/// # use prettypretty::Color;
+/// # use prettypretty::termio::{Action, Control, VtScanner};
+/// # use prettypretty::style::AnsiColor;
+/// # use prettypretty::trans::ThemeEntry;
+/// let entry = ThemeEntry::Ansi(AnsiColor::Red);
+/// let mut input = b"\x1b]4;1;rgb:df/28/27\x07".as_slice();
+///
+/// let mut scanner = VtScanner::new();
+/// // Track the first byte.
+/// let mut first = true;
+///
+/// // Use a loop label for double loop exits.
+/// let response = 'colorful: loop {
+///     // Track the number of consumed bytes.
+///     let mut count = 0;
+///     let bytes = input.fill_buf()?;
+///     // Check for EOF.
+///     if bytes.is_empty() {
+///         return Err(ErrorKind::UnexpectedEof.into());
+///     }
+///
+///     // Since bytes is the result of input.fill_buf(), it must borrow
+///     // from input. Hence, we cannot use an expression with bytes as
+///     // argument to input.consume() below. But we can precompute value.
+///     let filled = bytes.len();
+///
+///     for byte in bytes {
+///         let action = scanner.step(*byte);
+///
+///         if first {
+///             // Make sure the first byte starts escape sequence.
+///             first = false;
+///             if action != Action::Start {
+///                 return Err(ErrorKind::InvalidData.into());
+///             }
+///         } else if scanner.did_abort() {
+///             // Determine whether to consume last byte.
+///             if !Control::is_sequence_start(*byte) {
+///                 count += 1;
+///             }
+///             input.consume(count);
+///             return Err(ErrorKind::InvalidData.into());
+///
+///         } else if scanner.did_complete() {
+///             // Always consume last byte.
+///             input.consume(count + 1);
+///             // Handle buffer overflow.
+///             if scanner.did_overflow() {
+///                 return Err(ErrorKind::OutOfMemory.into());
+///             } else {
+///                 break 'colorful scanner.completed_str()
+///                     .map_err(|e| Error::new(
+///                         ErrorKind::InvalidData, e
+///                     ))?;
+///             }
+///         }
+///
+///         // The byte is safe to consume.
+///         count += 1;
+///     }
+///
+///     // Consume buffer before trying to fill another.
+///     input.consume(filled);
+/// };
+///
+/// // Parse payload and validate color.
+/// let color = entry
+///     .parse_response(response)
+///     .map_err(|e| Error::new(ErrorKind::InvalidData, e));
+/// assert_eq!(color.unwrap(), Color::from_24bit(0xdf, 0x28, 0x27));
+/// # Ok::<(), Error>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #df2827;"></div>
+/// </div>
+/// <br>
+///
+/// Much better. As so happens, the above code example pretty much covers the
+/// functionality of [`VtScanner::scan_bytes`], except the latter does not parse
+/// the payload into a color, does not count the number of processed bytes, and
+/// replaces the two conditionals gated by [`VtScanner::did_abort`] and
+/// [`VtScanner::did_complete`] with the more concise expression:
+///
+/// ```ignore
+/// if self.did_finish() {
+///     reader.consume(self.processed_on_finish());
+///     break 'colorful self.str_on_finish()?;
+/// }
+/// ```
+///
+/// [`VtScanner::did_finish`] checks whether an escape sequence was aborted or
+/// completed. [`VtScanner::processed_on_finish`] returns the number of bytes
+/// processed for the finished escape sequence, which does not include the
+/// current byte if it starts a new escape sequence. Finally,
+/// [`VtScanner::bytes_on_finish`] and [`VtScanner::str_on_finish`] return the
+/// escape sequence payload as a byte or string slice, respectively, wrapped in
+/// a result—or an I/O error.
+///
+///
+/// # Another Corner Case
+///
+/// The second version is much improved, though it still isn't ready for
+/// production use. There is another corner case we haven't addressed. However,
+/// this corner case has nothing to do with how we use `VtScanner`. Instead,
+/// this corner case stems from the example using synchronous I/O. More
+/// specifically, the problematic expression is the `input.fill_buf()` just
+/// before the second loop in the above example code. It works, as long as at
+/// least one byte is available for filling into the buffer. However, if no byte
+/// is available, the method invocations blocks, waiting for more bytes to
+/// become available. That may take a very very llloooonnnnngggggg time,
+/// including practical infinity.
+///
+/// The solution isn't necessarily switching to asynchronous I/O. A timeout
+/// suffices. In fact, we should select a pretty short timeout. After all, we
+/// are expecting to read a complete escape sequence generated by the terminal
+/// as response to a direct query. If the bytes of that sequence aren't
+/// forthcoming, something is clearly wrong and we should abort. Hence, 500ms
+/// seems generous and 100ms is plenty.
+///
+/// But how do we enforce such a timeout? Rust's `BufRead` doesn't support
+/// timeouts. But `std::sync::mpsc::sync_channel` together with a second thread
+/// will do quite nicely.
+#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.termio"))]
 #[derive(Debug)]
 pub struct VtScanner {
     previous_state: State,
@@ -899,6 +962,7 @@ pub struct VtScanner {
     did_overflow: bool,
     last_byte: u8,
     last_action: Action,
+    processed: usize,
 }
 
 impl VtScanner {
@@ -921,6 +985,7 @@ impl VtScanner {
             did_overflow: false,
             last_byte: 0,
             last_action: Action::Ignore,
+            processed: 0,
         }
     }
 }
@@ -953,6 +1018,7 @@ impl VtScanner {
         self.did_overflow = false;
         self.last_byte = 0;
         self.last_action = Action::Ignore;
+        self.processed = 0;
     }
 
     /// Determine this scanner's internal buffer capacity.
@@ -973,6 +1039,15 @@ impl VtScanner {
     /// [`Action::DispatchEsc`], it also updates the internal buffer, clearing
     /// it for `Start` and adding the input for the other three actions.
     pub fn step(&mut self, byte: u8) -> Action {
+        // Update the number of processed bytes with one byte delay.
+        if self.state.is_ground() {
+            self.processed = 0;
+        } else if Control::is_sequence_start(self.last_byte) {
+            self.processed = 1;
+        } else {
+            self.processed += 1;
+        }
+
         let byte = if 0xa0 <= byte { byte - 0x80 } else { byte };
         let (state, action) = transition(self.state, byte);
 
@@ -1044,7 +1119,7 @@ impl VtScanner {
             !self.last_action.is_dispatch()
         } else if current == previous && 0 < current {
             // If neither state is ground and both are equally far from ground,
-            // an abort happened if the last action as a start action.
+            // an abort happened if the last action was a start action.
             self.last_action.is_start()
         } else {
             // If both states are ground, there is no escape sequence. If the
@@ -1118,6 +1193,27 @@ impl VtScanner {
         self.did_abort() || self.did_complete()
     }
 
+    /// Determine the number of bytes processed for the current character or
+    /// escape sequence.
+    ///
+    /// If this scanner just finished an escape sequence, this method returns
+    /// the number of bytes processed. It correctly accounts for C0 and C1
+    /// controls, ignored bytes, for example, due to buffer overflow, and the
+    /// final byte that completed or aborted the escape sequence.
+    pub fn processed_on_finish(&self) -> usize {
+        if self.did_complete() {
+            self.processed + 1
+        } else if self.did_abort() {
+            if Control::is_sequence_start(self.last_byte) {
+                self.processed
+            } else {
+                self.processed + 1
+            }
+        } else {
+            0
+        }
+    }
+
     /// Determine the result that finishes the escape sequence.
     ///
     /// If scanning the escape sequence did complete without overflow, this
@@ -1162,30 +1258,6 @@ impl VtScanner {
 }
 
 impl VtScanner {
-    /// Consume processed bytes from reader, while also accounting for the
-    /// current byte.
-    ///
-    /// If [`VtScanner::did_finish`] returns `true`, this method consumes at
-    /// least processed bytes from the reader. It also consumes the most recent
-    /// byte—as long as that byte did not abort the escape sequence while also
-    /// starting a new one. If this scanner did not finish an escape sequence,
-    /// this method does nothing.
-    pub fn consume_on_finish<R: BufRead>(&self, processed: usize, reader: &mut R) {
-        let processed = if self.did_complete() {
-            processed + 1
-        } else if self.did_abort() {
-            if Control::is_sequence_start(self.last_byte) {
-                processed
-            } else {
-                processed + 1
-            }
-        } else {
-            return;
-        };
-
-        reader.consume(processed);
-    }
-
     /// Scan an escape sequence and returns its payload as a byte slice. <i
     /// class=rust-only>Rust only!</i>
     ///
@@ -1205,9 +1277,13 @@ impl VtScanner {
         let mut first = true;
 
         loop {
-            let mut count = 0;
+            // Make sure lifetime of bytes ends before consume().
             let bytes = reader.fill_buf()?;
+            if bytes.is_empty() {
+                return Err(ErrorKind::UnexpectedEof.into());
+            }
 
+            let filled = bytes.len();
             for byte in bytes {
                 let action = self.step(*byte);
 
@@ -1218,14 +1294,12 @@ impl VtScanner {
                         return Err(ErrorKind::InvalidData.into());
                     }
                 } else if self.did_finish() {
-                    self.consume_on_finish(count, reader);
+                    reader.consume(self.processed_on_finish());
                     return self.bytes_on_finish();
                 }
-
-                count += 1;
             }
 
-            reader.consume(count);
+            reader.consume(filled);
         }
     }
 
