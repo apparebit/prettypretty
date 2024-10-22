@@ -609,7 +609,7 @@ class Terminal:
         if timeout > 0:
             ready, _, _ = select.select([self._input_fileno], [], [], timeout)
             if not ready:
-                raise TimeoutError()
+                raise TimeoutError("timed out waiting to read from terminal input")
         return os.read(self._input_fileno, length)
 
     ESCAPE_TIMEOUT: ClassVar[float] = 0.5
