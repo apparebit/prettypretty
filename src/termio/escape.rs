@@ -1,25 +1,4 @@
-//! Utilities for integrating terminal I/O.
-//!
-//! Bringing your own terminal I/O sounds great on paper. It doesn't force sync
-//! or async I/O on your application. If async, it doesn't lock down the
-//! (possibly wrong) runtime. In short, it promises flexibility straight out of
-//! the crate. But the reality of bringing your own terminal I/O gets gnarly
-//! real fast, especially if you want to a robust integration. So this module
-//! provides utilities for seamless integration with terminal I/O:
-//!
-//! Notably, [`VtScanner`] implements the state machine for recognizing ANSI
-//! escape sequences, including DEC extensions. As illustrated in the code
-//! examples for that struct, it is best combined with the
-//! [`trans`](crate::trans) module's [`ThemeEntry`](crate::trans::ThemeEntry)
-//! for querying a terminal for theme colors and parsing its responses.
-//!
-//! Next, `tty` and `RawIO` provide a baseline implementation of terminal I/O
-//! using a minimal set of Posix features in addition to the Rust standard
-//! library. Since that implies blocking reads, `RawIO` unblocks reads with a
-//! dedicated thread and queue. It may not be the fastest or most scalable
-//! approach. But it surely suffices for querying the terminal for its current
-//! color theme, a critical requirement for
-//! [`Translator`](crate::trans::Translator).
+//! Recognizing ANSI escape sequences.
 
 use std::io::{BufRead, Error, ErrorKind};
 
@@ -908,31 +887,77 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// </div>
 /// <br>
 ///
-/// Much better. As so happens, the above code example pretty much covers the
-/// functionality of [`VtScanner::scan_bytes`], except the latter does not parse
-/// the payload into a color, does not count the number of processed bytes, and
-/// replaces the two conditionals gated by [`VtScanner::did_abort`] and
-/// [`VtScanner::did_complete`] with the more concise expression:
+/// Much better. I think. But there's so much code now. And a lot of it seems to
+/// belong into `VtScanner`. After all, a parser of escape sequences shouldn't
+/// struggle to count the number of bytes belonging to them. Furthermore, it
+/// shouldn't have difficulties mapping corner cases to appropriate error kinds.
 ///
-/// ```ignore
-/// if self.did_finish() {
-///     reader.consume(self.processed_on_finish());
-///     break 'colorful self.str_on_finish()?;
-/// }
+///
+/// # Example #3: Without Boilerplate
+///
+/// After integrating the boilerplate code with `VtScanner`, the example
+/// becomes:
+///
 /// ```
+/// # use std::io::{BufRead, Error, ErrorKind};
+/// # use prettypretty::Color;
+/// # use prettypretty::termio::{Action, Control, VtScanner};
+/// # use prettypretty::style::AnsiColor;
+/// # use prettypretty::trans::ThemeEntry;
+/// let entry = ThemeEntry::Ansi(AnsiColor::Red);
+/// let mut input = b"\x1b]4;1;rgb:df/28/27\x07".as_slice();
 ///
-/// [`VtScanner::did_finish`] checks whether an escape sequence was aborted or
-/// completed. [`VtScanner::processed_on_finish`] returns the number of bytes
-/// processed for the finished escape sequence, which does not include the
-/// current byte if it starts a new escape sequence. Finally,
-/// [`VtScanner::bytes_on_finish`] and [`VtScanner::str_on_finish`] return the
-/// escape sequence payload as a byte or string slice, respectively, wrapped in
-/// a result—or an I/O error.
+/// let mut scanner = VtScanner::new();
+/// let response = 'colorful: loop {
+///     let bytes = input.fill_buf()?;
+///     if bytes.is_empty() {
+///         return Err(ErrorKind::UnexpectedEof.into());
+///     }
+///
+///     let filled = bytes.len();
+///     for byte in bytes {
+///         let action = scanner.step(*byte);
+///
+///         if scanner.processed() == 0 && action != Action::Start {
+///             return Err(ErrorKind::InvalidData.into());
+///         } else if scanner.did_finish() {
+///             input.consume(self.processed());
+///             break 'colorful self.finished_str()?;
+///         }
+///     }
+///     input.consume(filled);
+/// };
+///
+/// // Parse payload and validate color.
+/// let color = entry
+///     .parse_response(response)
+///     .map_err(|e| Error::new(ErrorKind::InvalidData, e));
+/// assert_eq!(color.unwrap(), Color::from_24bit(0xdf, 0x28, 0x27));
+/// # Ok::<(), Error>(())
+/// ```
+/// <div class=color-swatch>
+/// <div style="background-color: #df2827;"></div>
+/// </div>
+/// <br>
+///
+/// 🎉 Now we are talking!
+///
+/// [`VtScanner::processed`] returns the number of bytes processed so far while
+/// recognizing an escape sequence. [`VtScanner::did_finish`] return `true` if
+/// either [`VtScanner::did_abort`] or [`VtScanner::did_complete`] returns
+/// `true`. Finally, [`VtScanner::finished_bytes`] and
+/// [`VtScanner::finished_str`] return an escape sequence's payload as byte or
+/// string slice—or an appropriate I/O error.
+///
+/// As it turns out, prettypretty's Rust version can do one better: The generic
+/// [`VtScanner::scan_bytes`] and [`VtScanner::scan_str`] methods implement the
+/// full loops. However, because they are generic methods, they also aren't
+/// available in Python.
 ///
 ///
 /// # Another Corner Case
 ///
-/// The second version is much improved, though it still isn't ready for
+/// The third version is much improved, though it still isn't ready for
 /// production use. There is another corner case we haven't addressed. However,
 /// this corner case has nothing to do with how we use `VtScanner`. Instead,
 /// this corner case stems from the example using synchronous I/O. More
@@ -944,15 +969,9 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// including practical infinity.
 ///
 /// The solution isn't necessarily switching to asynchronous I/O. A timeout
-/// suffices. In fact, we should select a pretty short timeout. After all, we
-/// are expecting to read a complete escape sequence generated by the terminal
-/// as response to a direct query. If the bytes of that sequence aren't
-/// forthcoming, something is clearly wrong and we should abort. Hence, 500ms
-/// seems generous and 100ms is plenty.
-///
-/// But how do we enforce such a timeout? Rust's `BufRead` doesn't support
-/// timeouts. But `std::sync::mpsc::sync_channel` together with a second thread
-/// will do quite nicely.
+/// would suffice. A simple way of implementing that is to spawn a dedicated
+/// reader thread that uses `std::sync::mpsc::sync_channel` (which does support
+/// timeouts) to communicate with the main thread.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.termio"))]
 #[derive(Debug)]
 pub struct VtScanner {
@@ -1076,6 +1095,30 @@ impl VtScanner {
         self.last_byte
     }
 
+    /// Determine the number of processed bytes.
+    ///
+    /// This method returns the number of bytes processed for the current
+    /// character or escape sequence. It only counts bytes that have been
+    /// consumed and cannot be part of another escape sequence. As a result, the
+    /// value returned by this method usually is one less than the number of
+    /// bytes processed by [`VtScanner::step`]. However, when
+    /// [`VtScanner::did_finish`] returns `true`, this method catches up with
+    /// stepping and returns the accurate number of bytes consumed for that
+    /// escape sequence.
+    pub fn processed(&self) -> usize {
+        if self.did_complete() {
+            self.processed + 1
+        } else if self.did_abort() {
+            if Control::is_sequence_start(self.last_byte) {
+                self.processed
+            } else {
+                self.processed + 1
+            }
+        } else {
+            self.processed
+        }
+    }
+
     /// Determine whether the internal buffer is empty.
     #[inline]
     pub fn is_empty(&self) -> bool {
@@ -1160,7 +1203,9 @@ impl VtScanner {
     /// method returns an empty byte slice.
     ///
     /// [`VtScanner::completed_str`] does the same, except it returns a string
-    /// slice.
+    /// slice. By contrast, [`VtScanner::finished_bytes`] and
+    /// [`VtScanner::finished_str`] return a wrapped byte or string slice and
+    /// automatically account for error conditions, too.
     #[inline]
     pub fn completed_bytes(&self) -> &[u8] {
         if self.did_complete() {
@@ -1180,7 +1225,9 @@ impl VtScanner {
     /// method returns an empty string slice.
     ///
     /// [`VtScanner::completed_bytes`] does the same, except it returns a byte
-    /// slice.
+    /// slice. By contrast, [`VtScanner::finished_bytes`] and
+    /// [`VtScanner::finished_str`] return a wrapped byte or string slice and
+    /// automatically account for error conditions, too.
     #[inline]
     pub fn completed_str(&self) -> Result<&str, std::str::Utf8Error> {
         std::str::from_utf8(self.completed_bytes())
@@ -1193,36 +1240,17 @@ impl VtScanner {
         self.did_abort() || self.did_complete()
     }
 
-    /// Determine the number of bytes processed for the current character or
-    /// escape sequence.
-    ///
-    /// If this scanner just finished an escape sequence, this method returns
-    /// the number of bytes processed. It correctly accounts for C0 and C1
-    /// controls, ignored bytes, for example, due to buffer overflow, and the
-    /// final byte that completed or aborted the escape sequence.
-    pub fn processed_on_finish(&self) -> usize {
-        if self.did_complete() {
-            self.processed + 1
-        } else if self.did_abort() {
-            if Control::is_sequence_start(self.last_byte) {
-                self.processed
-            } else {
-                self.processed + 1
-            }
-        } else {
-            0
-        }
-    }
-
     /// Determine the result that finishes the escape sequence.
     ///
     /// If scanning the escape sequence did complete without overflow, this
     /// method returns the payload as a byte slice. Otherwise, it returns an
     /// appropriate I/O error.
     ///
-    /// [`VtScanner::str_on_finish`] does the same, except it returns a string
-    /// slice.
-    pub fn bytes_on_finish(&self) -> std::io::Result<&[u8]> {
+    /// [`VtScanner::finished_str`] does the same, except it returns a string
+    /// slice. [`VtScanner::completed_bytes`] and [`VtScanner::completed_str`]
+    /// return the byte or string slice without error checking and hence are far
+    /// less general.
+    pub fn finished_bytes(&self) -> std::io::Result<&[u8]> {
         if self.did_complete() {
             if self.did_overflow() {
                 Err(ErrorKind::OutOfMemory.into())
@@ -1242,10 +1270,12 @@ impl VtScanner {
     /// method returns the payload as a string slice. Otherwise, it returns an
     /// appropriate I/O error.
     ///
-    /// [`VtScanner::bytes_on_finish`] does the same, except it returns a byte
-    /// slice.
-    pub fn str_on_finish(&self) -> std::io::Result<&str> {
-        let bytes = self.bytes_on_finish()?;
+    /// [`VtScanner::finished_bytes`] does the same, except it returns a byte
+    /// slice. [`VtScanner::completed_bytes`] and [`VtScanner::completed_str`]
+    /// return the byte or string slice without error checking and hence are far
+    /// less general.
+    pub fn finished_str(&self) -> std::io::Result<&str> {
+        let bytes = self.finished_bytes()?;
         std::str::from_utf8(bytes).map_err(|e| Error::new(ErrorKind::InvalidData, e))
     }
 
@@ -1274,8 +1304,6 @@ impl VtScanner {
     ///
     /// [`VtScanner::scan_str`] does the same except it returns a string slice.
     pub fn scan_bytes<R: BufRead>(&mut self, reader: &mut R) -> std::io::Result<&[u8]> {
-        let mut first = true;
-
         loop {
             // Make sure lifetime of bytes ends before consume().
             let bytes = reader.fill_buf()?;
@@ -1288,14 +1316,11 @@ impl VtScanner {
                 let action = self.step(*byte);
 
                 // For an escape sequence, first byte triggers Start
-                if first {
-                    first = false;
-                    if action != Action::Start {
-                        return Err(ErrorKind::InvalidData.into());
-                    }
+                if self.processed() == 0 && action != Action::Start {
+                    return Err(ErrorKind::InvalidData.into());
                 } else if self.did_finish() {
-                    reader.consume(self.processed_on_finish());
-                    return self.bytes_on_finish();
+                    reader.consume(self.processed());
+                    return self.finished_bytes();
                 }
             }
 
