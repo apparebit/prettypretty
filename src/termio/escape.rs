@@ -921,8 +921,8 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 ///         if scanner.processed() == 0 && action != Action::Start {
 ///             return Err(ErrorKind::InvalidData.into());
 ///         } else if scanner.did_finish() {
-///             input.consume(self.processed());
-///             break 'colorful self.finished_str()?;
+///             input.consume(scanner.processed());
+///             break 'colorful scanner.finished_str()?;
 ///         }
 ///     }
 ///     input.consume(filled);
