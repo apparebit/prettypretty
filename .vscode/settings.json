@@ -6,6 +6,7 @@
         "CIELAB",
         "configurability",
         "Hifi",
+        "modtermio",
         "Munge",
         "OKLAB",
         "oklch",
@@ -25,6 +26,7 @@
         "rustfmt",
         "srgb",
         "systemsy",
+        "termio",
         "tristimulus",
         "WCAG"
     ],

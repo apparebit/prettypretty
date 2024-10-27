@@ -84,6 +84,39 @@ class GrayGradient:
     def __repr__(self) -> str: ...
 
 
+class EightBitColor_Ansi(EightBitColor):
+    """The ANSI colors."""
+    def __new__(cls, color: AnsiColor) -> Self: ...
+    def __getitem__(self, index: Literal[0]) -> AnsiColor: ...
+
+
+class EightBitColor_Embedded(EightBitColor):
+    """The embedded RGB colors."""
+    def __new__(cls, color: EmbeddedRgb) -> Self: ...
+    def __getitem__(self, index: Literal[0]) -> EmbeddedRgb: ...
+
+
+class EightBitColor_Gray(EightBitColor):
+    """The gray gradient colors."""
+    def __new__(cls, color: GrayGradient) -> Self: ...
+    def __getitem__(self, index: Literal[0]) -> GrayGradient: ...
+
+
+class EightBitColor:
+    """The 8-bit colors."""
+    Ansi = EightBitColor_Ansi
+    Embedded = EightBitColor_Embedded
+    Gray = EightBitColor_Gray
+
+    @staticmethod
+    def from_8bit(byte: int) -> EightBitColor: ...
+
+    def to_8bit(self) -> int: ...
+    def __hash__(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __repr__(self) -> str: ...
+
+
 class TrueColor:
     """24-bit RGB colors."""
     def __new__(cls, r: int, g: int, b: int) -> TrueColor: ...
@@ -147,7 +180,10 @@ class Colorant:
 
     @staticmethod
     def of(
-        colorant: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant
+        colorant: (
+            int | AnsiColor | EmbeddedRgb | GrayGradient | EightBitColor | TrueColor
+            | Color | Colorant
+        )
     ) -> Colorant: ...
 
     def try_to_8bit(self) -> int: ...
@@ -178,7 +214,10 @@ class Fidelity:
 
     @staticmethod
     def from_color(
-        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant
+        color: (
+            int | AnsiColor | EmbeddedRgb | GrayGradient | EightBitColor | TrueColor
+            | Color | Colorant
+        )
     ) -> Fidelity: ...
     @staticmethod
     def from_environment(has_tty: bool) -> Fidelity: ...
@@ -227,11 +266,17 @@ class Stylist:
     def stricken(self) -> Self: ...
     def foreground(
         self,
-        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        color: (
+            int | AnsiColor | EmbeddedRgb | GrayGradient | EightBitColor | TrueColor
+            | Color | Colorant
+        ),
     ) -> Self: ...
     def background(
         self,
-        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        color: (
+            int | AnsiColor | EmbeddedRgb | GrayGradient | EightBitColor | TrueColor
+            | Color | Colorant
+        ),
     ) -> Self: ...
     def et_voila(self) -> Style: ...
     def build(self) -> Style: ...

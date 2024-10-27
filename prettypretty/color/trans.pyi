@@ -3,7 +3,7 @@ from typing import Self
 
 from . import Color, OkVersion
 from .style import (
-    AnsiColor, Colorant, EmbeddedRgb, Fidelity, GrayGradient, Layer, TrueColor
+    AnsiColor, Colorant, EightBitColor, EmbeddedRgb, Fidelity, GrayGradient, Layer, TrueColor
 )
 
 VGA_COLORS: list[Color] =  ...
@@ -66,11 +66,17 @@ class Translator:
     # Translate terminal to high-resolution colors
     def resolve(
         self,
-        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        color: (
+            int | AnsiColor | EmbeddedRgb | GrayGradient | EightBitColor | TrueColor
+            | Color | Colorant
+        ),
     ) -> Color: ...
     def resolve_all(
         self,
-        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        color: (
+            int | AnsiColor | EmbeddedRgb | GrayGradient | EightBitColor | TrueColor
+            | Color | Colorant
+        ),
         layer: Layer,
     ) -> Color: ...
 
@@ -82,14 +88,17 @@ class Translator:
     def to_ansi_rgb(self, color: Color) -> AnsiColor: ...
 
     # Translate high-resolution to 8-bit colors
-    def to_closest_8bit(self, color: Color) -> Colorant: ...
-    def to_closest_8bit_with_ansi(self, color: Color) -> Colorant: ...
+    def to_closest_8bit(self, color: Color) -> EightBitColor: ...
+    def to_closest_8bit_with_ansi(self, color: Color) -> EightBitColor: ...
 
     # Cap terminal colors
     def cap_hires(self, color: Color, fidelity: Fidelity) -> None | Colorant: ...
     def cap_colorant(self, color: Colorant, fidelity: Fidelity) -> None | Colorant: ...
     def cap(
         self,
-        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        color: (
+            int | AnsiColor | EmbeddedRgb | GrayGradient | EightBitColor | TrueColor
+            | Color | Colorant
+        ),
         fidelity: Fidelity,
     ) -> None | Colorant: ...

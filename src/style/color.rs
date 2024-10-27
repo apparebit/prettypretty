@@ -1168,6 +1168,7 @@ pub(crate) fn into_colorant(obj: &Bound<'_, PyAny>) -> PyResult<Colorant> {
         .or_else(|_| obj.extract::<AnsiColor>().map(|c| c.into()))
         .or_else(|_| obj.extract::<EmbeddedRgb>().map(|c| c.into()))
         .or_else(|_| obj.extract::<GrayGradient>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<EightBitColor>().map(|c| c.into()))
         .or_else(|_| obj.extract::<crate::style::TrueColor>().map(|c| c.into()))
         .or_else(|_| obj.extract::<Color>().map(|c| c.into()))
 }

@@ -25,7 +25,7 @@ def test0() -> None:
 
 
 def test1() -> None:
-    print('Testing file "docs/src/colors/1970s.md", line 384, chapter "1970s Terminal Colors"',
+    print('Testing file "docs/src/colors/1970s.md", line 390, chapter "1970s Terminal Colors"',
         file=sys.stderr)
     
     from prettypretty.color import Color

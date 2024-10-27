@@ -262,7 +262,7 @@ def write_hires_slice(
 
     def emit_box(r: int, g: int, b: int) -> None:
         if eight_bit_only:
-            color = translator.to_closest_8bit(Color.from_24bit(r, g, b)).try_to_8bit(),
+            color = translator.to_closest_8bit(Color.from_24bit(r, g, b)).to_8bit(),
         else:
             color = r, g, b
 
