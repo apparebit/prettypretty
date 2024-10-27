@@ -7,7 +7,9 @@ use pyo3::prelude::*;
 use crate::core::{is_achromatic_chroma_hue, parse_x};
 
 use crate::error::{ColorFormatError, OutOfBoundsError};
-use crate::style::{AnsiColor, Colorant, EmbeddedRgb, Fidelity, GrayGradient, Layer};
+use crate::style::{
+    AnsiColor, Colorant, EightBitColor, EmbeddedRgb, Fidelity, GrayGradient, Layer,
+};
 use crate::{rgb, Bits, Color, ColorSpace, Float, OkVersion};
 
 // ====================================================================================================================
@@ -535,7 +537,7 @@ fn ansi_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 16] {
 fn eight_bit_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 256] {
     let mut coordinates: [[Float; 3]; 256] = [[0.0; 3]; 256];
     for index in 0..=15 {
-        coordinates[index] = *theme[index].to(space).as_ref()
+        coordinates[index] = *theme[index + 2].to(space).as_ref()
     }
     for index in 16..=231 {
         // Unwrap is safe b/c we are iterating over EmbeddedRgb's index range.
@@ -921,7 +923,7 @@ impl Translator {
     /// ```
     /// # use prettypretty::{assert_close_enough, Color, ColorSpace, Float, OkVersion};
     /// # use prettypretty::error::OutOfBoundsError;
-    /// # use prettypretty::style::{Colorant, EmbeddedRgb};
+    /// # use prettypretty::style::{EightBitColor, EmbeddedRgb};
     /// # use prettypretty::trans::{Translator, VGA_COLORS};
     /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
     ///
@@ -942,14 +944,14 @@ impl Translator {
     ///             let result = translator.to_closest_8bit(&color);
     ///             assert_eq!(
     ///                 result,
-    ///                 Colorant::Embedded(embedded)
+    ///                 EightBitColor::Embedded(embedded)
     ///             );
     ///         }
     ///     }
     /// }
     /// # Ok::<(), OutOfBoundsError>(())
     /// ```
-    pub fn to_closest_8bit(&self, color: &Color) -> Colorant {
+    pub fn to_closest_8bit(&self, color: &Color) -> EightBitColor {
         use crate::core::{delta_e_ok, find_closest};
 
         let color = color.to(self.space);
@@ -961,7 +963,7 @@ impl Translator {
         .map(|idx| idx as u8 + 16)
         .unwrap();
 
-        Colorant::from(index)
+        EightBitColor::from(index)
     }
 
     /// Find the 8-bit color that comes closest to the given color.
@@ -969,15 +971,28 @@ impl Translator {
     /// This method comparse *all* 8-bit colors including ANSI colors. Prefer to
     /// use [`Translator::to_closest_8bit`] instead, which produces better
     /// results when converting several graduated colors.
-    pub fn to_closest_8bit_with_ansi(&self, color: &Color) -> Colorant {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use prettypretty::{Color, ColorSpace, Float, OkVersion};
+    /// # use prettypretty::style::{AnsiColor, EightBitColor, EmbeddedRgb};
+    /// # use prettypretty::trans::{Translator, VGA_COLORS};
+    /// let bright_magenta = Color::from_24bit(255, 85, 255);
+    /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
+    /// let result = translator.to_closest_8bit_with_ansi(&bright_magenta);
+    /// assert_eq!(result, EightBitColor::Ansi(AnsiColor::BrightMagenta));
+    /// ```
+    /// <div class=color-swatch>
+    /// <div style="background-color: rgb(255, 85, 255);"></div>
+    /// </div>
+    pub fn to_closest_8bit_with_ansi(&self, color: &Color) -> EightBitColor {
         use crate::core::{delta_e_ok, find_closest};
 
         let color = color.to(self.space);
-        let index = find_closest(color.as_ref(), &self.eight_bit, delta_e_ok)
-            .map(|idx| idx as u8 + 16)
-            .unwrap();
+        let index = find_closest(color.as_ref(), &self.eight_bit, delta_e_ok).unwrap() as u8;
 
-        Colorant::from(index)
+        EightBitColor::from(index)
     }
 
     /// Cap the high-resolution color by the given fidelity.
@@ -990,7 +1005,7 @@ impl Translator {
         match fidelity {
             Fidelity::Plain | Fidelity::NoColor => None,
             Fidelity::Ansi => Some(Colorant::Ansi(self.to_ansi(color))),
-            Fidelity::EightBit => Some(self.to_closest_8bit(color)),
+            Fidelity::EightBit => Some(self.to_closest_8bit(color).into()),
             Fidelity::TwentyFourBit => Some(Colorant::Rgb(color.into())),
             Fidelity::HiRes => Some(Colorant::HiRes(color.clone())),
         }
@@ -1025,7 +1040,7 @@ impl Translator {
                     _ => return Some(colorant.clone()),
                 };
 
-                Some(self.to_closest_8bit(hires_color))
+                Some(self.to_closest_8bit(hires_color).into())
             }
             Fidelity::TwentyFourBit => {
                 if let Colorant::HiRes(ref hires_color) = colorant {

@@ -36,7 +36,6 @@ impl Layer {
     ///
     /// The offset is added to the SGR parameter values for foreground colors
     /// and therefore zero for [`Layer::Foreground`].
-    #[inline]
     pub fn offset(&self) -> u8 {
         match self {
             Self::Foreground => 0,
@@ -127,7 +126,6 @@ impl Fidelity {
 impl Fidelity {
     /// Determine whether this fidelity level suffices for rendering the
     /// colorant as is, without conversion.
-    #[inline]
     pub fn covers(&self, colorant: impl Into<Colorant>) -> bool {
         Fidelity::from(colorant.into()) <= *self
     }

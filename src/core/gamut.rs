@@ -449,7 +449,6 @@ impl Iterator for GamutTraversal {
 
 #[cfg(feature = "gamut")]
 impl std::iter::ExactSizeIterator for GamutTraversal {
-    #[inline]
     fn len(&self) -> usize {
         self.remaining
     }

@@ -347,7 +347,6 @@ impl EmbeddedRgb {
     ///
     /// This method improves integration with Python's runtime and hence is
     /// available in Python only.
-    #[inline]
     pub fn __len__(&self) -> usize {
         3
     }
@@ -369,7 +368,6 @@ impl EmbeddedRgb {
 
     /// Convert this embedded RGB color to its debug representation. <i
     /// class=python-only>Python only!</i>
-    #[inline]
     pub fn __repr__(&self) -> String {
         format!("EmbeddedRgb({}, {}, {})", self.0[0], self.0[1], self.0[2])
     }
@@ -410,7 +408,6 @@ impl TryFrom<u8> for EmbeddedRgb {
 }
 
 impl AsRef<[u8; 3]> for EmbeddedRgb {
-    #[inline]
     fn as_ref(&self) -> &[u8; 3] {
         &self.0
     }
@@ -424,14 +421,12 @@ impl std::ops::Index<usize> for EmbeddedRgb {
     /// # Panics
     ///
     /// This method panics if `2 < index`.
-    #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
     }
 }
 
 impl From<EmbeddedRgb> for u8 {
-    #[inline]
     fn from(value: EmbeddedRgb) -> u8 {
         let [r, g, b] = value.0;
         16 + 36 * r + 6 * g + b
@@ -454,14 +449,12 @@ impl From<EmbeddedRgb> for [u8; 3] {
 }
 
 impl From<&EmbeddedRgb> for Color {
-    #[inline]
     fn from(value: &EmbeddedRgb) -> Self {
         Color::from(TrueColor::from(*value))
     }
 }
 
 impl From<EmbeddedRgb> for Color {
-    #[inline]
     fn from(value: EmbeddedRgb) -> Self {
         Color::from(TrueColor::from(value))
     }
@@ -609,7 +602,6 @@ impl GrayGradient {
 
     /// Convert this gray gradient to its debug representation. <i
     /// class=python-only>Python only!</i>
-    #[inline]
     pub fn __repr__(&self) -> String {
         format!("GrayGradient({})", self.0)
     }
@@ -627,7 +619,6 @@ impl GrayGradient {
     }
 
     /// Access the gray level `0..=23`.
-    #[inline]
     pub const fn level(&self) -> u8 {
         self.0
     }
@@ -646,14 +637,12 @@ impl TryFrom<u8> for GrayGradient {
 }
 
 impl From<GrayGradient> for u8 {
-    #[inline]
     fn from(value: GrayGradient) -> u8 {
         232 + value.0
     }
 }
 
 impl From<GrayGradient> for [u8; 3] {
-    #[inline]
     fn from(value: GrayGradient) -> Self {
         let level = 8 + 10 * value.level();
         [level, level, level]
@@ -669,6 +658,100 @@ impl From<&GrayGradient> for Color {
 impl From<GrayGradient> for Color {
     fn from(value: GrayGradient) -> Self {
         Color::from(TrueColor::from(value))
+    }
+}
+
+// ====================================================================================================================
+// Eight-Bit Color
+// ====================================================================================================================
+
+/// An 8-bit color.
+///
+#[cfg_attr(
+    feature = "pyffi",
+    doc = "Since there is no Python feature equivalent to trait implementations in
+    Rust, the Python class for `EightBitColor` provides equivalent functionality
+    through [`EightBitColor::from_8bit`], [`EightBitColor::to_8bit`], and
+    [`EightBitColor::__repr__`]. These methods are not available in Rust."
+)]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, frozen, hash, module = "prettypretty.color.style")
+)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum EightBitColor {
+    Ansi(AnsiColor),
+    Embedded(EmbeddedRgb),
+    Gray(GrayGradient),
+}
+
+#[cfg(feature = "pyffi")]
+#[pymethods]
+impl EightBitColor {
+    /// Convert the byte into an 8-bit color.
+    #[staticmethod]
+    pub fn from_8bit(byte: u8) -> Self {
+        Self::from(byte)
+    }
+
+    /// Convert the 8-bit color to a byte.
+    pub fn to_8bit(&self) -> u8 {
+        u8::from(*self)
+    }
+
+    /// Get a debug representation for this 8-bit color.
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
+impl From<AnsiColor> for EightBitColor {
+    fn from(value: AnsiColor) -> Self {
+        Self::Ansi(value)
+    }
+}
+
+impl From<EmbeddedRgb> for EightBitColor {
+    fn from(value: EmbeddedRgb) -> Self {
+        Self::Embedded(value)
+    }
+}
+
+impl From<GrayGradient> for EightBitColor {
+    fn from(value: GrayGradient) -> Self {
+        Self::Gray(value)
+    }
+}
+
+impl From<u8> for EightBitColor {
+    fn from(value: u8) -> Self {
+        if (0..=15).contains(&value) {
+            Self::Ansi(AnsiColor::try_from(value).unwrap())
+        } else if (16..=231).contains(&value) {
+            Self::Embedded(EmbeddedRgb::try_from(value).unwrap())
+        } else {
+            Self::Gray(GrayGradient::try_from(value).unwrap())
+        }
+    }
+}
+
+impl From<EightBitColor> for u8 {
+    fn from(value: EightBitColor) -> Self {
+        match value {
+            EightBitColor::Ansi(c) => c.into(),
+            EightBitColor::Embedded(c) => c.into(),
+            EightBitColor::Gray(c) => c.into(),
+        }
+    }
+}
+
+impl From<EightBitColor> for Colorant {
+    fn from(value: EightBitColor) -> Self {
+        match value {
+            EightBitColor::Ansi(c) => Colorant::Ansi(c),
+            EightBitColor::Embedded(c) => Colorant::Embedded(c),
+            EightBitColor::Gray(c) => Colorant::Gray(c),
+        }
     }
 }
 
@@ -877,7 +960,6 @@ impl std::ops::Index<usize> for TrueColor {
     /// # Panics
     ///
     /// This method panics if `2 < index`.
-    #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
     }

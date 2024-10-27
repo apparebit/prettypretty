@@ -7,9 +7,9 @@
 //!     optional text [`format::Format`] with an optional foreground and
 //!     optional background [`Colorant`].
 //!   * A colorant can be any of the terminal-specific color formats defined by
-//!     this module, [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`], and
-//!     [`TrueColor`]. or high-resolution [`Color`](crate::Color), thus
-//!     maximizing expressivity and user choice.
+//!     this module, [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`],
+//!     [`EightBitColor`], and [`TrueColor`]. or high-resolution
+//!     [`Color`](crate::Color), thus maximizing expressivity and user choice.
 //!   * A terminal's level of support for ANSI escape codes and their various
 //!     color formats is its [`Fidelity`].
 //!
@@ -119,6 +119,6 @@ mod styling;
 #[cfg(feature = "pyffi")]
 pub(crate) use color::into_colorant;
 
-pub use color::{AnsiColor, Colorant, EmbeddedRgb, GrayGradient, TrueColor};
+pub use color::{AnsiColor, Colorant, EightBitColor, EmbeddedRgb, GrayGradient, TrueColor};
 pub use context::{Fidelity, Layer};
 pub use styling::{stylist, Style, Stylist};

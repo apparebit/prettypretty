@@ -9,7 +9,7 @@ use crate::spectrum::TabularDistribution;
 ///
 /// The values of standard illuminants are *not* unit-scaled. D50's maximum
 /// value is 103.003.
-pub const CIE_ILLUMINANT_D50: TabularDistribution = TabularDistribution::new(
+pub static CIE_ILLUMINANT_D50: TabularDistribution = TabularDistribution::new(
     "D50",
     300, //..=830
     39484.934570,
@@ -81,7 +81,7 @@ pub const CIE_ILLUMINANT_D50: TabularDistribution = TabularDistribution::new(
 ///
 /// The values of standard illuminants are *not* unit-scaled. D50's maximum
 /// value is 117.812.
-pub const CIE_ILLUMINANT_D65: TabularDistribution = TabularDistribution::new(
+pub static CIE_ILLUMINANT_D65: TabularDistribution = TabularDistribution::new(
     "D65",
     300, //..=830
     40852.20400,

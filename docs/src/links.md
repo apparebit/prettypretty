@@ -9,6 +9,7 @@
 [`Colorant::Default`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html#variant.Default
 [`ColorFormatError`]: https://apparebit.github.io/prettypretty/prettypretty/enum.ColorFormatError.html
 [`ColorSpace`]: https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html
+[`EightBitColor`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.EightBitColor.html
 [`EmbeddedRgb`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.EmbeddedRgb.html
 [`Fidelity`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Fidelity.html
 [`Fidelity::from_environment`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Fidelity.html#method.from_environment

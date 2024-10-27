@@ -5,7 +5,6 @@ use crate::core::{convert, normalize, ColorSpace};
 use crate::Float;
 
 /// Compute Delta-E for Oklab or Oklrab.
-#[inline]
 #[allow(non_snake_case)]
 pub(crate) fn delta_e_ok(coordinates1: &[Float; 3], coordinates2: &[Float; 3]) -> Float {
     let [L1, a1, b1] = coordinates1;

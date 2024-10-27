@@ -8,7 +8,6 @@ pub(crate) trait Environment {
     fn read_os(&self, key: &str) -> Option<std::ffi::OsString>;
 
     /// Try reading the environment variable as a string.
-    #[inline]
     fn read(&self, key: &str) -> Result<String, std::env::VarError> {
         match self.read_os(key) {
             Some(s) => s.into_string().map_err(std::env::VarError::NotUnicode),
@@ -17,13 +16,11 @@ pub(crate) trait Environment {
     }
 
     /// Determine whether the environment variable is defined.
-    #[inline]
     fn is_defined(&self, key: &str) -> bool {
         self.read_os(key).is_some()
     }
 
     /// Determine whether the environment variable is defined with a non-empty value.
-    #[inline]
     fn is_non_empty(&self, key: &str) -> bool {
         if let Some(value) = self.read_os(key) {
             !value.is_empty()
@@ -33,7 +30,6 @@ pub(crate) trait Environment {
     }
 
     /// Determine whether the environment variable has the given value.
-    #[inline]
     fn has_value(&self, key: &str, expected_value: &str) -> bool {
         if let Some(value) = self.read_os(key) {
             value == expected_value
@@ -47,7 +43,6 @@ pub(crate) trait Environment {
 pub(crate) struct Env();
 
 impl Environment for Env {
-    #[inline]
     fn read_os(&self, key: &str) -> Option<std::ffi::OsString> {
         std::env::var_os(key)
     }

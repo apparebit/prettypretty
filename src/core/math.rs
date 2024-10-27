@@ -38,7 +38,6 @@ pub(crate) mod sum {
     }
 
     impl Sum {
-        #[inline]
         pub fn new() -> Self {
             Self {
                 sum: 0.0,
@@ -46,7 +45,6 @@ pub(crate) mod sum {
             }
         }
 
-        #[inline]
         pub fn value(&self) -> Float {
             self.sum + self.compensation
         }
@@ -102,7 +100,6 @@ pub(crate) mod sum {
     }
 
     impl ThreeSum {
-        #[inline]
         pub fn new() -> Self {
             Self {
                 a: Sum::new(),

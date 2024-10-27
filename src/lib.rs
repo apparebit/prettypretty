@@ -43,7 +43,8 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     background [`Colorant`](style::Colorant)s. The latter maximizes
 //!     expressivity by combining the terminal-specific color formats
 //!     [`AnsiColor`](style::AnsiColor), [`EmbeddedRgb`](style::EmbeddedRgb),
-//!     [`GrayGradient`](style::GrayGradient), and
+//!     [`GrayGradient`](style::GrayGradient),
+//!     [`EightBitColor`](style::EightBitColor), and
 //!     [`TrueColor`](style::TrueColor) with high-resolution [`Color`].
 //!
 //!     **Using styles** is straight-forward:
@@ -304,21 +305,27 @@ fn register_modgamut(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modspectrum.add("__package__", modcolor_name)?;
     modspectrum.add(
         "CIE_ILLUMINANT_D50",
-        spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_D50)
+        spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_D50.clone())
             as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send>),
     )?;
     modspectrum.add(
         "CIE_ILLUMINANT_D65",
-        spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_D65)
+        spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_D65.clone())
             as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send>),
     )?;
     modspectrum.add(
         "CIE_ILLUMINANT_E",
-        spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_E)
+        spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_E.clone())
             as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send>),
     )?;
-    modspectrum.add("CIE_OBSERVER_2DEG_1931", spectrum::CIE_OBSERVER_2DEG_1931)?;
-    modspectrum.add("CIE_OBSERVER_10DEG_1964", spectrum::CIE_OBSERVER_10DEG_1964)?;
+    modspectrum.add(
+        "CIE_OBSERVER_2DEG_1931",
+        spectrum::CIE_OBSERVER_2DEG_1931.clone(),
+    )?;
+    modspectrum.add(
+        "CIE_OBSERVER_10DEG_1964",
+        spectrum::CIE_OBSERVER_10DEG_1964.clone(),
+    )?;
     modspectrum.add("ONE_NANOMETER", spectrum::ONE_NANOMETER)?;
     modspectrum.add_class::<spectrum::Illuminant>()?;
     modspectrum.add_class::<spectrum::IlluminatedObserver>()?;

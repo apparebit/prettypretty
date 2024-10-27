@@ -571,7 +571,6 @@ impl Color {
     /// <div style="background-color: oklab(0.35 0.11 -0.03)"></div>
     /// </div>
     #[cfg(not(feature = "pyffi"))]
-    #[inline]
     pub fn is_achromatic_threshold(&self, threshold: Float) -> Result<bool, Float> {
         if threshold.is_sign_negative() {
             Err(threshold)
@@ -622,7 +621,6 @@ impl Color {
     /// <div style="background-color: oklab(0.35 0.11 -0.03)"></div>
     /// </div>
     #[cfg(feature = "pyffi")]
-    #[inline]
     pub fn is_achromatic_threshold(&self, threshold: Float) -> PyResult<bool> {
         if threshold.is_sign_negative() {
             Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -1221,7 +1219,6 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: rgb(177 31 36);"></div>
     /// </div>
-    #[inline]
     pub fn srgb(r: impl Into<Float>, g: impl Into<Float>, b: impl Into<Float>) -> Self {
         Self::new(ColorSpace::Srgb, [r.into(), g.into(), b.into()])
     }
@@ -1239,7 +1236,6 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: color(display-p3 0 0.87 0.85);"></div>
     /// </div>
-    #[inline]
     pub fn p3(r: impl Into<Float>, g: impl Into<Float>, b: impl Into<Float>) -> Self {
         Self::new(ColorSpace::DisplayP3, [r.into(), g.into(), b.into()])
     }
@@ -1257,7 +1253,6 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklab(0.78 -0.1 -0.1);"></div>
     /// </div>
-    #[inline]
     pub fn oklab(l: impl Into<Float>, a: impl Into<Float>, b: impl Into<Float>) -> Self {
         Self::new(ColorSpace::Oklab, [l.into(), a.into(), b.into()])
     }
@@ -1279,7 +1274,6 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklab(0.5514232757779728 -0.1 -0.1);"></div>
     /// </div>
-    #[inline]
     pub fn oklrab(lr: impl Into<Float>, a: impl Into<Float>, b: impl Into<Float>) -> Self {
         Self::new(ColorSpace::Oklrab, [lr.into(), a.into(), b.into()])
     }
@@ -1297,7 +1291,6 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklch(0.59 0.1351 126);"></div>
     /// </div>
-    #[inline]
     pub fn oklch(l: impl Into<Float>, c: impl Into<Float>, h: impl Into<Float>) -> Self {
         Self::new(ColorSpace::Oklch, [l.into(), c.into(), h.into()])
     }
@@ -1322,7 +1315,6 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklch(0.647 0.1351 126);"></div>
     /// </div>
-    #[inline]
     pub fn oklrch(lr: impl Into<Float>, c: impl Into<Float>, h: impl Into<Float>) -> Self {
         Self::new(ColorSpace::Oklrch, [lr.into(), c.into(), h.into()])
     }
@@ -1368,7 +1360,6 @@ impl Color {
     /// <div style="background-color: color(srgb 1 0.5 0.5);"></div>
     /// <div style="background-color: color(srgb 0.5 1 0.6);"></div>
     /// </div>
-    #[inline]
     pub fn find_closest_ok<'c, C>(&self, candidates: C, version: OkVersion) -> Option<usize>
     where
         C: IntoIterator<Item = &'c Self>,
@@ -1505,7 +1496,6 @@ impl std::str::FromStr for Color {
     /// <div style="background-color: #011480;"></div>
     /// <div style="background-color: #ffdacc;"></div>
     /// </div>
-    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         parse(s).map(|(space, coordinates)| Self::new(space, coordinates))
     }
@@ -1528,7 +1518,6 @@ impl TryFrom<String> for Color {
 }
 
 impl AsRef<[Float; 3]> for Color {
-    #[inline]
     fn as_ref(&self) -> &[Float; 3] {
         &self.coordinates
     }
@@ -1696,7 +1685,6 @@ impl std::fmt::Display for Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklch(0.665 0 none);"></div>
     /// </div>
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         format(self.space, &self.coordinates, f)
     }

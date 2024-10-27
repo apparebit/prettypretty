@@ -10,10 +10,9 @@
         fact that the Rust compiler produces monomorphic code only. While correct, PyO3
         complicates matters significantly by not supporting trait methods, its
         `#[pymethods]` macro disallowing item-level macros, and its error checking
-        ignoring `#[cfg]` attributes. The impact is noticeable: Whereas the Rust-only
-        version of this module contains three implementations of
-        [`SpectralDistribution`]'s methods, enabling the `pyffi` feature adds three
-        more implementations."
+        ignoring `#[cfg]` attributes. The impact is noticeable: Whereas Rust code
+        might get by with four different implementations of [`SpectralDistribution`]'s
+        methods, Python integration necessitates another three."
 )]
 //!
 //! The [`SpectralDistribution`] trait defines an interface for mapping a fixed,
@@ -45,15 +44,11 @@
 //!
 #![cfg_attr(
     feature = "pyffi",
-    doc = "To play nice with PyO3 and Python, `Observer` and `Product` reimplement
-        all but one trait method in their `impl` blocks. `Illuminant` doesn't even
-        exist unless the `pyffi` feature is enabled. But it still manages to adds two
-        more implementations for most trait methods, one for the trait `impl` and one
-        in its own `impl` block. While that does clutter the module sources somewhat,
-        at least the methods' implementation was trivial. Each method simply forwards
-        to another implementation of the same trait. Thereby, `Illuminant` makes
-        two different trait implementations appear as the same type in Python and
-        hence acceptable as argument for a spectrum traversal."
+    doc = "To play nice with PyO3 and Python, `Observer` and `IlluminatedObserver`
+        reimplement all but one trait method in their `impl` blocks. `Illuminant`
+        does the same, but is only defined if the `pyffi` feature is enabled. It
+        makes two different trait implementations appear as the same type type in
+        Python and allows instances to be passed back to Rust."
 )]
 //!
 //! Using the above trait implementations, this module exports the following concrete
@@ -77,9 +72,9 @@
     feature = "pyffi",
     doc = "In Python, the constructor accepts `&Illuminant` and `&Observer`
         arguments only, which makes it monomorphic. While that is insufficient
-        for generally overcoming the prohibition against polymorphic anything,
+        for generally overcoming PyO3's prohibition against polymorphic anything,
         in this particular case it suffices because spectrum traversal's
-        constructors do not retain their input and instead keep the result of
+        constructors do not retain their inputs and instead keep the result of
         premultiplying the two spectral distributions. In other words, the rest
         of [`SpectrumTraversal`]'s implementation is strictly monomophic itself."
 )]
@@ -149,9 +144,11 @@ pub trait SpectralDistribution {
 
 /// An illuminant at nanometer resolution. <i class=python-only>Python only!</i>
 ///
-/// This struct exposes all functionality as methods for Python
-/// interoperability. But it doesn't actually implement the functionality of a
-/// spectral distribution and instead forwards all method invocations to a `dyn
+/// In addition to implementing the [`SpectralDistribution`] trait, this struct
+/// reimplements the trait's methods (other than `range`, which returns a
+/// standard library type that is not supported by PyO3) as well as `__len__`,
+/// `__getitem__`, and `__repr__` as regular methods for better Python
+/// integration. It forwards all invocations to a `dyn
 /// SpectralDistribution<Value=Float>`.
 #[cfg(feature = "pyffi")]
 #[pyclass(frozen, module = "prettypretty.color.trans")]
@@ -269,7 +266,7 @@ impl SpectralDistribution for Illuminant {
 // --------------------------------------------------------------------------------------------------------------------
 
 /// A table-driven spectral distribution over floating point values.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TabularDistribution {
     label: &'static str,
     start: usize,
@@ -325,6 +322,7 @@ impl SpectralDistribution for TabularDistribution {
 // --------------------------------------------------------------------------------------------------------------------
 
 /// A spectral distribution with a fixed floating point value.
+#[derive(Clone, Debug)]
 pub struct FixedDistribution {
     label: &'static str,
     start: usize,
@@ -391,7 +389,7 @@ impl SpectralDistribution for FixedDistribution {
     feature = "pyffi",
     pyclass(frozen, module = "prettypretty.color.spectrum")
 )]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Observer {
     label: &'static str,
     start: usize,
@@ -466,7 +464,6 @@ impl Observer {
 
     /// Get the number of entries. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
-    #[inline]
     pub fn __len__(&self) -> usize {
         self.data.len()
     }
@@ -486,7 +483,6 @@ impl Observer {
 
     /// Get a debug representation. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
-    #[inline]
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
     }
@@ -495,22 +491,18 @@ impl Observer {
 impl SpectralDistribution for Observer {
     type Value = [Float; 3];
 
-    #[inline]
     fn label(&self) -> String {
         self.label.to_string()
     }
 
-    #[inline]
     fn start(&self) -> usize {
         self.start
     }
 
-    #[inline]
     fn len(&self) -> usize {
         self.data.len()
     }
 
-    #[inline]
     fn at(&self, wavelength: usize) -> Option<Self::Value> {
         if self.start <= wavelength && wavelength < self.start + self.data.len() {
             Some(self.data[wavelength - self.start])
@@ -519,7 +511,6 @@ impl SpectralDistribution for Observer {
         }
     }
 
-    #[inline]
     fn checksum(&self) -> Self::Value {
         self.checksum
     }
@@ -640,7 +631,6 @@ impl IlluminatedObserver {
     }
 
     /// Get the premultiplied triple for the given wavelength.
-    #[inline]
     pub fn at(&self, wavelength: usize) -> Option<[Float; 3]> {
         if self.start <= wavelength && wavelength < self.start + self.data.len() {
             Some(self.data[wavelength - self.start])
@@ -697,7 +687,6 @@ impl IlluminatedObserver {
     /// Get this illuminated observer's number of values. <i
     /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
-    #[inline]
     pub fn __len__(&self) -> usize {
         self.data.len()
     }
@@ -718,7 +707,6 @@ impl IlluminatedObserver {
     /// Get a debug representation for this illuminated observer. <i
     /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
-    #[inline]
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
     }
@@ -727,22 +715,18 @@ impl IlluminatedObserver {
 impl SpectralDistribution for IlluminatedObserver {
     type Value = [Float; 3];
 
-    #[inline]
     fn label(&self) -> String {
         self.label.clone()
     }
 
-    #[inline]
     fn start(&self) -> usize {
         self.start
     }
 
-    #[inline]
     fn len(&self) -> usize {
         self.data.len()
     }
 
-    #[inline]
     fn at(&self, wavelength: usize) -> Option<Self::Value> {
         if self.start <= wavelength && wavelength < self.start + self.data.len() {
             Some(self.data[wavelength - self.start])
@@ -751,7 +735,6 @@ impl SpectralDistribution for IlluminatedObserver {
         }
     }
 
-    #[inline]
     fn checksum(&self) -> Self::Value {
         self.checksum
     }
@@ -879,6 +862,7 @@ impl SpectrumTraversal {
     }
 
     /// Get the total number of lines yielded by this spectrum traversal.
+    #[inline]
     pub fn line_count(&self) -> usize {
         Self::derive_line_count(self.data.len(), self.stride)
     }
@@ -989,7 +973,6 @@ impl Iterator for SpectrumTraversal {
 }
 
 impl std::iter::ExactSizeIterator for SpectrumTraversal {
-    #[inline]
     fn len(&self) -> usize {
         self.remaining
     }
@@ -1005,7 +988,7 @@ pub use crate::cie::CIE_OBSERVER_10DEG_1964;
 pub use crate::cie::CIE_OBSERVER_2DEG_1931;
 
 /// The CIE standard illuminant E at 1nm resolution.
-pub const CIE_ILLUMINANT_E: FixedDistribution =
+pub static CIE_ILLUMINANT_E: FixedDistribution =
     FixedDistribution::new("Illuminant E", 300, 531, 53_100.0, 100.0);
 
 // --------------------------------------------------------------------------------------------------------------------

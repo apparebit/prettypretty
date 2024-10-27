@@ -228,7 +228,6 @@ impl Iterator for AllAttributes {
 }
 
 impl ExactSizeIterator for AllAttributes {
-    #[inline]
     fn len(&self) -> usize {
         15 - self.0 as usize
     }
@@ -536,7 +535,6 @@ impl Iterator for AttributeIterator {
 }
 
 impl ExactSizeIterator for AttributeIterator {
-    #[inline]
     fn len(&self) -> usize {
         self.remaining as usize
     }

@@ -6,7 +6,7 @@ use crate::spectrum::Observer;
 /// [CIE](https://doi.org/10.25039/CIE.DS.sqksu2n5), covers the spectrum from
 /// 360 to 830 nanometers (both inclusive), and is licensed under [CC BY-SA
 /// 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
-pub const CIE_OBSERVER_10DEG_1964: Observer = Observer::new(
+pub static CIE_OBSERVER_10DEG_1964: Observer = Observer::new(
     "10º (1964)",
     360, // ..830
     [116.648519508908, 116.661877102312, 116.673980514647],
