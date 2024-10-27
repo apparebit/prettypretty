@@ -148,12 +148,14 @@ class TerminalContextManager(AbstractContextManager['Terminal']):
     def _cbreak_mode(self) -> 'Iterator[Terminal]':
         fileno = self._terminal._input_fileno  # type: ignore[reportPrivateUsage]
         saved_mode = termios.tcgetattr(fileno)
-        if not self._terminal.is_cbreak_mode(saved_mode):
+        change_mode = not self._terminal.is_cbreak_mode(saved_mode)
+        if change_mode:
             tty.setcbreak(fileno)
         try:
             yield self._terminal
         finally:
-            termios.tcsetattr(fileno, termios.TCSAFLUSH, saved_mode)
+            if change_mode:
+                termios.tcsetattr(fileno, termios.TCSAFLUSH, saved_mode)
 
     def cbreak_mode(self) -> Self:
         """
@@ -162,9 +164,8 @@ class TerminalContextManager(AbstractContextManager['Terminal']):
         If the terminal is not yet in cbreak mode, the context manager sets
         cbreak mode upon entry and restores the previous mode upon exit. If the
         terminal is in cbreak mode already, the context manager does not modify
-        the terminal mode, but it still restores the previous mode upon exit.
-        Mode changes only take effect after all queued output has been written
-        but queued input is discarded.
+        the terminal mode. Mode changes only take effect after all queued output
+        has been written but queued input is discarded.
         """
         self._check_not_active()
         self._updates.append(lambda: self._cbreak_mode())
