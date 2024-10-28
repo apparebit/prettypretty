@@ -15,8 +15,10 @@ rust-version = "1.79"
 
 
 [dependencies]
-pyo3 = { version = "0.22.0", features = ["extension-module", "abi3", "abi3-py311"], optional = true }
+pyo3 = { version = "0.22.5", features = ["extension-module", "abi3", "abi3-py311"], optional = true }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.161"
 
 [features]
 default = ["f64"]
@@ -28,6 +30,11 @@ pyffi = ["dep:pyo3"]
 [lib]
 name = "prettypretty"
 crate-type = ["lib", "cdylib"]
+path = "src/lib.rs"
+
+[[bin]]
+name = "prettyio"
+path = "src/prettyio.rs"
 
 
 [package.metadata.docs.rs]

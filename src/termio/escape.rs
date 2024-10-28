@@ -263,7 +263,6 @@ impl Action {
     ///
     /// If this action is not a dispatch, this method returns `None`. Otherwise,
     /// it returns a control other than [`Control::BEL`] and [`Control::ST`].
-    #[inline]
     pub fn control(&self) -> Option<Control> {
         use Action::*;
         use Control::*;
@@ -887,16 +886,17 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// </div>
 /// <br>
 ///
-/// Much better. I think. But there's so much code now. And a lot of it seems to
-/// belong into `VtScanner`. After all, a parser of escape sequences shouldn't
-/// struggle to count the number of bytes belonging to them. Furthermore, it
-/// shouldn't have difficulties mapping corner cases to appropriate error kinds.
+/// Much better. I think. There is too much code now. And a lot of it seems to
+/// belong to `VtScanner`'s implementation. After all, a parser of escape
+/// sequences should be able to count the number of bytes belonging to one and
+/// also tell the first byte apart from the following bytes. Similarly, it
+/// should be able to map various predicates to errors.
 ///
 ///
 /// # Example #3: Without Boilerplate
 ///
-/// After integrating the boilerplate code with `VtScanner`, the example
-/// becomes:
+/// After integrating that functionality with `VtScanner` and adding a few more
+/// methods, the example becomes:
 ///
 /// ```
 /// # use std::io::{BufRead, Error, ErrorKind};
@@ -940,38 +940,29 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// </div>
 /// <br>
 ///
-/// 🎉 Now we are talking!
-///
 /// [`VtScanner::processed`] returns the number of bytes processed so far while
-/// recognizing an escape sequence. [`VtScanner::did_finish`] return `true` if
+/// recognizing an escape sequence. [`VtScanner::did_finish`] returns `true` if
 /// either [`VtScanner::did_abort`] or [`VtScanner::did_complete`] returns
 /// `true`. Finally, [`VtScanner::finished_bytes`] and
-/// [`VtScanner::finished_str`] return an escape sequence's payload as byte or
+/// [`VtScanner::finished_str`] return an escape sequence's payload as a byte or
 /// string slice—or an appropriate I/O error.
 ///
-/// As it turns out, prettypretty's Rust version can do one better: The generic
-/// [`VtScanner::scan_bytes`] and [`VtScanner::scan_str`] methods implement the
-/// full loops. However, because they are generic methods, they also aren't
-/// available in Python.
+/// Prettypretty's Rust version can do one better: The generic
+/// [`VtScanner::scan_bytes`] and [`VtScanner::scan_str`] methods encapsulate
+/// the above double loop in its entirety. However, because they are generic
+/// methods, they cannot be exposed to Python.
+///
+/// Still, concise and correct is good! 🎉
+///
+/// Ahem...
 ///
 ///
-/// # Another Corner Case
+/// # One More Thing
 ///
-/// The third version is much improved, though it still isn't ready for
-/// production use. There is another corner case we haven't addressed. However,
-/// this corner case has nothing to do with how we use `VtScanner`. Instead,
-/// this corner case stems from the example using synchronous I/O. More
-/// specifically, the problematic expression is the `input.fill_buf()` just
-/// before the second loop in the above example code. It works, as long as at
-/// least one byte is available for filling into the buffer. However, if no byte
-/// is available, the method invocations blocks, waiting for more bytes to
-/// become available. That may take a very very llloooonnnnngggggg time,
-/// including practical infinity.
-///
-/// The solution isn't necessarily switching to asynchronous I/O. A timeout
-/// would suffice. A simple way of implementing that is to spawn a dedicated
-/// reader thread that uses `std::sync::mpsc::sync_channel` (which does support
-/// timeouts) to communicate with the main thread.
+/// As discussed in the documentation for the [`termio`](crate::termio) module,
+/// reading terminal input requires that the terminal has been correctly
+/// configured and that reads eventually time out. As is, that won't happen with
+/// for the `input.fill_buf()` just before the second loop.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.termio"))]
 #[derive(Debug)]
 pub struct VtScanner {
@@ -1010,7 +1001,6 @@ impl VtScanner {
 }
 
 impl Default for VtScanner {
-    #[inline]
     fn default() -> Self {
         Self::with_capacity(Self::DEFAULT_CAPACITY)
     }
@@ -1045,7 +1035,6 @@ impl VtScanner {
     /// Unlike `Vec<T>`, a scanner's capacity does not change after creation.
     /// This is a security precaution, since the bytes processed by this type
     /// may originate from untrusted users.
-    #[inline]
     pub fn capacity(&self) -> usize {
         self.buffer.capacity()
     }
