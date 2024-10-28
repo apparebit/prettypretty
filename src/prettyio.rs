@@ -1,9 +1,11 @@
-#![cfg(target_family = "unix")]
-
+#[cfg(target_family = "unix")]
 use prettypretty::termio::{render, Terminal, TERMINAL_TIMEOUT};
+#[cfg(target_family = "unix")]
 use prettypretty::trans::ThemeEntry;
+#[cfg(target_family = "unix")]
 use std::io::{Read, Result, Write};
 
+#[cfg(target_family = "unix")]
 pub fn main() -> Result<()> {
     let terminal = Terminal::open()?.cbreak_mode(TERMINAL_TIMEOUT)?;
     let mut reader = terminal.reader();
@@ -63,4 +65,10 @@ pub fn main() -> Result<()> {
     println!("\n\nbye bye!");
 
     Ok(())
+}
+
+
+#[cfg(not(target_family = "unix"))]
+pub fn main() {
+    println!("Sorry, but this utility only compiles and runs on Unix-like systems!");
 }
