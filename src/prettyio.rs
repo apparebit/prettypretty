@@ -67,7 +67,6 @@ pub fn main() -> Result<()> {
     Ok(())
 }
 
-
 #[cfg(not(target_family = "unix"))]
 pub fn main() {
     println!("Sorry, but this utility only compiles and runs on Unix-like systems!");
