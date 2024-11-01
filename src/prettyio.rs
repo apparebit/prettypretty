@@ -10,34 +10,27 @@ pub fn main() -> Result<()> {
     let mut tty = terminal().access()?;
     let mut entries = ThemeEntry::all();
 
-    write!(
-        tty,
-        "press ‹t› to query rotating theme color, ‹q› to quit\r\n\r\n"
-    )?;
-    tty.flush()?;
+    tty.print("press ‹t› to query rotating theme color, ‹q› to quit\r\n\r\n")?;
 
     let mut iterations = 0;
     let mut line = 0;
     loop {
         iterations += 1;
         if 1000 <= iterations {
-            write!(tty, "✋")?;
-            tty.flush()?;
+            tty.print("✋")?;
             break;
         }
 
         if 70 < line {
-            write!(tty, "\r\n")?;
+            tty.print("\r\n")?;
             line = 0;
-            tty.flush()?;
         }
 
         let mut buffer = [0; 32];
         let count = tty.read(&mut buffer)?;
         if count == 0 {
-            write!(tty, "◦")?;
+            tty.print("◦")?;
             line += 1;
-            tty.flush()?;
             continue;
         }
 
@@ -63,9 +56,8 @@ pub fn main() -> Result<()> {
             }
         }
 
-        write!(tty, "〉")?;
+        tty.print("〉")?;
         line += 2;
-        tty.flush()?;
 
         if terminate {
             break;

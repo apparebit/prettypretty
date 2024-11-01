@@ -1,3 +1,4 @@
+use std::convert::AsRef;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, BufWriter, ErrorKind, IoSlice, IoSliceMut, Read, Result, Write};
 use std::num::NonZeroU8;
@@ -285,8 +286,8 @@ impl TerminalAccess<'_> {
     }
 
     /// Write the entire string slice and flush thereafter.
-    pub fn print(&mut self, s: &str) -> Result<()> {
-        self.write_all(s.as_bytes())?;
+    pub fn print(&mut self, s: impl AsRef<str>) -> Result<()> {
+        self.write_all(s.as_ref().as_bytes())?;
         self.flush()
     }
 }
