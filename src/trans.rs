@@ -41,8 +41,22 @@ impl Theme {
     }
 
     /// Create a new color theme with the given colors.
-    pub const fn with_colors(inner: [Color; 18]) -> Self {
-        Self { inner }
+    pub const fn with_array(colors: [Color; 18]) -> Self {
+        Self { inner: colors }
+    }
+
+    /// Create a new color theme with the given colors.
+    ///
+    /// The given slice must have length 18. Otherwise, this method returns
+    /// `None`.
+    pub fn with_slice(colors: &[Color]) -> Option<Self> {
+        if colors.len() != 18 {
+            None
+        } else {
+            let mut inner = <[Color; 18]>::default();
+            inner.clone_from_slice(colors);
+            Some(Self { inner })
+        }
     }
 
     /// Query the terminal for the current color theme.
@@ -88,8 +102,8 @@ impl Theme {
 
     /// Create a new color theme with the given colors.
     #[new]
-    pub const fn py_with_colors(inner: [Color; 18]) -> Self {
-        Self::with_colors(inner)
+    pub const fn py_with_array(inner: [Color; 18]) -> Self {
+        Self::with_array(inner)
     }
 
     /// Get the color for the given theme entry.
@@ -400,7 +414,7 @@ impl ThemeEntryIterator {
 
 /// The color theme with the 2+16 colors of [VGA text
 /// mode](https://en.wikipedia.org/wiki/ANSI_escape_code#3-bit_and_4-bit).
-pub const VGA_COLORS: Theme = Theme::with_colors([
+pub const VGA_COLORS: Theme = Theme::with_array([
     rgb!(0, 0, 0),
     rgb!(255, 255, 255),
     rgb!(0, 0, 0),
