@@ -280,8 +280,7 @@ impl Stylist {
 
 // ================================================================================================
 
-/// A terminal style combines an appearance reset and text format with
-/// foreground and background colors.
+/// A terminal style: Reset, text format, and foreground/background colors.
 ///
 /// All four components are optional. In fact, use of the appearance reset
 /// should be exceptional.

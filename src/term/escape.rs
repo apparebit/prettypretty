@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 
 // ================================================================================================
 
-/// Controls used in ANSI escape sequences.
+/// A control when scanning ANSI escape sequences with [`VtScanner`].
 ///
 /// Variants other than [`Control::BEL`], [`Control::ESC`], and [`Control::ST`]
 /// represent controls that start a ANSI escape sequence, with [`Control::CSI`]
@@ -127,7 +127,7 @@ impl std::fmt::Display for Control {
 
 // ------------------------------------------------------------------------------------------------
 
-/// An external action when processing terminal I/O.
+/// An external action when scanning terminal I/O with [`VtScanner`].
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, module = "prettypretty.color.term")

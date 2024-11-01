@@ -16,13 +16,16 @@ use crate::{rgb, Bits, Color, ColorSpace, Float, OkVersion};
 // Color Themes
 // ====================================================================================================================
 
-/// An 18-entry slice with the color values for default and ANSI colors. <i
-/// class=rust-only>Rust only!</i>
+/// A color theme.
 ///
-/// By now, a color theme is just an array with 18 colors. The implementation
-/// started out as a more elaborate and encapsulated struct but ended up being
-/// used just like a slice or vector. So, here we are.
-///
+/// A color theme is a container with 18 colors, one each for the default
+/// foreground and background colors as well as the 16 ANSI colors. Not
+/// surprisingly, the internal representation is an array with 18 colors. It
+/// even is accessible through [`AsRef<[Color]> for
+/// Theme`](struct.Theme.html#impl-AsRef%3C%5BColor%5D%3E-for-Theme), albeit
+/// Rust-only and read-only. The primary reason for encapsulating the array
+/// thusly is to force the use of semantic index values, i.e., [`ThemeEntry`],
+/// [`Layer`](crate::style::Layer), or [`AnsiColor`](crate::style::AnsiColor).
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.trans"))]
 #[derive(Clone, Debug)]
 pub struct Theme {
@@ -30,14 +33,14 @@ pub struct Theme {
 }
 
 impl Theme {
-    /// Create a new theme with the default color.
+    /// Create a new color theme with 18 times the default color.
     pub fn new() -> Self {
         Self {
             inner: <[Color; 18]>::default(),
         }
     }
 
-    /// Create a new theme with the given colors.
+    /// Create a new color theme with the given colors.
     pub const fn with_colors(inner: [Color; 18]) -> Self {
         Self { inner }
     }

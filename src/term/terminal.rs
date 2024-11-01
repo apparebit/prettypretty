@@ -77,7 +77,7 @@ impl Drop for TerminalState {
 
 // ------------------------------------------------------------------------------------------------
 
-/// Access the terminal.
+/// Access the controlling terminal.
 pub fn terminal() -> Terminal {
     static TERMINAL: OnceLock<Mutex<Option<TerminalState>>> = OnceLock::new();
     Terminal {
@@ -85,7 +85,7 @@ pub fn terminal() -> Terminal {
     }
 }
 
-/// The terminal.
+/// The controlling terminal.
 ///
 /// This struct multiplexes access to I/O with the terminal device. The main use
 /// cases for direct terminal I/O are reading key presses as they are typed and
@@ -250,7 +250,7 @@ enum OnDrop {
     Disconnect,
 }
 
-/// An object providing exclusive access to terminal I/O.
+/// Exclusive access to terminal I/O.
 ///
 /// This struct holds the mutex guaranteeing exclusive access for the duration
 /// of its lifetime `'a`.

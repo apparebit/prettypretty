@@ -1,6 +1,6 @@
 use std::io::{Result, Write};
 
-/// Render the given byte with the given writer.
+/// Utility for rendering bytes as human-readable text.
 ///
 /// If the byte is a printable ASCII character, this function renders it as
 /// such. Otherwise, it renders angle quotes with a mnemonic name, such as

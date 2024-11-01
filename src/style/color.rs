@@ -762,7 +762,7 @@ impl From<GrayGradient> for Color {
 // Eight-Bit Color
 // ====================================================================================================================
 
-/// An 8-bit color.
+/// An 8-bit color wrapping an [`AnsiColor`], [`EmbeddedRgb`], or [`GrayGradient`].
 ///
 #[cfg_attr(
     feature = "pyffi",
@@ -1122,7 +1122,7 @@ impl core::fmt::Display for TrueColor {
 // Colorant
 // ====================================================================================================================
 
-/// A colorant for wrapping all color representations.
+/// A colorant combines all of prettypretty's color representations.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, module = "prettypretty.color.style")

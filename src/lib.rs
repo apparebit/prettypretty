@@ -116,7 +116,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
     one of the two languages are flagged as <i
     class=python-only>Python only!</i> or <i class=rust-only>Rust only!</i>.
     Items only available with the `term` feature are flagged as
-    <i class=term-only>Terminal only!</i> and those available with the
+    <i class=term-only>Term only!</i> and those available with the
     `gamut` feature as <i class=gamut-only>Gamut only!</i>."
 )]
 //!

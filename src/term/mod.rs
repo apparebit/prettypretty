@@ -1,5 +1,5 @@
 //! Optional utility module for terminal integration. <i
-//! class=term-only>Terminal I/O only!</i>
+//! class=term-only>Term only!</i>
 //!
 //! Integrating terminal I/O is trivial, as long as an application does not need
 //! to read terminal input: The application simply writes text and ANSI escape
