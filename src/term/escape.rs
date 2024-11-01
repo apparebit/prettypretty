@@ -825,9 +825,9 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 ///     // Track the number of consumed bytes.
 ///     let mut count = 0;
 ///     let bytes = input.fill_buf()?;
-///     // Check for EOF.
+///     // Check for timeout (which looks just like EOF).
 ///     if bytes.is_empty() {
-///         return Err(ErrorKind::UnexpectedEof.into());
+///         return Err(ErrorKind::TimedOut.into());
 ///     }
 ///
 ///     // Since bytes is the result of input.fill_buf(), it must borrow
@@ -911,7 +911,7 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// let response = 'colorful: loop {
 ///     let bytes = input.fill_buf()?;
 ///     if bytes.is_empty() {
-///         return Err(ErrorKind::UnexpectedEof.into());
+///         return Err(ErrorKind::TimedOut.into());
 ///     }
 ///
 ///     let filled = bytes.len();
@@ -962,7 +962,8 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// As discussed in the documentation for the [`term`](crate::term) module,
 /// reading terminal input requires that the terminal has been correctly
 /// configured and that reads eventually time out. As is, that won't happen with
-/// for the `input.fill_buf()` just before the second loop.
+/// the `input.fill_buf()` expression just before the second loop—unless the
+/// underlying terminal has been configured to time out.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.term"))]
 #[derive(Debug)]
 pub struct VtScanner {
@@ -1297,7 +1298,7 @@ impl VtScanner {
             // Make sure lifetime of bytes ends before consume().
             let bytes = reader.fill_buf()?;
             if bytes.is_empty() {
-                return Err(ErrorKind::UnexpectedEof.into());
+                return Err(ErrorKind::TimedOut.into());
             }
 
             let filled = bytes.len();
