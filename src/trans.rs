@@ -521,21 +521,21 @@ impl HueLightnessTable {
     /// This associated function returns `None` if the theme colors violate any
     /// of the invariants.
     fn new(theme: &Theme) -> Option<HueLightnessTable> {
+        use AnsiColor::*;
+
         // Prep the grays
         let mut grays = Vec::with_capacity(4);
-        for index in [0_usize, 7, 8, 15] {
-            let index_color = AnsiColor::try_from(index as u8).unwrap();
-            grays.push(GrayEntry::new(index_color, &theme[index_color])?);
+        for index in [Black, White, BrightBlack, BrightWhite] {
+            grays.push(GrayEntry::new(index, &theme[index])?);
         }
         grays.sort_by_key(|entry| entry.key());
 
         // Prep the non-grays in hue order: red, yellow, green, cyan, blue, magenta.
         let mut colors = Vec::with_capacity(12);
-        for index in [1_usize, 3, 2, 6, 4, 5] {
-            let index_color = AnsiColor::try_from(index as u8).unwrap();
-            let regular = ColorEntry::new(index_color, &theme[index_color])?;
-            let index_color = AnsiColor::try_from(index as u8 + 8).unwrap();
-            let bright = ColorEntry::new(index_color, &theme[index_color])?;
+        for index in [Red, Yellow, Green, Cyan, Blue, Magenta] {
+            let regular = ColorEntry::new(index, &theme[index])?;
+            let index = index.to_bright();
+            let bright = ColorEntry::new(index, &theme[index])?;
 
             // Order each color pair by hue
             if regular.h <= bright.h {
@@ -562,7 +562,7 @@ impl HueLightnessTable {
             colors.rotate_left(min_index);
         }
 
-        // We added the each regular/bright pair by smaller hue first. So if
+        // We added each regular/bright pair by smaller hue first. So if
         // pairs are in standard order, all hues are sorted as well.
         min_hue = -1.0;
         for entry in colors.iter() {
