@@ -1,5 +1,5 @@
 #[cfg(target_family = "unix")]
-use prettypretty::termio::{render, Terminal, TERMINAL_TIMEOUT};
+use prettypretty::term::{render, terminal};
 #[cfg(target_family = "unix")]
 use prettypretty::trans::ThemeEntry;
 #[cfg(target_family = "unix")]
@@ -7,37 +7,38 @@ use std::io::{Read, Result, Write};
 
 #[cfg(target_family = "unix")]
 pub fn main() -> Result<()> {
-    let terminal = Terminal::open()?.cbreak_mode(TERMINAL_TIMEOUT)?;
-    let mut reader = terminal.reader();
-    let mut writer = terminal.writer();
+    let mut tty = terminal().access()?;
     let mut entries = ThemeEntry::all();
 
     write!(
-        writer,
+        tty,
         "press ‹t› to query rotating theme color, ‹q› to quit\r\n\r\n"
     )?;
+    tty.flush()?;
 
     let mut iterations = 0;
     loop {
         iterations += 1;
         if 1000 <= iterations {
-            write!(writer, "✋")?;
+            write!(tty, "✋")?;
+            tty.flush()?;
             break;
         }
 
         let mut buffer = [0; 32];
-        let count = reader.read(&mut buffer)?;
+        let count = tty.read(&mut buffer)?;
         if count == 0 {
-            write!(writer, "◦")?;
+            write!(tty, "◦")?;
+            tty.flush()?;
             continue;
         }
 
-        write!(writer, "〈")?;
+        write!(tty, "〈")?;
         let mut terminate = false;
         let mut query = None;
 
         for b in buffer.iter().take(count) {
-            render(*b, &mut writer)?;
+            render(*b, &mut tty)?;
 
             if *b == b'q' {
                 terminate = true;
@@ -52,16 +53,18 @@ pub fn main() -> Result<()> {
             }
         }
 
-        write!(writer, "〉")?;
+        write!(tty, "〉")?;
+        tty.flush()?;
 
         if terminate {
             break;
         } else if let Some(entry) = query {
-            write!(writer, "{}", entry)?;
+            write!(tty, "{}", entry)?;
+            tty.flush()?;
         }
     }
 
-    terminal.restore()?;
+    drop(tty);
     println!("\n\nbye bye!");
 
     Ok(())
