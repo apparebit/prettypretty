@@ -188,7 +188,7 @@ The example code below illustrates the use of each major entry point besides
 # use prettypretty::trans::{Translator, VGA_COLORS};
 # use prettypretty::error::ColorFormatError;
 # use std::str::FromStr;
-let red = &VGA_COLORS[AnsiColor::BrightRed as usize + 2];
+let red = &VGA_COLORS[AnsiColor::BrightRed];
 assert_eq!(red, &Color::srgb(1.0, 0.333333333333333, 0.333333333333333));
 
 let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
@@ -216,8 +216,8 @@ The Python version is a close match:
 ~from prettypretty.color import Color, OkVersion
 ~from prettypretty.color.style import AnsiColor, Colorant, EmbeddedRgb
 ~from prettypretty.color.style import Fidelity, TrueColor
-~from prettypretty.color.trans import Translator, VGA_COLORS
-red = VGA_COLORS[AnsiColor.BrightRed.to_8bit() + 2]
+~from prettypretty.color.trans import ThemeEntry, Translator, VGA_COLORS
+red = VGA_COLORS[ThemeEntry.Ansi(AnsiColor.BrightRed)]
 assert red == Color.srgb(1.0, 0.333333333333333, 0.333333333333333)
 
 translator = Translator(OkVersion.Revised, VGA_COLORS)

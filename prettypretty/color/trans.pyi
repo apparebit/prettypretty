@@ -1,12 +1,9 @@
-from collections.abc import Sequence
 from typing import Self
 
 from . import Color, OkVersion
 from .style import (
     AnsiColor, Colorant, EightBitColor, EmbeddedRgb, Fidelity, GrayGradient, Layer, TrueColor
 )
-
-VGA_COLORS: list[Color] =  ...
 
 
 class ThemeEntry_DefaultForeground(ThemeEntry):
@@ -55,9 +52,20 @@ class ThemeEntryIterator:
     def __next__(self) -> ThemeEntry: ...
 
 
+class Theme:
+    """A color theme."""
+    def __new__(cls, colors: list[Color]) -> Self: ...
+    def __getitem__(self, index: ThemeEntry) -> Color: ...
+    def __setitem__(self, index: ThemeEntry, color: Color) -> Color: ...
+    def __repr__(self) -> str: ...
+
+
+VGA_COLORS: Theme =  ...
+
+
 class Translator:
     """A class for translating between terminal and high-resolution colors."""
-    def __new__(cls, version: OkVersion, theme_colors: Sequence[Color]) -> Self: ...
+    def __new__(cls, version: OkVersion, theme: Theme) -> Self: ...
     def __repr__(self) -> str: ...
 
     # Interrogate the color theme

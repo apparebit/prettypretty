@@ -6,14 +6,14 @@ to meaningful color values.
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from .color import Color, OkVersion
-from .color.trans import Translator, VGA_COLORS # pyright: ignore [reportMissingModuleSource]
+from .color import OkVersion
+from .color.trans import Theme, Translator, VGA_COLORS # pyright: ignore [reportMissingModuleSource]
 
 
 _current_translator: list[Translator] = [Translator(OkVersion.Revised, VGA_COLORS)]
 
 @contextmanager
-def new_theme(theme_colors: list[Color]) -> Iterator[Translator]:
+def new_theme(theme_colors: Theme) -> Iterator[Translator]:
     """
     Create a new context manager to make the theme colors the current theme
     colors. This function expects exactly 18 colors.

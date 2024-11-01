@@ -22,7 +22,112 @@ use crate::{rgb, Bits, Color, ColorSpace, Float, OkVersion};
 /// By now, a color theme is just an array with 18 colors. The implementation
 /// started out as a more elaborate and encapsulated struct but ended up being
 /// used just like a slice or vector. So, here we are.
-pub type Theme = [Color; 18];
+///
+#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.trans"))]
+#[derive(Clone, Debug)]
+pub struct Theme {
+    inner: [Color; 18],
+}
+
+impl Theme {
+    /// Create a new theme with the default color.
+    pub fn new() -> Self {
+        Self {
+            inner: <[Color; 18]>::default(),
+        }
+    }
+
+    /// Create a new theme with the given colors.
+    #[cfg(not(feature = "pyffi"))]
+    pub const fn with_colors(inner: [Color; 18]) -> Self {
+        Self { inner }
+    }
+}
+
+#[cfg(feature = "pyffi")]
+#[pymethods]
+impl Theme {
+    /// Create a new color theme with the given colors.
+    #[new]
+    pub const fn with_colors(inner: [Color; 18]) -> Self {
+        Self { inner }
+    }
+
+    /// Get the color for the given theme entry.
+    pub fn __getitem__(&self, index: ThemeEntry) -> Color {
+        self[index].clone()
+    }
+
+    /// Set the color for the given theme entry.
+    pub fn __setitem__(&mut self, index: ThemeEntry, value: Color) {
+        self[index] = value;
+    }
+
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
+impl Default for Theme {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AsRef<[Color]> for Theme {
+    fn as_ref(&self) -> &[Color] {
+        &self.inner
+    }
+}
+
+impl std::ops::Index<ThemeEntry> for Theme {
+    type Output = Color;
+
+    fn index(&self, index: ThemeEntry) -> &Self::Output {
+        match index {
+            ThemeEntry::DefaultForeground() => &self.inner[0],
+            ThemeEntry::DefaultBackground() => &self.inner[1],
+            ThemeEntry::Ansi(color) => &self.inner[2 + color as usize],
+        }
+    }
+}
+
+impl std::ops::IndexMut<ThemeEntry> for Theme {
+    fn index_mut(&mut self, index: ThemeEntry) -> &mut Self::Output {
+        match index {
+            ThemeEntry::DefaultForeground() => &mut self.inner[0],
+            ThemeEntry::DefaultBackground() => &mut self.inner[1],
+            ThemeEntry::Ansi(color) => &mut self.inner[2 + color as usize],
+        }
+    }
+}
+
+impl std::ops::Index<AnsiColor> for Theme {
+    type Output = Color;
+
+    fn index(&self, index: AnsiColor) -> &Self::Output {
+        &self.inner[2 + index as usize]
+    }
+}
+
+impl std::ops::IndexMut<AnsiColor> for Theme {
+    fn index_mut(&mut self, index: AnsiColor) -> &mut Self::Output {
+        &mut self.inner[2 + index as usize]
+    }
+}
+
+impl std::ops::Index<Layer> for Theme {
+    type Output = Color;
+
+    fn index(&self, index: Layer) -> &Self::Output {
+        match index {
+            Layer::Foreground => &self.inner[0],
+            Layer::Background => &self.inner[1],
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 
 /// The entries of a color theme.
 ///
@@ -168,7 +273,7 @@ impl std::fmt::Display for ThemeEntry {
     }
 }
 
-/// A helper for iterating over the slot names of theme entries.
+/// A helper for iterating over theme entries.
 ///
 /// This iterator is fused, i.e., after returning `None` once, it will keep
 /// returning `None`. This iterator also is exact, i.e., its `size_hint()`
@@ -236,7 +341,7 @@ impl ThemeEntryIterator {
 
 /// The color theme with the 2+16 colors of [VGA text
 /// mode](https://en.wikipedia.org/wiki/ANSI_escape_code#3-bit_and_4-bit).
-pub const VGA_COLORS: Theme = [
+pub const VGA_COLORS: Theme = Theme::with_colors([
     rgb!(0, 0, 0),
     rgb!(255, 255, 255),
     rgb!(0, 0, 0),
@@ -255,7 +360,7 @@ pub const VGA_COLORS: Theme = [
     rgb!(255, 85, 255),
     rgb!(85, 255, 255),
     rgb!(255, 255, 255),
-];
+]);
 
 // ====================================================================================================================
 // Hue and Lightness Table
@@ -318,7 +423,7 @@ impl ColorEntry {
 
     /// Get the 3-bit base color.
     fn base(&self) -> AnsiColor {
-        self.spec.to_3bit()
+        self.spec.to_base()
     }
 }
 
@@ -360,22 +465,18 @@ impl HueLightnessTable {
         // Prep the grays
         let mut grays = Vec::with_capacity(4);
         for index in [0_usize, 7, 8, 15] {
-            grays.push(GrayEntry::new(
-                AnsiColor::try_from(index as u8).unwrap(),
-                &theme[index + 2],
-            )?);
+            let index_color = AnsiColor::try_from(index as u8).unwrap();
+            grays.push(GrayEntry::new(index_color, &theme[index_color])?);
         }
         grays.sort_by_key(|entry| entry.key());
 
         // Prep the non-grays in hue order: red, yellow, green, cyan, blue, magenta.
         let mut colors = Vec::with_capacity(12);
         for index in [1_usize, 3, 2, 6, 4, 5] {
-            let regular =
-                ColorEntry::new(AnsiColor::try_from(index as u8).unwrap(), &theme[index + 2])?;
-            let bright = ColorEntry::new(
-                AnsiColor::try_from(index as u8 + 8).unwrap(),
-                &theme[index + 8 + 2],
-            )?;
+            let index_color = AnsiColor::try_from(index as u8).unwrap();
+            let regular = ColorEntry::new(index_color, &theme[index_color])?;
+            let index_color = AnsiColor::try_from(index as u8 + 8).unwrap();
+            let bright = ColorEntry::new(index_color, &theme[index_color])?;
 
             // Order each color pair by hue
             if regular.h <= bright.h {
@@ -525,8 +626,8 @@ pub struct Translator {
 /// space.
 fn ansi_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 16] {
     let mut coordinates: [[Float; 3]; 16] = [[0.0; 3]; 16];
-    for index in 0..=15 {
-        coordinates[index] = *theme[index + 2].to(space).as_ref();
+    for index in AnsiColor::all() {
+        coordinates[index as usize] = *theme[index].to(space).as_ref();
     }
 
     coordinates
@@ -536,8 +637,8 @@ fn ansi_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 16] {
 #[allow(clippy::needless_range_loop)]
 fn eight_bit_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 256] {
     let mut coordinates: [[Float; 3]; 256] = [[0.0; 3]; 256];
-    for index in 0..=15 {
-        coordinates[index] = *theme[index + 2].to(space).as_ref()
+    for index in AnsiColor::all() {
+        coordinates[index as usize] = *theme[index].to(space).as_ref();
     }
     for index in 16..=231 {
         // Unwrap is safe b/c we are iterating over EmbeddedRgb's index range.
@@ -581,8 +682,8 @@ impl Translator {
     /// exploits that property of XYZ and checks whether the default foreground
     /// color has a larger luminance than the default background color.
     pub fn is_dark_theme(&self) -> bool {
-        let yf = self.theme[0].to(ColorSpace::Xyz)[1];
-        let yb = self.theme[1].to(ColorSpace::Xyz)[1];
+        let yf = self.theme[Layer::Foreground].to(ColorSpace::Xyz)[1];
+        let yb = self.theme[Layer::Background].to(ColorSpace::Xyz)[1];
         yb < yf
     }
 
@@ -794,16 +895,21 @@ impl Translator {
     /// preparing a list with the color values for the 16 extended ANSI colors
     /// in that color space. That, by the way, is pretty much what
     /// [`Translator::new`] does as well.
+    ///
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
     /// # use prettypretty::style::AnsiColor;
     /// # use prettypretty::trans::VGA_COLORS;
     /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
-    /// let ansi_colors: Vec<Color> = (0..=15)
-    ///     .map(|n| VGA_COLORS[n + 2].to(ColorSpace::Oklrch))
+    /// let ansi_colors: Vec<Color> = AnsiColor::all()
+    ///     .map(|c| VGA_COLORS[c].to(ColorSpace::Oklrch))
     ///     .collect();
     /// ```
+    ///
+    /// [`VGA_COLORS`] is a builtin color [`Theme`] that maps the default
+    /// foreground, default background, and ANSI colors to high-resolution
+    /// colors. It conveniently can be indexed by ANSI colors.
     ///
     /// Next, we need a function that calculates the distance between the
     /// coordinates of two colors in Oklrch. Since we are exploring non-MINDE
@@ -832,8 +938,8 @@ impl Translator {
     /// # use prettypretty::trans::VGA_COLORS;
     /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
-    /// # let ansi_colors: Vec<Color> = (0..=15)
-    /// #     .map(|n| VGA_COLORS[n + 2].to(ColorSpace::Oklrch))
+    /// # let ansi_colors: Vec<Color> = AnsiColor::all()
+    /// #     .map(|c| VGA_COLORS[c].to(ColorSpace::Oklrch))
     /// #     .collect();
     /// # fn minimum_degrees_of_separation(c1: &[Float; 3], c2: &[Float; 3]) -> Float {
     /// #     (c1[2] - c2[2]).rem_euclid(360.0)
@@ -1164,8 +1270,8 @@ impl Translator {
     /// </div>
     pub fn resolve_all(&self, color: impl Into<Colorant>, layer: Layer) -> Color {
         match color.into() {
-            Colorant::Default() => self.theme[layer as usize].clone(),
-            Colorant::Ansi(c) => self.theme[c as usize + 2].clone(),
+            Colorant::Default() => self.theme[layer].clone(),
+            Colorant::Ansi(c) => self.theme[c].clone(),
             Colorant::Embedded(c) => c.into(),
             Colorant::Gray(c) => c.into(),
             Colorant::Rgb(c) => c.into(),
@@ -1214,7 +1320,7 @@ impl std::fmt::Debug for Translator {
         };
 
         f.write_fmt(format_args!("Translator({}, [\n", version))?;
-        for color in self.theme.iter() {
+        for color in self.theme.as_ref().iter() {
             f.write_fmt(format_args!("    {:?},\n", color))?;
         }
 

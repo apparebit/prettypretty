@@ -52,8 +52,23 @@ pub enum AnsiColor {
     BrightWhite,
 }
 
+#[cfg(not(feature = "pyffi"))]
+impl AnsiColor {
+    /// Get an iterator over all ANSI colors in order.
+    pub fn all() -> AnsiColorIterator {
+        AnsiColorIterator::new()
+    }
+}
+
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl AnsiColor {
+    /// Get an iterator over all ANSI colors in order.
+    #[cfg(feature = "pyffi")]
+    #[staticmethod]
+    pub fn all() -> AnsiColorIterator {
+        AnsiColorIterator::new()
+    }
+
     /// Instantiate an ANSI color from its 8-bit code. <i
     /// class=python-only>Python only!</i>
     ///
@@ -88,14 +103,26 @@ impl AnsiColor {
         8 <= *self as u8
     }
 
-    /// Get the corresponding 3-bit ANSI color.
+    /// Get the base version of this ANSI color.
     ///
-    /// If this color is bright, this method returns the corresponding nonbright
-    /// color. Otherwise, it returns the color.
-    pub fn to_3bit(&self) -> AnsiColor {
+    /// If this color is bright, this method returns its non-bright version.
+    /// Otherwise, it returns the same color.
+    pub fn to_base(&self) -> AnsiColor {
         let mut index = *self as u8;
         if 8 <= index {
             index -= 8;
+        }
+        AnsiColor::try_from(index).unwrap()
+    }
+
+    /// Get the bright version of this ANSI color.
+    ///
+    /// If the color is not bright, this method returns its bright version.
+    /// Otherwise, it returns the same color.
+    pub fn to_bright(&self) -> AnsiColor {
+        let mut index = *self as u8;
+        if index < 8 {
+            index += 8;
         }
         AnsiColor::try_from(index).unwrap()
     }
@@ -188,6 +215,76 @@ impl TryFrom<u8> for AnsiColor {
 impl From<AnsiColor> for u8 {
     fn from(value: AnsiColor) -> u8 {
         value as u8
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+/// A helper for iterating over ANSI colors.
+///
+/// This iterator is fused, i.e., after returning `None` once, it will keep
+/// returning `None`. This iterator also is exact, i.e., its `size_hint()`
+/// returns the exact number of remaining items.
+#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.style"))]
+#[derive(Debug)]
+pub struct AnsiColorIterator {
+    index: usize,
+}
+
+impl AnsiColorIterator {
+    fn new() -> Self {
+        Self { index: 0 }
+    }
+}
+
+impl Iterator for AnsiColorIterator {
+    type Item = AnsiColor;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if 16 <= self.index {
+            None
+        } else {
+            self.index += 1;
+            Some(AnsiColor::try_from(self.index as u8 - 1).unwrap())
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = 16 - self.index;
+        (remaining, Some(remaining))
+    }
+}
+
+impl std::iter::ExactSizeIterator for AnsiColorIterator {
+    fn len(&self) -> usize {
+        16 - self.index
+    }
+}
+
+impl std::iter::FusedIterator for AnsiColorIterator {}
+
+#[cfg(feature = "pyffi")]
+#[pymethods]
+impl AnsiColorIterator {
+    /// Get the number of remaining ANSI colors. <i class=python-only>Python
+    /// only!</i>
+    pub fn __len__(&self) -> usize {
+        self.len()
+    }
+
+    /// Return this iterator. <i class=python-only>Python only!</i>
+    pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    /// Return the next ANSI color. <i class=python-only>Python only!</i>
+    pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<AnsiColor> {
+        slf.next()
+    }
+
+    /// Get a debug representation for this iterator.
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
     }
 }
 
@@ -1077,7 +1174,7 @@ impl Colorant {
             Self::Default() => Some(vec![39 + layer.offset()]),
             Self::Ansi(c) => {
                 let base = if c.is_bright() { 90 } else { 30 } + layer.offset();
-                Some(vec![base + c.to_3bit() as u8])
+                Some(vec![base + c.to_base() as u8])
             }
             Self::Embedded(c) => Some(vec![38 + layer.offset(), 5, u8::from(*c)]),
             Self::Gray(c) => Some(vec![38 + layer.offset(), 5, u8::from(*c)]),

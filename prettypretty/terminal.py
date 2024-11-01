@@ -171,11 +171,11 @@ class TerminalContextManager(AbstractContextManager['Terminal']):
         self._updates.append(lambda: self._cbreak_mode())
         return self
 
-    def _request_theme(self) -> list[Color]:
+    def _request_theme(self) -> trans.Theme:
         with self._cbreak_mode():
             return self._terminal.request_theme()
 
-    def terminal_theme(self, theme: None | list[Color] = None) -> Self:
+    def terminal_theme(self, theme: None | trans.Theme = None) -> Self:
         """
         Use the terminal's color theme. Unless a theme is provided as argument,
         the context manager puts the terminal temporarily into cbreak mode and
@@ -980,7 +980,7 @@ class Terminal:
             self.make_raw_request(Ansi.OSC, code, ';?', Ansi.ST),
         )
 
-    def _request_theme_v1(self) -> list[Color]:
+    def _request_theme_v1(self) -> trans.Theme:
         # (1) Completely process each color.
         colors: list[Color] = []
 
@@ -989,9 +989,9 @@ class Terminal:
         for code in range(16):
             colors.append(self.request_ansi_color(code))
 
-        return colors
+        return trans.Theme(colors)
 
-    def _request_theme_v2(self) -> list[Color]:
+    def _request_theme_v2(self) -> trans.Theme:
         # (1) Write all requests. (2) Read + parse all responses.
         colors: list[Color] = []
 
@@ -1011,9 +1011,9 @@ class Terminal:
                 response,
             ))
 
-        return colors
+        return trans.Theme(colors)
 
-    def _request_theme_v3(self) -> list[Color]:
+    def _request_theme_v3(self) -> trans.Theme:
         # (1) Write all requests. (2) Read all responses. (3) Parse all responses.
         colors: list[Color] = []
 
@@ -1036,7 +1036,7 @@ class Terminal:
                 response,
             ))
 
-        return colors
+        return trans.Theme(colors)
 
     request_theme = _request_theme_v3
     """
@@ -1075,7 +1075,7 @@ class Terminal:
     # ----------------------------------------------------------------------------------
     # Terminal Context
 
-    def terminal_theme(self, theme: None | list[Color] = None) -> TerminalContextManager:
+    def terminal_theme(self, theme: None | trans.Theme = None) -> TerminalContextManager:
         """
         Use a different color theme. Unless a theme argument is provided, the
         implementation queries the terminal for its current theme, while
