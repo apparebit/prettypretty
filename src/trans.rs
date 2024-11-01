@@ -93,12 +93,19 @@ impl Theme {
     }
 
     /// Get the color for the given theme entry.
-    pub fn __getitem__(&self, index: ThemeEntry) -> Color {
+    pub fn __getitem__(
+        &self,
+        #[pyo3(from_py_with = "into_theme_entry")] index: ThemeEntry,
+    ) -> Color {
         self[index].clone()
     }
 
     /// Set the color for the given theme entry.
-    pub fn __setitem__(&mut self, index: ThemeEntry, value: Color) {
+    pub fn __setitem__(
+        &mut self,
+        #[pyo3(from_py_with = "into_theme_entry")] index: ThemeEntry,
+        value: Color,
+    ) {
         self[index] = value;
     }
 
@@ -298,6 +305,19 @@ impl TryFrom<usize> for ThemeEntry {
             Err(OutOfBoundsError::new(value, 0..=17))
         }
     }
+}
+
+/// Convert ANSI colors and layers into theme entries.
+#[cfg(feature = "pyffi")]
+pub(crate) fn into_theme_entry(obj: &Bound<'_, PyAny>) -> PyResult<ThemeEntry> {
+    obj.extract::<ThemeEntry>()
+        .or_else(|_| obj.extract::<AnsiColor>().map(ThemeEntry::Ansi))
+        .or_else(|_| {
+            obj.extract::<Layer>().map(|l| match l {
+                Layer::Foreground => ThemeEntry::DefaultForeground(),
+                Layer::Background => ThemeEntry::DefaultBackground(),
+            })
+        })
 }
 
 impl std::fmt::Display for ThemeEntry {
