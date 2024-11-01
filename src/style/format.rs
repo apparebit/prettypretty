@@ -4,17 +4,18 @@
 //! [`stylist`](crate::style::stylist()), chances are that you don't need to
 //! directly access this module's types.
 //!
-//! But in case that you do: A text [`Format`] is a collection of [`Attribute`]s
-//! that represent the appearance of terminal output. A text format also is a
-//! collection of changes to text attributes, which either enable or disable the
-//! attribute. Likewise, an [`Attribute`] is an atomic unit for formatting a
-//! terminal's text output and also an update to the formatting. Furthermore,
-//! [`AllAttributes`] iterates over all possible attributes, whereas
-//! [`AttributeIterator`] iterates over a format's attributes.
+//! But in case that you do: A text [`Format`] combines [`Attribute`]s that
+//! represent the appearance of terminal output. [`AllAttributes`] iterates over
+//! all possible attributes, whereas [`AttributeIterator`] iterates over a
+//! format's attributes.
 //!
-//! To avoid a proliferation of formatting-related data structures, format and
-//! attribute can be used as both state and state-change. However, the public
-//! API for fluently constructing arbitrary formats is limited to
+//! To avoid a proliferation of formatting-related data structures, [`Format`]
+//! and [`Attribute`] can be used as both state and state-change. Hence, a text
+//! format is a collection of attributes representing the appearance of terminal
+//! output. But a text format also is a collection of changes to text
+//! attributes, some of which enable and some of which disable a specific
+//! appearance. To keep the interface for styling text simple, the public API
+//! for fluently constructing arbitrary formats allows enabling attributes only.
 
 use std::iter::ExactSizeIterator;
 
