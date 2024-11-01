@@ -1,4 +1,4 @@
-//! Terminal colors and other stylistic flourishes enabled by ANSI SGR escapes.
+//! Terminal styles including terminal-specific color representations.
 //!
 //! This module supports styling terminal appearance with ANSI SGR escape
 //! sequences through these **abstractions**:
@@ -6,14 +6,15 @@
 //!   * This module's primary abstraction is the [`Style`], which combines an
 //!     optional text [`format::Format`] with an optional foreground and
 //!     optional background [`Colorant`].
-//!   * A colorant can be any of the terminal-specific color formats defined by
-//!     this module, [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`],
-//!     [`EightBitColor`], and [`TrueColor`]. or high-resolution
-//!     [`Color`](crate::Color), thus maximizing expressivity and user choice.
+//!   * A colorant can be any of the color formats defined by this crate,
+//!     including [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`],
+//!     [`EightBitColor`] (as one of the previous three unwrapped colors),
+//!     [`TrueColor`], or the high-resolution [`Color`](crate::Color), thus
+//!     maximizing expressivity and user choice.
 //!   * A terminal's level of support for ANSI escape codes and their various
-//!     color formats is its [`Fidelity`].
+//!     color formats is captured by its [`Fidelity`].
 //!
-//! The **three steps in using styles** are:
+//! The **three steps for using styles** are:
 //!
 //!  1. Fluently assemble a style with [`Style::builder`] or preferrably
 //!     [`stylist()`].
@@ -119,6 +120,8 @@ mod styling;
 #[cfg(feature = "pyffi")]
 pub(crate) use color::into_colorant;
 
-pub use color::{AnsiColor, Colorant, EightBitColor, EmbeddedRgb, GrayGradient, TrueColor};
+pub use color::{
+    AnsiColor, AnsiColorIterator, Colorant, EightBitColor, EmbeddedRgb, GrayGradient, TrueColor,
+};
 pub use context::{Fidelity, Layer};
 pub use styling::{stylist, Style, Stylist};

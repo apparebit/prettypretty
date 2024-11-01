@@ -24,7 +24,7 @@ use pyo3::prelude::*;
 /// Displaying an instance writes out the corresponding control.
 #[cfg_attr(
     feature = "pyffi",
-    pyclass(eq, frozen, hash, module = "prettypretty.color.termio")
+    pyclass(eq, frozen, hash, module = "prettypretty.color.term")
 )]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Control {
@@ -130,7 +130,7 @@ impl std::fmt::Display for Control {
 /// An external action when processing terminal I/O.
 #[cfg_attr(
     feature = "pyffi",
-    pyclass(eq, frozen, hash, module = "prettypretty.color.termio")
+    pyclass(eq, frozen, hash, module = "prettypretty.color.term")
 )]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Action {
@@ -720,7 +720,7 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 ///
 /// ```
 /// # use prettypretty::{Color, error::ColorFormatError};
-/// # use prettypretty::termio::VtScanner;
+/// # use prettypretty::term::VtScanner;
 /// # use prettypretty::style::AnsiColor;
 /// # use prettypretty::trans::ThemeEntry;
 /// // Write `format!("{}", entry)` to the terminal to issue the query.
@@ -810,7 +810,7 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// ```
 /// # use std::io::{BufRead, Error, ErrorKind};
 /// # use prettypretty::Color;
-/// # use prettypretty::termio::{Action, Control, VtScanner};
+/// # use prettypretty::term::{Action, Control, VtScanner};
 /// # use prettypretty::style::AnsiColor;
 /// # use prettypretty::trans::ThemeEntry;
 /// let entry = ThemeEntry::Ansi(AnsiColor::Red);
@@ -901,7 +901,7 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// ```
 /// # use std::io::{BufRead, Error, ErrorKind};
 /// # use prettypretty::Color;
-/// # use prettypretty::termio::{Action, Control, VtScanner};
+/// # use prettypretty::term::{Action, Control, VtScanner};
 /// # use prettypretty::style::AnsiColor;
 /// # use prettypretty::trans::ThemeEntry;
 /// let entry = ThemeEntry::Ansi(AnsiColor::Red);
@@ -959,11 +959,11 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 ///
 /// # One More Thing
 ///
-/// As discussed in the documentation for the [`termio`](crate::termio) module,
+/// As discussed in the documentation for the [`term`](crate::term) module,
 /// reading terminal input requires that the terminal has been correctly
 /// configured and that reads eventually time out. As is, that won't happen with
 /// for the `input.fill_buf()` just before the second loop.
-#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.termio"))]
+#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.term"))]
 #[derive(Debug)]
 pub struct VtScanner {
     previous_state: State,

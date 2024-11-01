@@ -66,13 +66,15 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     requires mapping a practically infinite number of colors onto 16 colors,
 //!     four of which are achromatic. `Translator` includes several algorithms
 //!     for doing so.
-//!   * The [`termio`] module's [`VtScanner`](crate::termio::VtScanner) tries to
-//!     make **integration of terminal I/O** as simple as possible by
-//!     encapsulating much of the machinery for parsing ANSI escape sequences.
-//!     When combined with [`ThemeEntry`](crate::trans::ThemeEntry), the two
-//!     types provide all the functionality for extracting the current color
-//!     theme from the terminal and passing it to
-//!     [`Translator`](crate::trans::Translator), with exception of actual I/O.
+//!   * The optional [`term`] module supports just enough **terminal I/O** to
+//!     query a terminal for the current color theme, which is required for
+//!     instantiating a `Translator`. Notably, the Unix-only
+//!     [`Terminal`](crate::term::Terminal) type configures the terminal to use
+//!     raw mode and to time out reads. Meanwhile,
+//!     [`VtScanner`](crate::term::VtScanner) implements the complete state
+//!     machine for **parsing ANSI escape sequences**. Applications that require
+//!     support for Windows or async I/O should bring their own, more
+//!     fully-featured terminal crate.
 //!   * The optional [`gamut`] and [`spectrum`] submodules enable the traversal
 //!     of **color space gamuts** and the **human visual gamut**, respectively.
 //!     The
@@ -85,11 +87,15 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!
 //! ## Feature Flags
 //!
-//! Prettypretty supports three feature flags:
+//! Prettypretty supports four feature flags:
 //!
 //!   - `f64` selects the eponymous type as floating point type [`Float`] and
 //!     `u64` as [`Bits`] instead of `f32` as [`Float`] and `u32` as [`Bits`].
 //!     This feature is enabled by default.
+//!   - `term` controls prettypretty's support for low-level protocol processing
+//!     by configuring the terminal (Unix only, `mod term`) and parsing ANSI
+//!     escape sequences (platform-independent, also `mod term`). This feature
+//!     is enabled by default.
 //!   - `gamut` controls prettypretty's support for tracing the boundaries of
 //!     color spaces (`mod gamut`, `ColorSpace::gamut`) and the human visual
 //!     gamut (`mod spectrum`). This feature is disabled by default.
@@ -101,34 +107,18 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! Prettypretty's Python extension module is best built with
 //! [Maturin](https://www.maturin.rs), PyO3's dedicated build tool. It requires
 //! the `pyffi` feature. Since Python packages typically come with "batteries
-//! included," the `gamut` feature is highly recommended as well.
+//! included," the `term` and `gamut` features are also enabled when building
+//! the Python extension module.
 //!
 #![cfg_attr(
     feature = "pyffi",
     doc = "Throughout the API documentation, items that are only available in
     one of the two languages are flagged as <i
     class=python-only>Python only!</i> or <i class=rust-only>Rust only!</i>.
-    Items only available with the `gamut` feature are flagged as <i
-    class=gamut-only>Gamut only!</i>."
+    Items only available with the `term` feature are flagged as
+    <i class=term-only>Terminal only!</i> and those available with the
+    `gamut` feature as <i class=gamut-only>Gamut only!</i>."
 )]
-//!
-//!
-//! ## BYOIO: Bring Your Own (Terminal) I/O
-//!
-//! Unlike prettypretty's Python version, the Rust version has no facilities for
-//! terminal I/O. In part, that reflects the limited facilities of Rust's
-//! standard library. In part, that is a deliberate decision given the split
-//! between sync and async Rust. At the same time, prettypretty's
-//! [`Translator`](crate::trans::Translator) requires the terminal's current
-//! color theme so that it can provide high-quality translation to ANSI colors.
-//!
-//! To simplify the integration effort, prettypretty includes
-//! [`ThemeEntry`](crate::trans::ThemeEntry) for querying the terminal and
-//! parsing the response as well as [`VtScanner`](crate::termio::VtScanner) for
-//! reading just the bytes belonging to an ANSI escape sequence. The [`termio`]
-//! module's documentation illustrates the use of the two types and also
-//! discusses some of the finer points of error handling, including suggested
-//! solution approaches.
 //!
 //!
 //! ## Acknowledgements
@@ -162,7 +152,8 @@ mod core;
 pub mod error;
 mod object;
 pub mod style;
-pub mod termio;
+#[cfg(feature = "term")]
+pub mod term;
 pub mod trans;
 mod util;
 
@@ -170,9 +161,9 @@ mod util;
 mod cie;
 #[cfg(feature = "gamut")]
 pub mod gamut {
-    //! Utility module with the machinery for traversing RGB gamut boundaries
-    //! with [`ColorSpace::gamut`](crate::ColorSpace).  <i
-    //! class=gamut-only>Gamut only!</i>
+    //! Optional utility module for traversing RGB gamut boundaries with
+    //! [`ColorSpace::gamut`](crate::ColorSpace).  <i class=gamut-only>Gamut
+    //! only!</i>
     pub use crate::core::{GamutTraversal, GamutTraversalStep};
 }
 #[cfg(feature = "gamut")]
@@ -200,7 +191,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modcolor_name = modcolor_name.to_str()?;
     let modformat_name = format!("{}.style.format", modcolor_name);
     let modstyle_name = format!("{}.style", modcolor_name);
-    let modtermio_name = format!("{}.termio", modcolor_name);
+    let modterm_name = format!("{}.term", modcolor_name);
     let modtrans_name = format!("{}.trans", modcolor_name);
 
     // -------------------------------------------------------------------------- color
@@ -216,6 +207,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modstyle = PyModule::new_bound(m.py(), "style")?;
     modstyle.add("__package__", modcolor_name)?;
     modstyle.add_class::<style::AnsiColor>()?;
+    modstyle.add_class::<style::AnsiColorIterator>()?;
     modstyle.add_class::<style::Colorant>()?;
     modstyle.add_class::<style::EmbeddedRgb>()?;
     modstyle.add_class::<style::Fidelity>()?;
@@ -241,20 +233,21 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     modformat.setattr("__name__", &modformat_name)?;
 
-    // ------------------------------------------------------------------- color.termio
-    let modtermio = PyModule::new_bound(m.py(), "termio")?;
-    modtermio.add("__package__", modcolor_name)?;
-    modtermio.add_class::<termio::Action>()?;
-    modtermio.add_class::<termio::Control>()?;
-    modtermio.add_class::<termio::VtScanner>()?;
-    m.add_submodule(&modtermio)?;
+    // --------------------------------------------------------------------- color.term
+    let modterm = PyModule::new_bound(m.py(), "term")?;
+    modterm.add("__package__", modcolor_name)?;
+    modterm.add_class::<term::Action>()?;
+    modterm.add_class::<term::Control>()?;
+    modterm.add_class::<term::VtScanner>()?;
+    m.add_submodule(&modterm)?;
 
     // Only change __name__ attribute after submodule has been added.
-    modtermio.setattr("__name__", &modtermio_name)?;
+    modterm.setattr("__name__", &modterm_name)?;
 
     // -------------------------------------------------------------------- color.trans
     let modtrans = PyModule::new_bound(m.py(), "trans")?;
     modtrans.add("__package__", modcolor_name)?;
+    modtrans.add_class::<trans::Theme>()?;
     modtrans.add_class::<trans::ThemeEntry>()?;
     modtrans.add_class::<trans::ThemeEntryIterator>()?;
     modtrans.add_class::<trans::Translator>()?;
@@ -272,7 +265,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
         .downcast_into()?;
     py_modules.set_item(&modstyle_name, modstyle)?;
     py_modules.set_item(&modformat_name, modformat)?;
-    py_modules.set_item(&modtermio_name, modtermio)?;
+    py_modules.set_item(&modterm_name, modterm)?;
     py_modules.set_item(&modtrans_name, modtrans)?;
 
     #[cfg(feature = "gamut")]

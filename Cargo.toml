@@ -18,13 +18,14 @@ rust-version = "1.79"
 pyo3 = { version = "0.22.5", features = ["extension-module", "abi3", "abi3-py311"], optional = true }
 
 [target.'cfg(unix)'.dependencies]
-libc = "0.2.161"
+libc = { version = "0.2.161", optional = true }
 
 [features]
-default = ["f64"]
+default = ["f64", "term"]
 f64 = []
 gamut = []
 pyffi = ["dep:pyo3"]
+term = ["dep:libc"]
 
 
 [lib]

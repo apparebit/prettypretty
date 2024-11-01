@@ -1,5 +1,5 @@
-//! Utility module with the spectral distributions for CIE standard observers
-//! and illuminants. <i class=gamut-only>Gamut only!</i>
+//! Optional utility module with CIE standard observers and illuminants. <i
+//! class=gamut-only>Gamut only!</i>
 //!
 #![cfg_attr(
     feature = "pyffi",
