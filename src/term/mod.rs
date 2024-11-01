@@ -27,7 +27,7 @@
 //!     presence of errors requires one byte lookahead.
 //!
 //! Taking a cue from the implementation of `stdio` in the Rust standard
-//! library, the [`terminal`] function and [`Terminal`] as well as
+//! library, the [`terminal()`] function and [`Terminal`] as well as
 //! [`TerminalAccess`] structs address the first and second challenges, for now
 //! for Unix only. Meanwhile, taking a cue from Paul Flo Williams' [state
 //! machine for DEC's ANSI-compatible video

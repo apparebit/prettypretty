@@ -1,3 +1,4 @@
+import os
 from typing import Self
 
 from . import Color, OkVersion
@@ -54,6 +55,10 @@ class ThemeEntryIterator:
 
 class Theme:
     """A color theme."""
+    if os.name == "posix":
+        @staticmethod
+        def query_terminal() -> Theme: ...
+
     def __new__(cls, colors: list[Color]) -> Self: ...
     def __getitem__(self, index: ThemeEntry) -> Color: ...
     def __setitem__(self, index: ThemeEntry, color: Color) -> Color: ...

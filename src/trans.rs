@@ -38,19 +38,55 @@ impl Theme {
     }
 
     /// Create a new theme with the given colors.
-    #[cfg(not(feature = "pyffi"))]
     pub const fn with_colors(inner: [Color; 18]) -> Self {
         Self { inner }
+    }
+
+    /// Query the terminal for the current color theme.
+    #[cfg(all(feature = "term", target_family = "unix"))]
+    pub fn query_terminal() -> std::io::Result<Theme> {
+        use crate::term::{terminal, VtScanner};
+        use std::io::{Error, ErrorKind, Write};
+
+        // Set up terminal, scanner, and empty theme
+        let mut tty = terminal().access()?;
+        let mut scanner = VtScanner::new();
+        let mut theme = Theme::default();
+
+        for entry in ThemeEntry::all() {
+            // Write query to terminal
+            write!(tty, "{}", entry)?;
+            tty.flush()?;
+
+            // Parse terminal's response
+            let response = scanner.scan_str(&mut tty)?;
+            let color = entry
+                .parse_response(response)
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+            // Update theme
+            theme[entry] = color;
+        }
+
+        Ok(theme)
     }
 }
 
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl Theme {
+    /// Query the terminal for the current color theme.
+    #[cfg(all(feature = "term", target_family = "unix"))]
+    #[pyo3(name = "query_terminal")]
+    #[staticmethod]
+    pub fn py_query_terminal() -> PyResult<Self> {
+        Theme::query_terminal().map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))
+    }
+
     /// Create a new color theme with the given colors.
     #[new]
-    pub const fn with_colors(inner: [Color; 18]) -> Self {
-        Self { inner }
+    pub const fn py_with_colors(inner: [Color; 18]) -> Self {
+        Self::with_colors(inner)
     }
 
     /// Get the color for the given theme entry.
