@@ -10,14 +10,18 @@ pub fn main() -> Result<()> {
     let mut tty = terminal().access()?;
     let mut entries = ThemeEntry::all();
 
-    tty.print("press ‹t› to query rotating theme color, ‹q› to quit\r\n\r\n")?;
+    let info = format!("{:#?}", tty);
+    tty.print(info)?;
+    tty.print("\r\n\r\n\x1b[1mpress ‹t› to query rotating theme color, ‹q› to quit\x1b[m\r\n\r\n")?;
 
     let mut iterations = 0;
     let mut line = 0;
+
+    write!(tty, "\x1b[38;5;247m")?;
     loop {
         iterations += 1;
         if 1000 <= iterations {
-            tty.print("✋")?;
+            tty.print("\x1b[m✋")?;
             break;
         }
 
@@ -34,7 +38,7 @@ pub fn main() -> Result<()> {
             continue;
         }
 
-        write!(tty, "〈")?;
+        write!(tty, "〈\x1b[m")?;
         line += 2;
 
         let mut terminate = false;
@@ -56,10 +60,11 @@ pub fn main() -> Result<()> {
             }
         }
 
-        tty.print("〉")?;
+        tty.print("\x1b[38;5;247m〉")?;
         line += 2;
 
         if terminate {
+            tty.print("\x1b[m")?;
             break;
         } else if let Some(entry) = query {
             write!(tty, "{}", entry)?;
