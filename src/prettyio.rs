@@ -17,6 +17,7 @@ pub fn main() -> Result<()> {
     tty.flush()?;
 
     let mut iterations = 0;
+    let mut line = 0;
     loop {
         iterations += 1;
         if 1000 <= iterations {
@@ -25,20 +26,29 @@ pub fn main() -> Result<()> {
             break;
         }
 
+        if 70 < line {
+            write!(tty, "\r\n")?;
+            line = 0;
+            tty.flush()?;
+        }
+
         let mut buffer = [0; 32];
         let count = tty.read(&mut buffer)?;
         if count == 0 {
             write!(tty, "◦")?;
+            line += 1;
             tty.flush()?;
             continue;
         }
 
         write!(tty, "〈")?;
+        line += 2;
+
         let mut terminate = false;
         let mut query = None;
 
         for b in buffer.iter().take(count) {
-            render(*b, &mut tty)?;
+            line += render(*b, &mut tty)?;
 
             if *b == b'q' {
                 terminate = true;
@@ -54,6 +64,7 @@ pub fn main() -> Result<()> {
         }
 
         write!(tty, "〉")?;
+        line += 2;
         tty.flush()?;
 
         if terminate {

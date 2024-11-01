@@ -4,13 +4,16 @@ use std::io::{Result, Write};
 ///
 /// If the byte is a printable ASCII character, this function renders it as
 /// such. Otherwise, it renders angle quotes with a mnemonic name, such as
-/// `‹𝖾𝗌𝖼›`, or the two-digit hexadecimal value, such as `‹f4›`.
-pub fn render<W: Write>(byte: u8, writer: &mut W) -> Result<()> {
+/// `‹𝖾𝗌𝖼›`, or the two-digit hexadecimal value, such as `‹f4›`. This
+/// function returns the number of characters (not UTF-8 bytes) rendered.
+pub fn render<W: Write>(byte: u8, writer: &mut W) -> Result<usize> {
     if (0x20..=0x7e).contains(&byte) {
-        return write!(writer, "{}", char::from(byte));
+        write!(writer, "{}", char::from(byte))?;
+        return Ok(1);
     }
 
     let replacement = match byte {
+        // ‹› are 3 bytes each in UTF8, the math letters are 4 bytes each
         0x07 => "‹𝖻𝖾𝗅›",
         0x08 => "‹𝖻s›",
         0x09 => "‹𝗍𝖺𝖻›",
@@ -29,8 +32,10 @@ pub fn render<W: Write>(byte: u8, writer: &mut W) -> Result<()> {
     };
 
     if replacement.is_empty() {
-        write!(writer, "‹{:02x}›", byte)
+        write!(writer, "‹{:02x}›", byte)?;
+        Ok(4)
     } else {
-        write!(writer, "{}", replacement)
+        write!(writer, "{}", replacement)?;
+        Ok(2 + (replacement.len() - 6) / 4)
     }
 }
