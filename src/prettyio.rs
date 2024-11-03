@@ -1,27 +1,46 @@
 #[cfg(target_family = "unix")]
-use prettypretty::term::{render, terminal};
-#[cfg(target_family = "unix")]
-use prettypretty::trans::ThemeEntry;
-#[cfg(target_family = "unix")]
-use std::io::{Read, Result, Write};
+#[allow(non_snake_case)]
+pub fn main() -> std::io::Result<()> {
+    use prettypretty::style::{stylist, Fidelity, GrayGradient, Stylist};
+    use prettypretty::term::{render, terminal};
+    use prettypretty::trans::{Theme, ThemeEntry, Translator};
+    use prettypretty::OkVersion;
+    use std::io::{stdout, IsTerminal, Read, Write};
 
-#[cfg(target_family = "unix")]
-pub fn main() -> Result<()> {
+    // Determine runtime context
+    let theme = Theme::query_terminal()?;
+    let translator = Translator::new(OkVersion::Revised, theme);
+    let fidelity = Fidelity::from_environment(stdout().is_terminal());
+
+    // Define and adjust styles
+    let BOLD = &stylist().bold().et_voila().cap(fidelity, &translator);
+    let GRAY = &stylist()
+        .fg(GrayGradient::new(15).unwrap())
+        .et_voila()
+        .cap(fidelity, &translator);
+    let RESET = &Stylist::with_reset().et_voila().cap(fidelity, &translator);
+
+    // Access terminal
     let mut tty = terminal().access()?;
     let mut entries = ThemeEntry::all();
 
+    // Peek into terminal access
     let info = format!("{:#?}", tty);
     tty.print(info)?;
-    tty.print("\r\n\r\n\x1b[1mpress ‹t› to query rotating theme color, ‹q› to quit\x1b[m\r\n\r\n")?;
+    write!(
+        tty,
+        "\r\n\r\n{}press ‹t› to query rotating theme color, ‹q› to quit{}\r\n\r\n",
+        BOLD, !BOLD
+    )?;
 
     let mut iterations = 0;
     let mut line = 0;
 
-    write!(tty, "\x1b[38;5;247m")?;
+    write!(tty, "{}", GRAY)?;
     loop {
         iterations += 1;
         if 1000 <= iterations {
-            tty.print("\x1b[m✋")?;
+            write!(tty, "{}✋", RESET)?;
             break;
         }
 
@@ -38,7 +57,7 @@ pub fn main() -> Result<()> {
             continue;
         }
 
-        write!(tty, "〈\x1b[m")?;
+        write!(tty, "〈{}", !GRAY)?;
         line += 2;
 
         let mut terminate = false;
@@ -60,11 +79,11 @@ pub fn main() -> Result<()> {
             }
         }
 
-        tty.print("\x1b[38;5;247m〉")?;
+        write!(tty, "{}〉", GRAY)?;
         line += 2;
 
         if terminate {
-            tty.print("\x1b[m")?;
+            write!(tty, "{}", RESET)?;
             break;
         } else if let Some(entry) = query {
             write!(tty, "{}", entry)?;
@@ -80,5 +99,5 @@ pub fn main() -> Result<()> {
 
 #[cfg(not(target_family = "unix"))]
 pub fn main() {
-    println!("Sorry, but this utility only compiles and runs on Unix-like systems!");
+    println!("Sorry, but this utility only runs on Unix-like systems!");
 }
