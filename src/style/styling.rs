@@ -112,7 +112,7 @@ impl Stylist {
         slf
     }
 
-    /// Push a foreground color onto this style builder.
+    // Add the foreground color to this style builder.
     #[pyo3(name = "foreground")]
     pub fn py_foreground(
         slf: PyRef<'_, Self>,
@@ -122,13 +122,33 @@ impl Stylist {
         slf
     }
 
-    /// Push a background color onto this style builder.
+    /// Add the foreground color to this style builder.
+    #[pyo3(name = "fg")]
+    pub fn py_fg(
+        slf: PyRef<'_, Self>,
+        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
+    ) -> PyRef<'_, Self> {
+        slf.fg(colorant);
+        slf
+    }
+
+    /// Add the background color to this style builder.
     #[pyo3(name = "background")]
     pub fn py_background(
         slf: PyRef<'_, Self>,
         #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
     ) -> PyRef<'_, Self> {
         slf.background(colorant);
+        slf
+    }
+
+    /// Add the background color to this style builder.
+    #[pyo3(name = "bg")]
+    pub fn py_bg(
+        slf: PyRef<'_, Self>,
+        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
+    ) -> PyRef<'_, Self> {
+        slf.bg(colorant);
         slf
     }
 
@@ -241,14 +261,28 @@ impl Stylist {
         self
     }
 
-    /// Add a foreground color to this style builder.
+    /// Add the foreground color to this style builder.
+    pub fn fg(&self, color: impl Into<Colorant>) -> &Self {
+        let mut data = self.data.borrow_mut();
+        data.foreground = Some(color.into());
+        self
+    }
+
+    /// Add the foreground color to this style builder.
     pub fn foreground(&self, color: impl Into<Colorant>) -> &Self {
         let mut data = self.data.borrow_mut();
         data.foreground = Some(color.into());
         self
     }
 
-    /// Add a background color to this style builder.
+    /// Add the background color to this style builder.
+    pub fn bg(&self, color: impl Into<Colorant>) -> &Self {
+        let mut data = self.data.borrow_mut();
+        data.background = Some(color.into());
+        self
+    }
+
+    /// Add the background color to this style builder.
     pub fn background(&self, color: impl Into<Colorant>) -> &Self {
         let mut data = self.data.borrow_mut();
         data.background = Some(color.into());
