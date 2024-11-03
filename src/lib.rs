@@ -85,6 +85,119 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     color visualizations.
 //!
 //!
+//! ## Prettypretty's One-Two-Three Styles!
+//!
+//! Prettypretty's three-step workflow for awesome terminal styles works like
+//! this.
+//!
+//! ### 1. Declare Your Styles
+//!
+//! First, you declare your application's styles. If the
+//! [`stylist`](style::stylist()) shantaying
+//! [`Stylist::et_voila`](style::Stylist::et_voila) is too sassy for you,
+//! [`Style::builder`](style::Style::builder) chanting
+//! [`Stylist::build`](style::Stylist::build) works just as well.
+//!
+//! ```
+//! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
+//! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}};
+//! # use prettypretty::trans::{Theme, Translator};
+//! # #[cfg(not(target_family = "unix"))]
+//! # fn run() -> Result<()> {
+//! #     Err(ErrorKind::Unsupported.into())
+//! # }
+//! # #[cfg(target_family = "unix")]
+//! # fn run() -> Result<()> {
+//! // 1. Assemble application styles
+//! let chic = stylist().bold().fg(rgb!(255, 150, 0)).et_voila();
+//! # Ok(())
+//! # }
+//! # let _ = run();
+//! ```
+//!
+//! ### 2. Adjust Your Styles
+//!
+//! Second, determine the terminal's current color theme with
+//! [`Theme::query_terminal`](trans::Theme::query_terminal) (sorry, but
+//! Unix-only for now) and `stdout`'s color support with
+//! [`Fidelity::from_environment`](style::Fidelity::from_environment).
+//!
+//! ```
+//! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
+//! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}};
+//! # use prettypretty::trans::{Theme, Translator};
+//! # #[cfg(not(target_family = "unix"))]
+//! # fn run() -> Result<()> {
+//! #     Err(ErrorKind::Unsupported.into())
+//! # }
+//! # #[cfg(target_family = "unix")]
+//! # fn run() -> Result<()> {
+//! # let chic = stylist().bold().fg(rgb!(255, 150, 0)).et_voila();
+//! // 2a. Determine color theme, stdout's color support
+//! let theme = Theme::query_terminal()?;
+//! let fidelity = Fidelity::from_environment(stdout().is_terminal());
+//! # Ok(())
+//! # }
+//! # let _ = run();
+//! ```
+//!
+//! Use the `theme` to instantiate a [`Translator`](trans::Translator), which
+//! specializes in complex color conversions and then adjust your application's
+//! styles to the current color theme and fidelity.
+//! [`Style::cap`](style::Style::cap) puts a cap on styles with the help of
+//! [`Translator::cap`](trans::Translator::cap), which takes care of colors.
+//!
+//! ```
+//! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
+//! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}};
+//! # use prettypretty::trans::{Theme, Translator};
+//! # #[cfg(not(target_family = "unix"))]
+//! # fn run() -> Result<()> {
+//! #     Err(ErrorKind::Unsupported.into())
+//! # }
+//! # #[cfg(target_family = "unix")]
+//! # fn run() -> Result<()> {
+//! # let chic = stylist().bold().fg(rgb!(255, 150, 0)).et_voila();
+//! # let theme = Theme::query_terminal()?;
+//! # let fidelity = Fidelity::from_environment(stdout().is_terminal());
+//! // 2b. Adjust fidelity of styles
+//! let translator = Translator::new(OkVersion::Revised, theme);
+//! let effective_chic = &chic.cap(fidelity, &translator);
+//! # Ok(())
+//! # }
+//! # let _ = run();
+//! ```
+//!
+//! ### 3. Apply Your Styles
+//!
+//! Third, to apply a style, just write its display. To undo the style again,
+//! just write the negation's display.
+//!
+//! ```
+//! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
+//! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}};
+//! # use prettypretty::trans::{Theme, Translator};
+//! # #[cfg(not(target_family = "unix"))]
+//! # fn run() -> Result<()> {
+//! #     Err(ErrorKind::Unsupported.into())
+//! # }
+//! # #[cfg(target_family = "unix")]
+//! # fn run() -> Result<()> {
+//! # let chic = stylist().bold().fg(rgb!(255, 150, 0)).et_voila();
+//! # let theme = Theme::query_terminal()?;
+//! # let fidelity = Fidelity::from_environment(stdout().is_terminal());
+//! # let translator = Translator::new(OkVersion::Revised, theme);
+//! # let effective_chic = &chic.cap(fidelity, &translator);
+//! // 3. Apply and revert styles
+//! println!("{} Wow! {}", effective_chic, !effective_chic);
+//! # Ok(())
+//! # }
+//! # let _ = run();
+//! ```
+//!
+//! 🌸 Et voilà! 🌸
+//!
+//!
 //! ## Feature Flags
 //!
 //! Prettypretty supports four feature flags:
