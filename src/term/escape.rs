@@ -705,9 +705,9 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// Alas, before exploring how to address those corner cases, we might want to
 /// start by parsing an escape sequence first. In particular, let's explore how
 /// to query a terminal for its current color theme. Let's also assume that the
-/// application already put the terminal into cbreak (or raw) mode and is
-/// iterating over [`ThemeEntry::all`](crate::trans::ThemeEntry::all), i.e., the
-/// default foreground, default background, and 16 ANSI colors.
+/// application already put the terminal into raw mode and is iterating over
+/// [`ThemeEntry::all`](crate::trans::ThemeEntry::all), i.e., the default
+/// foreground, default background, and 16 ANSI colors.
 ///
 ///
 /// # Example #1: Byte by Byte

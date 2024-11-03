@@ -16,6 +16,8 @@
 //!
 //! # Examples
 //!
+//! ## 1. Taking Care of Not-Unix
+//!
 //! First, since terminal support is limited to Unix only, lets set up two
 //! versions of the same function, one for other platforms and one for Unix.
 //! Since we are assembling a color theme by interacting with the terminal,
@@ -42,6 +44,8 @@
 //! let _ = query();
 //! ```
 //!
+//! ## 2. Function Set Up and Outer Loop
+//!
 //! Great, now that we have a fallback for non-Unix platforms and the function
 //! skeleton for Unix, we can start filling in the latter. In particular, in
 //! addition to the dummy theme from last time, we need to set up terminal
@@ -51,6 +55,7 @@
 //!
 //! ```
 //! # use std::io::{ErrorKind, Result};
+//! # #[cfg(target_family = "unix")]
 //! # use prettypretty::term::{terminal, VtScanner};
 //! # use prettypretty::trans::{Theme, ThemeEntry};
 //! # #[cfg(not(target_family = "unix"))]
@@ -75,12 +80,12 @@
 //!
 //! By far the most important incantation amongst the code we just added is the
 //! invocation of [`Terminal::access`]: That method connects to the terminal
-//! device, configures it to use non-canonical cbreak mode and a 0.1s read
-//! timeout, and returns an object that reads from and writes to the terminal,
-//! no matter whether standard streams are redirected or not. Even better, when
-//! that `tty` object is dropped, it not only relinquishes its exclusive hold on
-//! terminal I/O, but it also restores the terminal's original (cooked) mode and
-//! closes the connection again.
+//! device, configures it to use non-canonical mode and a 0.1s read timeout, and
+//! returns an object that reads from and writes to the terminal, no matter
+//! whether standard streams are redirected or not. Even better, when that `tty`
+//! object is dropped, it not only relinquishes its exclusive hold on terminal
+//! I/O, but it also restores the terminal's original (cooked) mode and closes
+//! the connection again.
 //!
 //! If your application needs a longer-living connection to the terminal, it can
 //! more directly manage the connection with [`Terminal::connect`] and
@@ -90,10 +95,14 @@
 //! [`Terminal::access_with`] provide additional knobs for fine-tuning the
 //! terminal configuration.
 //!
+//!
+//! ## 3. Write Query, Ingest Response, Parse Color, Update Theme
+//!
 //! With that, we are ready to query the terminal for some colors:
 //!
 //! ```
 //! # use std::io::{BufRead, Error, ErrorKind, Result, Write};
+//! # #[cfg(target_family = "unix")]
 //! # use prettypretty::term::{terminal, VtScanner};
 //! # use prettypretty::trans::{Theme, ThemeEntry};
 //! # #[cfg(not(target_family = "unix"))]
@@ -144,6 +153,9 @@
 //! implementation of
 //! [`Theme::query_terminal`](crate::trans::Theme::query_terminal).
 //!
+//!
+//! ## 4. Validate Color Theme
+//!
 //! While it provides a realistic example for interacting with the terminal, the
 //! example code isn't really acceptable for its intended purpose as
 //! documentation test. After all, it doesn't do any testing. However,
@@ -173,6 +185,7 @@
 //! # use std::io::{BufRead, Error, ErrorKind, Result, Write};
 //! # use prettypretty::{Color, ColorSpace};
 //! # use prettypretty::style::AnsiColor::*;
+//! # #[cfg(target_family = "unix")]
 //! # use prettypretty::term::{terminal, VtScanner};
 //! # use prettypretty::trans::{Theme, ThemeEntry};
 //! # #[cfg(not(target_family = "unix"))]
@@ -240,7 +253,7 @@
 //! what about non-chromatic colors?
 //!
 //!
-//! # Background: Trivial Output
+//! # Background
 //!
 //! Integrating terminal I/O is trivial, as long as an application does not need
 //! to read terminal input: The application simply writes text and ANSI escape
@@ -249,7 +262,7 @@
 //! sequence that changes the terminal to use that style.
 //!
 //!
-//! # Background: Gnarly Input
+//! ## 1. Gnarly Input
 //!
 //! However, when an application also needs to read terminal input, notably for
 //! processing individual key presses or querying the terminal with ANSI escape
@@ -285,7 +298,7 @@
 //! this module is option and requires the `term` feature.
 //!
 //!
-//! # Background: Ways to Time Out Reads
+//! ## 2. Ways to Time Out Reads
 //!
 //! When it comes to changing the terminal mode, there is little choice of
 //! mechanism on Unix systems: `tcgetattr` and `tcsetattr` are the only game in
@@ -302,12 +315,13 @@
 //!     the helper thread seems impossible, unless the operating system's
 //!     `TIOCSTI` ioctl or equivalent can be used to inject a poison value into
 //!     the input stream.
-//!  3. Configure the terminal to time out read operations. The cbreak and raw
-//!     modes for terminals usually set the pseudo-control characters `VMIN` and
-//!     `VTIME` to 1 and 0, respectively. That instructs the terminal to block
-//!     reads until at least one byte is available with no timeout. However,
-//!     when setting `VMIN` and `VTIME` to 0 and n>0, respectively, the terminal
-//!     times out after n*0.1 seconds even if there are no bytes available.
+//!  3. Configure the terminal to time out read operations. The cbreak ("rare")
+//!     and raw modes for terminals usually set the pseudo-control characters
+//!     `VMIN` and `VTIME` to 1 and 0, respectively. That instructs the terminal
+//!     to block reads until at least one byte is available with no timeout.
+//!     However, when setting `VMIN` and `VTIME` to 0 and n>0, respectively, the
+//!     terminal times out after n*0.1 seconds even if there are no bytes
+//!     available.
 //!
 //! Since this module already modifies the terminal configuration, the third
 //! option is an attractive choice. Its simplicity and robustness cinch the
@@ -335,4 +349,4 @@ pub use render::render;
 #[cfg(target_family = "unix")]
 pub use sys::TerminalMode;
 #[cfg(target_family = "unix")]
-pub use terminal::{terminal, Terminal, TerminalAccess};
+pub use terminal::{terminal, Terminal, TerminalAccess, TerminalOptions};

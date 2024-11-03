@@ -7,9 +7,10 @@
 //! must not be directly exposed to application code.
 
 use std::io::{Read, Result, Write};
-use std::num::NonZeroU8;
 use std::os::fd::{AsRawFd, RawFd};
 use std::ptr::{from_mut, from_ref};
+
+use crate::term::TerminalOptions;
 
 /// A trait for converting libc status codes to Rust std::io results.
 ///
@@ -51,11 +52,12 @@ into_result!(isize, usize);
 /// The non-canonical terminal mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TerminalMode {
-    /// Cbreak mode disables canonical line processing and echoing of
-    /// characters, but continues processing end-of-line characters and signals.
-    Cbreak,
+    /// Rare mode, also known as cbreak mode, disables canonical line processing
+    /// and echoing of characters, but continues processing end-of-line
+    /// characters and signals.
+    Rare,
     /// Raw mode disables all terminal features beyond reading input and writing
-    /// output, notably including ctrl-c for signalling a process to terminate.
+    /// output including ctrl-c for signalling a process to terminate.
     Raw,
 }
 
@@ -170,79 +172,34 @@ impl std::fmt::Debug for Termios {
 #[derive(Debug)]
 pub(crate) struct TerminalConfig {
     fd: RawFd,
-    mode: TerminalMode,
-    timeout: NonZeroU8,
     attributes: Termios,
 }
 
 impl TerminalConfig {
-    /// The default mode.
-    pub const MODE: TerminalMode = TerminalMode::Cbreak;
-
-    /// The default timeout.
-    pub const TIMEOUT: NonZeroU8 = unsafe { NonZeroU8::new_unchecked(1) };
-
-    /// Configure the terminal to use the default mode and read timeout.
+    /// Configure the terminal with the given options.
     ///
     /// This method reads the current terminal configuration, updates a copy of
     /// the configuration, writes the updated copy, and returns the original.
-    pub fn configure(fd: impl AsRawFd) -> Result<Self> {
-        TerminalConfig::with_attributes(fd, Self::MODE, Self::TIMEOUT)
-    }
-
-    /// Configure the terminal with the given mode and read timeout.
-    ///
-    /// This method reads the current terminal configuration, updates a copy of
-    /// the configuration, writes the updated copy, and returns the original.
-    pub fn with_attributes(
-        fd: impl AsRawFd,
-        mode: TerminalMode,
-        timeout: NonZeroU8,
-    ) -> Result<Self> {
+    pub fn new(fd: impl AsRawFd, options: &TerminalOptions) -> Result<Self> {
         let fd = fd.as_raw_fd();
         let attributes = Self::read(fd)?;
 
-        Self::write(
-            fd,
-            When::AfterFlush,
-            &Self::update(&attributes, mode, timeout),
-        )?;
+        Self::write(fd, When::AfterFlush, &Self::update(&attributes, options))?;
 
-        Ok(Self {
-            fd,
-            mode,
-            timeout,
-            attributes,
-        })
+        Ok(Self { fd, attributes })
     }
 
-    /// Get the current terminal mode.
-    pub fn mode(&self) -> TerminalMode {
-        self.mode
-    }
-
-    /// Get the current read timeout.
-    pub fn timeout(&self) -> NonZeroU8 {
-        self.timeout
-    }
-
-    /// Reconfigure the terminal to use the given mode and read timeout.
+    /// Reconfigure the terminal to use the given options.
     ///
-    /// If the terminal is using a different mode or timeout, this method
-    /// updates a copy of the original configuration and writes the updated copy
-    /// to the terminal.
+    /// This method applies the options to a copy of the terminal's original
+    /// configuration and then writes the updated copy to the terminal.
     #[allow(dead_code)]
-    pub fn reconfigure(&mut self, mode: TerminalMode, timeout: NonZeroU8) -> Result<()> {
-        if self.mode != mode || self.timeout != timeout {
-            Self::write(
-                self.fd,
-                When::AfterFlush,
-                &Self::update(&self.attributes, mode, timeout),
-            )?;
-            self.mode = mode;
-            self.timeout = timeout;
-        }
-        Ok(())
+    pub fn reconfigure(&mut self, options: &TerminalOptions) -> Result<()> {
+        Self::write(
+            self.fd,
+            When::AfterFlush,
+            &Self::update(&self.attributes, options),
+        )
     }
 
     /// Restore the original terminal configuration.
@@ -260,12 +217,12 @@ impl TerminalConfig {
     }
 
     /// Create an updated configuration with the given mode and timeout.
-    fn update(attributes: &Termios, mode: TerminalMode, timeout: NonZeroU8) -> Termios {
+    fn update(attributes: &Termios, options: &TerminalOptions) -> Termios {
         let mut wrapper = attributes.clone();
         let inner = wrapper.as_mut();
 
-        match mode {
-            TerminalMode::Cbreak => {
+        match options.mode {
+            TerminalMode::Rare => {
                 inner.c_lflag &= !(libc::ECHO | libc::ICANON);
             }
             TerminalMode::Raw => {
@@ -274,7 +231,7 @@ impl TerminalConfig {
         }
 
         inner.c_cc[libc::VMIN] = 0;
-        inner.c_cc[libc::VTIME] = timeout.get();
+        inner.c_cc[libc::VTIME] = options.timeout.get();
         wrapper
     }
 

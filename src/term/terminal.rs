@@ -1,11 +1,52 @@
 use std::convert::AsRef;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, BufWriter, ErrorKind, IoSlice, IoSliceMut, Read, Result, Write};
-use std::num::NonZeroU8;
+use std::num::{NonZeroU8, NonZeroUsize};
 use std::os::fd::{AsRawFd, OwnedFd};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use super::sys::{TerminalConfig, TerminalMode, TerminalReader, TerminalWriter};
+
+/// Options for configuring the terminal.
+#[derive(Clone, Copy, Debug)]
+pub struct TerminalOptions {
+    /// The terminal mode.
+    pub mode: TerminalMode,
+
+    /// The read timeout in 0.1s increments.
+    pub timeout: NonZeroU8,
+
+    /// The size of the read buffer.
+    ///
+    /// Parsing ANSI escape sequences requires a lookahead of one byte. Hence,
+    /// this option must be positive.
+    pub read_buffer: NonZeroUsize,
+
+    /// The size of the write buffer.
+    ///
+    /// If this size is zero, writing to the terminal is effectively unbuffered.
+    pub write_buffer: usize,
+}
+
+impl TerminalOptions {
+    /// Create a new terminal options object with the default values.
+    pub const fn new() -> Self {
+        Self {
+            mode: TerminalMode::Rare,
+            timeout: unsafe { NonZeroU8::new_unchecked(1) },
+            read_buffer: unsafe { NonZeroUsize::new_unchecked(1_024) },
+            write_buffer: 1_024,
+        }
+    }
+}
+
+impl Default for TerminalOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
 
 /// The terminal state.
 ///
@@ -14,6 +55,7 @@ use super::sys::{TerminalConfig, TerminalMode, TerminalReader, TerminalWriter};
 /// restores the original configuration and closes the connection.
 #[derive(Debug)]
 struct TerminalState {
+    options: TerminalOptions,
     #[allow(dead_code)]
     fd: OwnedFd,
     config: TerminalConfig,
@@ -31,39 +73,54 @@ impl TerminalState {
             .into())
     }
 
-    /// Access the controlling terminal with the default attributes.
+    /// Access the controlling terminal with the default options.
     ///
     /// This method opens a connection to the controlling terminal and
-    /// configures the terminal to use cbreak mode and a 0.1s read timeout.
+    /// configures the terminal with the default options for mode and read
+    /// timeout.
     pub fn new() -> Result<Self> {
-        TerminalState::with_attributes(Terminal::MODE, Terminal::TIMEOUT)
+        TerminalState::with_options(TerminalOptions::new())
     }
 
     /// Access the controlling terminal with the given attributes.
     ///
     /// This method opens a connection to the controlling terminal and
     /// configures the terminal to use the given mode and read timeout.
-    pub fn with_attributes(mode: TerminalMode, timeout: NonZeroU8) -> Result<Self> {
+    pub fn with_options(options: TerminalOptions) -> Result<Self> {
         let fd = Self::open_device()?;
         let raw_fd = fd.as_raw_fd();
-        let config = TerminalConfig::with_attributes(raw_fd, mode, timeout)?;
+        let config = TerminalConfig::new(raw_fd, &options)?;
+        let reader =
+            BufReader::with_capacity(options.read_buffer.get(), TerminalReader::new(raw_fd));
+        let writer = BufWriter::with_capacity(options.write_buffer, TerminalWriter::new(raw_fd));
 
         Ok(Self {
+            options,
             fd,
             config,
-            reader: BufReader::with_capacity(Terminal::BUFFER_SIZE, TerminalReader::new(raw_fd)),
-            writer: BufWriter::with_capacity(Terminal::BUFFER_SIZE, TerminalWriter::new(raw_fd)),
+            reader,
+            writer,
         })
     }
 
     /// Get the current terminal mode.
     pub fn mode(&self) -> TerminalMode {
-        self.config.mode()
+        self.options.mode
     }
 
     /// Get the current timeout.
     pub fn timeout(&self) -> NonZeroU8 {
-        self.config.timeout()
+        self.options.timeout
+    }
+
+    /// Get the size of the read buffer.
+    pub fn read_buffer(&self) -> NonZeroUsize {
+        self.options.read_buffer
+    }
+
+    /// Get the size of the write buffer.
+    pub fn write_buffer(&self) -> usize {
+        self.options.write_buffer
     }
 }
 
@@ -112,15 +169,6 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    /// The buffer size.
-    pub const BUFFER_SIZE: usize = 1024;
-
-    /// The default mode.
-    pub const MODE: TerminalMode = TerminalConfig::MODE;
-
-    /// The default timeout.
-    pub const TIMEOUT: NonZeroU8 = TerminalConfig::TIMEOUT;
-
     #[inline]
     fn lock(&mut self) -> MutexGuard<'static, Option<TerminalState>> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
@@ -132,7 +180,14 @@ impl Terminal {
     /// connects to the terminal device and configures it to the default mode
     /// and read timeout. If the controlling terminal is already connected, this
     /// method does nothing.
-    pub fn connect(mut self) -> Result<Self> {
+    ///
+    /// # Safety
+    ///
+    /// When manually managing the terminal connection, the application should
+    /// invoke [`Terminal::disconnect`] before exiting to restore the terminal's
+    /// original configuration. Hence, manually connecting to the terminal is an
+    /// inherently unsafe operation.
+    pub unsafe fn connect(mut self) -> Result<Self> {
         let mut inner = self.lock();
         if inner.is_none() {
             let state = TerminalState::new()?;
@@ -148,16 +203,23 @@ impl Terminal {
     /// and read timeout. If the controlling terminal is already connected, this
     /// method returns an `InvalidInput` error, unless both mode and read
     /// timeout are the same as the terminal's.
-    pub fn connect_with(mut self, mode: TerminalMode, timeout: NonZeroU8) -> Result<Self> {
+    ///
+    /// # Safety
+    ///
+    /// When manually managing the terminal connection, the application should
+    /// invoke [`Terminal::disconnect`] before exiting to restore the terminal's
+    /// original configuration. Hence, manually connecting to the terminal is an
+    /// inherently unsafe operation.
+    pub unsafe fn connect_with(mut self, options: TerminalOptions) -> Result<Self> {
         let mut inner = self.lock();
         if let Some(state) = &*inner {
-            if state.mode() == mode && state.timeout() == timeout {
+            if state.mode() == options.mode && state.timeout() == options.timeout {
                 Ok(self)
             } else {
                 Err(ErrorKind::InvalidInput.into())
             }
         } else {
-            let state = TerminalState::with_attributes(mode, timeout)?;
+            let state = TerminalState::with_options(options)?;
             *inner = Some(state);
             Ok(self)
         }
@@ -212,20 +274,16 @@ impl Terminal {
     /// timeout, and then returns an object providing exclusive access to
     /// terminal I/O. Dropping the object not only relinquishes access again but
     /// also disconnects the terminal.
-    pub fn access_with(
-        mut self,
-        mode: TerminalMode,
-        timeout: NonZeroU8,
-    ) -> Result<TerminalAccess<'static>> {
+    pub fn access_with(mut self, options: TerminalOptions) -> Result<TerminalAccess<'static>> {
         let mut inner = self.lock();
         if let Some(state) = &*inner {
-            if state.mode() == mode && state.timeout() == timeout {
+            if state.mode() == options.mode && state.timeout() == options.timeout {
                 Ok(TerminalAccess::new(inner, OnDrop::DoNothing))
             } else {
                 Err(ErrorKind::InvalidInput.into())
             }
         } else {
-            *inner = Some(TerminalState::with_attributes(mode, timeout)?);
+            *inner = Some(TerminalState::with_options(options)?);
             Ok(TerminalAccess::new(inner, OnDrop::Disconnect))
         }
     }
@@ -235,6 +293,14 @@ impl Terminal {
     /// If the controlling terminal is currently connected, this method restores
     /// its original configuration and disconnects from the terminal device.
     /// Otherwise, it does nothing.
+    ///
+    /// Unlike connecting to the terminal device, disconnecting again is a safe
+    /// operation. First, `disconnect` itself restores the terminal's original
+    /// configuration. Second, [`Terminal::try_access`], [`Terminal::access`],
+    /// and [`Terminal::access_with`] have well-defined semantics when the
+    /// terminal device is not connected, with `try_access` returning `None` and
+    /// the other two methods opening temporary connections that are
+    /// automatically closed.
     pub fn disconnect(mut self) {
         let mut inner = self.lock();
         drop(inner.take());
@@ -277,6 +343,26 @@ impl TerminalAccess<'_> {
         // this instance or by calling Terminal::disconnect, which needs to
         // reacquire the mutex.
         self.inner.as_mut().unwrap()
+    }
+
+    /// Get the terminal's current mode.
+    pub fn mode(&self) -> TerminalMode {
+        self.inner.as_ref().unwrap().mode()
+    }
+
+    /// Get the terminal's current read timeout.
+    pub fn timeout(&self) -> u8 {
+        self.inner.as_ref().unwrap().timeout().get()
+    }
+
+    /// Get the size of the read buffer.
+    pub fn read_buffer(&self) -> usize {
+        self.inner.as_ref().unwrap().read_buffer().get()
+    }
+
+    /// Get the size of the write buffer.
+    pub fn write_buffer(&self) -> usize {
+        self.inner.as_ref().unwrap().write_buffer()
     }
 
     /// Write the entire buffer and flush thereafter.
