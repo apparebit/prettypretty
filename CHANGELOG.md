@@ -1,38 +1,51 @@
 # Changelog
 
-## v0.11.0 (2024-xx-xx)
+## v0.11.0 (2024-11-03)
 
-### The Modularized API
+### A Seemingly Simpler, Yet More Powerful API
 
 This version introduces significant new functionality while also reorganizing
-already existing functionality. To avoid cognitive overload while using
-prettypretty, the public API now is modularized. The three primary modules and
-their main types are:
+the already existing functionality. To significantly reduce the cognitive
+overhead of using prettypretty, the public API now is modularized. The three
+primary modules and their main types are:
 
   - `prettypretty` provides high-resolution colors through
     [`ColorSpace`](https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html)
     and [`Color`](https://apparebit.github.io/prettypretty/prettypretty/struct.Color.html)
   - `prettypretty::style` abstracts over terminal styles with
     [`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)
-    and the many color representations with
+    and terminals' substantially different color representations with
     [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html).
   - `prettypretty::trans` defines
     [`Translator`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html)
-    née `Sampler` for translating between the color representations.
+    née `Sampler` for translating between the color representations. It also
+    defines
+    [`Theme`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Theme.html)
+    for representing a terminal's current color theme.
 
-They are supported by a few utility modules:
+A fourth module also contains critical functionality. But since it overlaps with
+existing Rust terminal crates such as
+[`crossterm`](https://github.com/crossterm-rs/crossterm), it also is optional.
+
+  - `prettypretty.term` provides direct access to the terminal device with
+    [`Terminal`](https://apparebit.github.io/prettypretty/prettypretty/term/struct.Terminal.html)
+    and parses input including ANSI escape sequences with
+    [`VtScanner`](https://apparebit.github.io/prettypretty/prettypretty/term/struct.VtScanner.html).
+    `Terminal` is currently supported on Unix only. This module is enabled with
+    the `term` feature, which is enabled by default.
+
+These four modules are supported by a utility module:
 
   - `prettypretty::error` is a utility module defining prettypretty's error
     types.
-  - `prettypretty::escape` is a utility module defining a low-level parser for
-    ANSI escape codes.
 
-Support for color gamuts and spectral distributions is optional, conditioned on
-the `gamut` feature. It is disabled by default in Rust but enabled in Python,
-consistent with the latter ecosystem favoring a "batteries included" approach.
+Finally, two more optional modules support color gamuts and the human visual
+gamut. Both modules are disabled by default in Rust and enabled by default in
+Python, with the latter adhering to that ecosystem's "batteries included"
+approach.
 
   - `prettypretty::gamut` is a utility module defining an iterator for
-    traversing color space gamuts.
+    traversing color space gamuts. It is enabled with the `gamut` feature.
   - `prettypretty::spectrum` adds support for spectral distributions and their
     iterators, notably the CIE
     [D50](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_ILLUMINANT_D50.html),
@@ -43,13 +56,18 @@ consistent with the latter ecosystem favoring a "batteries included" approach.
     (1931)](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_OBSERVER_2DEG_1931.html)
     and [10º
     (1964)](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_OBSERVER_10DEG_1964.html)
-    observers.
+    observers. It too is enabled with the `gamut` feature.
 
 
 ### New Functionality
 
-New functionality includes:
+In addition to the entirely new `gamut`, `spectrum`, and `term` modules, new
+features include:
 
+  * [`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)
+    represents a terminal style and
+    [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html)
+    represents a color, with the latter replacing `TerminalColor`.
   * [`ColorSpace::XyzD50`](https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html#variant.XyzD50)
     adds support for the XYZ color space with a D50 illuminant. Chromatic
     adaptation uses the (linear) Bradford method.
@@ -57,54 +75,17 @@ New functionality includes:
     and
     [`Color::xy_chromaticity`](https://apparebit.github.io/prettypretty/prettypretty/struct.Color.html#method.xy_chromaticity)
     map a color's three dimensions down to two.
-  * [`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)
-    represents a terminal style and
-    [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html)
-    represents a color, with the latter replacing `TerminalColor`.
-  * [`ColorSpace::gamut`](https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html#method.gamut)
-    returns an iterator traversing the color space's gamut; it is implemented by
-    the
-    [`gamut`](https://apparebit.github.io/prettypretty/prettypretty/gamut/index.html)
-    module. This method requires the `gamut` feature.
-  * The
-    [`spectrum`](https://apparebit.github.io/prettypretty/prettypretty/spectrum/index.html)
-    module defines several
-    [`SpectralDistribution`](https://apparebit.github.io/prettypretty/prettypretty/spectrum/trait.SpectralDistribution.html)s
-    including the CIE
-    [D50](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_ILLUMINANT_D50.html),
-    [D65](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_ILLUMINANT_D65.html),
-    and
-    [E](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_ILLUMINANT_E.html)
-    illuminants as well as the [2º
-    (1931)](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_OBSERVER_2DEG_1931.html)
-    and [10º
-    (1964)](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_OBSERVER_10DEG_1964.html)
-    observers. It also defines
-    [`SpectrumTraversal`](https://apparebit.github.io/prettypretty/prettypretty/spectrum/struct.SpectrumTraversal.html)
-    for iterating over the spectral locus and human visual gamut. This
-    functionality requires the `gamut` feature.
-  * The
-    [`termio`](https://apparebit.github.io/prettypretty/prettypretty/termio/index.html)
-    module's
-    [`VtScanner`](https://apparebit.github.io/prettypretty/prettypretty/termio/struct.VtScanner.html)
-    provides a low-level interface for reading ANSI escape sequences from a
-    terminal's input stream, whereas the
-    [`trans`](https://apparebit.github.io/prettypretty/prettypretty/trans/index.html)
-    module's
-    [`ThemeEntry`](https://apparebit.github.io/prettypretty/prettypretty/trans/enum.ThemeEntry.html)
-    provides the high-level interface for querying the terminal for its color
-    theme.
-  * The new
-    [`viz3d.py`](https://github.com/apparebit/prettypretty/blob/main/prettypretty/viz3d.py)
-    script uses the `spectrum` module to generate a 3D mesh of the human visual
-    gamut.
   * The output of the
     [`plot.py`](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
     script has been significantly improved; it now visualizes lightness as well,
     with regular and bright colors grouped together.
+  * The new
+    [`viz3d.py`](https://github.com/apparebit/prettypretty/blob/main/prettypretty/viz3d.py)
+    script uses the `spectrum` module to generate a 3D mesh of the human visual
+    gamut.
 
-Except a lightweight implementation of synchronous terminal I/O, prettypretty is
-approaching feature-completeness.
+With these features, prettypretty is rapidly approaching feature-complete
+status.
 
 
 ## v0.10.0 (2024-07-12)
