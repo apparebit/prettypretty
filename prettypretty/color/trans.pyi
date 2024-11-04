@@ -68,6 +68,9 @@ class Theme:
 VGA_COLORS: Theme =  ...
 
 
+# --------------------------------------------------------------------------------------
+
+
 class Translator:
     """A class for translating between terminal and high-resolution colors."""
     def __new__(cls, version: OkVersion, theme: Theme) -> Self: ...

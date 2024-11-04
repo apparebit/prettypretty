@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 
 use std::cell::RefCell;
 
-use super::{format::Format, Colorant, Fidelity, Layer};
+use super::{format::Format, Colorant, EmbeddedRgb, Fidelity, GrayGradient, Layer, TrueColor};
 use crate::trans::Translator;
 
 // ================================================================================================
@@ -112,13 +112,24 @@ impl Stylist {
         slf
     }
 
-    // Add the foreground color to this style builder.
-    #[pyo3(name = "foreground")]
-    pub fn py_foreground(
-        slf: PyRef<'_, Self>,
-        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
-    ) -> PyRef<'_, Self> {
-        slf.foreground(colorant);
+    /// Add the embedded RGB foreground color to this style builder.
+    #[pyo3(name = "embedded_rgb_fg")]
+    pub fn py_embedded_rgb_fg(slf: PyRef<'_, Self>, r: u8, g: u8, b: u8) -> PyRef<'_, Self> {
+        slf.embedded_rgb_fg(r, g, b);
+        slf
+    }
+
+    /// Add the gray foreground gradient to this style builder.
+    #[pyo3(name = "gray_fg")]
+    pub fn py_gray_fg(slf: PyRef<'_, Self>, level: u8) -> PyRef<'_, Self> {
+        slf.gray_fg(level);
+        slf
+    }
+
+    /// Add the true RGB foreground color to this style builder.
+    #[pyo3(name = "rgb_fg")]
+    pub fn py_rgb_fg(slf: PyRef<'_, Self>, r: u8, g: u8, b: u8) -> PyRef<'_, Self> {
+        slf.rgb_fg(r, g, b);
         slf
     }
 
@@ -132,13 +143,34 @@ impl Stylist {
         slf
     }
 
-    /// Add the background color to this style builder.
-    #[pyo3(name = "background")]
-    pub fn py_background(
+    // Add the foreground color to this style builder.
+    #[pyo3(name = "foreground")]
+    pub fn py_foreground(
         slf: PyRef<'_, Self>,
         #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
     ) -> PyRef<'_, Self> {
-        slf.background(colorant);
+        slf.foreground(colorant);
+        slf
+    }
+
+    /// Add the embedded RGB background color to this style builder.
+    #[pyo3(name = "embedded_rgb_bg")]
+    pub fn py_embedded_rgb_bg(slf: PyRef<'_, Self>, r: u8, g: u8, b: u8) -> PyRef<'_, Self> {
+        slf.embedded_rgb_bg(r, g, b);
+        slf
+    }
+
+    /// Add the gray background gradient to this style builder.
+    #[pyo3(name = "gray_bg")]
+    pub fn py_gray_bg(slf: PyRef<'_, Self>, level: u8) -> PyRef<'_, Self> {
+        slf.gray_bg(level);
+        slf
+    }
+
+    /// Add the true RGB background color to this style builder.
+    #[pyo3(name = "rgb_bg")]
+    pub fn py_rgb_bg(slf: PyRef<'_, Self>, r: u8, g: u8, b: u8) -> PyRef<'_, Self> {
+        slf.rgb_bg(r, g, b);
         slf
     }
 
@@ -149,6 +181,16 @@ impl Stylist {
         #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
     ) -> PyRef<'_, Self> {
         slf.bg(colorant);
+        slf
+    }
+
+    /// Add the background color to this style builder.
+    #[pyo3(name = "background")]
+    pub fn py_background(
+        slf: PyRef<'_, Self>,
+        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
+    ) -> PyRef<'_, Self> {
+        slf.background(colorant);
         slf
     }
 
@@ -261,6 +303,33 @@ impl Stylist {
         self
     }
 
+    /// Add the embedded RGB foreground color to this style builder.
+    ///
+    /// If any of the given components is invalid, i.e., greater than 5, this
+    /// method sets the foreground color to `None`.
+    pub fn embedded_rgb_fg(&self, r: u8, g: u8, b: u8) -> &Self {
+        let mut data = self.data.borrow_mut();
+        data.foreground = EmbeddedRgb::new(r, g, b).map(|c| c.into()).ok();
+        self
+    }
+
+    /// Add the gray foreground gradient to this style builder.
+    ///
+    /// If the given level is invalid, i.e., greater than 23, this method sets
+    /// the foreground color to `None`.
+    pub fn gray_fg(&self, level: u8) -> &Self {
+        let mut data = self.data.borrow_mut();
+        data.foreground = GrayGradient::new(level).map(|c| c.into()).ok();
+        self
+    }
+
+    /// Add the true RGB foreground color to this style builder.
+    pub fn rgb_fg(&self, r: u8, g: u8, b: u8) -> &Self {
+        let mut data = self.data.borrow_mut();
+        data.foreground = Some(TrueColor::new(r, g, b).into());
+        self
+    }
+
     /// Add the foreground color to this style builder.
     pub fn fg(&self, color: impl Into<Colorant>) -> &Self {
         let mut data = self.data.borrow_mut();
@@ -272,6 +341,33 @@ impl Stylist {
     pub fn foreground(&self, color: impl Into<Colorant>) -> &Self {
         let mut data = self.data.borrow_mut();
         data.foreground = Some(color.into());
+        self
+    }
+
+    /// Add the embedded RGB background color to this style builder.
+    ///
+    /// If any of the given components is invalid, i.e., greater than 5, this
+    /// method sets the background color to `None`.
+    pub fn embedded_rgb_bg(&self, r: u8, g: u8, b: u8) -> &Self {
+        let mut data = self.data.borrow_mut();
+        data.background = EmbeddedRgb::new(r, g, b).map(|c| c.into()).ok();
+        self
+    }
+
+    /// Add the gray background gradient to this style builder.
+    ///
+    /// If the given level is invalid, i.e., greater than 23, this method sets
+    /// the background color to `None`.
+    pub fn gray_bg(&self, level: u8) -> &Self {
+        let mut data = self.data.borrow_mut();
+        data.background = GrayGradient::new(level).map(|c| c.into()).ok();
+        self
+    }
+
+    /// Add the true RGB background color to this style builder.
+    pub fn rgb_bg(&self, r: u8, g: u8, b: u8) -> &Self {
+        let mut data = self.data.borrow_mut();
+        data.background = Some(TrueColor::new(r, g, b).into());
         self
     }
 
