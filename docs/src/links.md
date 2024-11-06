@@ -22,6 +22,7 @@
 [`HueInterpolation`]: https://apparebit.github.io/prettypretty/prettypretty/enum.HueInterpolation.html
 [`Interpolator`]: https://apparebit.github.io/prettypretty/prettypretty/struct.Interpolator.html
 [`Layer`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Layer.html
+[`Mode`]: https://apparebit.github.io/prettypretty/prettypretty/term/enum.Mode.html
 [`OkVersion`]: https://apparebit.github.io/prettypretty/prettypretty/enum.OkVersion.html
 [`OutOfBoundsError`]: https://apparebit.github.io/prettypretty/prettypretty/error/struct.OutOfBoundsError.html
 [`Style`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Style.html
@@ -30,7 +31,6 @@
 [`terminal`]: https://apparebit.github.io/prettypretty/prettypretty/term/fn.terminal.html
 [`Terminal`]: https://apparebit.github.io/prettypretty/prettypretty/term/struct.Terminal.html
 [`TerminalAccess`]: https://apparebit.github.io/prettypretty/prettypretty/term/struct.TerminalAccess.html
-[`TerminalMode`]: https://apparebit.github.io/prettypretty/prettypretty/term/enum.TerminalMode.html
 [`Theme`]: https://apparebit.github.io/prettypretty/prettypretty/trans/enum.Theme.html
 [`ThemeEntry`]: https://apparebit.github.io/prettypretty/prettypretty/trans/enum.ThemeEntry.html
 [`ThemeEntryIterator`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.ThemeEntryIterator.html

@@ -6,11 +6,13 @@
 //! same reason, [`TerminalConfig`], [`TerminalReader`], and [`TerminalWriter`]
 //! must not be directly exposed to application code.
 
+use std::fs::OpenOptions;
 use std::io::{Read, Result, Write};
-use std::os::fd::{AsRawFd, RawFd};
+use std::os::fd::{AsRawFd, OwnedFd};
 use std::ptr::{from_mut, from_ref};
 
-use crate::term::TerminalOptions;
+use super::RawHandle;
+use crate::term::{Mode, Options};
 
 /// A trait for converting libc status codes to Rust std::io results.
 ///
@@ -49,17 +51,36 @@ into_result!(isize, usize);
 
 // ------------------------------------------------------------------------------------------------
 
-/// The non-canonical terminal mode.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TerminalMode {
-    /// Rare mode, also known as cbreak mode, disables canonical line processing
-    /// and echoing of characters, but continues processing end-of-line
-    /// characters and signals.
-    Rare,
-    /// Raw mode disables all terminal features beyond reading input and writing
-    /// output including ctrl-c for signalling a process to terminate.
-    Raw,
+/// A connection to the terminal device.
+///
+/// [`Device::new`] opens a new connection to the terminal device and closes
+/// that connection again when dropped. Since [`Device::raw`] returns a raw
+/// handle, it is the caller's responsibility to ensure that the raw handle is
+/// not used past the connection's lifetime.
+#[derive(Debug)]
+pub(crate) struct Device {
+    fd: OwnedFd,
 }
+
+impl Device {
+    /// Open a new owned connection to the terminal device.
+    pub fn new() -> Result<Self> {
+        let fd = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open("/dev/tty")?
+            .into();
+
+        Ok(Self { fd })
+    }
+
+    /// Get a raw handle for the connection.
+    pub fn raw(&self) -> RawHandle {
+        self.fd.as_raw_fd()
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
 
 /// The timing of terminal configuration updates.
 #[allow(dead_code)]
@@ -77,7 +98,11 @@ enum When {
     AfterFlush = libc::TCSAFLUSH,
 }
 
+// ------------------------------------------------------------------------------------------------
+
 /// The actual terminal attributes.
+///
+/// Wrapping the underlying libc type enables a humane debug representation.
 #[derive(Clone)]
 struct Termios {
     inner: libc::termios,
@@ -166,27 +191,34 @@ impl std::fmt::Debug for Termios {
 
 /// A terminal configuration.
 ///
-/// This struct ensures that calls to the underlying Posix API are safe and that
-/// a configuration update is based on a previous configuration for the same
+/// # Safety
+///
+/// The owner of a terminal configuration must ensure that the instance does not
+/// outlive its file descriptor. As long as that invariant is preserved, this
+/// struct ensures that calls to the underlying Posix API are safe and that a
+/// configuration update is based on a previous configuration for the same
 /// terminal.
 #[derive(Debug)]
-pub(crate) struct TerminalConfig {
-    fd: RawFd,
+pub(crate) struct Config {
+    handle: RawHandle,
     attributes: Termios,
 }
 
-impl TerminalConfig {
+impl Config {
     /// Configure the terminal with the given options.
     ///
     /// This method reads the current terminal configuration, updates a copy of
     /// the configuration, writes the updated copy, and returns the original.
-    pub fn new(fd: impl AsRawFd, options: &TerminalOptions) -> Result<Self> {
-        let fd = fd.as_raw_fd();
-        let attributes = Self::read(fd)?;
+    pub fn new(handle: RawHandle, options: &Options) -> Result<Self> {
+        let attributes = Self::read(handle)?;
 
-        Self::write(fd, When::AfterFlush, &Self::update(&attributes, options))?;
+        Self::write(
+            handle,
+            When::AfterFlush,
+            &Self::update(&attributes, options),
+        )?;
 
-        Ok(Self { fd, attributes })
+        Ok(Self { handle, attributes })
     }
 
     /// Reconfigure the terminal to use the given options.
@@ -194,9 +226,9 @@ impl TerminalConfig {
     /// This method applies the options to a copy of the terminal's original
     /// configuration and then writes the updated copy to the terminal.
     #[allow(dead_code)]
-    pub fn reconfigure(&mut self, options: &TerminalOptions) -> Result<()> {
+    pub fn reconfigure(&mut self, options: &Options) -> Result<()> {
         Self::write(
-            self.fd,
+            self.handle,
             When::AfterFlush,
             &Self::update(&self.attributes, options),
         )
@@ -204,28 +236,28 @@ impl TerminalConfig {
 
     /// Restore the original terminal configuration.
     pub fn restore(&self) -> Result<()> {
-        Self::write(self.fd, When::AfterOutputFlush, &self.attributes)
+        Self::write(self.handle, When::AfterOutputFlush, &self.attributes)
     }
 
     // ---------------------------------------------------------------------------------
 
     /// Read the configuration for the terminal with the given file descriptor.
-    fn read(fd: RawFd) -> Result<Termios> {
+    fn read(handle: RawHandle) -> Result<Termios> {
         let mut attributes = std::mem::MaybeUninit::uninit();
-        unsafe { libc::tcgetattr(fd, attributes.as_mut_ptr()) }.into_result()?;
+        unsafe { libc::tcgetattr(handle, attributes.as_mut_ptr()) }.into_result()?;
         Ok(Termios::new(unsafe { attributes.assume_init() }))
     }
 
     /// Create an updated configuration with the given mode and timeout.
-    fn update(attributes: &Termios, options: &TerminalOptions) -> Termios {
+    fn update(attributes: &Termios, options: &Options) -> Termios {
         let mut wrapper = attributes.clone();
         let inner = wrapper.as_mut();
 
         match options.mode {
-            TerminalMode::Rare => {
+            Mode::Rare => {
                 inner.c_lflag &= !(libc::ECHO | libc::ICANON);
             }
-            TerminalMode::Raw => {
+            Mode::Raw => {
                 unsafe { libc::cfmakeraw(from_mut(inner)) };
             }
         }
@@ -236,8 +268,9 @@ impl TerminalConfig {
     }
 
     /// Write this configuration to the terminal with the file descriptor.
-    fn write(fd: RawFd, when: When, attributes: &Termios) -> Result<()> {
-        unsafe { libc::tcsetattr(fd, when as i32, from_ref(attributes.as_ref())) }.into_result()?;
+    fn write(handle: RawHandle, when: When, attributes: &Termios) -> Result<()> {
+        unsafe { libc::tcsetattr(handle, when as i32, from_ref(attributes.as_ref())) }
+            .into_result()?;
         Ok(())
     }
 }
@@ -245,23 +278,28 @@ impl TerminalConfig {
 // ------------------------------------------------------------------------------------------------
 
 /// A terminal reader.
+///
+/// # Safety
+///
+/// The owner of a terminal reader must ensure that the instance does not
+/// outlive its file descriptor.
 #[derive(Debug)]
-pub(crate) struct TerminalReader {
-    fd: RawFd,
+pub(crate) struct Reader {
+    handle: RawHandle,
 }
 
-impl TerminalReader {
+impl Reader {
     /// Create a new reader with a raw file descriptor.
-    pub fn new(fd: impl AsRawFd) -> Self {
-        Self { fd: fd.as_raw_fd() }
+    pub fn new(handle: RawHandle) -> Self {
+        Self { handle }
     }
 }
 
-impl Read for TerminalReader {
+impl Read for Reader {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         unsafe {
             libc::read(
-                self.fd,
+                self.handle,
                 buf.as_mut_ptr() as *mut libc::c_void,
                 buf.len() as libc::size_t,
             )
@@ -273,23 +311,28 @@ impl Read for TerminalReader {
 // ------------------------------------------------------------------------------------------------
 
 /// A terminal writer.
+///
+/// # Safety
+///
+/// The owner of a terminal reader must ensure that the instance does not
+/// outlive its file descriptor.
 #[derive(Debug)]
-pub(crate) struct TerminalWriter {
-    fd: RawFd,
+pub(crate) struct Writer {
+    handle: RawHandle,
 }
 
-impl TerminalWriter {
+impl Writer {
     /// Create a new writer with a raw file descriptor.
-    pub fn new(fd: impl AsRawFd) -> Self {
-        Self { fd: fd.as_raw_fd() }
+    pub fn new(handle: RawHandle) -> Self {
+        Self { handle }
     }
 }
 
-impl Write for TerminalWriter {
+impl Write for Writer {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         unsafe {
             libc::write(
-                self.fd.as_raw_fd(),
+                self.handle,
                 buf.as_ptr() as *mut libc::c_void,
                 buf.len() as libc::size_t,
             )

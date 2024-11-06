@@ -347,6 +347,4 @@ mod terminal;
 pub use escape::{Action, Control, VtScanner};
 pub use render::render;
 #[cfg(target_family = "unix")]
-pub use sys::TerminalMode;
-#[cfg(target_family = "unix")]
-pub use terminal::{terminal, Terminal, TerminalAccess, TerminalOptions};
+pub use terminal::{terminal, Mode, Options, Terminal, TerminalAccess};

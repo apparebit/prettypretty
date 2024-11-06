@@ -1,17 +1,28 @@
 use std::convert::AsRef;
-use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, BufWriter, ErrorKind, IoSlice, IoSliceMut, Read, Result, Write};
 use std::num::{NonZeroU8, NonZeroUsize};
-use std::os::fd::{AsRawFd, OwnedFd};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
-use super::sys::{TerminalConfig, TerminalMode, TerminalReader, TerminalWriter};
+use super::sys::{Config, Device, Reader, Writer};
+
+/// The non-canonical terminal mode.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Mode {
+    /// Rare mode, also known as cbreak mode, disables canonical line processing
+    /// and echoing of characters, but continues processing end-of-line
+    /// characters and signals. This is the default.
+    #[default]
+    Rare,
+    /// Raw mode disables all terminal features beyond reading input and writing
+    /// output including ctrl-c for signalling a process to terminate.
+    Raw,
+}
 
 /// Options for configuring the terminal.
 #[derive(Clone, Copy, Debug)]
-pub struct TerminalOptions {
+pub struct Options {
     /// The terminal mode.
-    pub mode: TerminalMode,
+    pub mode: Mode,
 
     /// The read timeout in 0.1s increments.
     pub timeout: NonZeroU8,
@@ -28,11 +39,11 @@ pub struct TerminalOptions {
     pub write_buffer: usize,
 }
 
-impl TerminalOptions {
+impl Options {
     /// Create a new terminal options object with the default values.
     pub const fn new() -> Self {
         Self {
-            mode: TerminalMode::Rare,
+            mode: Mode::Rare,
             timeout: unsafe { NonZeroU8::new_unchecked(1) },
             read_buffer: unsafe { NonZeroUsize::new_unchecked(1_024) },
             write_buffer: 1_024,
@@ -40,7 +51,7 @@ impl TerminalOptions {
     }
 }
 
-impl Default for TerminalOptions {
+impl Default for Options {
     fn default() -> Self {
         Self::new()
     }
@@ -50,53 +61,42 @@ impl Default for TerminalOptions {
 
 /// The terminal state.
 ///
-/// This struct owns the file descriptor for the connection to the terminal
-/// device as well as the configuration, reader, and writer objects. On drop, it
-/// restores the original configuration and closes the connection.
+/// This struct owns the connection to the terminal device as well as the
+/// configuration, reader, and writer objects. On drop, it restores the original
+/// configuration and closes the connection.
 #[derive(Debug)]
-struct TerminalState {
-    options: TerminalOptions,
+struct State {
+    options: Options,
     #[allow(dead_code)]
-    fd: OwnedFd,
-    config: TerminalConfig,
-    reader: BufReader<TerminalReader>,
-    writer: BufWriter<TerminalWriter>,
+    device: Device,
+    config: Config,
+    reader: BufReader<Reader>,
+    writer: BufWriter<Writer>,
 }
 
-impl TerminalState {
-    /// Create a new owned file descriptor for the controlling terminal.
-    fn open_device() -> Result<OwnedFd> {
-        Ok(OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open("/dev/tty")?
-            .into())
-    }
-
+impl State {
     /// Access the controlling terminal with the default options.
     ///
     /// This method opens a connection to the controlling terminal and
     /// configures the terminal with the default options for mode and read
     /// timeout.
     pub fn new() -> Result<Self> {
-        TerminalState::with_options(TerminalOptions::new())
+        State::with_options(Options::new())
     }
 
     /// Access the controlling terminal with the given attributes.
     ///
     /// This method opens a connection to the controlling terminal and
     /// configures the terminal to use the given mode and read timeout.
-    pub fn with_options(options: TerminalOptions) -> Result<Self> {
-        let fd = Self::open_device()?;
-        let raw_fd = fd.as_raw_fd();
-        let config = TerminalConfig::new(raw_fd, &options)?;
-        let reader =
-            BufReader::with_capacity(options.read_buffer.get(), TerminalReader::new(raw_fd));
-        let writer = BufWriter::with_capacity(options.write_buffer, TerminalWriter::new(raw_fd));
+    pub fn with_options(options: Options) -> Result<Self> {
+        let device = Device::new()?;
+        let config = Config::new(device.raw(), &options)?;
+        let reader = BufReader::with_capacity(options.read_buffer.get(), Reader::new(device.raw()));
+        let writer = BufWriter::with_capacity(options.write_buffer, Writer::new(device.raw()));
 
         Ok(Self {
             options,
-            fd,
+            device,
             config,
             reader,
             writer,
@@ -104,7 +104,7 @@ impl TerminalState {
     }
 
     /// Get the current terminal mode.
-    pub fn mode(&self) -> TerminalMode {
+    pub fn mode(&self) -> Mode {
         self.options.mode
     }
 
@@ -124,7 +124,7 @@ impl TerminalState {
     }
 }
 
-impl Drop for TerminalState {
+impl Drop for State {
     fn drop(&mut self) {
         // Make sure all output has been written.
         let _ = self.writer.flush();
@@ -136,7 +136,7 @@ impl Drop for TerminalState {
 
 /// Access the controlling terminal.
 pub fn terminal() -> Terminal {
-    static TERMINAL: OnceLock<Mutex<Option<TerminalState>>> = OnceLock::new();
+    static TERMINAL: OnceLock<Mutex<Option<State>>> = OnceLock::new();
     Terminal {
         inner: TERMINAL.get_or_init(|| Mutex::new(None)),
     }
@@ -165,12 +165,12 @@ pub fn terminal() -> Terminal {
 /// [`Terminal::access`] is also suitable for interactive usage of prettypretty,
 /// e.g., from within an interactive Python interpreter.
 pub struct Terminal {
-    inner: &'static Mutex<Option<TerminalState>>,
+    inner: &'static Mutex<Option<State>>,
 }
 
 impl Terminal {
     #[inline]
-    fn lock(&mut self) -> MutexGuard<'static, Option<TerminalState>> {
+    fn lock(&mut self) -> MutexGuard<'static, Option<State>> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -190,7 +190,7 @@ impl Terminal {
     pub unsafe fn connect(mut self) -> Result<Self> {
         let mut inner = self.lock();
         if inner.is_none() {
-            let state = TerminalState::new()?;
+            let state = State::new()?;
             *inner = Some(state);
         }
         Ok(self)
@@ -210,7 +210,7 @@ impl Terminal {
     /// invoke [`Terminal::disconnect`] before exiting to restore the terminal's
     /// original configuration. Hence, manually connecting to the terminal is an
     /// inherently unsafe operation.
-    pub unsafe fn connect_with(mut self, options: TerminalOptions) -> Result<Self> {
+    pub unsafe fn connect_with(mut self, options: Options) -> Result<Self> {
         let mut inner = self.lock();
         if let Some(state) = &*inner {
             if state.mode() == options.mode && state.timeout() == options.timeout {
@@ -219,7 +219,7 @@ impl Terminal {
                 Err(ErrorKind::InvalidInput.into())
             }
         } else {
-            let state = TerminalState::with_options(options)?;
+            let state = State::with_options(options)?;
             *inner = Some(state);
             Ok(self)
         }
@@ -256,7 +256,7 @@ impl Terminal {
         if inner.is_some() {
             Ok(TerminalAccess::new(inner, OnDrop::DoNothing))
         } else {
-            *inner = Some(TerminalState::new()?);
+            *inner = Some(State::new()?);
             Ok(TerminalAccess::new(inner, OnDrop::Disconnect))
         }
     }
@@ -274,7 +274,7 @@ impl Terminal {
     /// timeout, and then returns an object providing exclusive access to
     /// terminal I/O. Dropping the object not only relinquishes access again but
     /// also disconnects the terminal.
-    pub fn access_with(mut self, options: TerminalOptions) -> Result<TerminalAccess<'static>> {
+    pub fn access_with(mut self, options: Options) -> Result<TerminalAccess<'static>> {
         let mut inner = self.lock();
         if let Some(state) = &*inner {
             if state.mode() == options.mode && state.timeout() == options.timeout {
@@ -283,7 +283,7 @@ impl Terminal {
                 Err(ErrorKind::InvalidInput.into())
             }
         } else {
-            *inner = Some(TerminalState::with_options(options)?);
+            *inner = Some(State::with_options(options)?);
             Ok(TerminalAccess::new(inner, OnDrop::Disconnect))
         }
     }
@@ -321,13 +321,13 @@ enum OnDrop {
 /// This struct holds the mutex guaranteeing exclusive access for the duration
 /// of its lifetime `'a`.
 pub struct TerminalAccess<'a> {
-    inner: MutexGuard<'a, Option<TerminalState>>,
+    inner: MutexGuard<'a, Option<State>>,
     on_drop: OnDrop,
 }
 
 impl<'a> TerminalAccess<'a> {
     /// Grant terminal access without impacting the terminal connection.
-    fn new(inner: MutexGuard<'a, Option<TerminalState>>, on_drop: OnDrop) -> Self {
+    fn new(inner: MutexGuard<'a, Option<State>>, on_drop: OnDrop) -> Self {
         assert!(inner.is_some());
         Self { inner, on_drop }
     }
@@ -336,7 +336,7 @@ impl<'a> TerminalAccess<'a> {
 impl TerminalAccess<'_> {
     /// Get a mutable reference to the inner terminal state.
     #[inline]
-    fn get_mut(&mut self) -> &mut TerminalState {
+    fn get_mut(&mut self) -> &mut State {
         // SAFETY: The option has a value as long as the terminal is connected.
         // The terminal is connected upon creation of this instance (see
         // assertion in new() above) and it can be disconnected only by dropping
@@ -346,7 +346,7 @@ impl TerminalAccess<'_> {
     }
 
     /// Get the terminal's current mode.
-    pub fn mode(&self) -> TerminalMode {
+    pub fn mode(&self) -> Mode {
         self.inner.as_ref().unwrap().mode()
     }
 
