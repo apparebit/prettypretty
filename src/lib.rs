@@ -109,7 +109,12 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # #[cfg(target_family = "unix")]
 //! # fn run() -> Result<()> {
 //! // 1. Assemble application styles
-//! let chic = stylist().bold().rgb(255, 150, 0).fg().et_voila();
+//! let chic = stylist()
+//!     .bold()
+//!     .underlined()
+//!     .rgb(215, 40, 39)
+//!     .fg()
+//!     .et_voila();
 //! # Ok(())
 //! # }
 //! # let _ = run();
@@ -145,7 +150,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # }
 //! # #[cfg(target_family = "unix")]
 //! # fn run() -> Result<()> {
-//! # let chic = stylist().bold().rgb(255, 150, 0).fg().et_voila();
+//! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
 //! // 2a. Determine color theme, stdout's color support
 //! let theme = Theme::query_terminal()?;
 //! let fidelity = Fidelity::from_environment(stdout().is_terminal());
@@ -170,7 +175,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # }
 //! # #[cfg(target_family = "unix")]
 //! # fn run() -> Result<()> {
-//! # let chic = stylist().bold().rgb(255, 150, 0).fg().et_voila();
+//! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
 //! # let theme = Theme::query_terminal()?;
 //! # let fidelity = Fidelity::from_environment(stdout().is_terminal());
 //! // 2b. Adjust fidelity of styles
@@ -196,19 +201,19 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # }
 //! # #[cfg(target_family = "unix")]
 //! # fn run() -> Result<()> {
-//! # let chic = stylist().bold().rgb(255, 150, 0).fg().et_voila();
+//! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
 //! # let theme = Theme::query_terminal()?;
 //! # let fidelity = Fidelity::from_environment(stdout().is_terminal());
 //! # let translator = Translator::new(OkVersion::Revised, theme);
 //! # let effective_chic = &chic.cap(fidelity, &translator);
 //! // 3. Apply and revert styles
-//! println!("{} Wow! {}", effective_chic, !effective_chic);
+//! println!("{}Wow!{}", effective_chic, !effective_chic);
 //! # Ok(())
 //! # }
 //! # let _ = run();
 //! ```
-//!
-//! 🌸 Et voilà! 🌸
+//! <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
+//!      alt="wow!" width="77">
 //!
 //!
 //! ## Feature Flags
