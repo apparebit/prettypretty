@@ -88,15 +88,20 @@ script, that's a grand total of two styles:
 
 ```python,ignore
 LIGHT_MODE_BAR = stylist().foreground(Color.p3(0.0, 1.0, 0.0)).et_voila()
-DARK_MODE_BAR = stylist().foreground(TrueColor(3, 151, 49)).et_voila()
+DARK_MODE_BAR = stylist().rgb(3, 151, 49).fg().et_voila()
 ```
 <div class=color-swatch>
 <div style="background-color: color(display-p3 0 1 0);"></div>
 <div style="background-color: rgb(3 151 49);"></div>
 </div>
 
-If `stylist()` and `et_voila()` are too sassy for you, then `Style.builder()`
-and `build()` will work just as well.
+First, if `stylist()` and `et_voila()` are too sassy for you, then
+`Style.builder()` and `build()` will work just as well. Second, notice that
+there are two different ways of specifying colors. `foreground()` and
+`background()` expect fully built color objects, which are internally converted
+to colorants. By contrast, `embedded_rgb()`, `gray()`, and `rgb()` take RGB
+component or gray level arguments and must be followed by `fg()`, `on()`, or
+`bg()` to select foreground or background, with `on()` an alias to `fg()`.
 
 When declaring styles, only include attributes that you want set and nothing
 else. Don't bother with defining styles that undo other styles or incrementally

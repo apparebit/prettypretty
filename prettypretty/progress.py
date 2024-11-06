@@ -5,7 +5,7 @@ import time
 
 from prettypretty.color import Color
 from prettypretty.color.style import ( # # pyright: ignore [reportMissingModuleSource]
-    stylist, Style, TrueColor
+    stylist, Style
 )
 from prettypretty.terminal import Terminal
 from prettypretty.theme import current_translator
@@ -37,7 +37,7 @@ WIDTH = 100 // STEPS + (1 if 100 % STEPS != 0 else 0)
 assert WIDTH * STEPS >= 100  # Without the adjustment, this wouldn't hold
 
 LIGHT_MODE_BAR = stylist().foreground(Color.p3(0.0, 1.0, 0.0)).et_voila()
-DARK_MODE_BAR = stylist().foreground(TrueColor(3, 151, 49)).et_voila()
+DARK_MODE_BAR = stylist().rgb(3, 151, 49).fg().et_voila()
 
 
 def format_bar(percent: float, style: Style) -> list[Style| str]:

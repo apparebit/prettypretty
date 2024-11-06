@@ -59,7 +59,34 @@
 //! matter. If you set a color more than once, the most recent invocation wins.
 //!
 //! If `stylist()` and `et_voila()` are too sassy for you, prettypretty includes
-//! [`Style::builder()`] and [`build()`](Stylist::build) as well.
+//! [`Style::builder()`] and [`build()`](Stylist::build) as well. Furthermore,
+//! 8-bit and 24-bit terminal colors can be written more concisely as
+//! [`Stylist::embedded_rgb`], [`Stylist::gray`], or [`Stylist::rgb`] followed
+//! by [`Colorist::fg`], [`Colorist::on`], or [`Colorist::bg`]. For instance,
+//! the following example code is equivalent to the one above:
+//! ```
+//! # use prettypretty::style::{Style, Colorant, format::Format, TrueColor};
+//! let style = Style::builder()
+//!     .bold()
+//!     .rgb(215, 40, 39)
+//!     .fg()
+//!     .underlined()
+//!     .build();
+//!
+//! assert_eq!(
+//!     style.format(),
+//!     Some(Format::new().bold().underlined())
+//! );
+//! assert_eq!(
+//!     style.foreground(),
+//!     Some(Colorant::Rgb(TrueColor::new(215, 40, 39))).as_ref()
+//! );
+//! assert_eq!(style.background(), None);
+//! ```
+//! <div class=color-swatch>
+//! <div style="background-color: rgb(215 40 39);"></div>
+//! </div>
+//! <br>
 //!
 //!
 //! ## Adjust Style to Terminal
@@ -111,6 +138,8 @@
 //!
 //! assert_eq!(s, "\x1b[1;4;31mWow!\x1b[22;24;39m");
 //! ```
+//! <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
+//!      alt="wow!" width="77">
 
 mod color;
 mod context;
@@ -124,4 +153,4 @@ pub use color::{
     AnsiColor, AnsiColorIterator, Colorant, EightBitColor, EmbeddedRgb, GrayGradient, TrueColor,
 };
 pub use context::{Fidelity, Layer};
-pub use styling::{stylist, Style, Stylist};
+pub use styling::{stylist, Colorist, Style, Stylist};

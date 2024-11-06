@@ -85,7 +85,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     color visualizations.
 //!
 //!
-//! ## Prettypretty's One-Two-Three Styles!
+//! ## One-Two-Three: Styles!
 //!
 //! Prettypretty's three-step workflow for awesome terminal styles works like
 //! this.
@@ -109,11 +109,24 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # #[cfg(target_family = "unix")]
 //! # fn run() -> Result<()> {
 //! // 1. Assemble application styles
-//! let chic = stylist().bold().fg(rgb!(255, 150, 0)).et_voila();
+//! let chic = stylist().bold().rgb(255, 150, 0).fg().et_voila();
 //! # Ok(())
 //! # }
 //! # let _ = run();
 //! ```
+//!
+//! As illustrated above, you can use
+//! [`Stylist::embedded_rgb`](style::Stylist::embedded_rgb),
+//! [`Stylist::gray`](style::Stylist::gray), or
+//! [`Stylist::rgb`](style::Stylist::rgb) followed by
+//! [`Colorist::fg`](style::Colorist::fg),
+//! [`Colorist::on`](style::Colorist::on), or
+//! [`Colorist::bg`](style::Colorist::bg) to specify an 8-bit or 24-bit terminal
+//! color. Alternatively, you can use
+//! [`Stylist::foreground`](style::Stylist::foreground) or
+//! [`Stylist::background`](style::Stylist::background), which accept any of
+//! prettypretty's colors.
+//!
 //!
 //! ### 2. Adjust Your Styles
 //!
@@ -132,7 +145,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # }
 //! # #[cfg(target_family = "unix")]
 //! # fn run() -> Result<()> {
-//! # let chic = stylist().bold().fg(rgb!(255, 150, 0)).et_voila();
+//! # let chic = stylist().bold().rgb(255, 150, 0).fg().et_voila();
 //! // 2a. Determine color theme, stdout's color support
 //! let theme = Theme::query_terminal()?;
 //! let fidelity = Fidelity::from_environment(stdout().is_terminal());
@@ -157,7 +170,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # }
 //! # #[cfg(target_family = "unix")]
 //! # fn run() -> Result<()> {
-//! # let chic = stylist().bold().fg(rgb!(255, 150, 0)).et_voila();
+//! # let chic = stylist().bold().rgb(255, 150, 0).fg().et_voila();
 //! # let theme = Theme::query_terminal()?;
 //! # let fidelity = Fidelity::from_environment(stdout().is_terminal());
 //! // 2b. Adjust fidelity of styles
@@ -183,7 +196,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # }
 //! # #[cfg(target_family = "unix")]
 //! # fn run() -> Result<()> {
-//! # let chic = stylist().bold().fg(rgb!(255, 150, 0)).et_voila();
+//! # let chic = stylist().bold().rgb(255, 150, 0).fg().et_voila();
 //! # let theme = Theme::query_terminal()?;
 //! # let fidelity = Fidelity::from_environment(stdout().is_terminal());
 //! # let translator = Translator::new(OkVersion::Revised, theme);
@@ -322,6 +335,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modstyle.add_class::<style::AnsiColor>()?;
     modstyle.add_class::<style::AnsiColorIterator>()?;
     modstyle.add_class::<style::Colorant>()?;
+    modstyle.add_class::<style::Colorist>()?;
     modstyle.add_class::<style::EmbeddedRgb>()?;
     modstyle.add_class::<style::Fidelity>()?;
     modstyle.add_class::<style::GrayGradient>()?;

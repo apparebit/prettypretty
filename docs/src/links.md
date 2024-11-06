@@ -9,6 +9,7 @@
 [`Color`]: https://apparebit.github.io/prettypretty/prettypretty/struct.Color.html
 [`Colorant`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html
 [`Colorant::Default`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html#variant.Default
+[`Colorist`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.Colorist.html
 [`ColorFormatError`]: https://apparebit.github.io/prettypretty/prettypretty/enum.ColorFormatError.html
 [`ColorSpace`]: https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html
 [`Control`]: https://apparebit.github.io/prettypretty/prettypretty/term/enum.Control.html
@@ -28,6 +29,7 @@
 [`Style`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Style.html
 [`Style::cap`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Style.html#method.cap
 [`stylist`]: https://apparebit.github.io/prettypretty/prettypretty/style/fn.stylist.html
+[`Stylist`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.Stylist.html
 [`terminal`]: https://apparebit.github.io/prettypretty/prettypretty/term/fn.terminal.html
 [`Terminal`]: https://apparebit.github.io/prettypretty/prettypretty/term/struct.Terminal.html
 [`TerminalAccess`]: https://apparebit.github.io/prettypretty/prettypretty/term/struct.TerminalAccess.html

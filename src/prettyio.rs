@@ -1,7 +1,7 @@
 #[cfg(target_family = "unix")]
 #[allow(non_snake_case)]
 pub fn main() -> std::io::Result<()> {
-    use prettypretty::style::{stylist, Fidelity, GrayGradient, Stylist};
+    use prettypretty::style::{stylist, Fidelity, Stylist};
     use prettypretty::term::{render, terminal};
     use prettypretty::trans::{Theme, ThemeEntry, Translator};
     use prettypretty::OkVersion;
@@ -15,7 +15,8 @@ pub fn main() -> std::io::Result<()> {
     // Define and adjust styles
     let BOLD = &stylist().bold().et_voila().cap(fidelity, &translator);
     let GRAY = &stylist()
-        .fg(GrayGradient::new(15).unwrap())
+        .gray(15)
+        .fg()
         .et_voila()
         .cap(fidelity, &translator);
     let RESET = &Stylist::with_reset().et_voila().cap(fidelity, &translator);
