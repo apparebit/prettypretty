@@ -75,14 +75,30 @@ impl Device {
         Ok(Self { fd })
     }
 
-    /// Get a raw handle for reading from the connection.
+    /// Get a handle for the device.
+    pub fn handle(&self) -> DeviceHandle {
+        DeviceHandle(self.fd.as_raw_fd())
+    }
+}
+
+/// A handle to the terminal device.
+///
+/// While strictly unnecessary on Unix, the Windows version is helpful because
+/// it combines two raw handles.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DeviceHandle(RawHandle);
+
+impl DeviceHandle {
+    /// Access the raw handle for terminal input.
+    #[inline]
     pub fn input(&self) -> RawHandle {
-        self.fd.as_raw_fd()
+        self.0
     }
 
-    /// Get a raw handle for writing to the connection.
+    /// Access the raw handle for terminal output.
+    #[inline]
     pub fn output(&self) -> RawHandle {
-        self.fd.as_raw_fd()
+        self.0
     }
 }
 
@@ -108,7 +124,8 @@ enum When {
 
 /// The actual terminal attributes.
 ///
-/// Wrapping the underlying libc type enables a humane debug representation.
+/// By wrapping the underlying libc type, this struct enables a meaningful
+/// debug representation.
 #[derive(Clone)]
 struct Termios {
     inner: libc::termios,
@@ -214,11 +231,9 @@ impl Config {
     /// Configure the terminal with the given options.
     ///
     /// This method reads the current terminal configuration, updates a copy of
-    /// the configuration, writes the updated copy, and returns the original. It
-    /// accepts two handles to expose the same interface as the corresponding
-    /// type for Windows, which does require two handles, one for input and one
-    /// for output.
-    pub fn new(handle: RawHandle, _: RawHandle, options: &Options) -> Result<Self> {
+    /// the configuration, writes the updated copy, and returns the original.
+    pub fn new(handle: DeviceHandle, options: &Options) -> Result<Self> {
+        let handle = handle.input();
         let attributes = Self::read(handle)?;
 
         Self::write(

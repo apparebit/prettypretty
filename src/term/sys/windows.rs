@@ -11,10 +11,7 @@ use std::io::{Error, ErrorKind, Read, Result, Write};
 use std::os::windows::io::{AsRawHandle, OwnedHandle};
 use std::ptr::from_mut;
 
-use windows_sys::Win32::System::Console::{
-    GetConsoleMode, SetConsoleMode, ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT, ENABLE_PROCESSED_INPUT,
-    ENABLE_PROCESSED_OUTPUT, ENABLE_VIRTUAL_TERMINAL_INPUT, ENABLE_VIRTUAL_TERMINAL_PROCESSING,
-};
+use windows_sys::Win32::System::Console;
 
 use super::RawHandle;
 use crate::term::{Mode, Options};
@@ -26,6 +23,7 @@ trait IntoResult {
 }
 
 impl IntoResult for i32 {
+    #[inline]
     fn into_result(self) -> Result<()> {
         if self != 0 {
             Ok(())
@@ -67,14 +65,38 @@ impl Device {
         Ok(Self { input, output })
     }
 
-    /// Get a raw handle for reading from the connection.
+    /// Get a handle for the device.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the returned device handle does not outlive
+    /// this device.
+    pub fn handle(&self) -> DeviceHandle {
+        DeviceHandle {
+            input: self.input.as_raw_handle(),
+            output: self.output.as_raw_handle(),
+        }
+    }
+}
+
+/// A handle for a terminal device.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DeviceHandle {
+    input: RawHandle,
+    output: RawHandle,
+}
+
+impl DeviceHandle {
+    /// Access the raw handle for terminal input.
+    #[inline]
     pub fn input(&self) -> RawHandle {
-        self.input.as_raw_handle()
+        self.input
     }
 
-    /// Get a raw handle for writing to the connection.
+    /// Access the raw handle for terminal output.
+    #[inline]
     pub fn output(&self) -> RawHandle {
-        self.output.as_raw_handle()
+        self.output
     }
 }
 
@@ -83,42 +105,39 @@ impl Device {
 /// A terminal configuration.
 #[derive(Debug)]
 pub(crate) struct Config {
-    input_handle: RawHandle,
+    handle: DeviceHandle,
     input_mode: u32,
-    output_handle: RawHandle,
     output_mode: u32,
 }
 
 impl Config {
     /// Create a new terminal configuration.
-    pub fn new(
-        input_handle: RawHandle,
-        output_handle: RawHandle,
-        options: &Options,
-    ) -> Result<Self> {
+    pub fn new(handle: DeviceHandle, options: &Options) -> Result<Self> {
         // It's safe to exit early because for now we are just reading modes.
-        let input_mode = Self::read(input_handle)?;
-        let output_mode = Self::read(output_handle)?;
+        let input_mode = Self::read(handle.input())?;
+        let output_mode = Self::read(handle.output())?;
 
-        let mut new_input_mode =
-            input_mode & !ENABLE_ECHO_INPUT & !ENABLE_LINE_INPUT & ENABLE_VIRTUAL_TERMINAL_INPUT;
+        let mut new_input_mode = input_mode
+            & !Console::ENABLE_ECHO_INPUT
+            & !Console::ENABLE_LINE_INPUT
+            & Console::ENABLE_VIRTUAL_TERMINAL_INPUT;
 
         if options.mode == Mode::Raw {
-            new_input_mode &= !ENABLE_PROCESSED_INPUT;
+            new_input_mode &= !Console::ENABLE_PROCESSED_INPUT;
         }
 
-        let new_output_mode =
-            output_mode & ENABLE_PROCESSED_OUTPUT & ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        let new_output_mode = output_mode
+            & Console::ENABLE_PROCESSED_OUTPUT
+            & Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING;
 
         // If first update fails, nothing was changed. If second update fails,
         // we probably should reset first update.
-        Self::write(input_handle, new_input_mode)?;
-        Self::write(output_handle, new_output_mode)?;
+        Self::write(handle.input(), new_input_mode)?;
+        Self::write(handle.output(), new_output_mode)?;
 
         Ok(Self {
-            input_handle,
+            handle,
             input_mode,
-            output_handle,
             output_mode,
         })
     }
@@ -127,8 +146,8 @@ impl Config {
     pub fn restore(&self) -> Result<()> {
         // Since we are trying to restore the original terminal modes, we should
         // always try to apply both updates, even if one of them fails.
-        let result1 = Self::write(self.input_handle, self.input_mode);
-        let result2 = Self::write(self.output_handle, self.output_mode);
+        let result1 = Self::write(self.handle.input(), self.input_mode);
+        let result2 = Self::write(self.handle.output(), self.output_mode);
 
         result1.and(result2)
     }
@@ -137,12 +156,12 @@ impl Config {
 
     fn read(handle: RawHandle) -> Result<u32> {
         let mut mode = 0;
-        unsafe { GetConsoleMode(handle, from_mut(&mut mode)) }.into_result()?;
+        unsafe { Console::GetConsoleMode(handle, from_mut(&mut mode)) }.into_result()?;
         Ok(mode)
     }
 
     fn write(handle: RawHandle, mode: u32) -> Result<()> {
-        unsafe { SetConsoleMode(handle, mode) }.into_result()
+        unsafe { Console::SetConsoleMode(handle, mode) }.into_result()
     }
 }
 

@@ -90,10 +90,11 @@ impl State {
     /// configures the terminal to use the given mode and read timeout.
     pub fn with_options(options: Options) -> Result<Self> {
         let device = Device::new()?;
-        let config = Config::new(device.input(), device.output(), &options)?;
+        let handle = device.handle();
+        let config = Config::new(handle, &options)?;
         let reader =
-            BufReader::with_capacity(options.read_buffer.get(), Reader::new(device.input()));
-        let writer = BufWriter::with_capacity(options.write_buffer, Writer::new(device.output()));
+            BufReader::with_capacity(options.read_buffer.get(), Reader::new(handle.input()));
+        let writer = BufWriter::with_capacity(options.write_buffer, Writer::new(handle.output()));
 
         Ok(Self {
             options,
