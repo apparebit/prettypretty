@@ -39,5 +39,5 @@ path = "src/prettyio.rs"
 
 
 [package.metadata.docs.rs]
-all-features = false
+features = ["f64", "gamut", "term"]
 rustdoc-args = ["-e", "./docs/pretty.css"]

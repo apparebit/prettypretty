@@ -75,8 +75,17 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     machine for **parsing ANSI escape sequences**. Applications that require
 //!     support for Windows or async I/O should bring their own, more
 //!     fully-featured terminal crate.
-//!   * The optional [`gamut`] and [`spectrum`] submodules enable the traversal
-//!     of **color space gamuts** and the **human visual gamut**, respectively.
+#![cfg_attr(
+    feature = "gamut",
+    doc = "  * The optional [`gamut`] and [`spectrum`] submodules enable the traversal
+    of **color space gamuts** and the **human visual gamut**, respectively."
+)]
+#![cfg_attr(
+    not(feature = "gamut"),
+    doc = "  * The optional `gamut` and `spectrum` submodules enable the traversal
+    of **color space gamuts** and the **human visual gamut**, respectively."
+
+)]
 //!     The
 //!     [plot.py](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
 //!     and
@@ -241,15 +250,16 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! included," the `term` and `gamut` features are also enabled when building
 //! the Python extension module.
 //!
+//! Throughout the API documentation, items that are only available in Rust are
+//! decorated with <i class=rust-only>Rust only!</i>.
 #![cfg_attr(
     feature = "pyffi",
-    doc = "Throughout the API documentation, items that are only available in
-    one of the two languages are flagged as <i
-    class=python-only>Python only!</i> or <i class=rust-only>Rust only!</i>.
-    Items only available with the `term` feature are flagged as
-    <i class=term-only>Term only!</i> and those available with the
-    `gamut` feature as <i class=gamut-only>Gamut only!</i>."
-)]
+    doc = "Items that are only available in Python are decorated with <i
+    class=python-only>Python only!</i>."
+ )]
+ //! Similarly, items only available with the `term` feature are decorated with
+ //! <i class=term-only>Term only!</i> and the `gamut` feature are decorated
+ //! with <i class=gamut-only>Gamut only!</i>.
 //!
 //!
 //! ## Acknowledgements
