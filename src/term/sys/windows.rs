@@ -6,9 +6,15 @@
 //! For that same reason, [`Config`], [`Reader`], and [`Writer`] must not be
 //! directly exposed to application code.
 
-use std::io::{Error, ErrorKind, Result};
+use std::fs::OpenOptions;
+use std::io::{Error, ErrorKind, Read, Result, Write};
 use std::os::windows::io::{AsRawHandle, OwnedHandle};
-use std::ptr::{from_mut, from_ref};
+use std::ptr::from_mut;
+
+use windows_sys::Win32::System::Console::{GetConsoleMode, SetConsoleMode};
+
+use super::RawHandle;
+use crate::term::Options;
 
 /// A trait for converting Windows status BOOL to Rust std::io results.
 trait IntoResult {
