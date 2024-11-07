@@ -84,7 +84,6 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
     not(feature = "gamut"),
     doc = "  * The optional `gamut` and `spectrum` submodules enable the traversal
     of **color space gamuts** and the **human visual gamut**, respectively."
-
 )]
 //!     The
 //!     [plot.py](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
@@ -256,10 +255,10 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
     feature = "pyffi",
     doc = "Items that are only available in Python are decorated with <i
     class=python-only>Python only!</i>."
- )]
- //! Similarly, items only available with the `term` feature are decorated with
- //! <i class=term-only>Term only!</i> and the `gamut` feature are decorated
- //! with <i class=gamut-only>Gamut only!</i>.
+)]
+//! Similarly, items only available with the `term` feature are decorated with
+//! <i class=term-only>Term only!</i> and the `gamut` feature are decorated
+//! with <i class=gamut-only>Gamut only!</i>.
 //!
 //!
 //! ## Acknowledgements
