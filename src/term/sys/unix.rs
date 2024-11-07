@@ -54,9 +54,10 @@ into_result!(isize, usize);
 /// A connection to the terminal device.
 ///
 /// [`Device::new`] opens a new connection to the terminal device and closes
-/// that connection again when dropped. Since [`Device::raw`] returns a raw
-/// handle, it is the caller's responsibility to ensure that the raw handle is
-/// not used past the connection's lifetime.
+/// that connection again when dropped. Since [`Device::read_handle`] and
+/// [`Device::write_handle`] return raw handles, it is the caller's
+/// responsibility to ensure that a raw handle is not used past the connection's
+/// lifetime.
 #[derive(Debug)]
 pub(crate) struct Device {
     fd: OwnedFd,
@@ -74,8 +75,13 @@ impl Device {
         Ok(Self { fd })
     }
 
-    /// Get a raw handle for the connection.
-    pub fn raw(&self) -> RawHandle {
+    /// Get a raw handle for reading from the connection.
+    pub fn input(&self) -> RawHandle {
+        self.fd.as_raw_fd()
+    }
+
+    /// Get a raw handle for writing to the connection.
+    pub fn output(&self) -> RawHandle {
         self.fd.as_raw_fd()
     }
 }
@@ -208,8 +214,11 @@ impl Config {
     /// Configure the terminal with the given options.
     ///
     /// This method reads the current terminal configuration, updates a copy of
-    /// the configuration, writes the updated copy, and returns the original.
-    pub fn new(handle: RawHandle, options: &Options) -> Result<Self> {
+    /// the configuration, writes the updated copy, and returns the original. It
+    /// accepts two handles to expose the same interface as the corresponding
+    /// type for Windows, which does require two handles, one for input and one
+    /// for output.
+    pub fn new(handle: RawHandle, _: RawHandle, options: &Options) -> Result<Self> {
         let attributes = Self::read(handle)?;
 
         Self::write(

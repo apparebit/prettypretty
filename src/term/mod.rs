@@ -341,10 +341,8 @@
 mod escape;
 mod render;
 mod sys;
-#[cfg(target_family = "unix")]
 mod terminal;
 
 pub use escape::{Action, Control, VtScanner};
 pub use render::render;
-#[cfg(target_family = "unix")]
 pub use terminal::{terminal, Mode, Options, Terminal, TerminalAccess};
