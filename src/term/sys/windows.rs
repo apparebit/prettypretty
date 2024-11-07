@@ -100,10 +100,8 @@ impl Config {
         let input_mode = Self::read(input_handle)?;
         let output_mode = Self::read(output_handle)?;
 
-        let mut new_input_mode = input_mode
-            & !ENABLE_ECHO_INPUT
-            & !ENABLE_LINE_INPUT
-            & ENABLE_VIRTUAL_TERMINAL_INPUT;
+        let mut new_input_mode =
+            input_mode & !ENABLE_ECHO_INPUT & !ENABLE_LINE_INPUT & ENABLE_VIRTUAL_TERMINAL_INPUT;
 
         if options.mode == Mode::Raw {
             new_input_mode &= !ENABLE_PROCESSED_INPUT;
