@@ -100,7 +100,7 @@ impl Config {
         let input_mode = Self::read(input_handle)?;
         let output_mode = Self::read(output_handle)?;
 
-        let mut new_input_mode = input_mode.clone()
+        let mut new_input_mode = input_mode
             & !ENABLE_ECHO_INPUT
             & !ENABLE_LINE_INPUT
             & ENABLE_VIRTUAL_TERMINAL_INPUT;
@@ -110,7 +110,7 @@ impl Config {
         }
 
         let new_output_mode =
-            output_mode.clone() & ENABLE_PROCESSED_OUTPUT & ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            output_mode & ENABLE_PROCESSED_OUTPUT & ENABLE_VIRTUAL_TERMINAL_PROCESSING;
 
         // If first update fails, nothing was changed. If second update fails,
         // we probably should reset first update.
@@ -160,6 +160,7 @@ unsafe impl Send for Config {}
 /// outlive its handle.
 #[derive(Debug)]
 pub(crate) struct Reader {
+    #[allow(dead_code)]
     handle: RawHandle,
 }
 
@@ -186,6 +187,7 @@ impl Read for Reader {
 /// outlive its handle.
 #[derive(Debug)]
 pub(crate) struct Writer {
+    #[allow(dead_code)]
     handle: RawHandle,
 }
 
