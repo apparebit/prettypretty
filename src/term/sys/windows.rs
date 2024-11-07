@@ -17,7 +17,7 @@ use windows_sys::Win32::System::Console::{
 };
 
 use super::RawHandle;
-use crate::term::Options;
+use crate::term::{Mode, Options};
 
 /// A trait for converting Windows status BOOL to Rust std::io results.
 trait IntoResult {
@@ -114,8 +114,8 @@ impl Config {
 
         // If first update fails, nothing was changed. If second update fails,
         // we probably should reset first update.
-        Self::write(self.input_handle, new_input_mode)?;
-        Self::write(self.output_handle, new_output_mode)?;
+        Self::write(input_handle, new_input_mode)?;
+        Self::write(output_handle, new_output_mode)?;
 
         Ok(Self {
             input_handle,

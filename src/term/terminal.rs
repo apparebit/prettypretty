@@ -125,6 +125,11 @@ impl State {
     }
 }
 
+// State is Send on macOS because raw file descriptors are just numbers. However
+// HANDLE on Windows is a *mut T, which is an invitation for trouble in Rust.
+#[cfg(target_family = "windows")]
+unsafe impl Send for State {}
+
 impl Drop for State {
     fn drop(&mut self) {
         // Make sure all output has been written.
