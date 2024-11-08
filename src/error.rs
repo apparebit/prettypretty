@@ -160,3 +160,66 @@ impl From<ColorFormatError> for PyErr {
         PyValueError::new_err(value.to_string())
     }
 }
+
+// ====================================================================================================================
+
+use crate::trans::ThemeEntry;
+
+/// The kinds of errors while querying a terminal for its color theme.
+#[derive(Clone, Copy, Debug)]
+pub enum ThemeErrorKind {
+    AccessDevice,
+    WriteQuery(ThemeEntry),
+    ScanEscape(ThemeEntry),
+    ParseColor(ThemeEntry),
+}
+
+/// An error while querying the terminal for its color theme.
+#[derive(Debug)]
+pub struct ThemeError {
+    kind: ThemeErrorKind,
+    source: Option<Box<dyn std::error::Error + Send + Sync>>,
+}
+
+impl ThemeError {
+    /// Create a new theme error.
+    pub fn new(kind: ThemeErrorKind, source: Box<dyn std::error::Error + Sync + Send>) -> Self {
+        Self {
+            kind,
+            source: Some(source),
+        }
+    }
+}
+
+impl From<ThemeError> for std::io::Error {
+    fn from(value: ThemeError) -> Self {
+        std::io::Error::other(value)
+    }
+}
+
+impl std::fmt::Display for ThemeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let entry = match self.kind {
+            ThemeErrorKind::AccessDevice => return f.write_str("could not access terminal device"),
+            ThemeErrorKind::WriteQuery(entry) => {
+                f.write_str("could not write query for ")?;
+                entry
+            }
+            ThemeErrorKind::ScanEscape(entry) => {
+                f.write_str("could not parse ANSI escape sequence for ")?;
+                entry
+            }
+            ThemeErrorKind::ParseColor(entry) => {
+                f.write_str("could not parse color for ")?;
+                entry
+            }
+        };
+        f.write_str(entry.name())
+    }
+}
+
+impl std::error::Error for ThemeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.source.as_deref().map(|e| e as _)
+    }
+}

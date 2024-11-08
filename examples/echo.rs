@@ -1,12 +1,21 @@
-#[cfg(target_family = "unix")]
-#[allow(non_snake_case)]
-pub fn main() -> std::io::Result<()> {
-    use prettypretty::style::{stylist, Fidelity, Stylist};
-    use prettypretty::term::{render, terminal};
-    use prettypretty::trans::{Theme, ThemeEntry, Translator};
-    use prettypretty::OkVersion;
-    use std::io::{stdout, IsTerminal, Read, Write};
+/// Echo: An interactive visualization of terminal input and output.
+///
+/// At its core, this example reads from terminal input and writes the result to
+/// terminal output in a loop. It writes a small circle if it timed out and has
+/// no input to write. And it automatically terminates after 1,000 iterations of
+/// the loop (i.e., 100 seconds). If you type `t` for *theme*, it also issues as
+/// query for a theme color, rotating through the 18 theme colors for each `t`.
+/// If you type `q` for *quit*, the example quits.
+use std::error::Error;
+use std::io::{stdout, IsTerminal, Read, Write};
 
+use prettypretty::style::{stylist, Fidelity, Stylist};
+use prettypretty::term::{render, terminal};
+use prettypretty::trans::{Theme, ThemeEntry, Translator};
+use prettypretty::OkVersion;
+
+#[allow(non_snake_case)]
+fn run() -> std::io::Result<()> {
     // Determine runtime context
     let theme = Theme::query_terminal()?;
     let translator = Translator::new(OkVersion::Revised, theme);
@@ -98,7 +107,12 @@ pub fn main() -> std::io::Result<()> {
     Ok(())
 }
 
-#[cfg(not(target_family = "unix"))]
-pub fn main() {
-    println!("Sorry, but this utility only runs on Unix-like systems!");
+fn main() {
+    let result = run();
+    if let Err(error) = result {
+        println!("\n{}", error);
+        if let Some(inner) = error.source() {
+            println!("    -> {}", inner);
+        }
+    }
 }

@@ -1,4 +1,3 @@
-use std::convert::AsRef;
 use std::io::{BufRead, BufReader, BufWriter, ErrorKind, IoSlice, IoSliceMut, Read, Result, Write};
 use std::num::{NonZeroU8, NonZeroUsize};
 use std::sync::{Mutex, MutexGuard, OnceLock};
@@ -40,12 +39,26 @@ pub struct Options {
 }
 
 impl Options {
+    /// Determine the default timeout.
+    ///
+    /// This method determines the default timeout. If this process seems to be
+    /// running under SSH, this method increases the local default threefold.
+    fn default_timeout() -> NonZeroU8 {
+        use std::env::var_os;
+
+        let mut timeout = 1;
+        if var_os("SSH_CLIENT").is_some() || var_os("SSH_CONNECTION").is_some() {
+            timeout *= 3;
+        }
+        NonZeroU8::new(timeout).unwrap()
+    }
+
     /// Create a new terminal options object with the default values.
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             mode: Mode::Rare,
-            timeout: unsafe { NonZeroU8::new_unchecked(1) },
-            read_buffer: unsafe { NonZeroUsize::new_unchecked(1_024) },
+            timeout: Options::default_timeout(),
+            read_buffer: NonZeroUsize::new(1_024).unwrap(),
             write_buffer: 1_024,
         }
     }
@@ -371,16 +384,15 @@ impl TerminalAccess<'_> {
     pub fn write_buffer(&self) -> usize {
         self.inner.as_ref().unwrap().write_buffer()
     }
-
     /// Write the entire buffer and flush thereafter.
     pub fn print_bytes(&mut self, buf: &[u8]) -> Result<()> {
         self.write_all(buf)?;
         self.flush()
     }
 
-    /// Write the entire string slice and flush thereafter.
-    pub fn print(&mut self, s: impl AsRef<str>) -> Result<()> {
-        self.write_all(s.as_ref().as_bytes())?;
+    /// Write the display of the value and flush thereafter.
+    pub fn print<T: std::fmt::Display>(&mut self, value: T) -> Result<()> {
+        self.write_fmt(format_args!("{}", value))?;
         self.flush()
     }
 }

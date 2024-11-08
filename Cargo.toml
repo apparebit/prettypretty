@@ -41,10 +41,6 @@ name = "prettypretty"
 crate-type = ["lib", "cdylib"]
 path = "src/lib.rs"
 
-[[bin]]
-name = "prettyio"
-path = "src/prettyio.rs"
-
 
 [package.metadata.docs.rs]
 features = ["f64", "gamut", "term"]

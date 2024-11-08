@@ -2,7 +2,7 @@
 use pyo3::prelude::*;
 
 use crate::core::parse_x;
-use crate::error::{ColorFormatError, OutOfBoundsError};
+use crate::error::{ColorFormatError, OutOfBoundsError, ThemeError, ThemeErrorKind};
 use crate::style::{AnsiColor, Layer};
 use crate::{rgb, Color, ColorSpace};
 
@@ -51,25 +51,30 @@ impl Theme {
 
     /// Query the terminal for the current color theme.
     #[cfg(all(feature = "term", target_family = "unix"))]
-    pub fn query_terminal() -> std::io::Result<Theme> {
+    pub fn query_terminal() -> Result<Theme, ThemeError> {
         use crate::term::{terminal, VtScanner};
-        use std::io::{Error, ErrorKind, Write};
+        use std::io::Write;
 
         // Set up terminal, scanner, and empty theme
-        let mut tty = terminal().access()?;
+        let mut tty = terminal()
+            .access()
+            .map_err(|e| ThemeError::new(ThemeErrorKind::AccessDevice, e.into()))?;
         let mut scanner = VtScanner::new();
         let mut theme = Theme::default();
 
         for entry in ThemeEntry::all() {
             // Write query to terminal
-            write!(tty, "{}", entry)?;
-            tty.flush()?;
+            write!(tty, "{}", entry)
+                .and_then(|()| tty.flush())
+                .map_err(|e| ThemeError::new(ThemeErrorKind::WriteQuery(entry), e.into()))?;
 
             // Parse terminal's response
-            let response = scanner.scan_str(&mut tty)?;
+            let response = scanner
+                .scan_str(&mut tty)
+                .map_err(|e| ThemeError::new(ThemeErrorKind::ScanEscape(entry), e.into()))?;
             let color = entry
                 .parse_response(response)
-                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+                .map_err(|e| ThemeError::new(ThemeErrorKind::ParseColor(entry), e.into()))?;
 
             // Update theme
             theme[entry] = color;

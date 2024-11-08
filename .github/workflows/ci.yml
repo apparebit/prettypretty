@@ -95,12 +95,14 @@ jobs:
       run: python -m runtest
 
     - name: Test guide's Rust examples
+      if: runner.os != 'Windows'
       run: |
         cargo clean
         cargo build
         mdbook test -L target/debug/deps docs
 
     - name: Test guide's Python examples
+      if: runner.os != 'Windows'
       run: |
         mdbook build docs
         python docs/book.py
