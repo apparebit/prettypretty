@@ -211,8 +211,6 @@
 //!         theme[entry] = color;
 //!     }
 //!
-//!     drop(tty);
-//!
 //!     // Prepare the Oklrch version of the theme.
 //!     let colors: Vec<Color> = theme
 //!         .as_ref()

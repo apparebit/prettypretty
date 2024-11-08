@@ -49,6 +49,6 @@
 }
 
 .python-only { background: #84c5fb; }
-.term-only   { background: #dcb0ff; }
+.term-only   { background: #ddd; }
 .rust-only   { background: #f0ac84; }
-.gamut-only  { background: #ffe06c; }
+.gamut-only  { background: #ddd; }

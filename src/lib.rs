@@ -220,7 +220,9 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # }
 //! # let _ = run();
 //! ```
-//! <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
+//! And the terminal exclaimed:<br>
+//! <img style="margin-left: 2em;"
+//! src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
 //!      alt="wow!" width="77">
 //!
 //!

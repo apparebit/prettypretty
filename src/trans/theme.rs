@@ -50,7 +50,6 @@ impl Theme {
     }
 
     /// Query the terminal for the current color theme.
-    #[cfg(all(feature = "term", target_family = "unix"))]
     pub fn query_terminal() -> Result<Theme, ThemeError> {
         use crate::term::{terminal, VtScanner};
         use std::io::Write;

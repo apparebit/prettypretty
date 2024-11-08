@@ -110,7 +110,7 @@ fn run() -> std::io::Result<()> {
 fn main() {
     let result = run();
     if let Err(error) = result {
-        println!("\n{}", error);
+        println!("\nError: {}", error);
         if let Some(inner) = error.source() {
             println!("    -> {}", inner);
         }
