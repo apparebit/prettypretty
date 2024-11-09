@@ -20,9 +20,6 @@ pub enum Mode {
 /// Options for configuring the terminal.
 #[derive(Clone, Copy, Debug)]
 pub struct Options {
-    /// Flag for using lock file.
-    pub lockfile: bool,
-
     /// The terminal mode.
     pub mode: Mode,
 
@@ -59,7 +56,6 @@ impl Options {
     /// Create a new terminal options object with the default values.
     pub fn new() -> Self {
         Self {
-            lockfile: false,
             mode: Mode::Rare,
             timeout: Options::default_timeout(),
             read_buffer: NonZeroUsize::new(1_024).unwrap(),
