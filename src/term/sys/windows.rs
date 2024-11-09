@@ -67,7 +67,7 @@ impl Device {
 
     /// Get the process group ID.
     pub fn pid(&self) -> Result<u32> {
-        Err(ErrorKind::Unsupported.into());
+        Err(ErrorKind::Unsupported.into())
     }
 
     /// Get a handle for the device.
