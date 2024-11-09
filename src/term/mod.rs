@@ -1,14 +1,15 @@
 //! Optional utility module for terminal integration. <i
 //! class=term-only>Term only!</i>
 //!
-//! This module provides just enough terminal integration to query a terminal
-//! for its current color theme. Two abstractions stand out:
+//! This module provides enough terminal integration to query a terminal for its
+//! current color theme and otherwise provide a foundation solid enough to build
+//! your TUI on. Two abstractions stand out:
 //!
 //!   - [`Terminal`] represents the controlling terminal. It is accessed with
 //!     [`terminal()`] and provides access to terminal I/O with
 //!     [`TerminalAccess`].
-//!   - [`VtScanner`] implements the state machine for recognizing ANSI escape
-//!     sequences.
+//!   - [`VtScanner`] implements the state machine for recognizing UTF-8 and
+//!     ANSI escape sequences.
 //!
 //! When combined with [`Theme`](crate::trans::Theme) and
 //! [`ThemeEntry`](crate::trans::ThemeEntry), querying the terminal for its
@@ -340,6 +341,7 @@ mod escape;
 mod render;
 mod sys;
 mod terminal;
+mod utf8;
 
 pub use escape::{Action, Control, VtScanner};
 pub use render::render;

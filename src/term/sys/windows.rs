@@ -65,6 +65,11 @@ impl Device {
         Ok(Self { input, output })
     }
 
+    /// Get the process group ID.
+    pub fn pid(&self) -> Result<u32> {
+        Err(ErrorKind::Unsupported.into());
+    }
+
     /// Get a handle for the device.
     ///
     /// # Safety
@@ -188,6 +193,10 @@ impl Reader {
     }
 }
 
+// WaitForSingleObject
+// WaitForMultipleObjects
+// ReadConsoleInput
+
 impl Read for Reader {
     fn read(&mut self, _: &mut [u8]) -> Result<usize> {
         Err(ErrorKind::Unsupported.into()) // FIXME!
@@ -217,6 +226,8 @@ impl Writer {
 
 impl Write for Writer {
     fn write(&mut self, _: &[u8]) -> Result<usize> {
+        // WriteConsole
+
         Err(ErrorKind::Unsupported.into()) // FIXME!
     }
 

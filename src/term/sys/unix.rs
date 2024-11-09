@@ -75,6 +75,11 @@ impl Device {
         Ok(Self { fd })
     }
 
+    /// Get process group ID.
+    pub fn pid(&self) -> Result<u32> {
+        unsafe { libc::tcgetsid(self.fd.as_raw_fd()) }.into_result()
+    }
+
     /// Get a handle for the device.
     pub fn handle(&self) -> DeviceHandle {
         DeviceHandle(self.fd.as_raw_fd())
@@ -260,7 +265,7 @@ impl Config {
 
     /// Restore the original terminal configuration.
     pub fn restore(&self) -> Result<()> {
-        Self::write(self.handle, When::AfterOutputFlush, &self.attributes)
+        Self::write(self.handle, When::Now, &self.attributes)
     }
 
     // ---------------------------------------------------------------------------------

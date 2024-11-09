@@ -37,9 +37,10 @@ fn run() -> std::io::Result<()> {
     // Peek into terminal access
     let info = format!("{:#?}", tty);
     tty.print(info)?;
+    write!(tty, "\r\n\r\nProcess group ID: {}\r\n", tty.pid()?)?;
     write!(
         tty,
-        "\r\n\r\n{}press ‹t› to query rotating theme color, ‹q› to quit{}\r\n\r\n",
+        "{}press ‹t› to query theme color, ‹q› to quit{}\r\n\r\n",
         BOLD, !BOLD
     )?;
 

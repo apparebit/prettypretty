@@ -20,6 +20,9 @@ pub enum Mode {
 /// Options for configuring the terminal.
 #[derive(Clone, Copy, Debug)]
 pub struct Options {
+    /// Flag for using lock file.
+    pub lockfile: bool,
+
     /// The terminal mode.
     pub mode: Mode,
 
@@ -56,6 +59,7 @@ impl Options {
     /// Create a new terminal options object with the default values.
     pub fn new() -> Self {
         Self {
+            lockfile: false,
             mode: Mode::Rare,
             timeout: Options::default_timeout(),
             read_buffer: NonZeroUsize::new(1_024).unwrap(),
@@ -80,11 +84,12 @@ impl Default for Options {
 #[derive(Debug)]
 struct State {
     options: Options,
-    #[allow(dead_code)]
     device: Device,
     config: Config,
     reader: BufReader<Reader>,
     writer: BufWriter<Writer>,
+    #[cfg(test)]
+    stamp: std::time::SystemTime,
 }
 
 impl State {
@@ -107,8 +112,30 @@ impl State {
         let config = Config::new(handle, &options)?;
         let reader =
             BufReader::with_capacity(options.read_buffer.get(), Reader::new(handle.input()));
-        let writer = BufWriter::with_capacity(options.write_buffer, Writer::new(handle.output()));
+        #[allow(unused_mut)]
+        let mut writer =
+            BufWriter::with_capacity(options.write_buffer, Writer::new(handle.output()));
 
+        #[cfg(test)]
+        {
+            let stamp = std::time::SystemTime::now();
+            let _ = write!(
+                writer,
+                "    <open handle={:?} stamp={:?}>\r\n",
+                handle, stamp
+            );
+
+            Ok(Self {
+                options,
+                device,
+                config,
+                reader,
+                writer,
+                stamp,
+            })
+        }
+
+        #[cfg(not(test))]
         Ok(Self {
             options,
             device,
@@ -116,6 +143,11 @@ impl State {
             reader,
             writer,
         })
+    }
+
+    /// Get the process group ID.
+    pub fn pid(&self) -> Result<u32> {
+        self.device.pid()
     }
 
     /// Get the current terminal mode.
@@ -146,6 +178,14 @@ unsafe impl Send for State {}
 
 impl Drop for State {
     fn drop(&mut self) {
+        #[cfg(test)]
+        let _ = write!(
+            self.writer,
+            "    <close handle={:?} stamp={:?}>\r\n",
+            self.device.handle(),
+            self.stamp
+        );
+
         // Make sure all output has been written.
         let _ = self.writer.flush();
         let _ = self.config.restore();
@@ -363,6 +403,11 @@ impl TerminalAccess<'_> {
         // this instance or by calling Terminal::disconnect, which needs to
         // reacquire the mutex.
         self.inner.as_mut().unwrap()
+    }
+
+    /// Get the terminal's process group ID.
+    pub fn pid(&self) -> Result<u32> {
+        self.inner.as_ref().unwrap().pid()
     }
 
     /// Get the terminal's current mode.

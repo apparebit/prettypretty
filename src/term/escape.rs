@@ -5,6 +5,8 @@ use std::io::{BufRead, Error, ErrorKind};
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
+use super::utf8::{decode, UTF8_ACCEPT, UTF8_REJECT};
+
 // ================================================================================================
 
 /// A control when scanning ANSI escape sequences with [`VtScanner`].
@@ -134,11 +136,20 @@ impl std::fmt::Display for Control {
 )]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Action {
-    /// Print current byte.
-    ///
-    /// By simply passing through bytes that are not ANSI escape sequences,
-    /// UTF-8 encoded text is also passed through.
-    Print,
+    /// Print current byte as an ASCII character.
+    PrintAscii,
+
+    /// Start a UTF-8 codepoint.
+    StartUtf8,
+
+    /// Continue a UTF-8 codepoint.
+    ContinueUtf8,
+
+    /// Complete a UTF-8 codepoint.
+    FinishUtf8,
+
+    /// Replace malformed UTF-8 sequence with � U+FFFD.
+    ReplaceUtf8,
 
     /// Start a new escape sequence.
     ///
@@ -218,10 +229,51 @@ pub enum Action {
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl Action {
-    /// Determine whether this action is [`Action::Print`].
+    /// Determine whether this action requires printing the current byte as
+    /// ASCII.
+    ///
+    /// Upon this action, a terminal should always print the byte.
     #[inline]
     pub fn is_print(&self) -> bool {
-        matches!(self, Self::Print)
+        matches!(self, Self::PrintAscii)
+    }
+
+    /// Determine whether this action treats the current byte as part of a
+    /// codepoint in UTF-8.
+    ///
+    /// Upon one of these actions, a terminal may do the same as for ASCII
+    /// bytes: Just print it. That, however, preserves malformed UTF-8 in the
+    /// stream.
+    ///
+    /// A more robust alternative requires a four byte intermediate buffer and
+    /// implements a very simple state machine that uses actions as input
+    /// symbols. Conveniently, the start state is called **Start**.
+    ///
+    /// <dl>
+    /// <dt>Start</dt>
+    /// <dd>On `StartUtf8`, clear the intermediate byte buffer, append the current
+    /// byte, and transition to the **Loop** state.</dd>
+    /// <dd>On `ReplaceUtf8`, emit the replacement character � U+FFFD and remain
+    /// in this state.</dd>
+    /// <dd>On all other actions, just stay in this state.</dd>
+    ///
+    /// <dt>Loop</dt>
+    /// <dd>On `ContinueUtf8`, append the current byte to the intermediate byte
+    /// buffer, and stay in this state.</dd>
+    /// <dd>On `FinishUtf8`, append the current byte to the intermediate byte
+    /// buffer, emit the buffer contents as a codepoint with valid UTF-8, and
+    /// return to the **Start** state.</dd>
+    /// <dd>On `ReplaceUtf8`, emit the replacement character � U+FFFD and return
+    /// to the **Start**state.</dd>
+    /// <dd>On all other actions, panic.</dd>
+    /// </dl>
+    ///
+    /// That's it. State machines don't get much simpler...
+    #[inline]
+    pub fn is_utf8(&self) -> bool {
+        use Action::*;
+
+        matches!(self, StartUtf8 | ContinueUtf8 | FinishUtf8 | ReplaceUtf8)
     }
 
     /// Determine whether the action is [`Action::Start`].
@@ -287,6 +339,7 @@ impl Action {
 #[derive(Copy, Clone, Debug)]
 enum State {
     Ground,
+    Utf8,
     Escape,
     EscapeIntermediate,
     ApcString,
@@ -311,23 +364,27 @@ enum State {
 }
 
 impl State {
-    /// Determine whether this is the ground state.
-    pub fn is_ground(&self) -> bool {
-        matches!(self, Self::Ground)
-    }
-
-    // /// Determine whether this is the escape state.
-    // pub fn is_escape(&self) -> bool {
-    //     matches!(self, Self::Escape)
+    // /// Determine whether this is the ground state.
+    // pub fn is_ground(&self) -> bool {
+    //     matches!(self, Self::Ground)
     // }
 
-    /// Determine the minimum number of transitions required to reach this
-    /// state from the ground state using C0 controls only.
+    // /// Determine whether this is the UTF-8 state.
+    // pub fn is_utf8(&self) -> bool {
+    //     matches!(self, Self::Utf8)
+    // }
+
+    /// Determine the minimum number of transitions from the ground to this
+    /// state.
+    ///
+    /// This method counts transitions based on C0 controls. Like
+    /// [`State::is_ground`], it treats the UTF-8 state as part of the larger
+    /// ground state, i.e., its distance is 0.
     pub fn ground_distance(&self) -> usize {
         use State::*;
 
         match self {
-            Ground => 0,
+            Ground | Utf8 => 0,
             Escape => 1,
             EscapeIntermediate | ApcString | CsiEntry | DcsEntry | OscString | PmString
             | SosString => 2,
@@ -389,7 +446,7 @@ const fn ground(byte: u8) -> (State, Action) {
     use State::*;
 
     match byte {
-        0x20..=0x7f => (Ground, Print),
+        0x20..=0x7f => (Ground, PrintAscii),
         _ => otherwise(byte, Ground),
     }
 }
@@ -634,11 +691,18 @@ const fn dcs_ignore_end(byte: u8) -> (State, Action) {
 // ------------------------------------------------------------------------------------------------
 // Complete transition function
 
+/// Determine the next state and action.
+///
+/// # Panics
+///
+/// If the current state is [`State::Utf8`], which is stateful and hence must
+/// be handled by [`VtScanner`].
 const fn transition(state: State, byte: u8) -> (State, Action) {
     use State::*;
 
     match state {
         Ground => ground(byte),
+        Utf8 => panic!("cannot handle UTF-8 in transition function"),
         Escape => escape(byte),
         EscapeIntermediate => escape_intermediate(byte),
         SosString => sos_string(byte),
@@ -969,6 +1033,8 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 pub struct VtScanner {
     previous_state: State,
     state: State,
+    utf8_state: u8,
+    utf8_codepoint: u32,
     buffer: Vec<u8>,
     did_overflow: bool,
     last_byte: u8,
@@ -992,6 +1058,8 @@ impl VtScanner {
         Self {
             previous_state: State::Ground,
             state: State::Ground,
+            utf8_state: 0,
+            utf8_codepoint: 0,
             buffer: Vec::with_capacity(capacity),
             did_overflow: false,
             last_byte: 0,
@@ -1024,6 +1092,8 @@ impl VtScanner {
     pub fn reset(&mut self) {
         self.previous_state = State::Ground;
         self.state = State::Ground;
+        self.utf8_state = 0;
+        self.utf8_codepoint = 0;
         self.buffer.clear();
         self.did_overflow = false;
         self.last_byte = 0;
@@ -1049,7 +1119,7 @@ impl VtScanner {
     /// it for `Start` and adding the input for the other three actions.
     pub fn step(&mut self, byte: u8) -> Action {
         // Update the number of processed bytes with one byte delay.
-        if self.state.is_ground() {
+        if matches!(self.state, State::Ground | State::Utf8) {
             self.processed = 0;
         } else if Control::is_sequence_start(self.last_byte) {
             self.processed = 1;
@@ -1057,9 +1127,17 @@ impl VtScanner {
             self.processed += 1;
         }
 
-        let byte = if 0xa0 <= byte { byte - 0x80 } else { byte };
-        let (state, action) = transition(self.state, byte);
+        // Determine next state and action.
+        let (state, action) = match self.state {
+            // Process UTF-8.
+            State::Ground if 0x80 <= byte => self.start_utf8(byte),
+            State::Utf8 => self.continue_utf8(byte),
 
+            // Process ASCII and ANSI escape sequences.
+            _ => transition(self.state, byte),
+        };
+
+        // Handle buffering for escape sequences.
         if action.is_start() {
             self.buffer.clear();
             self.did_overflow = false;
@@ -1071,6 +1149,7 @@ impl VtScanner {
             }
         }
 
+        // Perform bookkeeping.
         self.previous_state = self.state;
         self.state = state;
         self.last_byte = byte;
@@ -1083,6 +1162,24 @@ impl VtScanner {
     #[inline]
     pub fn last_byte(&self) -> u8 {
         self.last_byte
+    }
+
+    /// Determine the Unicode character for the last step.
+    ///
+    /// If the last action was `PrintAscii`, `FinishUtf8`, or `ReplaceUtf8`,
+    /// this method returns the corresponding Unicode code point. Note that a
+    /// code point may or may not represent what we informally call a
+    /// "character" or "letter". In other words, code points implement a
+    /// variable-length encoding of "characters" and UTF-8 lets bytes implement
+    /// a variable-length encoding of code points. It's turtles all the way
+    /// down...
+    pub fn codepoint(&self) -> Option<char> {
+        match self.last_action {
+            Action::PrintAscii => Some(self.last_byte as char),
+            Action::FinishUtf8 => Some(unsafe { char::from_u32_unchecked(self.utf8_codepoint) }),
+            Action::ReplaceUtf8 => Some('\u{FFFD}'),
+            _ => None,
+        }
     }
 
     /// Determine the number of processed bytes.
@@ -1278,6 +1375,31 @@ impl VtScanner {
 }
 
 impl VtScanner {
+    fn start_utf8(&mut self, byte: u8) -> (State, Action) {
+        self.utf8_state = UTF8_ACCEPT;
+        self.utf8_codepoint = 0;
+        decode(byte, &mut self.utf8_state, &mut self.utf8_codepoint);
+
+        if self.utf8_state == UTF8_REJECT {
+            (State::Ground, Action::ReplaceUtf8)
+        } else if self.utf8_state == UTF8_ACCEPT {
+            unreachable!("ASCII characters are processed separately.")
+        } else {
+            (State::Utf8, Action::StartUtf8)
+        }
+    }
+
+    fn continue_utf8(&mut self, byte: u8) -> (State, Action) {
+        decode(byte, &mut self.utf8_state, &mut self.utf8_codepoint);
+        if self.utf8_state == UTF8_REJECT {
+            (State::Ground, Action::ReplaceUtf8)
+        } else if self.utf8_state == UTF8_ACCEPT {
+            (State::Ground, Action::FinishUtf8)
+        } else {
+            (State::Utf8, Action::ContinueUtf8)
+        }
+    }
+
     /// Scan an escape sequence and returns its payload as a byte slice. <i
     /// class=rust-only>Rust only!</i>
     ///

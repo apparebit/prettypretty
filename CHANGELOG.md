@@ -29,7 +29,7 @@ existing Rust terminal crates such as
 
   - `prettypretty.term` provides direct access to the terminal device with
     [`Terminal`](https://apparebit.github.io/prettypretty/prettypretty/term/struct.Terminal.html)
-    and parses input including ANSI escape sequences with
+    and parses UTF-8 and ANSI escape sequences with
     [`VtScanner`](https://apparebit.github.io/prettypretty/prettypretty/term/struct.VtScanner.html).
     `Terminal` is currently supported on Unix only. This module is enabled with
     the `term` feature, which is enabled by default.
