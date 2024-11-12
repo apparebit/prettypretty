@@ -17,56 +17,148 @@ pub enum Mode {
     Raw,
 }
 
-/// Options for configuring the terminal.
-#[derive(Clone, Copy, Debug)]
-pub struct Options {
-    /// The terminal mode.
-    pub mode: Mode,
-
-    /// The read timeout in 0.1s increments.
-    pub timeout: NonZeroU8,
-
-    /// The size of the read buffer.
-    ///
-    /// Parsing ANSI escape sequences requires a lookahead of one byte. Hence,
-    /// this option must be positive.
-    pub read_buffer: NonZeroUsize,
-
-    /// The size of the write buffer.
-    ///
-    /// If this size is zero, writing to the terminal is effectively unbuffered.
-    pub write_buffer: usize,
+#[derive(Clone, Debug)]
+struct OptionData {
+    logging: bool,
+    mode: Mode,
+    timeout: NonZeroU8,
+    read_buffer_size: NonZeroUsize,
+    write_buffer_size: usize,
 }
 
-impl Options {
-    /// Determine the default timeout.
-    ///
-    /// This method determines the default timeout. If this process seems to be
-    /// running under SSH, this method increases the local default threefold.
+impl OptionData {
     fn default_timeout() -> NonZeroU8 {
         use std::env::var_os;
 
-        let mut timeout = 1;
+        let mut timeout = 10;
         if var_os("SSH_CLIENT").is_some() || var_os("SSH_CONNECTION").is_some() {
             timeout *= 3;
         }
         NonZeroU8::new(timeout).unwrap()
     }
 
-    /// Create a new terminal options object with the default values.
-    pub fn new() -> Self {
+    #[inline]
+    fn default_read_buffer_size() -> NonZeroUsize {
+        NonZeroUsize::new(1_024).unwrap()
+    }
+
+    #[inline]
+    fn default_write_buffer_size() -> usize {
+        1_024
+    }
+
+    fn new() -> Self {
         Self {
+            logging: false,
             mode: Mode::Rare,
-            timeout: Options::default_timeout(),
-            read_buffer: NonZeroUsize::new(1_024).unwrap(),
-            write_buffer: 1_024,
+            timeout: OptionData::default_timeout(),
+            read_buffer_size: OptionData::default_read_buffer_size(),
+            write_buffer_size: OptionData::default_write_buffer_size(),
         }
+    }
+}
+
+pub struct OptionBuilder {
+    inner: OptionData,
+}
+
+impl OptionBuilder {
+    /// Enable/disable debug logging.
+    #[inline]
+    pub fn logging(&mut self, logging: bool) -> &mut Self {
+        self.inner.logging = logging;
+        self
+    }
+
+    /// Set the mode.
+    #[inline]
+    pub fn mode(&mut self, mode: Mode) -> &mut Self {
+        self.inner.mode = mode;
+        self
+    }
+
+    /// Set the timeout.
+    #[inline]
+    pub fn timeout(&mut self, timeout: u8) -> &mut Self {
+        self.inner.timeout = NonZeroU8::new(timeout).expect("timeout is positive");
+        self
+    }
+
+    /// Set the read buffer size.
+    #[inline]
+    pub fn read_buffer_size(&mut self, size: usize) -> &mut Self {
+        self.inner.read_buffer_size =
+            NonZeroUsize::new(size).expect("read buffer size is positive");
+        self
+    }
+
+    /// Set the write buffer size.
+    #[inline]
+    pub fn write_buffer_size(&mut self, size: usize) -> &mut Self {
+        self.inner.write_buffer_size = size;
+        self
+    }
+
+    /// Build the options.
+    #[inline]
+    pub fn build(&self) -> Options {
+        Options {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+/// Options for configuring the terminal.
+#[derive(Clone, Debug)]
+pub struct Options {
+    inner: OptionData,
+}
+
+impl Options {
+    /// Get a new option builder with the defaults.
+    #[inline]
+    pub fn builder() -> OptionBuilder {
+        OptionBuilder {
+            inner: OptionData::new(),
+        }
+    }
+
+    /// Determine whether tracing is enabled.
+    #[inline]
+    pub fn logging(&self) -> bool {
+        self.inner.logging
+    }
+
+    /// Get the mode.
+    #[inline]
+    pub fn mode(&self) -> Mode {
+        self.inner.mode
+    }
+
+    /// Get the timeout.
+    #[inline]
+    pub fn timeout(&self) -> NonZeroU8 {
+        self.inner.timeout
+    }
+
+    /// Get the read buffer size.
+    #[inline]
+    pub fn read_buffer_size(&self) -> NonZeroUsize {
+        self.inner.read_buffer_size
+    }
+
+    /// Get the write buffer size.
+    #[inline]
+    pub fn write_buffer_size(&self) -> usize {
+        self.inner.write_buffer_size
     }
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self::new()
+        Options {
+            inner: OptionData::new(),
+        }
     }
 }
 
@@ -79,13 +171,14 @@ impl Default for Options {
 /// configuration and closes the connection.
 #[derive(Debug)]
 struct State {
+    // Drop the device last because otherwise a raw handle may outlive the
+    // owning handle. Drop the writer second last so that we can still use it.
     options: Options,
-    device: Device,
+    stamp: u64,
     config: Config,
     reader: BufReader<Reader>,
     writer: BufWriter<Writer>,
-    #[cfg(test)]
-    stamp: std::time::SystemTime,
+    device: Device,
 }
 
 impl State {
@@ -95,7 +188,7 @@ impl State {
     /// configures the terminal with the default options for mode and read
     /// timeout.
     pub fn new() -> Result<Self> {
-        State::with_options(Options::new())
+        State::with_options(Options::default())
     }
 
     /// Access the controlling terminal with the given attributes.
@@ -106,64 +199,57 @@ impl State {
         let device = Device::new()?;
         let handle = device.handle();
         let config = Config::new(handle, &options)?;
-        let reader =
-            BufReader::with_capacity(options.read_buffer.get(), Reader::new(handle.input()));
-        #[allow(unused_mut)]
-        let mut writer =
-            BufWriter::with_capacity(options.write_buffer, Writer::new(handle.output()));
+        let reader = BufReader::with_capacity(
+            options.read_buffer_size().get(),
+            Reader::new(handle.input(), 100 * (options.timeout().get() as u32)),
+        );
+        let writer =
+            BufWriter::with_capacity(options.write_buffer_size(), Writer::new(handle.output()));
+        let stamp = if options.logging() {
+            std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64
+        } else {
+            0
+        };
 
-        #[cfg(test)]
-        {
-            let stamp = std::time::SystemTime::now();
-            let _ = write!(
-                writer,
-                "    <open handle={:?} stamp={:?}>\r\n",
-                handle, stamp
-            );
-
-            Ok(Self {
-                options,
-                device,
-                config,
-                reader,
-                writer,
-                stamp,
-            })
-        }
-
-        #[cfg(not(test))]
-        Ok(Self {
+        let mut this = Self {
             options,
             device,
             config,
             reader,
             writer,
-        })
+            stamp,
+        };
+
+        if this.options.logging() {
+            write!(
+                this.writer,
+                // The extra space aligns the close tag
+                "tty::connect pid={} tid={} in={:?} out={:?} stamp={}\r\n",
+                std::process::id(),
+                this.device.pid().unwrap_or(0),
+                handle.input(),
+                handle.output(),
+                stamp
+            )?;
+            this.writer.flush()?;
+        }
+
+        Ok(this)
     }
 
     /// Get the process group ID.
+    #[inline]
     pub fn pid(&self) -> Result<u32> {
         self.device.pid()
     }
 
-    /// Get the current terminal mode.
-    pub fn mode(&self) -> Mode {
-        self.options.mode
-    }
-
-    /// Get the current timeout.
-    pub fn timeout(&self) -> NonZeroU8 {
-        self.options.timeout
-    }
-
-    /// Get the size of the read buffer.
-    pub fn read_buffer(&self) -> NonZeroUsize {
-        self.options.read_buffer
-    }
-
-    /// Get the size of the write buffer.
-    pub fn write_buffer(&self) -> usize {
-        self.options.write_buffer
+    /// Get the options.
+    #[inline]
+    pub fn options(&self) -> &Options {
+        &self.options
     }
 }
 
@@ -174,13 +260,18 @@ unsafe impl Send for State {}
 
 impl Drop for State {
     fn drop(&mut self) {
-        #[cfg(test)]
-        let _ = write!(
-            self.writer,
-            "    <close handle={:?} stamp={:?}>\r\n",
-            self.device.handle(),
-            self.stamp
-        );
+        // No need to flush, see below.
+        if 0 < self.stamp {
+            let _ = write!(
+                self.writer,
+                "tty:disconnect pid={} tid={} in={:?} out={:?} stamp={}\r\n",
+                std::process::id(),
+                self.device.pid().unwrap_or(0),
+                self.device.handle().input(),
+                self.device.handle().output(),
+                self.stamp
+            );
+        }
 
         // Make sure all output has been written.
         let _ = self.writer.flush();
@@ -269,7 +360,9 @@ impl Terminal {
     pub unsafe fn connect_with(mut self, options: Options) -> Result<Self> {
         let mut inner = self.lock();
         if let Some(state) = &*inner {
-            if state.mode() == options.mode && state.timeout() == options.timeout {
+            if state.options().mode() == options.mode()
+                && state.options().timeout() == options.timeout()
+            {
                 Ok(self)
             } else {
                 Err(ErrorKind::InvalidInput.into())
@@ -333,7 +426,9 @@ impl Terminal {
     pub fn access_with(mut self, options: Options) -> Result<TerminalAccess<'static>> {
         let mut inner = self.lock();
         if let Some(state) = &*inner {
-            if state.mode() == options.mode && state.timeout() == options.timeout {
+            if state.options().mode() == options.mode()
+                && state.options().timeout() == options.timeout()
+            {
                 Ok(TerminalAccess::new(inner, OnDrop::DoNothing))
             } else {
                 Err(ErrorKind::InvalidInput.into())
@@ -402,29 +497,17 @@ impl TerminalAccess<'_> {
     }
 
     /// Get the terminal's process group ID.
+    #[inline]
     pub fn pid(&self) -> Result<u32> {
         self.inner.as_ref().unwrap().pid()
     }
 
-    /// Get the terminal's current mode.
-    pub fn mode(&self) -> Mode {
-        self.inner.as_ref().unwrap().mode()
+    /// Get the terminal's current options.
+    #[inline]
+    pub fn options(&self) -> &Options {
+        self.inner.as_ref().unwrap().options()
     }
 
-    /// Get the terminal's current read timeout.
-    pub fn timeout(&self) -> u8 {
-        self.inner.as_ref().unwrap().timeout().get()
-    }
-
-    /// Get the size of the read buffer.
-    pub fn read_buffer(&self) -> usize {
-        self.inner.as_ref().unwrap().read_buffer().get()
-    }
-
-    /// Get the size of the write buffer.
-    pub fn write_buffer(&self) -> usize {
-        self.inner.as_ref().unwrap().write_buffer()
-    }
     /// Write the entire buffer and flush thereafter.
     pub fn print_bytes(&mut self, buf: &[u8]) -> Result<()> {
         self.write_all(buf)?;
@@ -439,62 +522,76 @@ impl TerminalAccess<'_> {
 }
 
 impl Read for TerminalAccess<'_> {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.get_mut().reader.read(buf)
     }
 
+    #[inline]
     fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> Result<usize> {
         self.get_mut().reader.read_vectored(bufs)
     }
 
+    #[inline]
     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
         self.get_mut().reader.read_to_end(buf)
     }
 
+    #[inline]
     fn read_to_string(&mut self, buf: &mut String) -> Result<usize> {
         self.get_mut().reader.read_to_string(buf)
     }
 
+    #[inline]
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         self.get_mut().reader.read_exact(buf)
     }
 }
 
 impl BufRead for TerminalAccess<'_> {
+    #[inline]
     fn fill_buf(&mut self) -> Result<&[u8]> {
         self.get_mut().reader.fill_buf()
     }
 
+    #[inline]
     fn consume(&mut self, n: usize) {
         self.get_mut().reader.consume(n)
     }
 
+    #[inline]
     fn read_until(&mut self, byte: u8, buf: &mut Vec<u8>) -> Result<usize> {
         self.get_mut().reader.read_until(byte, buf)
     }
 
+    #[inline]
     fn read_line(&mut self, buf: &mut String) -> Result<usize> {
         self.get_mut().reader.read_line(buf)
     }
 }
 
 impl Write for TerminalAccess<'_> {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         self.get_mut().writer.write(buf)
     }
 
+    #[inline]
     fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> Result<usize> {
         self.get_mut().writer.write_vectored(bufs)
     }
 
+    #[inline]
     fn flush(&mut self) -> Result<()> {
         self.get_mut().writer.flush()
     }
 
+    #[inline]
     fn write_all(&mut self, buf: &[u8]) -> Result<()> {
         self.get_mut().writer.write_all(buf)
     }
 
+    #[inline]
     fn write_fmt(&mut self, args: std::fmt::Arguments<'_>) -> Result<()> {
         self.get_mut().writer.write_fmt(args)
     }

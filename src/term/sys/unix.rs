@@ -6,6 +6,7 @@
 //! same reason, [`TerminalConfig`], [`TerminalReader`], and [`TerminalWriter`]
 //! must not be directly exposed to application code.
 
+use std::ffi::c_void;
 use std::fs::OpenOptions;
 use std::io::{Read, Result, Write};
 use std::os::fd::{AsRawFd, OwnedFd};
@@ -76,11 +77,13 @@ impl Device {
     }
 
     /// Get process group ID.
+    #[inline]
     pub fn pid(&self) -> Result<u32> {
         unsafe { libc::tcgetsid(self.fd.as_raw_fd()) }.into_result()
     }
 
     /// Get a handle for the device.
+    #[inline]
     pub fn handle(&self) -> DeviceHandle {
         DeviceHandle(self.fd.as_raw_fd())
     }
@@ -144,12 +147,14 @@ impl Termios {
 }
 
 impl AsRef<libc::termios> for Termios {
+    #[inline]
     fn as_ref(&self) -> &libc::termios {
         &self.inner
     }
 }
 
 impl AsMut<libc::termios> for Termios {
+    #[inline]
     fn as_mut(&mut self) -> &mut libc::termios {
         &mut self.inner
     }
@@ -158,12 +163,9 @@ impl AsMut<libc::termios> for Termios {
 impl std::fmt::Debug for Termios {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Determine enabled flags
-        let mut flags = String::new();
+        let mut flags = Vec::new();
         let mut append = |s| {
-            if !flags.is_empty() {
-                flags.push_str(", ");
-            }
-            flags.push_str(s);
+            flags.push(s);
         };
 
         for (name, value) in [
@@ -207,8 +209,16 @@ impl std::fmt::Debug for Termios {
             }
         }
 
+        struct Flags(Vec<&'static str>);
+
+        impl std::fmt::Debug for Flags {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_list().entries(self.0.iter()).finish()
+            }
+        }
+
         f.debug_struct("Termios")
-            .field("flags", &flags)
+            .field("flags", &Flags(flags))
             .field("vmin", &self.inner.c_cc[libc::VMIN])
             .field("vtime", &self.inner.c_cc[libc::VTIME])
             .finish()
@@ -282,7 +292,7 @@ impl Config {
         let mut wrapper = attributes.clone();
         let inner = wrapper.as_mut();
 
-        match options.mode {
+        match options.mode() {
             Mode::Rare => {
                 inner.c_lflag &= !(libc::ECHO | libc::ICANON);
             }
@@ -292,7 +302,7 @@ impl Config {
         }
 
         inner.c_cc[libc::VMIN] = 0;
-        inner.c_cc[libc::VTIME] = options.timeout.get();
+        inner.c_cc[libc::VTIME] = options.timeout().get();
         wrapper
     }
 
@@ -319,7 +329,10 @@ pub(crate) struct Reader {
 
 impl Reader {
     /// Create a new reader with a raw file descriptor.
-    pub fn new(handle: RawHandle) -> Self {
+    ///
+    /// The second parameter is only used on Windows. Adding it for Unix too
+    /// simplifies the code instantiating the reader.
+    pub fn new(handle: RawHandle, _: u32) -> Self {
         Self { handle }
     }
 }
@@ -329,7 +342,7 @@ impl Read for Reader {
         unsafe {
             libc::read(
                 self.handle,
-                buf.as_mut_ptr() as *mut libc::c_void,
+                buf.as_mut_ptr() as *mut c_void,
                 buf.len() as libc::size_t,
             )
         }
@@ -362,7 +375,7 @@ impl Write for Writer {
         unsafe {
             libc::write(
                 self.handle,
-                buf.as_ptr() as *mut libc::c_void,
+                buf.as_ptr() as *const c_void,
                 buf.len() as libc::size_t,
             )
         }

@@ -13,18 +13,18 @@
 //!
 //! When combined with [`Theme`](crate::trans::Theme) and
 //! [`ThemeEntry`](crate::trans::ThemeEntry), querying the terminal for its
-//! color theme looks straightforward. Let's walk through one possible solution.
+//! color theme becomes fairly straightforward. Let's walk through one possible
+//! solution.
 //!
 //! # Examples
 //!
-//! ## 1. Taking Care of Not-Unix
+//! ## 1. Scaffolding
 //!
-//! First, since terminal support is limited to Unix only, lets set up two
-//! versions of the same function, one for other platforms and one for Unix.
-//! Since we are assembling a color theme by interacting with the terminal,
-//! `std::io::Result<Theme>` seems like a good result type, with
-//! [`Theme`](crate::trans::Theme) collecting the two default and 16 ANSI colors
-//! belonging to the, ahem, theme:
+//! Windows support is largely untested. So for now, we run the example code on
+//! Unix only. Prettypretty has a dedicated type for a color
+//! [`Theme`](crate::trans::Theme), which collects the two default and 16 ANSI
+//! colors. Since we are interacting with the terminal to generate an instance,
+//! `std::io::Result<Theme>` seems like a good result type for our function.
 //!
 //! ```
 //! # use std::io::{ErrorKind, Result};
@@ -254,11 +254,11 @@
 //!
 //! # Background
 //!
-//! Integrating terminal I/O is trivial, as long as an application does not need
-//! to read terminal input: The application simply writes text and ANSI escape
-//! sequences to style the text to standard output or error. For just that
-//! reason, the display of [`Style`](crate::style::Style) is the ANSI escape
-//! sequence that changes the terminal to use that style.
+//! Integrating terminal I/O is trivial on Unix, as long as an application does
+//! not need to read terminal input: The application simply writes text and ANSI
+//! escape sequences to style the text to standard output or error. For just
+//! that reason, the display of [`Style`](crate::style::Style) is the ANSI
+//! escape sequence that changes the terminal to use that style.
 //!
 //!
 //! ## 1. Gnarly Input
@@ -291,10 +291,9 @@
 //! a lean but functional terminal integration layer.
 //!
 //! However, they won't meet all application needs. Notably, if your application
-//! requires Windows support or async I/O, please consider using a more
-//! fully-featured terminal crate such as
-//! [Crossterm](https://github.com/crossterm-rs/crossterm). For the same reason,
-//! this module is option and requires the `term` feature.
+//! requires async I/O, please consider using a more fully-featured terminal
+//! crate such as [Crossterm](https://github.com/crossterm-rs/crossterm). For
+//! the same reason, this module is optional and requires the `term` feature.
 //!
 //!
 //! ## 2. Ways to Time Out Reads
@@ -336,6 +335,37 @@
 //! A third pitfall is that Rust turns read operations that return zero bytes
 //! into end-of-file errors. This module helps to mitigate those errors, but an
 //! application may need to detect them as well.
+//!
+//!
+//! ## 3. Windows
+//!
+//! Starting with Windows 10 TH2 (v1511), Windows also supports ANSI escape
+//! sequences. While applications currently need to explicitly enable virtual
+//! terminal processing, they also are the preferred means for interacting with
+//! the console host moving forward, and several console functions that provide
+//! equivalent functionality have been deprecated.
+//!
+//! The Windows console host provides much of the same functionality as Unix
+//! pseudo-terminals with a completely different API. Two differences stick out:
+//!
+//!  1. To interact with the terminal independent of redirected streams, a Unix
+//!     application connects to one endpoint by opening `/dev/tty`. Windows has
+//!     independent abstractions for input and output, with the equivalent code
+//!     on Windows opening `CONIN$` and `CONOUT$`. As a direct consequence,
+//!     configuring the console on Windows also requires reading and writing two
+//!     modes.
+//!  2. The Windows API duplicates a large number of functions, with the name
+//!     ending either in `A` or `W`, e.g., `ReadConsoleA` vs `ReadConsoleW`. The
+//!     former represent strings with 8-bit characters, whose encoding is
+//!     determined by the current "code page". The latter represent strings as
+//!     UTF-16. Thankfully, there is a code page for UTF-8, but that does
+//!     require reading and writing the code page for input and output during
+//!     the initial configuration.
+//!
+//! Meanwhile, timing out reads is easy. `WaitForSingleObject` takes only two
+//! arguments, the handle for console input and the timeout, and gets the job
+//! done. Potentially adding a future waker is easy as well: Just switch to
+//! `WaitForMultipleObjects`.
 
 mod escape;
 mod render;

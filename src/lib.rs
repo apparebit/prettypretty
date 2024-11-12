@@ -68,13 +68,12 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     for doing so.
 //!   * The optional [`term`] module supports just enough **terminal I/O** to
 //!     query a terminal for the current color theme, which is required for
-//!     instantiating a `Translator`. Notably, the Unix-only
+//!     instantiating a `Translator`. Notably,
 //!     [`Terminal`](crate::term::Terminal) type configures the terminal to use
 //!     raw mode and to time out reads. Meanwhile,
 //!     [`VtScanner`](crate::term::VtScanner) implements the complete state
-//!     machine for **parsing ANSI escape sequences**. Applications that require
-//!     support for Windows or async I/O should bring their own, more
-//!     fully-featured terminal crate.
+//!     machine for **parsing ANSI escape sequences**. Both Unix and Windows are
+//!     supported but Windows support is largely untested.
 #![cfg_attr(
     feature = "gamut",
     doc = "  * The optional [`gamut`] and [`spectrum`] submodules enable the traversal
@@ -144,8 +143,8 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! ### 2. Adjust Your Styles
 //!
 //! Second, determine the terminal's current color theme with
-//! [`Theme::query_terminal`](trans::Theme::query_terminal) (sorry, but
-//! Unix-only for now) and `stdout`'s color support with
+//! [`Theme::query_terminal`](trans::Theme::query_terminal)
+//! and `stdout`'s color support with
 //! [`Fidelity::from_environment`](style::Fidelity::from_environment).
 //!
 //! ```

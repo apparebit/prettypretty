@@ -25,8 +25,11 @@ version = "0.59.0"
 optional = true
 features = [
     "Win32_Foundation",
+    "Win32_Globalization",
     "Win32_System_Console",
+    "Win32_System_Threading",
 ]
+
 
 [features]
 default = ["f64", "term"]

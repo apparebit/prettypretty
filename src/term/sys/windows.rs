@@ -6,12 +6,16 @@
 //! For that same reason, [`Config`], [`Reader`], and [`Writer`] must not be
 //! directly exposed to application code.
 
+use std::ffi::c_void;
 use std::fs::OpenOptions;
 use std::io::{Error, ErrorKind, Read, Result, Write};
 use std::os::windows::io::{AsRawHandle, OwnedHandle};
 use std::ptr::from_mut;
 
-use windows_sys::Win32::System::Console;
+use windows_sys::Win32::Foundation;
+use windows_sys::Win32::Globalization;
+use windows_sys::Win32::System::Console::{self, CONSOLE_MODE as ConsoleMode};
+use windows_sys::Win32::System::Threading;
 
 use super::RawHandle;
 use crate::term::{Mode, Options};
@@ -22,11 +26,11 @@ trait IntoResult {
     fn into_result(self) -> Result<()>;
 }
 
-impl IntoResult for i32 {
+impl IntoResult for u32 {
     #[inline]
-    fn into_result(self) -> Result<()> {
+    fn into_result(self) -> Result<u32> {
         if self != 0 {
-            Ok(())
+            Ok(self)
         } else {
             Err(Error::last_os_error())
         }
@@ -66,6 +70,7 @@ impl Device {
     }
 
     /// Get the process group ID.
+    #[inline]
     pub fn pid(&self) -> Result<u32> {
         Err(ErrorKind::Unsupported.into())
     }
@@ -76,6 +81,7 @@ impl Device {
     ///
     /// The caller must ensure that the returned device handle does not outlive
     /// this device.
+    #[inline]
     pub fn handle(&self) -> DeviceHandle {
         DeviceHandle {
             input: self.input.as_raw_handle(),
@@ -111,17 +117,30 @@ impl DeviceHandle {
 #[derive(Debug)]
 pub(crate) struct Config {
     handle: DeviceHandle,
-    input_mode: u32,
-    output_mode: u32,
+    input_mode: ConsoleMode,
+    input_encoding: u32,
+    output_mode: ConsoleMode,
+    output_encoding: u32,
 }
 
 impl Config {
     /// Create a new terminal configuration.
     pub fn new(handle: DeviceHandle, options: &Options) -> Result<Self> {
-        // It's safe to exit early because for now we are just reading modes.
+        // Early exit is safe because we are only reading.
         let input_mode = Self::read(handle.input())?;
+        let input_encoding = unsafe { Console::GetConsoleCP() }.into_result()?;
         let output_mode = Self::read(handle.output())?;
+        let output_encoding = unsafe { Console::GetConsoleOutputCP() }.into_result()?;
 
+        let this = Self {
+            handle,
+            input_mode,
+            input_encoding,
+            output_mode,
+            output_encoding,
+        };
+
+        // Determine new input and output modes.
         let mut new_input_mode = input_mode
             & !Console::ENABLE_ECHO_INPUT
             & !Console::ENABLE_LINE_INPUT
@@ -135,37 +154,43 @@ impl Config {
             & Console::ENABLE_PROCESSED_OUTPUT
             & Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING;
 
-        // If first update fails, nothing was changed. If second update fails,
-        // we probably should reset first update.
-        Self::write(handle.input(), new_input_mode)?;
-        Self::write(handle.output(), new_output_mode)?;
+        // If the update fails, try to restore old configuration.
+        this.update(new_input_mode, new_output_mode)
+            .or_else(|e| this.restore())?;
 
-        Ok(Self {
-            handle,
-            input_mode,
-            output_mode,
-        })
+        Ok(this)
+    }
+
+    fn update(&self, input_mode: ConsoleMode, output_mode: ConsoleMode) -> Result<()> {
+        // Fail early to limit damage.
+        Self::write(self.handle.input(), input_mode)?;
+        unsafe { Console::SetConsoleCP(Globalization::CP_UTF8) }.into_result()?;
+        Self::write(self.handle.output(), output_mode)?;
+        unsafe { Console::SetConsoleOutputCP(Globalization::CP_UTF8) }.into_result()?;
+        Ok(())
     }
 
     /// Restore the original terminal configuration.
     pub fn restore(&self) -> Result<()> {
         // Since we are trying to restore the original terminal modes, we should
-        // always try to apply both updates, even if one of them fails.
+        // always try to apply all four updates, even if one of them fails.
         let result1 = Self::write(self.handle.input(), self.input_mode);
-        let result2 = Self::write(self.handle.output(), self.output_mode);
+        let result2 = unsafe { Console::SetConsoleCP(self.input_encoding) }.into_result();
+        let result3 = Self::write(self.handle.output(), self.output_mode);
+        let result4 = unsafe { Console::SetConsoleOutputCP(self.output_encoding) }.into_result();
 
-        result1.and(result2)
+        result1.and(result2).and(result3).and(result4);
     }
 
     // ------------------------------------------------------------------------------------------------------
 
-    fn read(handle: RawHandle) -> Result<u32> {
+    fn read(handle: RawHandle) -> Result<ConsoleMode> {
         let mut mode = 0;
         unsafe { Console::GetConsoleMode(handle, from_mut(&mut mode)) }.into_result()?;
         Ok(mode)
     }
 
-    fn write(handle: RawHandle, mode: u32) -> Result<()> {
+    fn write_mode(handle: RawHandle, mode: ConsoleMode) -> Result<()> {
         unsafe { Console::SetConsoleMode(handle, mode) }.into_result()
     }
 }
@@ -182,24 +207,40 @@ unsafe impl Send for Config {}
 /// outlive its handle.
 #[derive(Debug)]
 pub(crate) struct Reader {
-    #[allow(dead_code)]
     handle: RawHandle,
+    timeout: u32,
 }
 
 impl Reader {
     /// Create a new reader with a raw handle.
-    pub fn new(handle: RawHandle) -> Self {
-        Self { handle }
+    pub fn new(handle: RawHandle, timeout: u32) -> Self {
+        Self { handle, timeout }
     }
 }
 
-// WaitForSingleObject
-// WaitForMultipleObjects
-// ReadConsoleInput
-
 impl Read for Reader {
-    fn read(&mut self, _: &mut [u8]) -> Result<usize> {
-        Err(ErrorKind::Unsupported.into()) // FIXME!
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let status = unsafe { Threading::WaitForSingleObject(self.handle, self.timeout) };
+        if status == Foundation::WAIT_OBJECT_0 {
+            let mut did_read: u32 = 0;
+            unsafe {
+                Console::ReadConsoleA(
+                    self.handle,
+                    buf.as_mut_ptr() as *mut c_void,
+                    buf.len() as u32,
+                    from_mut(&mut did_read),
+                    null(),
+                )
+            }
+            .into_result()?;
+            Ok(did_read as usize)
+        } else if status == Foundation::WAIT_TIMEOUT {
+            Ok(0)
+        } else if status == Foundation::WAIT_FAILED {
+            Err(Error::last_os_error())
+        } else {
+            Err(ErrorKind::Other.into())
+        }
     }
 }
 
@@ -225,13 +266,24 @@ impl Writer {
 }
 
 impl Write for Writer {
-    fn write(&mut self, _: &[u8]) -> Result<usize> {
-        // WriteConsole
-
-        Err(ErrorKind::Unsupported.into()) // FIXME!
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        let mut did_write: u32 = 0;
+        unsafe {
+            Console::WriteConsoleA(
+                self.handle,
+                buf.as_ptr() as *const c_void,
+                buf.len() as u32,
+                from_mut(&mut did_write),
+                null(),
+            )
+        }
+        .into_result()?;
+        Ok(did_write as usize)
     }
 
     fn flush(&mut self) -> Result<()> {
-        Err(ErrorKind::Unsupported.into()) // FIXME!
+        Ok(())
     }
 }
+
+// ------------------------------------------------------------------------------------------------
