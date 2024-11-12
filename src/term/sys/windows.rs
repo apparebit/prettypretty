@@ -10,7 +10,7 @@ use std::ffi::c_void;
 use std::fs::OpenOptions;
 use std::io::{Error, ErrorKind, Read, Result, Write};
 use std::os::windows::io::{AsRawHandle, OwnedHandle};
-use std::ptr::from_mut;
+use std::ptr::{from_mut, null};
 
 use windows_sys::Win32::Foundation;
 use windows_sys::Win32::Globalization;
@@ -23,7 +23,7 @@ use crate::term::{Mode, Options};
 /// A trait for converting Windows status BOOL to Rust std::io results.
 trait IntoResult {
     /// Convert the return type into an error.
-    fn into_result(self) -> Result<()>;
+    fn into_result(self) -> Result<u32>;
 }
 
 impl IntoResult for u32 {
@@ -127,9 +127,9 @@ impl Config {
     /// Create a new terminal configuration.
     pub fn new(handle: DeviceHandle, options: &Options) -> Result<Self> {
         // Early exit is safe because we are only reading.
-        let input_mode = Self::read(handle.input())?;
+        let input_mode = Self::read_mode(handle.input())?;
         let input_encoding = unsafe { Console::GetConsoleCP() }.into_result()?;
-        let output_mode = Self::read(handle.output())?;
+        let output_mode = Self::read_mode(handle.output())?;
         let output_encoding = unsafe { Console::GetConsoleOutputCP() }.into_result()?;
 
         let this = Self {
@@ -146,7 +146,7 @@ impl Config {
             & !Console::ENABLE_LINE_INPUT
             & Console::ENABLE_VIRTUAL_TERMINAL_INPUT;
 
-        if options.mode == Mode::Raw {
+        if options.mode() == Mode::Raw {
             new_input_mode &= !Console::ENABLE_PROCESSED_INPUT;
         }
 
@@ -163,9 +163,9 @@ impl Config {
 
     fn update(&self, input_mode: ConsoleMode, output_mode: ConsoleMode) -> Result<()> {
         // Fail early to limit damage.
-        Self::write(self.handle.input(), input_mode)?;
+        Self::write_mode(self.handle.input(), input_mode)?;
         unsafe { Console::SetConsoleCP(Globalization::CP_UTF8) }.into_result()?;
-        Self::write(self.handle.output(), output_mode)?;
+        Self::write_mode(self.handle.output(), output_mode)?;
         unsafe { Console::SetConsoleOutputCP(Globalization::CP_UTF8) }.into_result()?;
         Ok(())
     }
@@ -174,17 +174,17 @@ impl Config {
     pub fn restore(&self) -> Result<()> {
         // Since we are trying to restore the original terminal modes, we should
         // always try to apply all four updates, even if one of them fails.
-        let result1 = Self::write(self.handle.input(), self.input_mode);
+        let result1 = Self::write_mode(self.handle.input(), self.input_mode);
         let result2 = unsafe { Console::SetConsoleCP(self.input_encoding) }.into_result();
-        let result3 = Self::write(self.handle.output(), self.output_mode);
+        let result3 = Self::write_mode(self.handle.output(), self.output_mode);
         let result4 = unsafe { Console::SetConsoleOutputCP(self.output_encoding) }.into_result();
 
-        result1.and(result2).and(result3).and(result4);
+        result1.and(result2).and(result3).and(result4)
     }
 
     // ------------------------------------------------------------------------------------------------------
 
-    fn read(handle: RawHandle) -> Result<ConsoleMode> {
+    fn read_mode(handle: RawHandle) -> Result<ConsoleMode> {
         let mut mode = 0;
         unsafe { Console::GetConsoleMode(handle, from_mut(&mut mode)) }.into_result()?;
         Ok(mode)
@@ -271,7 +271,7 @@ impl Write for Writer {
         unsafe {
             Console::WriteConsoleA(
                 self.handle,
-                buf.as_ptr() as *const c_void,
+                buf.as_ptr(),
                 buf.len() as u32,
                 from_mut(&mut did_write),
                 null(),
