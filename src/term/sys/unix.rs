@@ -12,43 +12,8 @@ use std::io::{Read, Result, Write};
 use std::os::fd::{AsRawFd, OwnedFd};
 use std::ptr::{from_mut, from_ref};
 
-use super::RawHandle;
+use super::{into_result::IntoResult, RawHandle};
 use crate::term::{Mode, Options};
-
-/// A trait for converting libc status codes to Rust std::io results.
-///
-/// The implementations for pairs of signed and unsigned primitive integers of
-/// the same size differ solely in the declared types for `Self` and `Unsigned`.
-/// Hence, we delegate to a declarative macro.
-trait IntoResult {
-    /// The unsigned version of `Self`.
-    type Unsigned;
-
-    /// Actually convert a signed status code to a Rust result.
-    ///
-    /// If the status code is negative, this method returns the last OS error.
-    /// Otherwise, it returns the now unsigned status code wrapped as a result.
-    fn into_result(self) -> Result<Self::Unsigned>;
-}
-
-macro_rules! into_result {
-    ($signed:ty, $unsigned:ty) => {
-        impl IntoResult for $signed {
-            type Unsigned = $unsigned;
-
-            fn into_result(self) -> Result<Self::Unsigned> {
-                if self < 0 {
-                    Err(std::io::Error::last_os_error())
-                } else {
-                    Ok(self as Self::Unsigned)
-                }
-            }
-        }
-    };
-}
-
-into_result!(i32, u32);
-into_result!(isize, usize);
 
 // ------------------------------------------------------------------------------------------------
 

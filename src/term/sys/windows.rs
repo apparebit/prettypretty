@@ -17,25 +17,8 @@ use windows_sys::Win32::Globalization;
 use windows_sys::Win32::System::Console::{self, CONSOLE_MODE as ConsoleMode};
 use windows_sys::Win32::System::Threading;
 
-use super::RawHandle;
+use super::{into_result::IntoResult, RawHandle};
 use crate::term::{Mode, Options};
-
-/// A trait for converting Windows status BOOL to Rust std::io results.
-trait IntoResult {
-    /// Convert the return type into an error.
-    fn into_result(self) -> Result<u32>;
-}
-
-impl IntoResult for u32 {
-    #[inline]
-    fn into_result(self) -> Result<u32> {
-        if self != 0 {
-            Ok(self)
-        } else {
-            Err(Error::last_os_error())
-        }
-    }
-}
 
 // ----------------------------------------------------------------------------------------------------------
 
@@ -155,8 +138,10 @@ impl Config {
             & Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING;
 
         // If the update fails, try to restore old configuration.
-        this.update(new_input_mode, new_output_mode)
-            .or_else(|e| this.restore())?;
+        this.update(new_input_mode, new_output_mode).or_else(|e| {
+            this.restore();
+            e
+        })?;
 
         Ok(this)
     }
