@@ -140,7 +140,7 @@ impl Config {
         // If the update fails, try to restore old configuration.
         this.update(new_input_mode, new_output_mode).or_else(|e| {
             this.restore();
-            e
+            Err(e)
         })?;
 
         Ok(this)
@@ -164,7 +164,8 @@ impl Config {
         let result3 = Self::write_mode(self.handle.output(), self.output_mode);
         let result4 = unsafe { Console::SetConsoleOutputCP(self.output_encoding) }.into_result();
 
-        result1.and(result2).and(result3).and(result4)
+        result1.and(result2).and(result3).and(result4)?;
+        Ok(())
     }
 
     // ------------------------------------------------------------------------------------------------------
@@ -176,7 +177,8 @@ impl Config {
     }
 
     fn write_mode(handle: RawHandle, mode: ConsoleMode) -> Result<()> {
-        unsafe { Console::SetConsoleMode(handle, mode) }.into_result()
+        unsafe { Console::SetConsoleMode(handle, mode) }.into_result()?;
+        Ok(())
     }
 }
 
