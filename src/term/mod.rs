@@ -18,52 +18,34 @@
 //!
 //! # Examples
 //!
-//! ## 1. Scaffolding
+//! ## 1. Function Signature
 //!
-//! Windows support is largely untested. So for now, we run the example code on
-//! Unix only. Prettypretty has a dedicated type for a color
+//! Prettypretty has a dedicated type for a color
 //! [`Theme`](crate::trans::Theme), which collects the two default and 16 ANSI
-//! colors. Since we are interacting with the terminal to generate an instance,
+//! colors. Since we are interacting with the terminal to fill in the instance,
 //! `std::io::Result<Theme>` seems like a good result type for our function.
 //!
-//! ```
+//! ```no_run
 //! # use std::io::{ErrorKind, Result};
 //! # use prettypretty::trans::Theme;
-//! // Return an error indicating that platform is not supported.
-//! #[cfg(not(target_family = "unix"))]
-//! fn query() -> Result<Theme> {
-//!     Err(ErrorKind::Unsupported.into())
-//! }
-//!
-//! #[cfg(target_family = "unix")]
 //! fn query() -> Result<Theme> {
 //!     // Ooh, 𒌋𒐜 × XYZ's origin... that's pitch black.
 //!     Ok(Theme::default())
 //! }
-//!
-//! // Done.
-//! let _ = query();
 //! ```
 //!
-//! ## 2. Function Set Up and Outer Loop
+//! ## 2. Set Up and Outer Loop
 //!
-//! Great, now that we have a fallback for non-Unix platforms and the function
-//! skeleton for Unix, we can start filling in the latter. In particular, in
-//! addition to the dummy theme from last time, we need to set up terminal
-//! access and an ANSI escape sequence parser. And while we are at it, we might
-//! as well add the outer loop, too. It iterates over the
-//! [`ThemeEntry`](crate::trans::ThemeEntry) objects:
+//! Great, now that we have our function signature worked out, we can start
+//! filling in the latter. In particular, in addition to the dummy theme from
+//! last time, we need to set up terminal access and an ANSI escape sequence
+//! parser. And while we are at it, we might as well add the outer loop, too. It
+//! iterates over the [`ThemeEntry`](crate::trans::ThemeEntry) objects:
 //!
 //! ```
 //! # use std::io::{ErrorKind, Result};
-//! # #[cfg(target_family = "unix")]
 //! # use prettypretty::term::{terminal, VtScanner};
 //! # use prettypretty::trans::{Theme, ThemeEntry};
-//! # #[cfg(not(target_family = "unix"))]
-//! # fn query() -> Result<Theme> {
-//! #     Err(ErrorKind::Unsupported.into())
-//! # }
-//! #[cfg(target_family = "unix")]
 //! fn query() -> Result<Theme> {
 //!     // Set up state.
 //!     let mut tty = terminal().access()?;
@@ -76,7 +58,6 @@
 //!
 //!     Ok(theme)
 //! }
-//! # let _ = query();
 //! ```
 //!
 //! By far the most important incantation amongst the code we just added is the
@@ -101,16 +82,10 @@
 //!
 //! With that, we are ready to query the terminal for some colors:
 //!
-//! ```
+//! ```no_run
 //! # use std::io::{BufRead, Error, ErrorKind, Result, Write};
-//! # #[cfg(target_family = "unix")]
 //! # use prettypretty::term::{terminal, VtScanner};
 //! # use prettypretty::trans::{Theme, ThemeEntry};
-//! # #[cfg(not(target_family = "unix"))]
-//! # fn query() -> Result<Theme> {
-//! #     Err(ErrorKind::Unsupported.into())
-//! # }
-//! #[cfg(target_family = "unix")]
 //! fn query() -> Result<Theme> {
 //!     let mut tty = terminal().access()?;
 //!     let mut scanner = VtScanner::new();
@@ -137,7 +112,6 @@
 //!
 //!     Ok(theme)
 //! }
-//! # let _ = query();
 //! ```
 //!
 //! Write the query, ingest the response, parse the color, and update the theme.
@@ -182,18 +156,12 @@
 //!
 //! Here's the corresponding code:
 //!
-//! ```
+//! ```no_run
 //! # use std::io::{BufRead, Error, ErrorKind, Result, Write};
 //! # use prettypretty::{Color, ColorSpace};
 //! # use prettypretty::style::AnsiColor::*;
-//! # #[cfg(target_family = "unix")]
 //! # use prettypretty::term::{terminal, VtScanner};
 //! # use prettypretty::trans::{Theme, ThemeEntry};
-//! # #[cfg(not(target_family = "unix"))]
-//! # fn query() -> Result<Theme> {
-//! #     Err(ErrorKind::Unsupported.into())
-//! # }
-//! #[cfg(target_family = "unix")]
 //! fn query() -> Result<Theme> {
 //!     let mut tty = terminal().access()?;
 //!     let mut scanner = VtScanner::new();

@@ -105,16 +105,11 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! [`Style::builder`](style::Style::builder) chanting
 //! [`Stylist::build`](style::Stylist::build) works just as well.
 //!
-//! ```
+//! ```no_run
 //! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
 //! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}};
 //! # use prettypretty::trans::{Theme, Translator};
-//! # #[cfg(not(target_family = "unix"))]
-//! # fn run() -> Result<()> {
-//! #     Err(ErrorKind::Unsupported.into())
-//! # }
-//! # #[cfg(target_family = "unix")]
-//! # fn run() -> Result<()> {
+//! # fn main() -> Result<()> {
 //! // 1. Assemble application styles
 //! let chic = stylist()
 //!     .bold()
@@ -124,7 +119,6 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     .et_voila();
 //! # Ok(())
 //! # }
-//! # let _ = run();
 //! ```
 //!
 //! As illustrated above, you can use
@@ -147,23 +141,17 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! and `stdout`'s color support with
 //! [`Fidelity::from_environment`](style::Fidelity::from_environment).
 //!
-//! ```
+//! ```no_run
 //! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
 //! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}};
 //! # use prettypretty::trans::{Theme, Translator};
-//! # #[cfg(not(target_family = "unix"))]
-//! # fn run() -> Result<()> {
-//! #     Err(ErrorKind::Unsupported.into())
-//! # }
-//! # #[cfg(target_family = "unix")]
-//! # fn run() -> Result<()> {
+//! # fn main() -> Result<()> {
 //! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
 //! // 2a. Determine color theme, stdout's color support
 //! let theme = Theme::query_terminal()?;
 //! let fidelity = Fidelity::from_environment(stdout().is_terminal());
 //! # Ok(())
 //! # }
-//! # let _ = run();
 //! ```
 //!
 //! Use the `theme` to instantiate a [`Translator`](trans::Translator), which
@@ -172,16 +160,11 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! [`Style::cap`](style::Style::cap) puts a cap on styles with the help of
 //! [`Translator::cap`](trans::Translator::cap), which takes care of colors.
 //!
-//! ```
+//! ```no_run
 //! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
 //! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}};
 //! # use prettypretty::trans::{Theme, Translator};
-//! # #[cfg(not(target_family = "unix"))]
-//! # fn run() -> Result<()> {
-//! #     Err(ErrorKind::Unsupported.into())
-//! # }
-//! # #[cfg(target_family = "unix")]
-//! # fn run() -> Result<()> {
+//! # fn main() -> Result<()> {
 //! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
 //! # let theme = Theme::query_terminal()?;
 //! # let fidelity = Fidelity::from_environment(stdout().is_terminal());
@@ -190,7 +173,6 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! let effective_chic = &chic.cap(fidelity, &translator);
 //! # Ok(())
 //! # }
-//! # let _ = run();
 //! ```
 //!
 //! ### 3. Apply Your Styles
@@ -198,16 +180,11 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! Third, to apply a style, just write its display. To undo the style again,
 //! just write the negation's display.
 //!
-//! ```
+//! ```no_run
 //! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
 //! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}};
 //! # use prettypretty::trans::{Theme, Translator};
-//! # #[cfg(not(target_family = "unix"))]
-//! # fn run() -> Result<()> {
-//! #     Err(ErrorKind::Unsupported.into())
-//! # }
-//! # #[cfg(target_family = "unix")]
-//! # fn run() -> Result<()> {
+//! # fn main() -> Result<()> {
 //! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
 //! # let theme = Theme::query_terminal()?;
 //! # let fidelity = Fidelity::from_environment(stdout().is_terminal());
@@ -217,7 +194,6 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! println!("{}Wow!{}", effective_chic, !effective_chic);
 //! # Ok(())
 //! # }
-//! # let _ = run();
 //! ```
 //! And the terminal exclaimed:<br>
 //! <img style="margin-left: 2em;"

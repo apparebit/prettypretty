@@ -19,7 +19,7 @@ pub enum Mode {
 
 #[derive(Clone, Debug)]
 struct OptionData {
-    logging: bool,
+    verbose: bool,
     mode: Mode,
     timeout: NonZeroU8,
     read_buffer_size: NonZeroUsize,
@@ -49,7 +49,7 @@ impl OptionData {
 
     fn new() -> Self {
         Self {
-            logging: false,
+            verbose: false,
             mode: Mode::Rare,
             timeout: OptionData::default_timeout(),
             read_buffer_size: OptionData::default_read_buffer_size(),
@@ -63,10 +63,10 @@ pub struct OptionBuilder {
 }
 
 impl OptionBuilder {
-    /// Enable/disable debug logging.
+    /// Enable/disable verbose operation for debugging.
     #[inline]
-    pub fn logging(&mut self, logging: bool) -> &mut Self {
-        self.inner.logging = logging;
+    pub fn verbose(&mut self, verbose: bool) -> &mut Self {
+        self.inner.verbose = verbose;
         self
     }
 
@@ -123,10 +123,15 @@ impl Options {
         }
     }
 
-    /// Determine whether tracing is enabled.
+    /// Get the default options, except that verbose mode is enabled.
+    pub fn in_verbose() -> Self {
+        Self::builder().verbose(true).build()
+    }
+
+    /// Determine whether verbose mode is enabled.
     #[inline]
-    pub fn logging(&self) -> bool {
-        self.inner.logging
+    pub fn verbose(&self) -> bool {
+        self.inner.verbose
     }
 
     /// Get the mode.
@@ -171,12 +176,14 @@ impl Default for Options {
 /// configuration and closes the connection.
 #[derive(Debug)]
 struct State {
-    // Drop the device last because otherwise a raw handle may outlive the
-    // owning handle. Drop the writer second last so that we can still use it.
     options: Options,
     stamp: u64,
-    config: Config,
+
+    // Drop the following four fields in that order and last. Reading needs to
+    // stop before configuration is restored, though we can still write
+    // thereafter. All three must stop before the device is disconnected.
     reader: BufReader<Reader>,
+    config: Config,
     writer: BufWriter<Writer>,
     device: Device,
 }
@@ -205,7 +212,7 @@ impl State {
         );
         let writer =
             BufWriter::with_capacity(options.write_buffer_size(), Writer::new(handle.output()));
-        let stamp = if options.logging() {
+        let stamp = if options.verbose() {
             std::time::SystemTime::now()
                 .duration_since(std::time::SystemTime::UNIX_EPOCH)
                 .unwrap()
@@ -223,16 +230,16 @@ impl State {
             stamp,
         };
 
-        if this.options.logging() {
+        if this.options.verbose() {
             write!(
                 this.writer,
                 // The extra space aligns the close tag
-                "tty::connect pid={} tid={} in={:?} out={:?} stamp={}\r\n",
+                "┌── tty::connect ───── pid={:<5} tid={:<5} in={:?} out={:?} stamp={:.13} ────┐\r\n",
                 std::process::id(),
                 this.device.pid().unwrap_or(0),
                 handle.input(),
                 handle.output(),
-                stamp
+                stamp,
             )?;
             this.writer.flush()?;
         }
@@ -264,12 +271,12 @@ impl Drop for State {
         if 0 < self.stamp {
             let _ = write!(
                 self.writer,
-                "tty:disconnect pid={} tid={} in={:?} out={:?} stamp={}\r\n",
+                "└── tty::disconnect ── pid={:<5} tid={:<5} in={:?} out={:?} stamp={:.13} ────┘\r\n",
                 std::process::id(),
                 self.device.pid().unwrap_or(0),
                 self.device.handle().input(),
                 self.device.handle().output(),
-                self.stamp
+                self.stamp,
             );
         }
 

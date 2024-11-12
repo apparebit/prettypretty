@@ -4,18 +4,21 @@ use pyo3::prelude::*;
 use crate::core::parse_x;
 use crate::error::{ColorFormatError, OutOfBoundsError, ThemeError, ThemeErrorKind};
 use crate::style::{AnsiColor, Layer};
+use crate::term::Options;
 use crate::{rgb, Color, ColorSpace};
 
 /// A color theme.
 ///
 /// A color theme is a container with 18 colors, one each for the default
-/// foreground and background colors as well as the 16 ANSI colors. Not
-/// surprisingly, the internal representation is an array with 18 colors. It
-/// even is accessible through [`AsRef<[Color]> for
+/// foreground and background colors as well as the 16 ANSI colors. The public
+/// interface is a compromise between struct and array, a strarray if you will,
+/// to make the primary use case, processing the colors in a theme in order,
+/// safer than when using numeric indices. Hence, you index a color theme with
+/// semantic values, i.e., [`ThemeEntry`], [`Layer`](crate::style::Layer), or
+/// [`AnsiColor`](crate::style::AnsiColor). At the same time, you can still
+/// access the underlying array storage through [`AsRef<[Color]> for
 /// Theme`](struct.Theme.html#impl-AsRef%3C%5BColor%5D%3E-for-Theme), albeit
-/// Rust-only and read-only. The primary reason for encapsulating the array
-/// thusly is to force the use of semantic index values, i.e., [`ThemeEntry`],
-/// [`Layer`](crate::style::Layer), or [`AnsiColor`](crate::style::AnsiColor).
+/// Rust-only and read-only.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.trans"))]
 #[derive(Clone, Debug)]
 pub struct Theme {
@@ -50,13 +53,18 @@ impl Theme {
     }
 
     /// Query the terminal for the current color theme.
-    pub fn query_terminal() -> Result<Theme, ThemeError> {
+    pub fn query_terminal() -> std::io::Result<Theme> {
+        Theme::query_terminal_with(Options::default())
+    }
+
+    /// Query the terminal for the current color theme using the given options.
+    pub fn query_terminal_with(options: Options) -> std::io::Result<Theme> {
         use crate::term::{terminal, VtScanner};
         use std::io::Write;
 
         // Set up terminal, scanner, and empty theme
         let mut tty = terminal()
-            .access()
+            .access_with(options)
             .map_err(|e| ThemeError::new(ThemeErrorKind::AccessDevice, e.into()))?;
         let mut scanner = VtScanner::new();
         let mut theme = Theme::default();
