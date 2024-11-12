@@ -86,7 +86,9 @@ jobs:
       run: cargo fmt --check
 
     - name: Test Rust code
-      run: cargo test
+      run: |
+        cargo test
+        cargo test --example query
 
     - name: Build extension module
       run: pip install -e .[dev]
