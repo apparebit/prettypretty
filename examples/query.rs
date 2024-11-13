@@ -5,6 +5,25 @@ use std::io::{Result, Write};
 use prettypretty::term::{terminal, Options, TerminalAccess, VtScanner};
 use prettypretty::theme;
 
+pub fn report<R>(result: Result<R>) {
+    match result {
+        Ok(_) => (),
+        Err(error) => {
+            println!("ERROR {}", error);
+
+            let mut error: &dyn Error = &error;
+            loop {
+                match error.source() {
+                    Some(inner) => error = inner,
+                    None => break,
+                }
+
+                println!("    {}", error);
+            }
+        }
+    }
+}
+
 // ----------------------------------------------------------------------------------------------------------
 
 #[derive(Default)]
@@ -19,10 +38,14 @@ impl Runner {
         F: Fn(&mut TerminalAccess, &mut VtScanner, &mut theme::Theme) -> Result<()>,
     {
         let options = Options::builder().verbose(true).build();
-        let result = theme::apply(query, options);
+        report(self.handle(label, theme::apply(query, options)));
+        Ok(())
+    }
+
+    fn handle<R>(&mut self, label: &str, result: Result<R>) -> Result<()> {
+        let mut tty = terminal().access_with(Options::in_verbose())?;
         self.runs += 1;
 
-        let mut tty = terminal().access_with(Options::in_verbose())?;
         match result {
             Ok(_) => {
                 self.passed += 1;
@@ -34,7 +57,7 @@ impl Runner {
 
                 let mut error: &dyn Error = error;
                 loop {
-                    write!(tty, "│      {:<70} │\r\n", error)?;
+                    write!(tty, "│      {:<70} │\r\n", format!("{}", error))?;
                     match error.source() {
                         Some(source) => error = source,
                         None => break,
@@ -49,10 +72,11 @@ impl Runner {
     }
 
     fn summary(&self) -> Result<()> {
-        println!("{}/{} runs passed", self.runs, self.passed);
+        let msg = format!("{}/{} runs passed", self.passed, self.runs);
+        println!("{}", &msg);
 
         if self.passed < self.runs {
-            Err(std::io::ErrorKind::Other.into())
+            Err(std::io::Error::other(msg))
         } else {
             Ok(())
         }
@@ -84,8 +108,10 @@ fn main() -> Result<()> {
 
 #[cfg(test)]
 mod test {
+    use super::report;
+
     #[test]
     fn run_main() {
-        super::main().unwrap()
+        report(super::main());
     }
 }

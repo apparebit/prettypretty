@@ -2,7 +2,7 @@
 use pyo3::prelude::*;
 
 use crate::core::parse_x;
-use crate::error::{ColorFormatError, OutOfBoundsError, ThemeError, ThemeErrorKind};
+use crate::error::{ColorFormatError, OutOfBoundsError};
 use crate::style::{AnsiColor, Layer};
 use crate::term::Options;
 use crate::{rgb, Color, ColorSpace};

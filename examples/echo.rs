@@ -10,7 +10,7 @@ use std::error::Error;
 use std::io::{stdout, IsTerminal, Read, Write};
 
 use prettypretty::style::{stylist, Fidelity, Stylist};
-use prettypretty::term::{render, terminal};
+use prettypretty::term::{write_nicely, terminal};
 use prettypretty::theme::{Theme, ThemeEntry};
 use prettypretty::trans::Translator;
 use prettypretty::OkVersion;
@@ -76,7 +76,7 @@ fn run() -> std::io::Result<()> {
         let mut query = None;
 
         for b in buffer.iter().take(count) {
-            line += render(*b, &mut tty)?;
+            line += write_nicely(*b, &mut tty)?;
 
             if *b == b'q' {
                 terminate = true;
