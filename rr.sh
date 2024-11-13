@@ -294,7 +294,7 @@ check() {
     run cargo clippy --features f64,gamut
     run cargo clippy --all-features
     run cargo test --features f64,gamut,term
-    run cargo test --example query
+    run cargo test --example query -- --nocapture
 
     if [ -d prettypretty ]; then
         run npm run pyright -- --pythonpath ./.venv/bin/python

@@ -14,6 +14,11 @@ impl ByteNicely {
             _ => 4,
         }
     }
+
+    /// Determine whether this byte is empty, which is always `false`.
+    pub fn is_empty(&self) -> bool {
+        false
+    }
 }
 
 impl std::fmt::Display for ByteNicely {

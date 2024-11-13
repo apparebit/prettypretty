@@ -58,6 +58,10 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!       * Undo the style by displaying its negation, e.g.,
 //!         `print!("{}",!style)`.
 //!
+//!   * The [`cmd`] module provides further control over terminals with a small
+//!     library of **commands implemented as ANSI escape code**. They control
+//!     not only window title, screen, and cursor position, but also group
+//!     content for pasting and batch updates as well as hyperlinks.
 //!   * The [`trans`] module's [`Translator`](crate::trans::Translator)
 //!     implements **translation between color formats**. To ensure high quality
 //!     results, its preferred algorithms leverage the perceptually uniform
@@ -204,6 +208,17 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
 //!      alt="wow!" width="77">
 //!
+//! Commands work the same way, too: Just write the display to the terminal, and
+//! the terminal is updating. Well, at least in theory. In practice, support for
+//! the different ANSI escape sequences varies widely by terminal.
+//!
+//! [Demicode](https://github.com/apparebit/demicode), my tool for exploring the
+//! fixed-width rendering of Unicode, includes the
+//! [orchastrate.py](https://github.com/apparebit/demicode/blob/boss/script/orchestrate.py)
+//! script written in a combination of Python and AppleScript to automatically
+//! collect screenshots for output printed to a dozen or so macOS terminals.
+//! That just might be the starting point for a very useful testing tool.
+//!
 //!
 //! ## Feature Flags
 //!
@@ -269,6 +284,7 @@ pub type Bits = u64;
 #[cfg(not(feature = "f64"))]
 pub type Bits = u32;
 
+pub mod cmd;
 mod core;
 pub mod error;
 mod object;
