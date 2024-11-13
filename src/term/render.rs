@@ -25,7 +25,7 @@ impl std::fmt::Display for ByteNicely {
     /// Mnemonics use sans-serif Unicode letters.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if (0x20..=0x7e).contains(&self.0) {
-            return f.write_str(char::from(self.0).encode_utf8(&mut [0; 4]))
+            return f.write_str(char::from(self.0).encode_utf8(&mut [0; 4]));
         }
 
         let replacement = match self.0 {

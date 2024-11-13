@@ -10,7 +10,7 @@ use std::error::Error;
 use std::io::{stdout, IsTerminal, Read, Write};
 
 use prettypretty::style::{stylist, Fidelity, Stylist};
-use prettypretty::term::{write_nicely, terminal};
+use prettypretty::term::{terminal, write_nicely};
 use prettypretty::theme::{Theme, ThemeEntry};
 use prettypretty::trans::Translator;
 use prettypretty::OkVersion;
