@@ -4,7 +4,8 @@ use pyo3::prelude::*;
 use crate::style::{
     AnsiColor, Colorant, EightBitColor, EmbeddedRgb, Fidelity, GrayGradient, Layer,
 };
-use crate::trans::{HueLightnessTable, Theme};
+use crate::theme::Theme;
+use crate::trans::HueLightnessTable;
 use crate::{Color, ColorSpace, Float, OkVersion};
 
 /// A color translator.
@@ -199,7 +200,8 @@ impl Translator {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, OkVersion};
     /// # use prettypretty::style::AnsiColor;
-    /// # use prettypretty::trans::{Translator, VGA_COLORS};
+    /// # use prettypretty::theme::VGA_COLORS;
+    /// # use prettypretty::trans::Translator;
     /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// let translator = Translator::new(
@@ -242,7 +244,8 @@ impl Translator {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, OkVersion};
     /// # use prettypretty::style::AnsiColor;
-    /// # use prettypretty::trans::{Translator, VGA_COLORS};
+    /// # use prettypretty::theme::VGA_COLORS;
+    /// # use prettypretty::trans::Translator;
     /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// let original_translator = Translator::new(
@@ -311,7 +314,7 @@ impl Translator {
     /// ```
     /// # use prettypretty::{Color, ColorSpace};
     /// # use prettypretty::style::AnsiColor;
-    /// # use prettypretty::trans::VGA_COLORS;
+    /// # use prettypretty::theme::VGA_COLORS;
     /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// let ansi_colors: Vec<Color> = AnsiColor::all()
@@ -319,7 +322,7 @@ impl Translator {
     ///     .collect();
     /// ```
     ///
-    /// [`VGA_COLORS`](crate::trans::VGA_COLORS) is a builtin color [`Theme`]
+    /// [`VGA_COLORS`](crate::theme::VGA_COLORS) is a builtin color [`Theme`]
     /// that maps the default foreground, default background, and ANSI colors to
     /// high-resolution colors. It conveniently can be indexed by ANSI colors.
     ///
@@ -347,7 +350,7 @@ impl Translator {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, Float};
     /// # use prettypretty::style::AnsiColor;
-    /// # use prettypretty::trans::VGA_COLORS;
+    /// # use prettypretty::theme::VGA_COLORS;
     /// # use prettypretty::error::ColorFormatError;
     /// # use std::str::FromStr;
     /// # let ansi_colors: Vec<Color> = AnsiColor::all()
@@ -442,7 +445,8 @@ impl Translator {
     /// # use prettypretty::{assert_close_enough, Color, ColorSpace, Float, OkVersion};
     /// # use prettypretty::error::OutOfBoundsError;
     /// # use prettypretty::style::{EightBitColor, EmbeddedRgb};
-    /// # use prettypretty::trans::{Translator, VGA_COLORS};
+    /// # use prettypretty::theme::VGA_COLORS;
+    /// # use prettypretty::trans::Translator;
     /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
     ///
     /// for r in 0..5 {
@@ -495,7 +499,8 @@ impl Translator {
     /// ```
     /// # use prettypretty::{Color, ColorSpace, Float, OkVersion};
     /// # use prettypretty::style::{AnsiColor, EightBitColor, EmbeddedRgb};
-    /// # use prettypretty::trans::{Translator, VGA_COLORS};
+    /// # use prettypretty::theme::VGA_COLORS;
+    /// # use prettypretty::trans::Translator;
     /// let bright_magenta = Color::from_24bit(255, 85, 255);
     /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
     /// let result = translator.to_closest_8bit_with_ansi(&bright_magenta);
@@ -659,7 +664,8 @@ impl Translator {
     /// ```
     /// # use prettypretty::{Color, OkVersion};
     /// # use prettypretty::style::{AnsiColor, Colorant, Layer, TrueColor};
-    /// # use prettypretty::trans::{Translator, VGA_COLORS};
+    /// # use prettypretty::theme::VGA_COLORS;
+    /// # use prettypretty::trans::Translator;
     /// let translator = Translator::new(OkVersion::Revised, VGA_COLORS.clone());
     /// let blue = translator.resolve_all(
     ///     AnsiColor::Blue, Layer::Foreground);
@@ -744,7 +750,8 @@ impl std::fmt::Debug for Translator {
 mod test {
     use crate::error::OutOfBoundsError;
     use crate::style::AnsiColor;
-    use crate::trans::{Translator, VGA_COLORS};
+    use crate::theme::VGA_COLORS;
+    use crate::trans::Translator;
     use crate::{Color, OkVersion};
 
     #[test]

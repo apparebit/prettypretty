@@ -96,7 +96,8 @@
 //! ```
 //! # use prettypretty::OkVersion;
 //! # use prettypretty::style::{stylist, AnsiColor, Colorant, Fidelity, TrueColor};
-//! # use prettypretty::trans::{Translator, VGA_COLORS};
+//! # use prettypretty::theme::VGA_COLORS;
+//! # use prettypretty::trans::Translator;
 //! # let style = stylist()
 //! #     .bold()
 //! #     .foreground(TrueColor::new(215, 40, 39))
@@ -125,7 +126,8 @@
 //! ```
 //! # use prettypretty::OkVersion;
 //! # use prettypretty::style::{stylist, AnsiColor, Colorant, Fidelity, TrueColor};
-//! # use prettypretty::trans::{Translator, VGA_COLORS};
+//! # use prettypretty::theme::VGA_COLORS;
+//! # use prettypretty::trans::Translator;
 //! # let style = stylist()
 //! #     .bold()
 //! #     .foreground(TrueColor::new(215, 40, 39))

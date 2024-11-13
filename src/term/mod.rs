@@ -11,8 +11,8 @@
 //!   - [`VtScanner`] implements the state machine for recognizing UTF-8 and
 //!     ANSI escape sequences.
 //!
-//! When combined with [`Theme`](crate::trans::Theme) and
-//! [`ThemeEntry`](crate::trans::ThemeEntry), querying the terminal for its
+//! When combined with [`Theme`](crate::theme::Theme) and
+//! [`ThemeEntry`](crate::theme::ThemeEntry), querying the terminal for its
 //! color theme becomes fairly straightforward. Let's walk through one possible
 //! solution.
 //!
@@ -21,13 +21,13 @@
 //! ## 1. Function Signature
 //!
 //! Prettypretty has a dedicated type for a color
-//! [`Theme`](crate::trans::Theme), which collects the two default and 16 ANSI
+//! [`Theme`](crate::theme::Theme), which collects the two default and 16 ANSI
 //! colors. Since we are interacting with the terminal to fill in the instance,
 //! `std::io::Result<Theme>` seems like a good result type for our function.
 //!
 //! ```no_run
 //! # use std::io::{ErrorKind, Result};
-//! # use prettypretty::trans::Theme;
+//! # use prettypretty::theme::Theme;
 //! fn query() -> Result<Theme> {
 //!     // Ooh, 𒌋𒐜 × XYZ's origin... that's pitch black.
 //!     Ok(Theme::default())
@@ -40,12 +40,12 @@
 //! filling in the latter. In particular, in addition to the dummy theme from
 //! last time, we need to set up terminal access and an ANSI escape sequence
 //! parser. And while we are at it, we might as well add the outer loop, too. It
-//! iterates over the [`ThemeEntry`](crate::trans::ThemeEntry) objects:
+//! iterates over the [`ThemeEntry`](crate::theme::ThemeEntry) objects:
 //!
 //! ```
 //! # use std::io::{ErrorKind, Result};
 //! # use prettypretty::term::{terminal, VtScanner};
-//! # use prettypretty::trans::{Theme, ThemeEntry};
+//! # use prettypretty::theme::{Theme, ThemeEntry};
 //! fn query() -> Result<Theme> {
 //!     // Set up state.
 //!     let mut tty = terminal().access()?;
@@ -85,7 +85,7 @@
 //! ```no_run
 //! # use std::io::{BufRead, Error, ErrorKind, Result, Write};
 //! # use prettypretty::term::{terminal, VtScanner};
-//! # use prettypretty::trans::{Theme, ThemeEntry};
+//! # use prettypretty::theme::{Theme, ThemeEntry};
 //! fn query() -> Result<Theme> {
 //!     let mut tty = terminal().access()?;
 //!     let mut scanner = VtScanner::new();
@@ -126,7 +126,7 @@
 //! In any case, that's it. That's all the code necessary for querying the
 //! terminal for its current color theme. That's pretty much also the
 //! implementation of
-//! [`Theme::query_terminal`](crate::trans::Theme::query_terminal).
+//! [`Theme::query_terminal`](crate::theme::Theme::query_terminal).
 //!
 //!
 //! ## 4. Validate Color Theme
@@ -161,7 +161,7 @@
 //! # use prettypretty::{Color, ColorSpace};
 //! # use prettypretty::style::AnsiColor::*;
 //! # use prettypretty::term::{terminal, VtScanner};
-//! # use prettypretty::trans::{Theme, ThemeEntry};
+//! # use prettypretty::theme::{Theme, ThemeEntry};
 //! fn query() -> Result<Theme> {
 //!     let mut tty = terminal().access()?;
 //!     let mut scanner = VtScanner::new();

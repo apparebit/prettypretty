@@ -59,35 +59,8 @@ impl Theme {
 
     /// Query the terminal for the current color theme using the given options.
     pub fn query_terminal_with(options: Options) -> std::io::Result<Theme> {
-        use crate::term::{terminal, VtScanner};
-        use std::io::Write;
-
-        // Set up terminal, scanner, and empty theme
-        let mut tty = terminal()
-            .access_with(options)
-            .map_err(|e| ThemeError::new(ThemeErrorKind::AccessDevice, e.into()))?;
-        let mut scanner = VtScanner::new();
-        let mut theme = Theme::default();
-
-        for entry in ThemeEntry::all() {
-            // Write query to terminal
-            write!(tty, "{}", entry)
-                .and_then(|()| tty.flush())
-                .map_err(|e| ThemeError::new(ThemeErrorKind::WriteQuery(entry), e.into()))?;
-
-            // Parse terminal's response
-            let response = scanner
-                .scan_str(&mut tty)
-                .map_err(|e| ThemeError::new(ThemeErrorKind::ScanEscape(entry), e.into()))?;
-            let color = entry
-                .parse_response(response)
-                .map_err(|e| ThemeError::new(ThemeErrorKind::ParseColor(entry), e.into()))?;
-
-            // Update theme
-            theme[entry] = color;
-        }
-
-        Ok(theme)
+        use super::{apply, query2};
+        apply(query2, options)
     }
 }
 

@@ -6,7 +6,7 @@
 
 This version introduces significant new functionality while also reorganizing
 the already existing functionality. To significantly reduce the cognitive
-overhead of using prettypretty, the public API now is modularized. The three
+overhead of using prettypretty, the public API now is modularized. The four
 primary modules and their main types are:
 
   - `prettypretty` provides high-resolution colors through
@@ -18,10 +18,10 @@ primary modules and their main types are:
     [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html).
   - `prettypretty::trans` defines
     [`Translator`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html)
-    née `Sampler` for translating between the color representations. It also
-    defines
-    [`Theme`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Theme.html)
-    for representing a terminal's current color theme.
+    née `Sampler` for translating between the color representations.
+  - `prettypretty::theme` uses
+    [`Theme`](https://apparebit.github.io/prettypretty/prettypretty/theme/struct.Theme.html)
+    to represent a terminal's current color theme.
 
 A fourth module also contains critical functionality. But since it overlaps with
 existing Rust terminal crates such as
@@ -31,8 +31,8 @@ existing Rust terminal crates such as
     [`Terminal`](https://apparebit.github.io/prettypretty/prettypretty/term/struct.Terminal.html)
     and parses UTF-8 and ANSI escape sequences with
     [`VtScanner`](https://apparebit.github.io/prettypretty/prettypretty/term/struct.VtScanner.html).
-    `Terminal` is currently supported on Unix only. This module is enabled with
-    the `term` feature, which is enabled by default.
+    `Terminal` is supported on Unix and Windows, though the latter version is
+    largely untested.
 
 These four modules are supported by a utility module:
 

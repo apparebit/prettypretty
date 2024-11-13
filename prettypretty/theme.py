@@ -7,7 +7,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from .color import OkVersion
-from .color.trans import Theme, Translator, VGA_COLORS # pyright: ignore [reportMissingModuleSource]
+from .color.theme import Theme, VGA_COLORS # pyright: ignore [reportMissingModuleSource]
+from .color.trans import Translator # pyright: ignore [reportMissingModuleSource]
 
 
 _current_translator: list[Translator] = [Translator(OkVersion.Revised, VGA_COLORS)]

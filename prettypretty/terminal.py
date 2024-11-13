@@ -22,7 +22,7 @@ from typing import (
 )
 
 from .ansi import Ansi, RawAnsi
-from .color import Color, trans # pyright: ignore [reportMissingModuleSource]
+from .color import Color, theme # pyright: ignore [reportMissingModuleSource]
 from .color.style import ( # pyright: ignore [reportMissingModuleSource]
     AnsiColor, Colorant, EmbeddedRgb, Fidelity, GrayGradient, Layer, Style, TrueColor
 )
@@ -171,11 +171,11 @@ class TerminalContextManager(AbstractContextManager['Terminal']):
         self._updates.append(lambda: self._cbreak_mode())
         return self
 
-    def _request_theme(self) -> trans.Theme:
+    def _request_theme(self) -> theme.Theme:
         with self._cbreak_mode():
             return self._terminal.request_theme()
 
-    def terminal_theme(self, theme: None | trans.Theme = None) -> Self:
+    def terminal_theme(self, theme: None | theme.Theme = None) -> Self:
         """
         Use the terminal's color theme. Unless a theme is provided as argument,
         the context manager puts the terminal temporarily into cbreak mode and
@@ -954,7 +954,7 @@ class Terminal:
 
         return self._parse_color(
             color + 2,
-            trans.ThemeEntry.try_from_index(color + 2).name(),
+            theme.ThemeEntry.try_from_index(color + 2).name(),
             self.make_raw_request(Ansi.OSC, 4, color, ';?', Ansi.ST)
         )
 
@@ -976,11 +976,11 @@ class Terminal:
 
         return self._parse_color(
             code - 10,
-            trans.ThemeEntry.try_from_index(code - 10).name(),
+            theme.ThemeEntry.try_from_index(code - 10).name(),
             self.make_raw_request(Ansi.OSC, code, ';?', Ansi.ST),
         )
 
-    def _request_theme_v1(self) -> trans.Theme:
+    def _request_theme_v1(self) -> theme.Theme:
         # (1) Completely process each color.
         colors: list[Color] = []
 
@@ -989,9 +989,9 @@ class Terminal:
         for code in range(16):
             colors.append(self.request_ansi_color(code))
 
-        return trans.Theme(colors)
+        return theme.Theme(colors)
 
-    def _request_theme_v2(self) -> trans.Theme:
+    def _request_theme_v2(self) -> theme.Theme:
         # (1) Write all requests. (2) Read + parse all responses.
         colors: list[Color] = []
 
@@ -1007,13 +1007,13 @@ class Terminal:
             response = self.read_control()
             colors.append(self._parse_color(
                 index,
-                trans.ThemeEntry.try_from_index(index).name(),
+                theme.ThemeEntry.try_from_index(index).name(),
                 response,
             ))
 
-        return trans.Theme(colors)
+        return theme.Theme(colors)
 
-    def _request_theme_v3(self) -> trans.Theme:
+    def _request_theme_v3(self) -> theme.Theme:
         # (1) Write all requests. (2) Read all responses. (3) Parse all responses.
         colors: list[Color] = []
 
@@ -1032,11 +1032,11 @@ class Terminal:
         for index, response in enumerate(responses):
             colors.append(self._parse_color(
                 index,
-                trans.ThemeEntry.try_from_index(index).name(),
+                theme.ThemeEntry.try_from_index(index).name(),
                 response,
             ))
 
-        return trans.Theme(colors)
+        return theme.Theme(colors)
 
     request_theme = _request_theme_v3
     """
@@ -1075,7 +1075,7 @@ class Terminal:
     # ----------------------------------------------------------------------------------
     # Terminal Context
 
-    def terminal_theme(self, theme: None | trans.Theme = None) -> TerminalContextManager:
+    def terminal_theme(self, theme: None | theme.Theme = None) -> TerminalContextManager:
         """
         Use a different color theme. Unless a theme argument is provided, the
         implementation queries the terminal for its current theme, while

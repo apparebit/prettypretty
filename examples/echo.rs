@@ -1,4 +1,4 @@
-/// Echo: An interactive visualization of terminal input and output.
+/// # echo: An interactive visualization of terminal input and output
 ///
 /// At its core, this example reads from terminal input and writes the result to
 /// terminal output in a loop. It writes a small circle if it timed out and has
@@ -11,7 +11,8 @@ use std::io::{stdout, IsTerminal, Read, Write};
 
 use prettypretty::style::{stylist, Fidelity, Stylist};
 use prettypretty::term::{render, terminal};
-use prettypretty::trans::{Theme, ThemeEntry, Translator};
+use prettypretty::theme::{Theme, ThemeEntry};
+use prettypretty::trans::Translator;
 use prettypretty::OkVersion;
 
 #[allow(non_snake_case)]

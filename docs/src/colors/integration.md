@@ -185,7 +185,8 @@ The example code below illustrates the use of each major entry point besides
 # extern crate prettypretty;
 # use prettypretty::{Color, OkVersion};
 # use prettypretty::style::{AnsiColor, EmbeddedRgb, Fidelity, TrueColor};
-# use prettypretty::trans::{Translator, VGA_COLORS};
+# use prettypretty::theme::VGA_COLORS;
+# use prettypretty::trans::Translator;
 # use prettypretty::error::ColorFormatError;
 # use std::str::FromStr;
 let red = &VGA_COLORS[AnsiColor::BrightRed];
@@ -216,7 +217,8 @@ The Python version is a close match:
 ~from prettypretty.color import Color, OkVersion
 ~from prettypretty.color.style import AnsiColor, Colorant, EmbeddedRgb
 ~from prettypretty.color.style import Fidelity, TrueColor
-~from prettypretty.color.trans import ThemeEntry, Translator, VGA_COLORS
+~from prettypretty.color.theme import ThemeEntry, VGA_COLORS
+~from prettypretty.color.trans import Translator
 red = VGA_COLORS[ThemeEntry.Ansi(AnsiColor.BrightRed)]
 assert red == Color.srgb(1.0, 0.333333333333333, 0.333333333333333)
 

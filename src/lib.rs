@@ -59,21 +59,21 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!         `print!("{}",!style)`.
 //!
 //!   * The [`trans`] module's [`Translator`](crate::trans::Translator)
-//!     implements **stateful and lossy translation** between color formats,
-//!     including high-quality conversions between ANSI/8-bit colors and
-//!     high-resolution colors. Amongst these conversions, translation from
-//!     high-resolution to ANSI colors is particularly challenging, as it
-//!     requires mapping a practically infinite number of colors onto 16 colors,
-//!     four of which are achromatic. `Translator` includes several algorithms
-//!     for doing so.
-//!   * The optional [`term`] module supports just enough **terminal I/O** to
-//!     query a terminal for the current color theme, which is required for
-//!     instantiating a `Translator`. Notably,
-//!     [`Terminal`](crate::term::Terminal) type configures the terminal to use
-//!     raw mode and to time out reads. Meanwhile,
+//!     implements **translation between color formats**. To ensure high quality
+//!     results, its preferred algorithms leverage the perceptually uniform
+//!     Oklab/Oklch color space. For conversion to the 16 ANSI colors, it also
+//!     reqires the terminal's current color theme.
+//!   * The [`theme`] module's
+//!     [`Theme::query_terminal`](crate::theme::Theme::query_terminal) **queries
+//!     the terminal for such a theme** and returns a
+//!     [`Theme`](crate::theme::Theme) object with the default foreground and
+//!     background as well as 16 ANSI colors.
+//!   * The optional [`term`] module performs the necessary **terminal I/O**.
+//!     Notably, [`Terminal`](crate::term::Terminal) configures the terminal to
+//!     use raw mode and to time out reads. Meanwhile,
 //!     [`VtScanner`](crate::term::VtScanner) implements the complete state
 //!     machine for **parsing ANSI escape sequences**. Both Unix and Windows are
-//!     supported but Windows support is largely untested.
+//!     supported, but Windows support is largely untested.
 #![cfg_attr(
     feature = "gamut",
     doc = "  * The optional [`gamut`] and [`spectrum`] submodules enable the traversal
@@ -108,7 +108,8 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! ```no_run
 //! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
 //! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}};
-//! # use prettypretty::trans::{Theme, Translator};
+//! # use prettypretty::theme::Theme;
+//! # use prettypretty::trans::Translator;
 //! # fn main() -> Result<()> {
 //! // 1. Assemble application styles
 //! let chic = stylist()
@@ -137,14 +138,15 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! ### 2. Adjust Your Styles
 //!
 //! Second, determine the terminal's current color theme with
-//! [`Theme::query_terminal`](trans::Theme::query_terminal)
-//! and `stdout`'s color support with
+//! [`Theme::query_terminal`](theme::Theme::query_terminal) and `stdout`'s color
+//! support with
 //! [`Fidelity::from_environment`](style::Fidelity::from_environment).
 //!
 //! ```no_run
 //! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
 //! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}};
-//! # use prettypretty::trans::{Theme, Translator};
+//! # use prettypretty::theme::Theme;
+//! # use prettypretty::trans::Translator;
 //! # fn main() -> Result<()> {
 //! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
 //! // 2a. Determine color theme, stdout's color support
@@ -163,7 +165,8 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! ```no_run
 //! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
 //! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}};
-//! # use prettypretty::trans::{Theme, Translator};
+//! # use prettypretty::theme::Theme;
+//! # use prettypretty::trans::Translator;
 //! # fn main() -> Result<()> {
 //! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
 //! # let theme = Theme::query_terminal()?;
@@ -183,7 +186,8 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! ```no_run
 //! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
 //! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}};
-//! # use prettypretty::trans::{Theme, Translator};
+//! # use prettypretty::theme::Theme;
+//! # use prettypretty::trans::Translator;
 //! # fn main() -> Result<()> {
 //! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
 //! # let theme = Theme::query_terminal()?;
@@ -195,7 +199,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # Ok(())
 //! # }
 //! ```
-//! And the terminal exclaimed:<br>
+//! And the terminal exclaims:<br>
 //! <img style="margin-left: 2em;"
 //! src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
 //!      alt="wow!" width="77">
@@ -271,6 +275,7 @@ mod object;
 pub mod style;
 #[cfg(feature = "term")]
 pub mod term;
+pub mod theme;
 pub mod trans;
 mod util;
 
@@ -309,6 +314,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modformat_name = format!("{}.style.format", modcolor_name);
     let modstyle_name = format!("{}.style", modcolor_name);
     let modterm_name = format!("{}.term", modcolor_name);
+    let modtheme_name = format!("{}.theme", modcolor_name);
     let modtrans_name = format!("{}.trans", modcolor_name);
 
     // -------------------------------------------------------------------------- color
@@ -362,14 +368,22 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Only change __name__ attribute after submodule has been added.
     modterm.setattr("__name__", &modterm_name)?;
 
+    // -------------------------------------------------------------------- color.theme
+    let modtheme = PyModule::new_bound(m.py(), "trans")?;
+    modtheme.add("__package__", modcolor_name)?;
+    modtheme.add_class::<theme::Theme>()?;
+    modtheme.add_class::<theme::ThemeEntry>()?;
+    modtheme.add_class::<theme::ThemeEntryIterator>()?;
+    modtheme.add("VGA_COLORS", theme::VGA_COLORS)?;
+    m.add_submodule(&modtheme)?;
+
+    // Only change __name__ attribute after submodule has been added.
+    modtheme.setattr("__name__", &modtheme_name)?;
+
     // -------------------------------------------------------------------- color.trans
     let modtrans = PyModule::new_bound(m.py(), "trans")?;
     modtrans.add("__package__", modcolor_name)?;
-    modtrans.add_class::<trans::Theme>()?;
-    modtrans.add_class::<trans::ThemeEntry>()?;
-    modtrans.add_class::<trans::ThemeEntryIterator>()?;
     modtrans.add_class::<trans::Translator>()?;
-    modtrans.add("VGA_COLORS", trans::VGA_COLORS)?;
     m.add_submodule(&modtrans)?;
 
     // Only change __name__ attribute after submodule has been added.
@@ -384,6 +398,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     py_modules.set_item(&modstyle_name, modstyle)?;
     py_modules.set_item(&modformat_name, modformat)?;
     py_modules.set_item(&modterm_name, modterm)?;
+    py_modules.set_item(&modtheme_name, modtheme)?;
     py_modules.set_item(&modtrans_name, modtrans)?;
 
     #[cfg(feature = "gamut")]

@@ -24,7 +24,7 @@ from .color import (
     Color,
     ColorSpace,
     spectrum, # pyright: ignore [reportMissingModuleSource]
-    trans, # pyright: ignore [reportMissingModuleSource]
+    theme, # pyright: ignore [reportMissingModuleSource]
 )
 from .color.gamut import GamutTraversalStep # pyright: ignore [reportMissingModuleSource]
 from .theme import current_translator
@@ -67,7 +67,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--vga",
         action="store_const",
-        const=trans.VGA_COLORS,
+        const=theme.VGA_COLORS,
         dest="theme",
         help="use VGA colors instead of querying terminal"
     )
@@ -626,8 +626,8 @@ def main() -> None:
             for base_index in [0, 1, 3, 2, 6, 4, 5, 7]:
                 for index in [base_index, base_index + 8]:
                     color = translator.resolve(index)
-                    name = trans.ThemeEntry.try_from_index(index + 2).name()
-                    label = trans.ThemeEntry.try_from_index(index + 2).abbr()
+                    name = theme.ThemeEntry.try_from_index(index + 2).name()
+                    label = theme.ThemeEntry.try_from_index(index + 2).abbr()
                     plotter.add(name, color, label=label)
 
     cname = "" if options.no_term else "<extra>"

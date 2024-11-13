@@ -64,13 +64,14 @@ def test1() -> None:
 
 
 def test2() -> None:
-    print('Testing file "docs/src/colors/integration.md", line 215, chapter "Accommodating All Colors"',
+    print('Testing file "docs/src/colors/integration.md", line 216, chapter "Accommodating All Colors"',
         file=sys.stderr)
     
     from prettypretty.color import Color, OkVersion
     from prettypretty.color.style import AnsiColor, Colorant, EmbeddedRgb
     from prettypretty.color.style import Fidelity, TrueColor
-    from prettypretty.color.trans import ThemeEntry, Translator, VGA_COLORS
+    from prettypretty.color.theme import ThemeEntry, VGA_COLORS
+    from prettypretty.color.trans import Translator
     red = VGA_COLORS[ThemeEntry.Ansi(AnsiColor.BrightRed)]
     assert red == Color.srgb(1.0, 0.333333333333333, 0.333333333333333)
     

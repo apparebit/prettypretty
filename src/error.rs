@@ -163,7 +163,7 @@ impl From<ColorFormatError> for PyErr {
 
 // ====================================================================================================================
 
-use crate::trans::ThemeEntry;
+use crate::theme::ThemeEntry;
 
 /// The kinds of errors while querying a terminal for its color theme.
 #[derive(Clone, Copy, Debug)]

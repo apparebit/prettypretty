@@ -33,11 +33,11 @@
 [`terminal`]: https://apparebit.github.io/prettypretty/prettypretty/term/fn.terminal.html
 [`Terminal`]: https://apparebit.github.io/prettypretty/prettypretty/term/struct.Terminal.html
 [`TerminalAccess`]: https://apparebit.github.io/prettypretty/prettypretty/term/struct.TerminalAccess.html
-[`Theme`]: https://apparebit.github.io/prettypretty/prettypretty/trans/enum.Theme.html
-[`ThemeEntry`]: https://apparebit.github.io/prettypretty/prettypretty/trans/enum.ThemeEntry.html
-[`ThemeEntryIterator`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.ThemeEntryIterator.html
+[`Theme`]: https://apparebit.github.io/prettypretty/prettypretty/theme/enum.Theme.html
+[`ThemeEntry`]: https://apparebit.github.io/prettypretty/prettypretty/theme/enum.ThemeEntry.html
+[`ThemeEntryIterator`]: https://apparebit.github.io/prettypretty/prettypretty/theme/struct.ThemeEntryIterator.html
 [`Translator`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html
 [`Translator::is_dark_theme`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.is_dark_theme
 [`TrueColor`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.TrueColor.html
-[`VGA_COLORS`]: https://apparebit.github.io/prettypretty/prettypretty/trans/constant.VGA_COLORS.html
+[`VGA_COLORS`]: https://apparebit.github.io/prettypretty/prettypretty/theme/constant.VGA_COLORS.html
 [`VtScanner`]: https://apparebit.github.io/prettypretty/prettypretty/term/struct.VtScanner.html

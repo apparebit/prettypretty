@@ -203,6 +203,8 @@ impl Stylist {
         }
     }
 
+    // ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
     /// Add bold formatting to this style builder.
     pub fn bold(&self) -> &Self {
         let mut data = self.data.borrow_mut();
@@ -259,16 +261,57 @@ impl Stylist {
         self
     }
 
+    // ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
+    #[inline]
+    fn process_optional_color(&self, color: Option<Colorant>) -> Colorist {
+        Colorist {
+            data: self.data.clone(),
+            color,
+        }
+    }
+
+    #[inline]
+    fn process_color(&self, color: Colorant) -> Colorist {
+        self.process_optional_color(color.into())
+    }
+
+    // /// Prepare a blue color.
+    // pub fn blue(&self) -> Colorist {
+    //     self.process_color(TrueColor::new(49, 120, 234).into())
+    // }
+
+    // /// Prepare a green color.
+    // pub fn green(&self) -> Colorist {
+    //     self.process_color(TrueColor::new(49, 120, 234).into())
+    // }
+
+    // /// Prepare a pink color.
+    // pub fn pink(&self) -> Colorist {
+    //     self.process_color(TrueColor::new(255, 103, 227).into())
+    // }
+
+    // /// Prepare a red color.
+    // pub fn red(&self) -> Colorist {
+    //     self.process_color(TrueColor::new(215, 25, 44).into())
+    // }
+
+    // /// Prepare a orange color.
+    // pub fn orange(&self) -> Colorist {
+    //     self.process_color(TrueColor::new(255, 166, 40).into())
+    // }
+
+    // /// Prepare a yellow color.
+    // pub fn yellow(&self) -> Colorist {
+    //     self.process_color(TrueColor::new(255, 202, 0).into())
+    // }
+
     /// Prepare an embedded RGB color.
     ///
     /// If any of the given components is invalid, i.e., greater than 5, this
     /// method and the subsequent layer selection method will have no effect.
     pub fn embedded_rgb(&self, r: u8, g: u8, b: u8) -> Colorist {
-        let color = EmbeddedRgb::new(r, g, b).map(Colorant::from).ok();
-        Colorist {
-            data: self.data.clone(),
-            color,
-        }
+        self.process_optional_color(EmbeddedRgb::new(r, g, b).map(Colorant::from).ok())
     }
 
     /// Prepare a gray gradient.
@@ -276,11 +319,7 @@ impl Stylist {
     /// If the given level is invalid, i.e., greater than 23, this method and
     /// the subsequent layer selection method will have no effect.
     pub fn gray(&self, level: u8) -> Colorist {
-        let color = GrayGradient::new(level).map(Colorant::from).ok();
-        Colorist {
-            data: self.data.clone(),
-            color,
-        }
+        self.process_optional_color(GrayGradient::new(level).map(Colorant::from).ok())
     }
 
     /// Prepare a RGB color.
@@ -288,12 +327,10 @@ impl Stylist {
     /// If any of the given components is invalid, i.e., greater than 5, this
     /// method and the subsequent layer selection method will have no effect.
     pub fn rgb(&self, r: u8, g: u8, b: u8) -> Colorist {
-        let color = Some(Colorant::from(TrueColor::new(r, g, b)));
-        Colorist {
-            data: self.data.clone(),
-            color,
-        }
+        self.process_color(TrueColor::new(r, g, b).into())
     }
+
+    // ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
     /// Add the foreground color to this style builder.
     pub fn foreground(&self, color: impl Into<Colorant>) -> &Self {
@@ -308,6 +345,8 @@ impl Stylist {
         data.background = Some(color.into());
         self
     }
+
+    // ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
     /// Finish building and return a new style.
     ///

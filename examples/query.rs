@@ -1,125 +1,9 @@
+/// # query: Stressquerying the terminal for its color theme
 use std::error::Error;
 use std::io::{Result, Write};
 
-use prettypretty::error::{ThemeError, ThemeErrorKind};
 use prettypretty::term::{terminal, Options, TerminalAccess, VtScanner};
-use prettypretty::trans::{Theme, ThemeEntry};
-use prettypretty::Color;
-
-// ----------------------------------------------------------------------------------------------------------
-
-fn connect() -> Result<()> {
-    unsafe { terminal().connect_with(Options::in_verbose()) }?;
-    Ok(())
-}
-
-fn disconnect() {
-    terminal().disconnect()
-}
-
-fn access() -> Result<TerminalAccess<'static>> {
-    let tty = terminal()
-        .access_with(Options::in_verbose())
-        .map_err(|e| ThemeError::new(ThemeErrorKind::AccessDevice, e.into()))?;
-    Ok(tty)
-}
-
-fn write(tty: &mut TerminalAccess, entry: ThemeEntry) -> Result<()> {
-    write!(tty, "{}", entry)
-        .map_err(|e| ThemeError::new(ThemeErrorKind::WriteQuery(entry), e.into()))?;
-    Ok(())
-}
-
-fn write_and_flush(tty: &mut TerminalAccess, entry: ThemeEntry) -> Result<()> {
-    write!(tty, "{}", entry)
-        .and_then(|()| tty.flush())
-        .map_err(|e| ThemeError::new(ThemeErrorKind::WriteQuery(entry), e.into()))?;
-    Ok(())
-}
-
-fn read<'a>(
-    tty: &mut TerminalAccess,
-    scanner: &'a mut VtScanner,
-    entry: ThemeEntry,
-) -> Result<&'a str> {
-    let response = scanner
-        .scan_str(tty)
-        .map_err(|e| ThemeError::new(ThemeErrorKind::ScanEscape(entry), e.into()))?;
-    Ok(response)
-}
-
-fn parse(entry: ThemeEntry, response: &str) -> Result<Color> {
-    let color = entry
-        .parse_response(response)
-        .map_err(|e| ThemeError::new(ThemeErrorKind::ParseColor(entry), e.into()))?;
-    Ok(color)
-}
-
-fn read_and_parse(
-    tty: &mut TerminalAccess,
-    scanner: &mut VtScanner,
-    entry: ThemeEntry,
-) -> Result<Color> {
-    let response = read(tty, scanner, entry)?;
-    parse(entry, response)
-}
-
-// ----------------------------------------------------------------------------------------------------------
-
-fn write_read_parse_loop() -> Result<Theme> {
-    let tty = &mut access()?;
-    let scanner = &mut VtScanner::new();
-    let mut theme = Theme::default();
-
-    for entry in ThemeEntry::all() {
-        write_and_flush(tty, entry)?;
-        theme[entry] = read_and_parse(tty, scanner, entry)?;
-    }
-
-    Ok(theme)
-}
-
-fn write_loop_read_parse_loop() -> Result<Theme> {
-    let tty = &mut access()?;
-    let scanner = &mut VtScanner::new();
-    let mut theme = Theme::default();
-
-    for entry in ThemeEntry::all() {
-        write(tty, entry)?;
-    }
-
-    tty.flush()?;
-
-    for entry in ThemeEntry::all() {
-        theme[entry] = read_and_parse(tty, scanner, entry)?;
-    }
-
-    Ok(theme)
-}
-
-fn write_loop_read_loop_parse_loop() -> Result<Theme> {
-    let tty = &mut access()?;
-    let scanner = &mut VtScanner::new();
-    let mut theme = Theme::default();
-
-    for entry in ThemeEntry::all() {
-        write(tty, entry)?;
-    }
-
-    tty.flush()?;
-
-    let mut all_responses = Vec::new();
-    for entry in ThemeEntry::all() {
-        let response = read(tty, scanner, entry)?;
-        all_responses.push(String::from(response));
-    }
-
-    for (entry, response) in ThemeEntry::all().zip(all_responses.into_iter()) {
-        theme[entry] = parse(entry, &response)?;
-    }
-
-    Ok(theme)
-}
+use prettypretty::theme;
 
 // ----------------------------------------------------------------------------------------------------------
 
@@ -130,11 +14,12 @@ struct Runner {
 }
 
 impl Runner {
-    fn run<F>(&mut self, label: &str, experiment: F) -> Result<()>
+    fn run<F>(&mut self, label: &str, query: F) -> Result<()>
     where
-        F: Fn() -> Result<Theme>,
+        F: Fn(&mut TerminalAccess, &mut VtScanner, &mut theme::Theme) -> Result<()>,
     {
-        let result = experiment();
+        let options = Options::builder().verbose(true).build();
+        let result = theme::apply(query, options);
         self.runs += 1;
 
         let mut tty = terminal().access_with(Options::in_verbose())?;
@@ -165,6 +50,7 @@ impl Runner {
 
     fn summary(&self) -> Result<()> {
         println!("{}/{} runs passed", self.runs, self.passed);
+
         if self.passed < self.runs {
             Err(std::io::ErrorKind::Other.into())
         } else {
@@ -180,26 +66,18 @@ fn main() -> Result<()> {
 
     let mut runner = Runner::default();
 
-    let _ = runner.run("one loop, on demand access", write_read_parse_loop);
-    let _ = runner.run("two loops, on demand access", write_loop_read_parse_loop);
-    let _ = runner.run(
-        "three loops, on demand access",
-        write_loop_read_loop_parse_loop,
-    );
+    let _ = runner.run("one loop, on demand access", theme::query1);
+    let _ = runner.run("two loops, on demand access", theme::query2);
+    let _ = runner.run("three loops, on demand access", theme::query3);
 
-    let _ = connect();
+    let options = Options::builder().verbose(true).build();
+    let _ = unsafe { terminal().connect_with(options) };
 
-    let _ = runner.run("one loop, existing connection", write_read_parse_loop);
-    let _ = runner.run(
-        "two loops, existing connections",
-        write_loop_read_parse_loop,
-    );
-    let _ = runner.run(
-        "three loops, existing connection",
-        write_loop_read_loop_parse_loop,
-    );
+    let _ = runner.run("one loop, existing connection", theme::query1);
+    let _ = runner.run("two loops, existing connections", theme::query2);
+    let _ = runner.run("three loops, existing connection", theme::query3);
 
-    disconnect();
+    terminal().disconnect();
 
     runner.summary()
 }

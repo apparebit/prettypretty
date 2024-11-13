@@ -1,6 +1,6 @@
 use crate::core::is_achromatic_chroma_hue;
 use crate::style::AnsiColor;
-use crate::trans::Theme;
+use crate::theme::Theme;
 use crate::{Bits, Color, ColorSpace, Float};
 
 /// A gray ANSI color and its concrete lightness value.

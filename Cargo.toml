@@ -30,6 +30,9 @@ features = [
     "Win32_System_Threading",
 ]
 
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
+
 
 [features]
 default = ["f64", "term"]
@@ -48,3 +51,8 @@ path = "src/lib.rs"
 [package.metadata.docs.rs]
 features = ["f64", "gamut", "term"]
 rustdoc-args = ["-e", "./docs/pretty.css"]
+
+
+[[bench]]
+name = "query"
+harness = false

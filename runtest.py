@@ -81,7 +81,7 @@ if __name__ == "__main__":
             module="test",
             exit=False,
             testRunner=unittest.TextTestRunner(
-                stream=stream, resultclass=ResultAdapter
+                stream=stream, resultclass=ResultAdapter # type: ignore
             ),
         )
         sys.exit(not runner.result.wasSuccessful())

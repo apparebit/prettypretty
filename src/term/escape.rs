@@ -770,7 +770,7 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// start by parsing an escape sequence first. In particular, let's explore how
 /// to query a terminal for its current color theme. Let's also assume that the
 /// application already put the terminal into raw mode and is iterating over
-/// [`ThemeEntry::all`](crate::trans::ThemeEntry::all), i.e., the default
+/// [`ThemeEntry::all`](crate::theme::ThemeEntry::all), i.e., the default
 /// foreground, default background, and 16 ANSI colors.
 ///
 ///
@@ -786,7 +786,7 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// # use prettypretty::{Color, error::ColorFormatError};
 /// # use prettypretty::term::VtScanner;
 /// # use prettypretty::style::AnsiColor;
-/// # use prettypretty::trans::ThemeEntry;
+/// # use prettypretty::theme::ThemeEntry;
 /// // Write `format!("{}", entry)` to the terminal to issue the query.
 /// let entry = ThemeEntry::Ansi(AnsiColor::Red);
 ///
@@ -826,7 +826,7 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// [`VtScanner::did_abort`] or [`VtScanner::did_complete`] returns `true`. Once
 /// complete, [`VtScanner::completed_bytes`] and [`VtScanner::completed_str`]
 /// return the escape sequence's payload. The example uses
-/// [`ThemeEntry::parse_response`](crate::trans::ThemeEntry::parse_response) to
+/// [`ThemeEntry::parse_response`](crate::theme::ThemeEntry::parse_response) to
 /// turn that payload into a color.
 ///
 ///
@@ -876,7 +876,7 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// # use prettypretty::Color;
 /// # use prettypretty::term::{Action, Control, VtScanner};
 /// # use prettypretty::style::AnsiColor;
-/// # use prettypretty::trans::ThemeEntry;
+/// # use prettypretty::theme::ThemeEntry;
 /// let entry = ThemeEntry::Ansi(AnsiColor::Red);
 /// let mut input = b"\x1b]4;1;rgb:df/28/27\x07".as_slice();
 ///
@@ -967,7 +967,7 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// # use prettypretty::Color;
 /// # use prettypretty::term::{Action, Control, VtScanner};
 /// # use prettypretty::style::AnsiColor;
-/// # use prettypretty::trans::ThemeEntry;
+/// # use prettypretty::theme::ThemeEntry;
 /// let entry = ThemeEntry::Ansi(AnsiColor::Red);
 /// let mut input = b"\x1b]4;1;rgb:df/28/27\x07".as_slice();
 ///

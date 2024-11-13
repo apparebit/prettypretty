@@ -11,7 +11,7 @@ from .color import Color
 from .color.style import ( # pyright: ignore [reportMissingModuleSource]
     AnsiColor, EmbeddedRgb, Fidelity, Layer, TrueColor
 )
-from .color.trans import VGA_COLORS # pyright: ignore [reportMissingModuleSource]
+from .color.theme import VGA_COLORS # pyright: ignore [reportMissingModuleSource]
 from .theme import current_translator
 from .terminal import Terminal
 

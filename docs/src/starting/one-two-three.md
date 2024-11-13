@@ -74,7 +74,8 @@ terminal that renders 8-bit colorts only.
 # extern crate prettypretty;
 # use prettypretty::{Color, OkVersion};
 # use prettypretty::style::{stylist, AnsiColor, Colorant, Fidelity, TrueColor};
-# use prettypretty::trans::{Translator, VGA_COLORS};
+# use prettypretty::theme::VGA_COLORS;
+# use prettypretty::trans::Translator;
 # let style = stylist()
 #     .bold()
 #     .foreground(Color::default())
@@ -109,7 +110,8 @@ package's name, `prettypretty`.
 # extern crate prettypretty;
 # use prettypretty::{Color, OkVersion};
 # use prettypretty::style::{stylist, AnsiColor, Colorant, Fidelity, TrueColor};
-# use prettypretty::trans::{Translator, VGA_COLORS};
+# use prettypretty::theme::VGA_COLORS;
+# use prettypretty::trans::Translator;
 # let style = stylist()
 #     .bold()
 #     .foreground(Color::default())
