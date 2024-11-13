@@ -6,8 +6,8 @@
 
 This version introduces significant new functionality while also reorganizing
 the already existing functionality. To significantly reduce the cognitive
-overhead of using prettypretty, the public API now is modularized. The four
-primary modules and their main types are:
+overhead of using prettypretty, the public API now is modularized. The primary
+modules and their main types are:
 
   - `prettypretty` provides high-resolution colors through
     [`ColorSpace`](https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html)
@@ -16,29 +16,28 @@ primary modules and their main types are:
     [`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)
     and terminals' substantially different color representations with
     [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html).
-  - `prettypretty::cmd` is a small library of further
-    [`Command`](https://apparebit.github.io/prettypretty/prettypretty/cmd/trait.Command.html)s
-    that let you control aspects other than style, including window title,
-    terminal screen, and cursor position.
   - `prettypretty::trans` defines
     [`Translator`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html)
     née `Sampler` for translating between the color representations.
   - `prettypretty::theme` uses
     [`Theme`](https://apparebit.github.io/prettypretty/prettypretty/theme/struct.Theme.html)
     to represent a terminal's current color theme.
-
-A fourth module also contains critical functionality. But since it overlaps with
-existing Rust terminal crates such as
-[`crossterm`](https://github.com/crossterm-rs/crossterm), it also is optional.
-
-  - `prettypretty.term` provides direct access to the terminal device with
+  - `prettypretty::cmd` is a small library of further
+    [`Command`](https://apparebit.github.io/prettypretty/prettypretty/cmd/trait.Command.html)s
+    that let you control aspects other than style, including window title,
+    terminal screen, and cursor position.
+  - `prettypretty::term` provides direct access to the terminal device with
     [`Terminal`](https://apparebit.github.io/prettypretty/prettypretty/term/struct.Terminal.html)
     and parses UTF-8 and ANSI escape sequences with
     [`VtScanner`](https://apparebit.github.io/prettypretty/prettypretty/term/struct.VtScanner.html).
     `Terminal` is supported on Unix and Windows, though the latter version is
     largely untested.
 
-These four modules are supported by a utility module:
+Since `cmd` and `term` overlap with existing Rust terminal crates such as
+[`crossterm`](https://github.com/crossterm-rs/crossterm), both modules are
+optional. THe corresponding Cargo feature is `term`. It is enabled by default.
+
+Prettypretty also has a utility module:
 
   - `prettypretty::error` is a utility module defining prettypretty's error
     types.

@@ -228,8 +228,9 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     `u64` as [`Bits`] instead of `f32` as [`Float`] and `u32` as [`Bits`].
 //!     This feature is enabled by default.
 //!   - `term` controls prettypretty's support for low-level protocol processing
-//!     by configuring the terminal (Unix only, `mod term`) and parsing ANSI
-//!     escape sequences (platform-independent, also `mod term`). This feature
+//!     by configuring the terminal (Unix only, `mod term`), parsing ANSI escape
+//!     sequences (platform-independent, also `mod term`), and controlling a
+//!     diverse set of terminal features with ANSI escape commands. This feature
 //!     is enabled by default.
 //!   - `gamut` controls prettypretty's support for tracing the boundaries of
 //!     color spaces (`mod gamut`, `ColorSpace::gamut`) and the human visual
@@ -284,6 +285,7 @@ pub type Bits = u64;
 #[cfg(not(feature = "f64"))]
 pub type Bits = u32;
 
+#[cfg(feature = "term")]
 pub mod cmd;
 mod core;
 pub mod error;
