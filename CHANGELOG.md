@@ -16,6 +16,10 @@ primary modules and their main types are:
     [`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)
     and terminals' substantially different color representations with
     [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html).
+  - `prettypretty::cmd` is a small library of further
+    [`Command`](https://apparebit.github.io/prettypretty/prettypretty/cmd/trait.Command.html)s
+    that let you control aspects other than style, including window title,
+    terminal screen, and cursor position.
   - `prettypretty::trans` defines
     [`Translator`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html)
     née `Sampler` for translating between the color representations.

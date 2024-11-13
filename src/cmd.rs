@@ -16,7 +16,7 @@
 //! The core library includes the following commands:
 //!
 //!   * For terminal management, [`RequestTerminalId`].
-//!   * For window management, [`SaveWindowTitleOnStack`],
+//!   * For window title management, [`SaveWindowTitleOnStack`],
 //!     [`LoadWindowTitleFromStack`], and [`SetWindowTitle`].
 //!   * For screen management, [`EnterAlternateScreen`] and
 //!     [`ExitAlternateScreen`], also [`EraseScreen`] and [`EraseLine`].
