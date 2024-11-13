@@ -138,9 +138,9 @@ impl Config {
             & Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING;
 
         // If the update fails, try to restore old configuration.
-        this.update(new_input_mode, new_output_mode).or_else(|e| {
-            this.restore();
-            Err(e)
+        this.update(new_input_mode, new_output_mode).map_err(|e| {
+            let _ = this.restore();
+            e
         })?;
 
         Ok(this)
