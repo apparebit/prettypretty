@@ -1459,6 +1459,47 @@ impl VtScanner {
         let bytes = self.scan_bytes(reader)?;
         std::str::from_utf8(bytes).map_err(|e| Error::new(ErrorKind::InvalidData, e))
     }
+
+    /// Convert the byte slice into a string slice.
+    pub fn to_str(payload: &[u8]) -> std::io::Result<&str> {
+        std::str::from_utf8(payload).map_err(|e| Error::new(ErrorKind::InvalidData, e))
+    }
+
+    /// Convert the byteslice to an unsigned 64-bit integer.
+    pub fn to_u64(payload: &[u8]) -> std::io::Result<u64> {
+        if 19 < payload.len() {
+            return Err(ErrorKind::InvalidData.into());
+        }
+
+        let mut result = 0_u64;
+        for byte in payload.iter().rev() {
+            if byte.is_ascii_digit() {
+                let value = u64::from(*byte) - u64::from('0');
+                result += 10 * result + value;
+            } else {
+                return Err(ErrorKind::InvalidData.into());
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Split the payload into a vector of parameters.
+    pub fn split_params(payload: &[u8]) -> std::io::Result<Vec<Option<u64>>> {
+        let mut result = Vec::new();
+        for elem in payload.split(|byte| matches!(byte, b';' | b':')) {
+            let elem = if elem.is_empty() {
+                None
+            } else {
+                let num = VtScanner::to_u64(elem)?;
+                Some(num)
+            };
+
+            result.push(elem);
+        }
+
+        Ok(result)
+    }
 }
 
 // ================================================================================================
@@ -1469,7 +1510,7 @@ mod test {
     use std::mem::size_of;
 
     #[test]
-    fn test() {
+    fn test_size() {
         assert_eq!(size_of::<(State, Action)>(), 2);
     }
 }
