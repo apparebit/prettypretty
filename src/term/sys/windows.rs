@@ -258,7 +258,7 @@ impl Write for Writer {
         unsafe {
             Console::WriteConsoleA(
                 self.handle,
-                buf.as_ptr(),
+                buf.as_ptr() as *const c_void,
                 buf.len() as u32,
                 from_mut(&mut did_write),
                 null(),
