@@ -187,8 +187,9 @@ impl HueLightnessTable {
                 continue;
             }
 
-            // (index - 1) is unsafe, but (index + length - 1) isn't. Go rem, go!
-            let previous_entry = &self.colors[(index + length - 1).rem_euclid(length)];
+            // index has type usize. Hence (index - 1) is unsafe,
+            // but (index - 1 + length) isn't. Go rem, go!
+            let previous_entry = &self.colors[(index - 1 + length).rem_euclid(length)];
             if previous_entry.base() == next_entry.base() {
                 // Hue is bracketed by versions of same color.
                 let result = self.pick_lightness(lr, previous_entry, next_entry);

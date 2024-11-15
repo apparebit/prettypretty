@@ -343,4 +343,4 @@ mod utf8;
 
 pub use escape::{Action, Control, VtScanner};
 pub use render::{write_nicely, ByteNicely};
-pub use terminal::{terminal, Mode, Options, Terminal, TerminalAccess};
+pub use terminal::{terminal, Mode, OptionBuilder, Options, Terminal, TerminalAccess};

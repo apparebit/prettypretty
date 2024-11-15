@@ -60,7 +60,10 @@ impl std::fmt::Display for ByteNicely {
     }
 }
 
-/// Write the byte nicely.
+/// Write the given byte in human-readable form.
+///
+/// This function wraps the byte in a [`ByteNicely`], writes the display, and
+/// returns the number of characters written.
 pub fn write_nicely<W: Write>(byte: u8, writer: &mut W) -> std::io::Result<usize> {
     let nice = ByteNicely(byte);
     write!(writer, "{}", nice)?;
