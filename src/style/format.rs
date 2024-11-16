@@ -466,8 +466,12 @@ impl std::ops::Sub for Format {
 
     /// Determine the difference between this and another format.
     ///
-    /// If a terminal uses the other format, the returned difference changes the
-    /// terminal's format from the appearance of the other format to this one.
+    /// When a terminal is using the right-hand-side's format, applying the
+    /// difference between the left-hand-side and right-hand-side results in the
+    /// terminal using the left-hand-side's format, i.e.:
+    /// ```ignore
+    /// rhs + (lhs - rhs) = lhs
+    /// ```
     /// The returned difference is minimal.
     fn sub(self, rhs: Self) -> Self::Output {
         let enable = Mask::NonDefaultFormats.apply(self.0 & !rhs.0);

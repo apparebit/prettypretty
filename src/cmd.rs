@@ -1,18 +1,20 @@
 //! Controlling the terminal with ANSI escape sequences.
 //!
 //! [`Command`] is an instruction to change a terminal's screen, cursor,
-//! content, or some such. Its implementation writes an ANSI escape sequence to
-//! the terminal, even on Windows, which added support in Windows 10 TH2
-//! (v1511). [`Query`] encapsulates the functionality for reading and parsing
-//! the response returned by a terminal after receiving the corresponding
-//! request. An implementation checks with [`Query::is_valid`] whether the
-//! response had the right control and then uses [`Query::parse`] to parse the
-//! payload of the terminal's response. [`Query::query`] builds on these two
-//! required methods to coordinate between
-//! [`TerminalAccess`](crate::term::TerminalAccess), [`VtScanner`], and
-//! [`Query`].
+//! content, or some such. To execute a command, you write its display to the
+//! terminal's output or error stream. The command's implementation then writes
+//! the necessary ANSI escape sequence to the terminal. This works even on
+//! Windows, which added support in Windows 10 TH2 (v1511).
 //!
-//! This modules further defines the core of a command library. Each command
+//! [`Query`] encapsulates the functionality for reading and parsing the
+//! response returned by a terminal after receiving the corresponding request.
+//! An implementation checks with [`Query::is_valid`] whether the response
+//! started with the right control and then uses [`Query::parse`] to parse the
+//! response payload. [`Query::query`] builds on these two required methods to
+//! coordinate between [`TerminalAccess`](crate::term::TerminalAccess),
+//! [`VtScanner`], and [`Query`].
+//!
+//! This modules also implements a library of useful commands. Each command
 //! implements the `Debug` and `Display` traits as well. The `Debug`
 //! representation is the usual datatype representation, whereas the `Display`
 //! representation is the ANSI escape sequence. As a result, all commands
@@ -27,12 +29,14 @@
 //!   * For screen management, [`EnterAlternateScreen`] and
 //!     [`ExitAlternateScreen`], also [`EraseScreen`] and [`EraseLine`].
 //!   * For cursor management, [`HideCursor`] and [`ShowCursor`], the relative
-//!     [`MoveUp`], [`MoveDown`], [`MoveLeft`], and [`MoveRight`],
-//!     the absolute [`MoveToColumn`], [`MoveToRow`], and [`MoveTo`],
-//!     also [`RequestCursorPosition`].
+//!     [`MoveUp`], [`MoveDown`], [`MoveLeft`], and [`MoveRight`], the absolute
+//!     [`MoveToColumn`], [`MoveToRow`], and [`MoveTo`], also
+//!     [`SaveCursorPosition`], [`RestoreCursorPosition`], and
+//!     [`RequestCursorPosition`].
 //!   * For grouping content, [`RequestBatchMode`], [`BeginBatchedOutput`] and
 //!     [`EndBatchedOutput`], [`BeginBracketedPaste`] and [`EndBracketedPaste`],
 //!     also [`Link`].
+//!   * For showing arbitrary content, [`Print`].
 //!
 //! If a command starts with `Request` in its name, it is a query and implements
 //! the [`Query`] trait in addition to [`Command`].
@@ -43,6 +47,11 @@ use std::io::{BufRead, Error, ErrorKind, Result};
 
 use crate::term::{Control, VtScanner};
 
+#[macro_export]
+macro_rules! csi {
+    ( $( $literal:literal ),+ ) => { concat!("\x1b[", $( $literal ),+) };
+}
+
 /// A terminal command.
 ///
 /// Every command has its own ANSI escape sequence. Simple commands have no
@@ -51,13 +60,13 @@ use crate::term::{Control, VtScanner};
 /// storage space.
 pub trait Command {
     /// Write out the command's ANSI escape sequence.
-    fn write_ansi(&self, f: &mut impl ::std::fmt::Write) -> ::std::fmt::Result;
+    fn write_ansi(&self, out: &mut impl ::std::fmt::Write) -> ::std::fmt::Result;
 }
 
-/// Item to make references to commands also function as commands.
+/// A borrowed command also is a command.
 impl<C: Command> Command for &C {
-    fn write_ansi(&self, f: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
-        (*self).write_ansi(f)
+    fn write_ansi(&self, out: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
+        (*self).write_ansi(out)
     }
 }
 
@@ -92,24 +101,37 @@ pub trait Query {
     }
 }
 
-macro_rules! define_simple_command {
-    ($name:ident $(: $selfish:ident)? { $repr:expr }) => {
+/// A borrowed query is a query.
+impl<Q: Query> Query for &Q {
+    type Response = Q::Response;
+
+    fn is_valid(&self, control: Control) -> bool {
+        (*self).is_valid(control)
+    }
+
+    fn parse(&self, payload: &[u8]) -> Result<Self::Response> {
+        (*self).parse(payload)
+    }
+}
+
+// -------------------------------------- Macros ---------------------------------------
+
+macro_rules! define_expr_impl {
+    ($name:ident { $repr:expr }) => {
         impl crate::cmd::Command for $name {
             #[inline]
-            fn write_ansi(&self, f: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
-                // If requested, make self available under external name
-                $(let $selfish = self;)?
-                f.write_str($repr)
+            fn write_ansi(&self, out: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
+                out.write_str($repr)
             }
         }
     }
 }
 
-macro_rules! define_command {
-    ($name:ident, $selfish:ident, $format:ident $body:block ) => {
+macro_rules! define_impl {
+    ($name:ident : $selfish:ident ; $output:ident $body:block ) => {
         impl crate::cmd::Command for $name {
             #[inline]
-            fn write_ansi(& $selfish, $format: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
+            fn write_ansi(& $selfish, $output: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
                 $body
             }
         }
@@ -126,7 +148,7 @@ macro_rules! define_display {
     };
 }
 
-macro_rules! define_simple_suite {
+macro_rules! define_simple_command {
     ($name:ident, $ansi:tt) => {
         #[doc = "The 0-ary `"]
         #[doc = stringify!($name)]
@@ -134,12 +156,12 @@ macro_rules! define_simple_suite {
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub struct $name;
 
-        define_simple_command!($name { $ansi });
+        define_expr_impl!($name { $ansi });
         define_display!($name);
     };
 }
 
-macro_rules! define_one_num_suite {
+macro_rules! define_num_arg_command {
     ($name:ident, $prefix:literal, $suffix:literal) => {
         #[doc = "The 1-ary `"]
         #[doc = stringify!($name)]
@@ -147,10 +169,10 @@ macro_rules! define_one_num_suite {
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub struct $name(u16);
 
-        define_command!($name, self, f {
-            f.write_str($prefix)?;
-            f.write_fmt(format_args!("{}", self.0))?;
-            f.write_str($suffix)
+        define_impl!($name: self; out {
+            out.write_str($prefix)?;
+            write!(out, "{}", self.0)?;
+            out.write_str($suffix)
         });
         define_display!($name);
     };
@@ -158,7 +180,7 @@ macro_rules! define_one_num_suite {
 
 // -------------------------------- Terminal Management --------------------------------
 
-define_simple_suite!(RequestTerminalId, "\x1b[>q");
+define_simple_command!(RequestTerminalId, "\x1b[>q");
 
 impl Query for RequestTerminalId {
     type Response = (Vec<u8>, Option<Vec<u8>>);
@@ -190,53 +212,53 @@ impl Query for RequestTerminalId {
 
 // --------------------------------- Window Management ---------------------------------
 
-define_simple_suite!(SaveWindowTitleOnStack, "\x1b[22;2t");
-define_simple_suite!(LoadWindowTitleFromStack, "\x1b[23;2t");
+define_simple_command!(SaveWindowTitleOnStack, "\x1b[22;2t");
+define_simple_command!(LoadWindowTitleFromStack, "\x1b[23;2t");
 
 /// The 1-ary `SetWindowTitle` command.
 pub struct SetWindowTitle(String);
-define_command!(SetWindowTitle, self, f {
-    f.write_str("\x1b]2;")?;
-    f.write_str(&self.0)?;
-    f.write_str("\x1b\\")
+define_impl!(SetWindowTitle: self; out {
+    out.write_str("\x1b]2;")?;
+    out.write_str(&self.0)?;
+    out.write_str("\x1b\\")
 });
 define_display!(SetWindowTitle);
 
 // --------------------------------- Screen Management ---------------------------------
 
-define_simple_suite!(EnterAlternateScreen, "\x1b[?1049h");
-define_simple_suite!(ExitAlternateScreen, "\x1b[?1049l");
+define_simple_command!(EnterAlternateScreen, "\x1b[?1049h");
+define_simple_command!(ExitAlternateScreen, "\x1b[?1049l");
 
-define_simple_suite!(EraseScreen, "\x1b[2J");
-define_simple_suite!(EraseLine, "\x1b[2K");
+define_simple_command!(EraseScreen, "\x1b[2J");
+define_simple_command!(EraseLine, "\x1b[2K");
 
 // --------------------------------- Cursor Management ---------------------------------
 
-define_simple_suite!(HideCursor, "\x1b[?25l");
-define_simple_suite!(ShowCursor, "\x1b[?25h");
+define_simple_command!(HideCursor, "\x1b[?25l");
+define_simple_command!(ShowCursor, "\x1b[?25h");
 
-define_one_num_suite!(MoveUp, "\x1b[", "A");
-define_one_num_suite!(MoveDown, "\x1b[", "B");
-define_one_num_suite!(MoveLeft, "\x1b[", "C");
-define_one_num_suite!(MoveRight, "\x1b[", "D");
+define_num_arg_command!(MoveUp, "\x1b[", "A");
+define_num_arg_command!(MoveDown, "\x1b[", "B");
+define_num_arg_command!(MoveLeft, "\x1b[", "C");
+define_num_arg_command!(MoveRight, "\x1b[", "D");
 
 /// The 2-ary `MoveTo` *row, column* command.
 #[derive(Clone, Copy, Debug)]
 pub struct MoveTo(u16, u16);
 
-define_command!(MoveTo, self, f {
-    f.write_str("\x1b[")?;
-    f.write_fmt(format_args!("{}", self.0))?;
-    f.write_str(";")?;
-    f.write_fmt(format_args!("{}", self.1))?;
-    f.write_str("H")
+define_impl!(MoveTo: self; out {
+    out.write_str("\x1b[")?;
+    out.write_fmt(format_args!("{}", self.0))?;
+    out.write_str(";")?;
+    out.write_fmt(format_args!("{}", self.1))?;
+    out.write_str("H")
 });
 define_display!(MoveTo);
 
-define_one_num_suite!(MoveToColumn, "\x1b[", "G");
-define_one_num_suite!(MoveToRow, "\x1b[", "d");
+define_num_arg_command!(MoveToColumn, "\x1b[", "G");
+define_num_arg_command!(MoveToRow, "\x1b[", "d");
 
-define_simple_suite!(RequestCursorPosition, "\x1b[6n");
+define_simple_command!(RequestCursorPosition, "\x1b[6n");
 
 impl Query for RequestCursorPosition {
     type Response = (u16, u16);
@@ -254,7 +276,7 @@ impl Query for RequestCursorPosition {
         let params = VtScanner::split_params(s)?;
         if params.len() != 2
             || params[0].is_none()
-            || params[0].is_none()
+            || params[1].is_none()
             || (u16::MAX as u64) < params[0].unwrap()
             || (u16::MAX as u64) < params[1].unwrap()
         {
@@ -264,9 +286,12 @@ impl Query for RequestCursorPosition {
     }
 }
 
+define_simple_command!(SaveCursorPosition, "\x1b7");
+define_simple_command!(RestoreCursorPosition, "\x1b8");
+
 // -------------------------------- Content Management ---------------------------------
 
-define_simple_suite!(RequestBatchMode, "\x1b[?2026$p");
+define_simple_command!(RequestBatchMode, "\x1b[?2026$p");
 
 /// The current batch processing mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -300,11 +325,11 @@ impl Query for RequestBatchMode {
     }
 }
 
-define_simple_suite!(BeginBatchedOutput, "\x1b[?2026h");
-define_simple_suite!(EndBatchedOutput, "\x1b[?2026l");
+define_simple_command!(BeginBatchedOutput, "\x1b[?2026h");
+define_simple_command!(EndBatchedOutput, "\x1b[?2026l");
 
-define_simple_suite!(BeginBracketedPaste, "\x1b[?2004h");
-define_simple_suite!(EndBracketedPaste, "\x1b[?2004l");
+define_simple_command!(BeginBracketedPaste, "\x1b[?2004h");
+define_simple_command!(EndBracketedPaste, "\x1b[?2004l");
 
 /// The 3-ary `Link` command.
 #[derive(Clone, Debug)]
@@ -332,17 +357,32 @@ impl Link {
 }
 
 /// Create a new hyperlink for terminal display.
-pub fn link(text: impl AsRef<str>, href: impl AsRef<str>, id: Option<&str>) -> Link {
-    Link::new(text, href, id)
+pub fn link(text: impl AsRef<str>, href: impl AsRef<str>) -> Link {
+    Link::new(text, href, None)
 }
 
-define_command!(Link, self, f { f.write_str(&self.0) } );
+define_impl!(Link: self; out { out.write_str(&self.0) } );
 define_display!(Link);
+
+pub struct Print<D: std::fmt::Display>(D);
+
+impl<D: std::fmt::Display> Command for Print<D> {
+    fn write_ansi(&self, out: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
+        write!(out, "{}", self.0)
+    }
+}
+
+impl<D: std::fmt::Display> std::fmt::Display for Print<D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 // --------------------------------- Style Management ----------------------------------
 
-define_simple_suite!(ResetStyle, "\x1b[m");
-define_simple_suite!(RequestActiveStyle, "\x1bP$qm\x1b\\");
+define_simple_command!(ResetStyle, "\x1b[m");
+
+define_simple_command!(RequestActiveStyle, "\x1bP$qm\x1b\\");
 
 impl Query for RequestActiveStyle {
     type Response = Vec<u8>;

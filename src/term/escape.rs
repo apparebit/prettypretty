@@ -94,6 +94,23 @@ impl Control {
         !matches!(self, Self::BEL | Self::ESC | Self::ST)
     }
 
+    /// Get the actual byte sequence.
+    pub fn value(&self) -> &'static str {
+        use Control::*;
+
+        match self {
+            ESC => "\x1b",
+            APC => "\x1b_",
+            CSI => "\x1b[",
+            DCS => "\x1bP",
+            OSC => "\x1b]",
+            PM => "\x1b^",
+            SOS => "\x1b_",
+            BEL => "\x07",
+            ST => "\x1b\\",
+        }
+    }
+
     /// Render a debug representation for this control. <i
     /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
@@ -111,19 +128,7 @@ impl Control {
 
 impl std::fmt::Display for Control {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use Control::*;
-
-        match self {
-            ESC => f.write_str("\x1b"),
-            APC => f.write_str("\x1b_"),
-            CSI => f.write_str("\x1b["),
-            DCS => f.write_str("\x1bP"),
-            OSC => f.write_str("\x1b]"),
-            PM => f.write_str("\x1b^"),
-            SOS => f.write_str("\x1b_"),
-            BEL => f.write_str("\x07"),
-            ST => f.write_str("\x1b\\"),
-        }
+        f.write_str(self.value())
     }
 }
 
@@ -446,7 +451,15 @@ const fn ground(byte: u8) -> (State, Action) {
     use State::*;
 
     match byte {
+        0x1b => (Escape, Start),
         0x20..=0x7f => (Ground, PrintAscii),
+        0x90 => (DcsEntry, Start),
+        0x98 => (SosString, Start),
+        0x9b => (CsiEntry, Start),
+        0x9c => (Ground, Ignore),
+        0x9d => (OscString, Start),
+        0x9e => (PmString, Start),
+        0x9f => (ApcString, Start),
         _ => otherwise(byte, Ground),
     }
 }
@@ -1119,8 +1132,14 @@ impl VtScanner {
     /// it for `Start` and adding the input for the other three actions.
     pub fn step(&mut self, byte: u8) -> Action {
         // Update the number of processed bytes with one byte delay.
-        if matches!(self.state, State::Ground | State::Utf8) {
+        if matches!(self.state, State::Ground) {
             self.processed = 0;
+        } else if matches!(self.state, State::Utf8) {
+            match self.last_action {
+                Action::StartUtf8 => self.processed = 1,
+                Action::ContinueUtf8 => self.processed += 1,
+                _ => (),
+            }
         } else if Control::is_sequence_start(self.last_byte) {
             self.processed = 1;
         } else {
@@ -1465,7 +1484,7 @@ impl VtScanner {
         std::str::from_utf8(payload).map_err(|e| Error::new(ErrorKind::InvalidData, e))
     }
 
-    /// Convert the byteslice to an unsigned 64-bit integer.
+    /// Convert a decimal ASCII number to an unsigned 64-bit integer.
     pub fn to_u64(payload: &[u8]) -> std::io::Result<u64> {
         if 19 < payload.len() {
             return Err(ErrorKind::InvalidData.into());
@@ -1474,8 +1493,8 @@ impl VtScanner {
         let mut result = 0_u64;
         for byte in payload.iter().rev() {
             if byte.is_ascii_digit() {
-                let value = u64::from(*byte) - u64::from('0');
-                result += 10 * result + value;
+                let value = u64::from(*byte) - 0x30;
+                result = 10 * result + value;
             } else {
                 return Err(ErrorKind::InvalidData.into());
             }
