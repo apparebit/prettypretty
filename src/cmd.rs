@@ -59,7 +59,7 @@ pub trait Command {
 }
 
 /// A borrowed command also is a command.
-impl<C: Command> Command for &C {
+impl<C: Command + ?Sized> Command for &C {
     fn write_ansi(&self, out: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
         (*self).write_ansi(out)
     }
@@ -97,7 +97,7 @@ pub trait Query {
 }
 
 /// A borrowed query is a query.
-impl<Q: Query> Query for &Q {
+impl<Q: Query + ?Sized> Query for &Q {
     type Response = Q::Response;
 
     fn is_valid(&self, control: Control) -> bool {
@@ -123,9 +123,11 @@ struct Adapter<T> {
 
 impl<W: std::io::Write> std::fmt::Write for Adapter<W> {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        self.inner
-            .write_all(s.as_bytes())
-            .map_err(|_| std::fmt::Error)
+        self.inner.write_all(s.as_bytes()).map_err(|e| {
+            // Record the std::io::Error and replace with std::fmt::Error.
+            self.result = Err(e);
+            std::fmt::Error
+        })
     }
 }
 
@@ -136,15 +138,16 @@ impl<W: std::io::Write> WriteCommand for W {
             result: Ok(()),
         };
 
-        command.write_ansi(&mut adapter).map_err(|_| {
-            if adapter.result.is_ok() {
-                panic!(
+        command
+            .write_ansi(&mut adapter)
+            .map_err(|_| match adapter.result {
+                Ok(_) => panic!(
                     "<{}>::write_ansi() unexpectedly returned error",
                     std::any::type_name::<C>()
-                );
-            }
-            adapter.result.err().unwrap()
-        })
+                ),
+                // Restore std::io::Error.
+                Err(error) => error,
+            })
     }
 }
 
