@@ -258,7 +258,11 @@ impl Write for Writer {
         unsafe {
             Console::WriteConsoleA(
                 self.handle,
-                buf.as_ptr() as *const c_void,
+                // https://learn.microsoft.com/en-us/windows/console/writeconsole
+                // says this pointer is *const c_void. That would be consistent
+                // with ReadConsoleA (see above) as well. Alas, windows-sys
+                // insists on the pointer being *const u8.
+                buf.as_ptr(),
                 buf.len() as u32,
                 from_mut(&mut did_write),
                 null(),
