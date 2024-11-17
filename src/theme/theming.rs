@@ -1,6 +1,7 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
+use crate::cmd::{Command, Query};
 use crate::core::parse_x;
 use crate::error::{ColorFormatError, OutOfBoundsError};
 use crate::style::{AnsiColor, Layer};
@@ -59,8 +60,7 @@ impl Theme {
 
     /// Query the terminal for the current color theme using the given options.
     pub fn query_terminal_with(options: Options) -> std::io::Result<Theme> {
-        use super::{apply, query2};
-        apply(query2, options)
+        super::apply(super::query2, options)
     }
 }
 
@@ -233,29 +233,29 @@ impl ThemeEntry {
     /// The string should contain the escape sequence *without* the leading OSC
     /// and trailing ST or BEL controls. This method validates that the response
     /// is for this theme entry indeed.
-    pub fn parse_response(&self, s: &str) -> Result<Color, ColorFormatError> {
-        let s = match self {
-            Self::DefaultForeground() => s.strip_prefix("10;"),
-            Self::DefaultBackground() => s.strip_prefix("11;"),
+    pub fn parse(&self, bytes: &[u8]) -> Result<Color, ColorFormatError> {
+        let bytes = match self {
+            Self::DefaultForeground() => bytes.strip_prefix(b"10;"),
+            Self::DefaultBackground() => bytes.strip_prefix(b"11;"),
             Self::Ansi(color) => {
                 // Consume parameter for ANSI colors
-                let s = s
-                    .strip_prefix("4;")
+                let bytes = bytes
+                    .strip_prefix(b"4;")
                     .ok_or(ColorFormatError::MalformedThemeColor)?;
 
                 // Consume color code
                 let code = *color as u8;
                 if code < 10 {
-                    s.strip_prefix(char::from(b'0' + code))
+                    bytes.strip_prefix(&[b'0' + code])
                 } else {
-                    s.strip_prefix('1')
-                        .and_then(|s| s.strip_prefix(char::from(b'0' + code - 10)))
+                    bytes.strip_prefix(&[b'1', b'0' + code - 10])
                 }
-                .and_then(|s| s.strip_prefix(';'))
+                .and_then(|bytes| bytes.strip_prefix(b";"))
             }
         }
         .ok_or(ColorFormatError::WrongThemeColor)?;
 
+        let s = std::str::from_utf8(bytes).map_err(|_| ColorFormatError::MalformedThemeColor)?;
         Ok(Color::new(ColorSpace::Srgb, parse_x(s)?))
     }
 
@@ -307,6 +307,25 @@ pub(crate) fn into_theme_entry(obj: &Bound<'_, PyAny>) -> PyResult<ThemeEntry> {
                 Layer::Background => ThemeEntry::DefaultBackground(),
             })
         })
+}
+
+impl Command for ThemeEntry {
+    fn write_ansi(&self, out: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
+        write!(out, "{}", self)
+    }
+}
+
+impl Query for ThemeEntry {
+    type Response = Color;
+
+    fn is_valid(&self, control: crate::term::Control) -> bool {
+        control == crate::term::Control::CSI
+    }
+
+    fn parse(&self, payload: &[u8]) -> std::io::Result<Self::Response> {
+        self.parse(payload)
+            .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidData))
+    }
 }
 
 impl std::fmt::Display for ThemeEntry {

@@ -45,12 +45,7 @@
 #![allow(dead_code)]
 use std::io::{BufRead, Error, ErrorKind, Result};
 
-use crate::term::{Control, VtScanner};
-
-#[macro_export]
-macro_rules! csi {
-    ( $( $literal:literal ),+ ) => { concat!("\x1b[", $( $literal ),+) };
-}
+use crate::term::{is_semi_colon, Control, Radix, SliceExt, VtScanner};
 
 /// A terminal command.
 ///
@@ -72,9 +67,9 @@ impl<C: Command> Command for &C {
 
 /// A command that receives a response.
 ///
-/// Since UTF-8 has more invariants than byte slices, this trait represents the
-/// payload of ANSI escape sequences as `&[u8]`. Use [`VtScanner::to_str`] to
-/// convert to string slice if needed.
+/// Since UTF-8 is more restricted than byte slices, this trait treats the
+/// payload of an ANSI escape sequence as `&[u8]`. Use `str::from_utf8`, if you
+/// absolutely need a string slice.
 pub trait Query {
     /// The type of the response data.
     type Response;
@@ -114,6 +109,45 @@ impl<Q: Query> Query for &Q {
     }
 }
 
+/// Write a command to a stream.
+///
+/// This trait is implemented for all `std::io::Write` streams.
+pub trait WriteCommand {
+    fn write_cmd<C: Command>(&mut self, command: C) -> std::io::Result<()>;
+}
+
+struct Adapter<T> {
+    inner: T,
+    result: std::io::Result<()>,
+}
+
+impl<W: std::io::Write> std::fmt::Write for Adapter<W> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.inner
+            .write_all(s.as_bytes())
+            .map_err(|_| std::fmt::Error)
+    }
+}
+
+impl<W: std::io::Write> WriteCommand for W {
+    fn write_cmd<C: Command>(&mut self, command: C) -> std::io::Result<()> {
+        let mut adapter = Adapter {
+            inner: self,
+            result: Ok(()),
+        };
+
+        command.write_ansi(&mut adapter).map_err(|_| {
+            if adapter.result.is_ok() {
+                panic!(
+                    "<{}>::write_ansi() unexpectedly returned error",
+                    std::any::type_name::<C>()
+                );
+            }
+            adapter.result.err().unwrap()
+        })
+    }
+}
+
 // -------------------------------------- Macros ---------------------------------------
 
 macro_rules! define_expr_impl {
@@ -124,7 +158,7 @@ macro_rules! define_expr_impl {
                 out.write_str($repr)
             }
         }
-    }
+    };
 }
 
 macro_rules! define_impl {
@@ -183,7 +217,7 @@ macro_rules! define_num_arg_command {
 define_simple_command!(RequestTerminalId, "\x1b[>q");
 
 impl Query for RequestTerminalId {
-    type Response = (Vec<u8>, Option<Vec<u8>>);
+    type Response = (Option<Vec<u8>>, Option<Vec<u8>>);
 
     fn is_valid(&self, control: Control) -> bool {
         matches!(control, Control::DCS)
@@ -192,6 +226,7 @@ impl Query for RequestTerminalId {
     fn parse(&self, payload: &[u8]) -> Result<Self::Response> {
         let s = payload
             .strip_prefix(b">|")
+            .and_then(|s| s.strip_bel_st_suffix())
             .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
 
         if let Some(s) = s.strip_suffix(b")") {
@@ -200,12 +235,11 @@ impl Query for RequestTerminalId {
                 .position(|byte| *byte == b'(')
                 .map(|index| s.split_at(index))
                 .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
-            let name = n.to_owned();
-            let version = v.to_owned();
-            Ok((name, Some(version)))
+            let n = n.trim();
+            let v = v[1..].trim();
+            Ok((n.to_some_owned_bytes(), v.to_some_owned_bytes()))
         } else {
-            let name = s.to_owned();
-            Ok((name, None))
+            Ok((s.to_some_owned_bytes(), None))
         }
     }
 }
@@ -258,9 +292,13 @@ define_display!(MoveTo);
 define_num_arg_command!(MoveToColumn, "\x1b[", "G");
 define_num_arg_command!(MoveToRow, "\x1b[", "d");
 
-define_simple_command!(RequestCursorPosition, "\x1b[6n");
+/// The 0-ary command to request the cursor position in row-column order.
+pub struct RequestCursorPosition;
+define_expr_impl!(RequestCursorPosition { "\x1b[6n" });
+define_display!(RequestCursorPosition);
 
 impl Query for RequestCursorPosition {
+    /// The row and column of the cursor in that order.
     type Response = (u16, u16);
 
     fn is_valid(&self, control: Control) -> bool {
@@ -273,16 +311,23 @@ impl Query for RequestCursorPosition {
             .and_then(|s| s.strip_suffix(b"R"))
             .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
 
-        let params = VtScanner::split_params(s)?;
-        if params.len() != 2
-            || params[0].is_none()
-            || params[1].is_none()
-            || (u16::MAX as u64) < params[0].unwrap()
-            || (u16::MAX as u64) < params[1].unwrap()
-        {
+        let mut index = 0;
+        let mut params = [0_u16; 2];
+        for bytes in s.split(is_semi_colon) {
+            if 2 <= index {
+                return Err(ErrorKind::InvalidData.into());
+            }
+            params[index] = bytes
+                .to_u16(Radix::Decimal)
+                .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+            index += 1;
+        }
+
+        if index < 2 {
             return Err(ErrorKind::InvalidData.into());
         }
-        Ok((params[0].unwrap() as u16, params[1].unwrap() as u16))
+
+        Ok((params[0], params[1]))
     }
 }
 
@@ -311,11 +356,15 @@ impl Query for RequestBatchMode {
     }
 
     fn parse(&self, payload: &[u8]) -> Result<Self::Response> {
-        let s = payload
+        let bytes = payload
             .strip_prefix(b"\x1b[?2026;")
             .and_then(|s| s.strip_suffix(b"$y"))
-            .ok_or_else(|| Error::from(ErrorKind::ConnectionRefused))?;
-        Ok(match VtScanner::to_u64(s)? {
+            .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+        let response = bytes
+            .to_u32(Radix::Decimal)
+            .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+
+        Ok(match response {
             0 => BatchMode::NotSupported,
             1 => BatchMode::Enabled,
             2 => BatchMode::Disabled,
@@ -405,8 +454,9 @@ impl Query for RequestActiveStyle {
 
 #[cfg(test)]
 mod test {
-    use super::{BeginBatchedOutput, MoveLeft, MoveTo, Query, RequestTerminalId};
-    use crate::term::VtScanner;
+    use super::{
+        BeginBatchedOutput, MoveLeft, MoveTo, Query, RequestCursorPosition, RequestTerminalId,
+    };
 
     #[test]
     fn test_size_and_display() {
@@ -420,15 +470,37 @@ mod test {
     }
 
     #[test]
-    fn test_parsing() -> std::io::Result<()> {
-        let mut input = b"\x1bP>|Terminal\x1b\\".as_slice();
-        let mut scanner = VtScanner::new();
+    fn test_parse_terminal_id() -> std::io::Result<()> {
+        let (term, version) = RequestTerminalId.parse(b">|Terminal\x1b\\")?;
+        assert_eq!(&term.unwrap(), b"Terminal".as_slice());
+        assert!(version.is_none());
 
-        let response = scanner.scan_bytes(&mut input)?;
-        let (name, version) = RequestTerminalId.parse(response)?;
+        let (term, version) = RequestTerminalId.parse(b">|Terminal (6.65)\x1b\\")?;
+        assert_eq!(&term.unwrap(), b"Terminal".as_slice());
+        assert_eq!(&version.unwrap(), b"6.65".as_slice());
 
-        assert_eq!(&name, b"Terminal");
+        let (term, version) = RequestTerminalId.parse(b">|Terminal ()\x1b\\")?;
+        assert_eq!(&term.unwrap(), b"Terminal".as_slice());
         assert_eq!(version, None);
+
+        let (term, version) = RequestTerminalId.parse(b">|   (    )\x1b\\")?;
+        assert_eq!(term, None);
+        assert_eq!(version, None);
+
+        let (term, version) = RequestTerminalId.parse(b">|()\x1b\\")?;
+        assert_eq!(term, None);
+        assert_eq!(version, None);
+
+        let (term, version) = RequestTerminalId.parse(b">|\x1b\\")?;
+        assert_eq!(term, None);
+        assert_eq!(version, None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_cursor_position() -> std::io::Result<()> {
+        let position = RequestCursorPosition.parse(b"\x1b[6;65R")?;
+        assert_eq!(position, (6, 65));
         Ok(())
     }
 }

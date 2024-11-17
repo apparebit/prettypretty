@@ -1,11 +1,19 @@
+use std::cell::RefCell;
 use std::io::{BufRead, BufReader, BufWriter, ErrorKind, IoSlice, IoSliceMut, Read, Result, Write};
 use std::num::{NonZeroU8, NonZeroUsize};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
+#[cfg(feature = "pyffi")]
+use pyo3::prelude::*;
+
 use super::sys::{Config, Device, Reader, Writer};
 
 /// The non-canonical terminal mode.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, eq_int, frozen, hash, module = "prettypretty.color.term")
+)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Mode {
     /// Rare mode, also known as cbreak mode, disables canonical line processing
     /// and echoing of characters, but continues processing end-of-line
@@ -58,44 +66,113 @@ impl OptionData {
     }
 }
 
+/// A builder for configuring [`Options`].
+#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.term"))]
+#[derive(Debug)]
 pub struct OptionBuilder {
-    inner: OptionData,
+    inner: RefCell<OptionData>,
+}
+
+#[cfg(feature = "pyffi")]
+#[pymethods]
+impl OptionBuilder {
+    /// Set verbose mode for debugging.
+    #[pyo3(name = "verbose")]
+    pub fn py_verbose(slf: PyRef<'_, Self>, verbose: bool) -> PyRef<'_, Self> {
+        slf.verbose(verbose);
+        slf
+    }
+
+    /// Set rare or raw mode.
+    #[pyo3(name = "mode")]
+    pub fn py_mode(slf: PyRef<'_, Self>, mode: Mode) -> PyRef<'_, Self> {
+        slf.mode(mode);
+        slf
+    }
+
+    /// Set the timeout in 0.1s increments.
+    #[pyo3(name = "timeout")]
+    pub fn py_timeout(slf: PyRef<'_, Self>, timeout: u8) -> PyRef<'_, Self> {
+        slf.timeout(timeout);
+        slf
+    }
+
+    /// Set the read buffer size.
+    #[pyo3(name = "read_buffer_size")]
+    pub fn py_read_buffer_size(slf: PyRef<'_, Self>, size: usize) -> PyRef<'_, Self> {
+        slf.read_buffer_size(size);
+        slf
+    }
+
+    /// Set the write buffer size.
+    #[pyo3(name = "write_buffer_size")]
+    pub fn py_write_buffer_size(slf: PyRef<'_, Self>, size: usize) -> PyRef<'_, Self> {
+        slf.write_buffer_size(size);
+        slf
+    }
+
+    /// Build the options.
+    #[pyo3(name = "build")]
+    pub fn py_build(&self) -> Options {
+        self.build()
+    }
+
+    /// Get a debug representation for the options.
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
 }
 
 impl OptionBuilder {
-    /// Enable/disable verbose operation for debugging.
+    /// Enable/disable verbose mode for debugging.
+    ///
+    /// In verbose mode, the opening and closing of a connection is written to
+    /// the console through the connection. That implies that opening a
+    /// connection is only recorded *after* it has been opened and closing a
+    /// connection is recorded *before* it has been closed.
+    ///
+    /// The default is quiet operation.
     #[inline]
-    pub fn verbose(&mut self, verbose: bool) -> &mut Self {
-        self.inner.verbose = verbose;
+    pub fn verbose(&self, verbose: bool) -> &Self {
+        self.inner.borrow_mut().verbose = verbose;
         self
     }
 
-    /// Set the mode.
+    /// Set rare or raw mode.
+    ///
+    /// The default is rare mode because it disables only those features that
+    /// must be disabled for receiving input from the terminal without delay,
+    /// i.e., line editing and character echoing. Meanwhile, raw mode disables
+    /// features, including end-of-line and ctrl-c processing, that are
+    /// generally useful.
     #[inline]
-    pub fn mode(&mut self, mode: Mode) -> &mut Self {
-        self.inner.mode = mode;
+    pub fn mode(&self, mode: Mode) -> &Self {
+        self.inner.borrow_mut().mode = mode;
         self
     }
 
     /// Set the timeout.
+    ///
+    /// The default timeout depends on the current runtime context. Notably, it
+    /// is three times larger for SSH connections than for local terminals.
     #[inline]
-    pub fn timeout(&mut self, timeout: u8) -> &mut Self {
-        self.inner.timeout = NonZeroU8::new(timeout).expect("timeout is positive");
+    pub fn timeout(&self, timeout: u8) -> &Self {
+        self.inner.borrow_mut().timeout = NonZeroU8::new(timeout).expect("timeout is positive");
         self
     }
 
     /// Set the read buffer size.
     #[inline]
-    pub fn read_buffer_size(&mut self, size: usize) -> &mut Self {
-        self.inner.read_buffer_size =
+    pub fn read_buffer_size(&self, size: usize) -> &Self {
+        self.inner.borrow_mut().read_buffer_size =
             NonZeroUsize::new(size).expect("read buffer size is positive");
         self
     }
 
     /// Set the write buffer size.
     #[inline]
-    pub fn write_buffer_size(&mut self, size: usize) -> &mut Self {
-        self.inner.write_buffer_size = size;
+    pub fn write_buffer_size(&self, size: usize) -> &Self {
+        self.inner.borrow_mut().write_buffer_size = size;
         self
     }
 
@@ -103,29 +180,34 @@ impl OptionBuilder {
     #[inline]
     pub fn build(&self) -> Options {
         Options {
-            inner: self.inner.clone(),
+            inner: self.inner.clone().into_inner(),
         }
     }
 }
 
 /// Options for configuring the terminal.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "pyffi", pyclass(frozen, module = "prettypretty.color.term"))]
 pub struct Options {
     inner: OptionData,
 }
 
+#[cfg_attr(feature = "pyffi", pymethods)]
 impl Options {
     /// Get a new option builder with the defaults.
-    #[inline]
-    pub fn builder() -> OptionBuilder {
-        OptionBuilder {
-            inner: OptionData::new(),
-        }
+    #[cfg(feature = "pyffi")]
+    #[pyo3(name = "builder")]
+    #[staticmethod]
+    pub fn py_builder() -> OptionBuilder {
+        Options::builder()
     }
 
     /// Get the default options, except that verbose mode is enabled.
-    pub fn in_verbose() -> Self {
-        Self::builder().verbose(true).build()
+    #[cfg(feature = "pyffi")]
+    #[pyo3(name = "in_verbose")]
+    #[staticmethod]
+    pub fn py_in_verbose() -> Self {
+        Options::in_verbose()
     }
 
     /// Determine whether verbose mode is enabled.
@@ -156,6 +238,27 @@ impl Options {
     #[inline]
     pub fn write_buffer_size(&self) -> usize {
         self.inner.write_buffer_size
+    }
+
+    /// Get a debug representation for the options.
+    #[cfg(feature = "pyffi")]
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
+impl Options {
+    /// Get a new option builder with the defaults.
+    #[inline]
+    pub fn builder() -> OptionBuilder {
+        OptionBuilder {
+            inner: RefCell::new(OptionData::new()),
+        }
+    }
+
+    /// Get the default options, except that verbose mode is enabled.
+    pub fn in_verbose() -> Self {
+        Self::builder().verbose(true).build()
     }
 }
 

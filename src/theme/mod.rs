@@ -8,5 +8,5 @@ mod query;
 mod theming;
 
 #[doc(hidden)]
-pub use query::{apply, prepare, prepare_with, query1, query2, query3};
+pub use query::{apply, prepare, query1, query2, query3};
 pub use theming::{Theme, ThemeEntry, ThemeEntryIterator, VGA_COLORS};

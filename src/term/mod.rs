@@ -97,11 +97,10 @@
 //!         tty.flush()?;
 //!
 //!         // Read response as escape sequence.
-//!         let response = scanner.scan_str(&mut tty)?;
+//!         let response = scanner.scan_bytes(&mut tty)?;
 //!
 //!         // Parse color.
-//!         let color = entry
-//!             .parse_response(response)
+//!         let color = entry.parse(response)
 //!             .map_err(|e| Error::new(
 //!                 ErrorKind::InvalidData, e
 //!             ))?;
@@ -171,9 +170,8 @@
 //!         write!(tty, "{}", entry)?;
 //!         tty.flush()?;
 //!
-//!         let response = scanner.scan_str(&mut tty)?;
-//!         let color = entry
-//!             .parse_response(response)
+//!         let response = scanner.scan_bytes(&mut tty)?;
+//!         let color = entry.parse(response)
 //!             .map_err(|e| Error::new(
 //!                 ErrorKind::InvalidData, e
 //!             ))?;
@@ -181,8 +179,7 @@
 //!     }
 //!
 //!     // Prepare the Oklrch version of the theme.
-//!     let colors: Vec<Color> = theme
-//!         .as_ref()
+//!     let colors: Vec<Color> = theme.as_ref()
 //!         .iter()
 //!         .map(|c| c.to(ColorSpace::Oklrch))
 //!         .collect();
@@ -337,9 +334,12 @@
 
 mod escape;
 mod render;
+mod slice;
 mod sys;
 mod terminal;
 mod utf8;
+
+pub(crate) use slice::{is_semi_colon, Radix, SliceExt};
 
 pub use escape::{Action, Control, VtScanner};
 pub use render::{write_nicely, ByteNicely};

@@ -380,6 +380,9 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modterm.add("__package__", modcolor_name)?;
     modterm.add_class::<term::Action>()?;
     modterm.add_class::<term::Control>()?;
+    modterm.add_class::<term::Mode>()?;
+    modterm.add_class::<term::OptionBuilder>()?;
+    modterm.add_class::<term::Options>()?;
     modterm.add_class::<term::VtScanner>()?;
     m.add_submodule(&modterm)?;
 

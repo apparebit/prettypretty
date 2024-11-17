@@ -818,10 +818,8 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 ///         break Err(ColorFormatError::MalformedThemeColor);
 ///     } else if scanner.did_complete() {
 ///         // Parse the escape sequence's payload as a color.
-///         break scanner
-///             .completed_str()
-///             .or(Err(ColorFormatError::MalformedThemeColor))
-///             .and_then(|payload| entry.parse_response(payload))
+///         let payload = scanner.completed_bytes();
+///         break entry.parse(payload)
 ///     }
 ///
 ///     // Keep on stepping...
@@ -839,8 +837,8 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// [`VtScanner::did_abort`] or [`VtScanner::did_complete`] returns `true`. Once
 /// complete, [`VtScanner::completed_bytes`] and [`VtScanner::completed_str`]
 /// return the escape sequence's payload. The example uses
-/// [`ThemeEntry::parse_response`](crate::theme::ThemeEntry::parse_response) to
-/// turn that payload into a color.
+/// [`ThemeEntry::parse`](crate::theme::ThemeEntry::parse) to turn that payload
+/// into a color.
 ///
 ///
 /// # Three Corner Cases
@@ -936,10 +934,7 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 ///             if scanner.did_overflow() {
 ///                 return Err(ErrorKind::OutOfMemory.into());
 ///             } else {
-///                 break 'colorful scanner.completed_str()
-///                     .map_err(|e| Error::new(
-///                         ErrorKind::InvalidData, e
-///                     ))?;
+///                 break 'colorful scanner.completed_bytes();
 ///             }
 ///         }
 ///
@@ -952,8 +947,7 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// };
 ///
 /// // Parse payload and validate color.
-/// let color = entry
-///     .parse_response(response)
+/// let color = entry.parse(response)
 ///     .map_err(|e| Error::new(ErrorKind::InvalidData, e));
 /// assert_eq!(color.unwrap(), Color::from_24bit(0xdf, 0x28, 0x27));
 /// # Ok::<(), Error>(())
@@ -963,11 +957,11 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 /// </div>
 /// <br>
 ///
-/// Much better. I think. There is too much code now. And a lot of it seems to
-/// belong to `VtScanner`'s implementation. After all, a parser of escape
-/// sequences should be able to count the number of bytes belonging to one and
-/// also tell the first byte apart from the following bytes. Similarly, it
-/// should be able to map various predicates to errors.
+/// Much better. I think. But there is too much code now. And a lot of it seems
+/// to belong to `VtScanner`'s implementation. After all, a parser of escape
+/// sequences should be able to count the number of bytes belonging to such a
+/// sequence and also tell the first byte apart from the following bytes.
+/// Similarly, it should be able to map various predicates to errors.
 ///
 ///
 /// # Example #3: Without Boilerplate
@@ -999,15 +993,14 @@ const fn transition(state: State, byte: u8) -> (State, Action) {
 ///             return Err(ErrorKind::InvalidData.into());
 ///         } else if scanner.did_finish() {
 ///             input.consume(scanner.processed());
-///             break 'colorful scanner.finished_str()?;
+///             break 'colorful scanner.finished_bytes()?;
 ///         }
 ///     }
 ///     input.consume(filled);
 /// };
 ///
 /// // Parse payload and validate color.
-/// let color = entry
-///     .parse_response(response)
+/// let color = entry.parse(response)
 ///     .map_err(|e| Error::new(ErrorKind::InvalidData, e));
 /// assert_eq!(color.unwrap(), Color::from_24bit(0xdf, 0x28, 0x27));
 /// # Ok::<(), Error>(())
@@ -1477,47 +1470,6 @@ impl VtScanner {
     pub fn scan_str<R: BufRead>(&mut self, reader: &mut R) -> std::io::Result<&str> {
         let bytes = self.scan_bytes(reader)?;
         std::str::from_utf8(bytes).map_err(|e| Error::new(ErrorKind::InvalidData, e))
-    }
-
-    /// Convert the byte slice into a string slice.
-    pub fn to_str(payload: &[u8]) -> std::io::Result<&str> {
-        std::str::from_utf8(payload).map_err(|e| Error::new(ErrorKind::InvalidData, e))
-    }
-
-    /// Convert a decimal ASCII number to an unsigned 64-bit integer.
-    pub fn to_u64(payload: &[u8]) -> std::io::Result<u64> {
-        if 19 < payload.len() {
-            return Err(ErrorKind::InvalidData.into());
-        }
-
-        let mut result = 0_u64;
-        for byte in payload.iter().rev() {
-            if byte.is_ascii_digit() {
-                let value = u64::from(*byte) - 0x30;
-                result = 10 * result + value;
-            } else {
-                return Err(ErrorKind::InvalidData.into());
-            }
-        }
-
-        Ok(result)
-    }
-
-    /// Split the payload into a vector of parameters.
-    pub fn split_params(payload: &[u8]) -> std::io::Result<Vec<Option<u64>>> {
-        let mut result = Vec::new();
-        for elem in payload.split(|byte| matches!(byte, b';' | b':')) {
-            let elem = if elem.is_empty() {
-                None
-            } else {
-                let num = VtScanner::to_u64(elem)?;
-                Some(num)
-            };
-
-            result.push(elem);
-        }
-
-        Ok(result)
     }
 }
 
