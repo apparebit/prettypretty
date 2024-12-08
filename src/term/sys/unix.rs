@@ -174,9 +174,9 @@ impl std::fmt::Debug for Termios {
             }
         }
 
-        struct Flags(Vec<&'static str>);
+        struct Flags<'a>(Vec<&'a str>);
 
-        impl std::fmt::Debug for Flags {
+        impl std::fmt::Debug for Flags<'_> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.debug_list().entries(self.0.iter()).finish()
             }

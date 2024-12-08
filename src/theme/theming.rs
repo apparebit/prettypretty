@@ -21,7 +21,7 @@ use crate::{rgb, Color, ColorSpace};
 /// Theme`](struct.Theme.html#impl-AsRef%3C%5BColor%5D%3E-for-Theme), albeit
 /// Rust-only and read-only.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.trans"))]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Theme {
     inner: [Color; 18],
 }
@@ -159,6 +159,16 @@ impl std::ops::Index<Layer> for Theme {
             Layer::Foreground => &self.inner[0],
             Layer::Background => &self.inner[1],
         }
+    }
+}
+
+impl std::fmt::Debug for Theme {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debugger = f.debug_struct("Theme");
+        for entry in ThemeEntry::all() {
+            debugger.field(&entry.name().replace(" ", "_"), &self[entry]);
+        }
+        debugger.finish()
     }
 }
 

@@ -283,7 +283,7 @@ impl Default for Options {
 #[derive(Debug)]
 struct State {
     options: Options,
-    stamp: u64,
+    stamp: u32,
 
     // Drop the following four fields in that order and last. Reading needs to
     // stop before configuration is restored, though we can still write
@@ -319,10 +319,11 @@ impl State {
         let writer =
             BufWriter::with_capacity(options.write_buffer_size(), Writer::new(handle.output()));
         let stamp = if options.verbose() {
+            // macOS duration has microsecond resolution only.
             std::time::SystemTime::now()
                 .duration_since(std::time::SystemTime::UNIX_EPOCH)
                 .unwrap()
-                .as_millis() as u64
+                .subsec_micros()
         } else {
             0
         };
@@ -340,7 +341,7 @@ impl State {
             write!(
                 this.writer,
                 // The extra space aligns the close tag
-                "┌── tty::connect ───── pid={:<5} tid={:<5} in={:?} out={:?} stamp={:.13} ────┐\r\n",
+                "\r\ntty::connect    pid={:<5} tid={:<5} in={:?} out={:?} stamp={:>6}\r\n",
                 std::process::id(),
                 this.device.pid().unwrap_or(0),
                 handle.input(),
@@ -377,7 +378,7 @@ impl Drop for State {
         if 0 < self.stamp {
             let _ = write!(
                 self.writer,
-                "└── tty::disconnect ── pid={:<5} tid={:<5} in={:?} out={:?} stamp={:.13} ────┘\r\n",
+                "tty::disconnect pid={:<5} tid={:<5} in={:?} out={:?} stamp={:>6}\r\n",
                 std::process::id(),
                 self.device.pid().unwrap_or(0),
                 self.device.handle().input(),

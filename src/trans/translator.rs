@@ -737,12 +737,10 @@ impl std::fmt::Debug for Translator {
             "OkVersion.Revised"
         };
 
-        f.write_fmt(format_args!("Translator({}, [\n", version))?;
-        for color in self.theme.as_ref().iter() {
-            f.write_fmt(format_args!("    {:?},\n", color))?;
-        }
-
-        f.write_str("])")
+        f.debug_struct("Translator")
+            .field("version", &version)
+            .field("theme", &self.theme)
+            .finish()
     }
 }
 

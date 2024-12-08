@@ -8,8 +8,9 @@ pub(crate) enum Radix {
     Hexadecimal = 16,
 }
 
-fn to_digit(byte: u8, radix: u32) -> Option<u32> {
-    char::from(byte).to_digit(radix)
+#[inline]
+const fn to_digit(byte: u8, radix: u32) -> Option<u32> {
+    (byte as char).to_digit(radix)
 }
 
 fn parse(bytes: &[u8], radix: u32) -> Option<u64> {

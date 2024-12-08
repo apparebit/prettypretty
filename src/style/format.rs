@@ -78,7 +78,7 @@ impl Attribute {
     }
 
     /// Get the attribute's human-readable name.
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Bold => "bold",
             Thin => "thin",
@@ -99,7 +99,7 @@ impl Attribute {
     }
 
     /// Get the SGR parameter for this text attribute.
-    pub fn sgr_parameter(&self) -> u8 {
+    pub const fn sgr_parameter(&self) -> u8 {
         match self {
             Bold => 1,
             Thin => 2,
@@ -385,7 +385,7 @@ impl Format {
 
     /// Get the number of attributes in this format, which is at most seven.
     #[inline]
-    pub fn attribute_count(&self) -> u8 {
+    pub const fn attribute_count(&self) -> u8 {
         self.0.count_ones() as u8
     }
 
@@ -406,7 +406,7 @@ impl Format {
     /// If the terminal supports ANSI escape codes, i.e., has a fidelity other
     /// than [`Fidelity::Plain`], this method returns the format wrapped in
     /// `Some`. Otherwise, it returns `None`.
-    pub fn cap(&self, fidelity: Fidelity) -> Option<Self> {
+    pub const fn cap(&self, fidelity: Fidelity) -> Option<Self> {
         match fidelity {
             Fidelity::Plain => None,
             _ => Some(*self),
