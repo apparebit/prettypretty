@@ -26,7 +26,10 @@ pub const fn stylist() -> Stylist {
 }
 
 /// A stylist is a builder of styles.
-#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.style"))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(module = "prettypretty.color.style", unsendable)
+)]
 #[derive(Clone, Debug, Default)]
 pub struct Stylist {
     data: RefCell<StyleData>,
@@ -372,7 +375,10 @@ impl Stylist {
 }
 
 /// A colorist applies a color to a style.
-#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.style"))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(module = "prettypretty.color.style", unsendable)
+)]
 #[derive(Clone, Debug, Default)]
 pub struct Colorist {
     data: RefCell<StyleData>,

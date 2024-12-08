@@ -345,7 +345,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<OkVersion>()?;
 
     // -------------------------------------------------------------------- color.style
-    let modstyle = PyModule::new_bound(m.py(), "style")?;
+    let modstyle = PyModule::new(m.py(), "style")?;
     modstyle.add("__package__", modcolor_name)?;
     modstyle.add_class::<style::AnsiColor>()?;
     modstyle.add_class::<style::AnsiColorIterator>()?;
@@ -365,7 +365,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modstyle.setattr("__name__", &modstyle_name)?;
 
     // ------------------------------------------------------------- color.style.format
-    let modformat = PyModule::new_bound(m.py(), "format")?;
+    let modformat = PyModule::new(m.py(), "format")?;
     modformat.add("__package__", &modstyle_name)?;
     modformat.add_class::<style::format::AllAttributes>()?;
     modformat.add_class::<style::format::Attribute>()?;
@@ -376,7 +376,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modformat.setattr("__name__", &modformat_name)?;
 
     // --------------------------------------------------------------------- color.term
-    let modterm = PyModule::new_bound(m.py(), "term")?;
+    let modterm = PyModule::new(m.py(), "term")?;
     modterm.add("__package__", modcolor_name)?;
     modterm.add_class::<term::Action>()?;
     modterm.add_class::<term::Control>()?;
@@ -390,7 +390,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modterm.setattr("__name__", &modterm_name)?;
 
     // -------------------------------------------------------------------- color.theme
-    let modtheme = PyModule::new_bound(m.py(), "trans")?;
+    let modtheme = PyModule::new(m.py(), "trans")?;
     modtheme.add("__package__", modcolor_name)?;
     modtheme.add_class::<theme::Theme>()?;
     modtheme.add_class::<theme::ThemeEntry>()?;
@@ -402,7 +402,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modtheme.setattr("__name__", &modtheme_name)?;
 
     // -------------------------------------------------------------------- color.trans
-    let modtrans = PyModule::new_bound(m.py(), "trans")?;
+    let modtrans = PyModule::new(m.py(), "trans")?;
     modtrans.add("__package__", modcolor_name)?;
     modtrans.add_class::<trans::Translator>()?;
     m.add_submodule(&modtrans)?;
@@ -413,7 +413,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // -------------------------------------------------------------------- sys.modules
     // Patch sys.modules
     //let sys = PyModule::import_bound(m.py(), "sys")?;
-    let py_modules: Bound<'_, PyDict> = PyModule::import_bound(m.py(), "sys")?
+    let py_modules: Bound<'_, PyDict> = PyModule::import(m.py(), "sys")?
         .getattr("modules")?
         .downcast_into()?;
     py_modules.set_item(&modstyle_name, modstyle)?;
@@ -438,7 +438,7 @@ fn register_modgamut(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modobserver_name = format!("{}.std_observer", modspectrum_name);
 
     // -------------------------------------------------------------------- color.gamut
-    let modgamut = PyModule::new_bound(m.py(), "gamut")?;
+    let modgamut = PyModule::new(m.py(), "gamut")?;
     modgamut.add("__package__", modcolor_name)?;
     modgamut.add_class::<gamut::GamutTraversal>()?;
     modgamut.add_class::<gamut::GamutTraversalStep>()?;
@@ -448,7 +448,7 @@ fn register_modgamut(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modgamut.setattr("__name__", &modgamut_name)?;
 
     // ----------------------------------------------------------------- color.spectrum
-    let modspectrum = PyModule::new_bound(m.py(), "spectrum")?;
+    let modspectrum = PyModule::new(m.py(), "spectrum")?;
     modspectrum.add("__package__", modcolor_name)?;
     modspectrum.add(
         "CIE_ILLUMINANT_D50",
@@ -484,7 +484,7 @@ fn register_modgamut(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modspectrum.setattr("__name__", &modspectrum_name)?;
 
     // -------------------------------------------------------- color.spectrum.observer
-    let modobserver = PyModule::new_bound(m.py(), "std_observer")?;
+    let modobserver = PyModule::new(m.py(), "std_observer")?;
     modobserver.add("__package__", modcolor_name)?;
     modobserver.add_function(wrap_pyfunction!(spectrum::std_observer::x, m)?)?;
     modobserver.add_function(wrap_pyfunction!(spectrum::std_observer::y, m)?)?;
@@ -493,7 +493,7 @@ fn register_modgamut(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modobserver.setattr("__name__", &modobserver_name)?;
 
     // -------------------------------------------------------------------- sys.modules
-    let py_modules: Bound<'_, PyDict> = PyModule::import_bound(m.py(), "sys")?
+    let py_modules: Bound<'_, PyDict> = PyModule::import(m.py(), "sys")?
         .getattr("modules")?
         .downcast_into()?;
 

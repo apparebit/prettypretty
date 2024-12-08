@@ -15,10 +15,10 @@ rust-version = "1.79"
 
 
 [dependencies]
-pyo3 = { version = "0.22.6", features = ["extension-module", "abi3", "abi3-py311"], optional = true }
+pyo3 = { version = "0.23.3", features = ["extension-module", "abi3", "abi3-py311"], optional = true }
 
 [target.'cfg(unix)'.dependencies]
-libc = { version = "0.2.162", optional = true }
+libc = { version = "0.2.167", optional = true }
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 version = "0.59.0"

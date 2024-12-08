@@ -67,7 +67,10 @@ impl OptionData {
 }
 
 /// A builder for configuring [`Options`].
-#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.term"))]
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(module = "prettypretty.color.term", unsendable)
+)]
 #[derive(Debug)]
 pub struct OptionBuilder {
     inner: RefCell<OptionData>,

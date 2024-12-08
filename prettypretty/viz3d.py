@@ -226,7 +226,7 @@ class PointManager:
         self._should_project_to_plane = planar
         self._should_generate_mesh = mesh
         self._points: list[tuple[float, float, float]] = []
-        self._colors: list[tuple[int, int, int] | list[int]] = []
+        self._colors: list[bytes] = []
         self._faces: list[tuple[int, int, int]] = []
         self._alpha: int = min(max(int(alpha * 255), 0), 255)
         self._line_count = 0

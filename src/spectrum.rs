@@ -157,6 +157,9 @@ pub struct Illuminant {
 }
 
 #[cfg(feature = "pyffi")]
+unsafe impl std::marker::Sync for Illuminant {}
+
+#[cfg(feature = "pyffi")]
 impl Illuminant {
     /// Create a new illuminant.
     pub fn new(distribution: Box<dyn SpectralDistribution<Value = Float> + Send>) -> Self {

@@ -133,7 +133,7 @@ class TestColor(unittest.TestCase):
 
         also_green_unwrapped = also_green[0]
         assert isinstance(also_green_unwrapped, style.EmbeddedRgb)
-        self.assertListEqual(also_green_unwrapped.coordinates(), [0, 5, 0])
+        self.assertEqual(also_green_unwrapped.coordinates(), b'\x00\x05\x00')
 
         green_too = Color.from_24bit(0, 255, 0)
         self.assertEqual(green_too.space(), ColorSpace.Srgb)
