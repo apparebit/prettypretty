@@ -7,7 +7,7 @@
 /// query for a theme color, rotating through the 18 theme colors for each `t`.
 /// If you type `q` for *quit*, the example quits.
 use std::error::Error;
-use std::io::{stdout, IsTerminal, Read, Write};
+use std::io::{stdout, IsTerminal, Read};
 
 use prettypretty::style::{stylist, Fidelity, Stylist};
 use prettypretty::term::{terminal, write_nicely};
@@ -36,47 +36,43 @@ fn run() -> std::io::Result<()> {
     let mut entries = ThemeEntry::all();
 
     // Peek into terminal access
-    let info = format!("{:#?}", tty);
-    tty.print(info)?;
-    write!(tty, "\r\n\r\nProcess group ID: {}\r\n", tty.pid()?)?;
-    write!(
-        tty,
+    tty.print(format!(
         "{}press ‹t› to query theme color, ‹q› to quit{}\r\n\r\n",
         BOLD, !BOLD
-    )?;
+    ))?;
 
     let mut iterations = 0;
-    let mut line = 0;
+    let mut written = 0;
 
-    write!(tty, "{}", GRAY)?;
+    tty.print(format!("{}", GRAY))?;
     loop {
         iterations += 1;
         if 1000 <= iterations {
-            write!(tty, "{}✋", RESET)?;
+            tty.print(format!("{}✋", RESET))?;
             break;
         }
 
-        if 70 < line {
+        if 70 < written {
             tty.print("\r\n")?;
-            line = 0;
+            written = 0;
         }
 
         let mut buffer = [0; 32];
         let count = tty.read(&mut buffer)?;
         if count == 0 {
             tty.print("◦")?;
-            line += 1;
+            written += 1;
             continue;
         }
 
-        write!(tty, "〈{}", !GRAY)?;
-        line += 2;
+        tty.print(format!("〈{}", !GRAY))?;
+        written += 2;
 
         let mut terminate = false;
         let mut query = None;
 
         for b in buffer.iter().take(count) {
-            line += write_nicely(*b, &mut tty)?;
+            written += write_nicely(*b, &mut tty)?;
 
             if *b == b'q' {
                 terminate = true;
@@ -91,15 +87,14 @@ fn run() -> std::io::Result<()> {
             }
         }
 
-        write!(tty, "{}〉", GRAY)?;
-        line += 2;
+        tty.print(format!("{}〉", GRAY))?;
+        written += 2;
 
         if terminate {
-            write!(tty, "{}", RESET)?;
+            tty.print(format!("{}", RESET))?;
             break;
         } else if let Some(entry) = query {
-            write!(tty, "{}", entry)?;
-            tty.flush()?;
+            tty.print(format!("{}", entry))?;
         }
     }
 
