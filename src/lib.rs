@@ -75,9 +75,9 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!   * The optional [`term`] module performs the necessary **terminal I/O**.
 //!     Notably, [`Terminal`](crate::term::Terminal) configures the terminal to
 //!     use raw mode and to time out reads. Meanwhile,
-//!     [`VtScanner`](crate::term::VtScanner) implements the complete state
-//!     machine for **parsing ANSI escape sequences**. Both Unix and Windows are
-//!     supported, but Windows support is largely untested.
+//!     [`Scanner`](crate::term::Scanner) implements the complete state machine
+//!     for **turning text and ANSI escape sequences into tokens**. Both Unix
+//!     and Windows are supported, but Windows support is largely untested.
 #![cfg_attr(
     feature = "gamut",
     doc = "  * The optional [`gamut`] and [`spectrum`] submodules enable the traversal
@@ -378,12 +378,12 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // --------------------------------------------------------------------- color.term
     let modterm = PyModule::new(m.py(), "term")?;
     modterm.add("__package__", modcolor_name)?;
-    modterm.add_class::<term::Action>()?;
-    modterm.add_class::<term::Control>()?;
+    //modterm.add_class::<term::Action>()?;
+    //modterm.add_class::<term::Control>()?;
     modterm.add_class::<term::Mode>()?;
     modterm.add_class::<term::OptionBuilder>()?;
     modterm.add_class::<term::Options>()?;
-    modterm.add_class::<term::VtScanner>()?;
+    //modterm.add_class::<term::VtScanner>()?;
     m.add_submodule(&modterm)?;
 
     // Only change __name__ attribute after submodule has been added.

@@ -26,6 +26,7 @@
 [`Mode`]: https://apparebit.github.io/prettypretty/prettypretty/term/enum.Mode.html
 [`OkVersion`]: https://apparebit.github.io/prettypretty/prettypretty/enum.OkVersion.html
 [`OutOfBoundsError`]: https://apparebit.github.io/prettypretty/prettypretty/error/struct.OutOfBoundsError.html
+[`Scanner`]: https://apparebit.github.io/prettypretty/prettypretty/term/struct.Scanner.html
 [`Style`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Style.html
 [`Style::cap`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Style.html#method.cap
 [`stylist`]: https://apparebit.github.io/prettypretty/prettypretty/style/fn.stylist.html
@@ -40,4 +41,3 @@
 [`Translator::is_dark_theme`]: https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.is_dark_theme
 [`TrueColor`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.TrueColor.html
 [`VGA_COLORS`]: https://apparebit.github.io/prettypretty/prettypretty/theme/constant.VGA_COLORS.html
-[`VtScanner`]: https://apparebit.github.io/prettypretty/prettypretty/term/struct.VtScanner.html

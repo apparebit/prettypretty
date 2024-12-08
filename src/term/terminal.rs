@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::io::{BufRead, BufReader, BufWriter, ErrorKind, IoSlice, IoSliceMut, Read, Result, Write};
+use std::io::{BufWriter, ErrorKind, IoSlice, IoSliceMut, Read, Result, Write};
 use std::num::{NonZeroU8, NonZeroUsize};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
@@ -288,7 +288,7 @@ struct State {
     // Drop the following four fields in that order and last. Reading needs to
     // stop before configuration is restored, though we can still write
     // thereafter. All three must stop before the device is disconnected.
-    reader: BufReader<Reader>,
+    reader: Reader,
     config: Config,
     writer: BufWriter<Writer>,
     device: Device,
@@ -312,10 +312,7 @@ impl State {
         let device = Device::new()?;
         let handle = device.handle();
         let config = Config::new(handle, &options)?;
-        let reader = BufReader::with_capacity(
-            options.read_buffer_size().get(),
-            Reader::new(handle.input(), 100 * (options.timeout().get() as u32)),
-        );
+        let reader = Reader::new(handle.input(), 100 * (options.timeout().get() as u32));
         let writer =
             BufWriter::with_capacity(options.write_buffer_size(), Writer::new(handle.output()));
         let stamp = if options.verbose() {
@@ -659,28 +656,6 @@ impl Read for TerminalAccess<'_> {
     #[inline]
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         self.get_mut().reader.read_exact(buf)
-    }
-}
-
-impl BufRead for TerminalAccess<'_> {
-    #[inline]
-    fn fill_buf(&mut self) -> Result<&[u8]> {
-        self.get_mut().reader.fill_buf()
-    }
-
-    #[inline]
-    fn consume(&mut self, n: usize) {
-        self.get_mut().reader.consume(n)
-    }
-
-    #[inline]
-    fn read_until(&mut self, byte: u8, buf: &mut Vec<u8>) -> Result<usize> {
-        self.get_mut().reader.read_until(byte, buf)
-    }
-
-    #[inline]
-    fn read_line(&mut self, buf: &mut String) -> Result<usize> {
-        self.get_mut().reader.read_line(buf)
     }
 }
 

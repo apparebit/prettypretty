@@ -2,7 +2,7 @@
 use std::error::Error;
 use std::io::{Result, Write};
 
-use prettypretty::term::{terminal, Options, TerminalAccess, VtScanner};
+use prettypretty::term::{terminal, Options, Scanner, TerminalAccess};
 use prettypretty::theme;
 
 pub fn report<R>(result: Result<R>) {
@@ -35,7 +35,7 @@ struct Runner {
 impl Runner {
     fn run<F>(&mut self, label: &str, query: F) -> Result<()>
     where
-        F: Fn(&mut TerminalAccess, &mut VtScanner, &mut theme::Theme) -> Result<()>,
+        F: Fn(&mut TerminalAccess, &mut Scanner, &mut theme::Theme) -> Result<()>,
     {
         let options = Options::builder().verbose(true).build();
         report(self.handle(label, theme::apply(query, options)));
@@ -49,15 +49,15 @@ impl Runner {
         match result {
             Ok(_) => {
                 self.passed += 1;
-                write!(tty, "│ PASS {:<70} │\r\n", label)?;
+                write!(tty, "    PASS {}\r\n", label)?;
                 tty.flush()?;
             }
             Err(ref error) => {
-                write!(tty, "│ FAIL {:<70} │\r\n", label)?;
+                write!(tty, "    FAIL {}\r\n", label)?;
 
                 let mut error: &dyn Error = error;
                 loop {
-                    write!(tty, "│      {:<70} │\r\n", format!("{}", error))?;
+                    write!(tty, "        {}\r\n", format!("{}", error))?;
                     match error.source() {
                         Some(source) => error = source,
                         None => break,
@@ -108,10 +108,10 @@ fn main() -> Result<()> {
 
 #[cfg(test)]
 mod test {
-    use super::report;
+    use std::io::Result;
 
     #[test]
-    fn run_main() {
-        report(super::main());
+    fn run_main() -> Result<()> {
+        super::main()
     }
 }

@@ -1,220 +1,44 @@
 //! Optional utility module for terminal integration. <i
 //! class=term-only>Term only!</i>
 //!
-//! This module provides enough terminal integration to query a terminal for its
-//! current color theme and otherwise provide a foundation solid enough to build
-//! your TUI on. Two abstractions stand out:
+//! This module provides a simple and solid foundation for building terminal user
+//! interfaces. The benchmark is querying a terminal for its current color theme.
+//! Two abstractions stand out:
 //!
 //!   - [`Terminal`] represents the controlling terminal. It is accessed with
 //!     [`terminal()`] and provides access to terminal I/O with
 //!     [`TerminalAccess`].
-//!   - [`VtScanner`] implements the state machine for recognizing UTF-8 and
+//!   - [`Scanner`] implements the state machine for recognizing UTF-8 and
 //!     ANSI escape sequences.
 //!
 //! When combined with [`Theme`](crate::theme::Theme) and
 //! [`ThemeEntry`](crate::theme::ThemeEntry), querying the terminal for its
-//! color theme becomes fairly straightforward. Let's walk through one possible
-//! solution.
+//! color theme becomes fairly straightforward.
+//!
 //!
 //! # Examples
 //!
-//! ## 1. Function Signature
+//! Pretty much all it takes is to delegate writing the query and reading the
+//! response to theme entries.
 //!
-//! Prettypretty has a dedicated type for a color
-//! [`Theme`](crate::theme::Theme), which collects the two default and 16 ANSI
-//! colors. Since we are interacting with the terminal to fill in the instance,
-//! `std::io::Result<Theme>` seems like a good result type for our function.
-//!
-//! ```no_run
-//! # use std::io::{ErrorKind, Result};
-//! # use prettypretty::theme::Theme;
-//! fn query() -> Result<Theme> {
-//!     // Ooh, 𒌋𒐜 × XYZ's origin... that's pitch black.
-//!     Ok(Theme::default())
-//! }
-//! ```
-//!
-//! ## 2. Set Up and Outer Loop
-//!
-//! Great, now that we have our function signature worked out, we can start
-//! filling in the latter. In particular, in addition to the dummy theme from
-//! last time, we need to set up terminal access and an ANSI escape sequence
-//! parser. And while we are at it, we might as well add the outer loop, too. It
-//! iterates over the [`ThemeEntry`](crate::theme::ThemeEntry) objects:
-//!
-//! ```
-//! # use std::io::{ErrorKind, Result};
+//! ```compile_only
 //! # use prettypretty::term::{terminal, VtScanner};
-//! # use prettypretty::theme::{Theme, ThemeEntry};
-//! fn query() -> Result<Theme> {
-//!     // Set up state.
-//!     let mut tty = terminal().access()?;
-//!     let mut scanner = VtScanner::new();
-//!     let mut theme = Theme::default();
+//! # use prettypretty::theme::ThemeEntry;
+//! // Access terminal and create scanner
+//! let mut tty = terminal().access()?;
+//! let mut scanner = VtScanner::new();
 //!
-//!     for entry in ThemeEntry::all() {
-//!         // Process theme entry by theme entry.
-//!     }
+//! // Write query
+//! write!(tty, "{}", ThemeEntry::DefaultForeground)?;
+//! tty.flush()?;
 //!
-//!     Ok(theme)
-//! }
+//! // Read response
+//! let color = ThemeEntry.read_with(&mut tty, &mut scanner)?;
+//! # Ok::<(), std::io::Error>(())
 //! ```
 //!
-//! By far the most important incantation amongst the code we just added is the
-//! invocation of [`Terminal::access`]: That method connects to the terminal
-//! device, configures it to use non-canonical mode and a 0.1s read timeout, and
-//! returns an object that reads from and writes to the terminal, no matter
-//! whether standard streams are redirected or not. Even better, when that `tty`
-//! object is dropped, it not only relinquishes its exclusive hold on terminal
-//! I/O, but it also restores the terminal's original (cooked) mode and closes
-//! the connection again.
-//!
-//! If your application needs a longer-living connection to the terminal, it can
-//! more directly manage the connection with [`Terminal::connect`] and
-//! [`Terminal::disconnect`]. In that case, automatic (re)connection is an
-//! anti-feature and [`Terminal::try_access`] provides access only if the
-//! terminal is still connected. [`Terminal::connect_with`] and
-//! [`Terminal::access_with`] provide additional knobs for fine-tuning the
-//! terminal configuration.
-//!
-//!
-//! ## 3. Write Query, Ingest Response, Parse Color, Update Theme
-//!
-//! With that, we are ready to query the terminal for some colors:
-//!
-//! ```no_run
-//! # use std::io::{BufRead, Error, ErrorKind, Result, Write};
-//! # use prettypretty::term::{terminal, VtScanner};
-//! # use prettypretty::theme::{Theme, ThemeEntry};
-//! fn query() -> Result<Theme> {
-//!     let mut tty = terminal().access()?;
-//!     let mut scanner = VtScanner::new();
-//!     let mut theme = Theme::default();
-//!
-//!     for entry in ThemeEntry::all() {
-//!         // Write query as escape sequence.
-//!         write!(tty, "{}", entry)?;
-//!         tty.flush()?;
-//!
-//!         // Read response as escape sequence.
-//!         let response = scanner.scan_bytes(&mut tty)?;
-//!
-//!         // Parse color.
-//!         let color = entry.parse(response)
-//!             .map_err(|e| Error::new(
-//!                 ErrorKind::InvalidData, e
-//!             ))?;
-//!
-//!         // Update theme.
-//!         theme[entry] = color;
-//!     }
-//!
-//!     Ok(theme)
-//! }
-//! ```
-//!
-//! Write the query, ingest the response, parse the color, and update the theme.
-//! Out of these four steps, parsing the color looks a bit more involved. But
-//! that's only because we manually adjust the error type. Instead, the most
-//! powerful incantation we just added is the invocation of
-//! [`VtScanner::scan_str`]. The method hides an entire inner loop consuming the
-//! terminal input byte by byte until a complete ANSI escape sequence has been
-//! recognized. The documentation for [`VtScanner`] explores that method's
-//! implementation in rather gory detail.
-//!
-//! In any case, that's it. That's all the code necessary for querying the
-//! terminal for its current color theme. That's pretty much also the
-//! implementation of
-//! [`Theme::query_terminal`](crate::theme::Theme::query_terminal).
-//!
-//!
-//! ## 4. Validate Color Theme
-//!
-//! While it provides a realistic example for interacting with the terminal, the
-//! example code isn't really acceptable for its intended purpose as
-//! documentation test. After all, it doesn't do any testing. However,
-//! validating the output is more difficult in this case because every terminal
-//! may just have its own color theme.
-//!
-//! While we can't predict exact color values, those colors aren't picked
-//! randomly either. Each theme entry has a well-established name, and
-//! applications tend to use colors consistently with their names. Hence, ANSI
-//! red might be used to highlight errors, but for highlighting successful
-//! completion probably not so much.
-//!
-//! We can leverage that to devise a practical testing strategy. First, we
-//! observe that the six non-bright chromatic colors amongst ANSI colors
-//! identify the RGB primaries and secondaries. In other words, they are placed
-//! in roughly equal intervals around the hue circle in a perceptually uniform,
-//! polar color space such as Oklrch. Second, as discussed in the previous
-//! paragraph, we can reasonable assume that color values are roughly consistent
-//! with their names. Hence the test processes colors in the order of their
-//! names around the hue circle and checks whether each hue falls onto an
-//! acceptable arc, say, of 135º. Since there are six colors, we rotate the arc
-//! for each color by 360º/6=60º.
-//!
-//! Here's the corresponding code:
-//!
-//! ```no_run
-//! # use std::io::{BufRead, Error, ErrorKind, Result, Write};
-//! # use prettypretty::{Color, ColorSpace};
-//! # use prettypretty::style::AnsiColor::*;
-//! # use prettypretty::term::{terminal, VtScanner};
-//! # use prettypretty::theme::{Theme, ThemeEntry};
-//! fn query() -> Result<Theme> {
-//!     let mut tty = terminal().access()?;
-//!     let mut scanner = VtScanner::new();
-//!     let mut theme = Theme::default();
-//!
-//!     for entry in ThemeEntry::all() {
-//!         write!(tty, "{}", entry)?;
-//!         tty.flush()?;
-//!
-//!         let response = scanner.scan_bytes(&mut tty)?;
-//!         let color = entry.parse(response)
-//!             .map_err(|e| Error::new(
-//!                 ErrorKind::InvalidData, e
-//!             ))?;
-//!         theme[entry] = color;
-//!     }
-//!
-//!     // Prepare the Oklrch version of the theme.
-//!     let colors: Vec<Color> = theme.as_ref()
-//!         .iter()
-//!         .map(|c| c.to(ColorSpace::Oklrch))
-//!         .collect();
-//!     let oktheme = Theme::with_slice(&colors).unwrap();
-//!
-//!     // Let's validate the hues of the six chromatic nonbright colors.
-//!     let mut expected = -45.0_f64 .. 90.0_f64;
-//!     for index in [Red, Yellow, Green, Cyan, Blue, Magenta] {
-//!         // Since the minimum acceptable hue starts negative,
-//!         /// we possibly need to adjust the actual hue, too.
-//!         let mut hue = oktheme[index][2];
-//!         if expected.start < 0.0_f64 && expected.end + 180.0_f64 < hue {
-//!             hue -= 360.0_f64;
-//!         }
-//!
-//!         assert!(
-//!             expected.contains(&hue),
-//!             "{:>20}  {} < {} < {}",
-//!             index.name(), expected.start, hue, expected.end
-//!         );
-//!
-//!         // With the six colors spread around hue circle, increment is 60º.
-//!         expected = (expected.start + 60.0_f64) .. (expected.end + 60.0_f64);
-//!     }
-//!
-//!     Ok(theme)
-//! }
-//! # let _ = query();
-//! ```
-//!
-//! The negative starting angle for red ensures that the arc is continuous
-//! numerically, which simplifies testing whether the hue falls onto the arc.
-//! However, it also requires adjusting the hue so that it starts out
-//! consistently. Can you fill in the code for the bright chromatic colors? And
-//! what about non-chromatic colors?
+//! This actually is a more general pattern, thanks to the
+//! [`Command`](crate::cmd::Command) and [`Query`](crate::cmd::Query) traits.
 //!
 //!
 //! # Background
@@ -251,9 +75,9 @@
 //! machine for DEC's ANSI-compatible video
 //! terminals](https://vt100.net/emu/dec_ansi_parser) and the open source
 //! implementations for Alacritty's [vte](https://github.com/alacritty/vte) and
-//! Wezterm's [vtparse](https://github.com/wez/wezterm) crates, the
-//! [`VtScanner`] struct addresses the third challenge. Together, they make for
-//! a lean but functional terminal integration layer.
+//! Wezterm's [vtparse](https://github.com/wez/wezterm) crates, the [`Scanner`]
+//! struct addresses the third challenge. Together, they make for a lean but
+//! functional terminal integration layer.
 //!
 //! However, they won't meet all application needs. Notably, if your application
 //! requires async I/O, please consider using a more fully-featured terminal
@@ -332,15 +156,14 @@
 //! done. Potentially adding a future waker is easy as well: Just switch to
 //! `WaitForMultipleObjects`.
 
-mod escape;
 mod render;
+mod scan;
 mod slice;
 mod sys;
 mod terminal;
-mod utf8;
 
 pub(crate) use slice::{is_semi_colon, Radix, SliceExt};
 
-pub use escape::{Action, Control, VtScanner};
 pub use render::{write_nicely, ByteNicely};
+pub use scan::{Control, Error, Scanner, Token};
 pub use terminal::{terminal, Mode, OptionBuilder, Options, Terminal, TerminalAccess};

@@ -38,7 +38,7 @@ use std::io::{Result, Write};
 
 use super::{Theme, ThemeEntry};
 use crate::cmd::{Query, WriteCommand};
-use crate::term::{terminal, Options, TerminalAccess, VtScanner};
+use crate::term::{terminal, Options, Scanner, TerminalAccess};
 
 /// Use the terminal access and scanner to fill in the theme.
 ///
@@ -48,12 +48,12 @@ use crate::term::{terminal, Options, TerminalAccess, VtScanner};
 /// THIS FUNCTION IS NOT PART OF PRETTYPRETTY'S PUBLIC API!
 #[doc(hidden)]
 #[inline]
-pub fn query1(tty: &mut TerminalAccess, scanner: &mut VtScanner, theme: &mut Theme) -> Result<()> {
+pub fn query1(tty: &mut TerminalAccess, scanner: &mut Scanner, theme: &mut Theme) -> Result<()> {
     for entry in ThemeEntry::all() {
         tty.write_cmd(entry)?;
         tty.flush()?;
-        let response = scanner.scan_bytes(tty)?;
-        theme[entry] = <ThemeEntry as Query>::parse(&entry, response)?;
+        let payload = scanner.read_sequence(tty, entry.control())?;
+        theme[entry] = <ThemeEntry as Query>::parse(&entry, payload)?;
     }
 
     Ok(())
@@ -67,7 +67,7 @@ pub fn query1(tty: &mut TerminalAccess, scanner: &mut VtScanner, theme: &mut The
 /// THIS FUNCTION IS NOT PART OF PRETTYPRETTY'S PUBLIC API!
 #[doc(hidden)]
 #[inline]
-pub fn query2(tty: &mut TerminalAccess, scanner: &mut VtScanner, theme: &mut Theme) -> Result<()> {
+pub fn query2(tty: &mut TerminalAccess, scanner: &mut Scanner, theme: &mut Theme) -> Result<()> {
     for entry in ThemeEntry::all() {
         tty.write_cmd(entry)?;
     }
@@ -75,8 +75,8 @@ pub fn query2(tty: &mut TerminalAccess, scanner: &mut VtScanner, theme: &mut The
     tty.flush()?;
 
     for entry in ThemeEntry::all() {
-        let response = scanner.scan_bytes(tty)?;
-        theme[entry] = <ThemeEntry as Query>::parse(&entry, response)?;
+        let payload = scanner.read_sequence(tty, entry.control())?;
+        theme[entry] = <ThemeEntry as Query>::parse(&entry, payload)?;
     }
 
     Ok(())
@@ -90,7 +90,7 @@ pub fn query2(tty: &mut TerminalAccess, scanner: &mut VtScanner, theme: &mut The
 /// THIS FUNCTION IS NOT PART OF PRETTYPRETTY'S PUBLIC API!
 #[doc(hidden)]
 #[inline]
-pub fn query3(tty: &mut TerminalAccess, scanner: &mut VtScanner, theme: &mut Theme) -> Result<()> {
+pub fn query3(tty: &mut TerminalAccess, scanner: &mut Scanner, theme: &mut Theme) -> Result<()> {
     for entry in ThemeEntry::all() {
         tty.write_cmd(entry)?;
     }
@@ -98,8 +98,8 @@ pub fn query3(tty: &mut TerminalAccess, scanner: &mut VtScanner, theme: &mut The
     tty.flush()?;
 
     let mut all_responses = Vec::new();
-    for _entry in ThemeEntry::all() {
-        let response = scanner.scan_bytes(tty)?;
+    for entry in ThemeEntry::all() {
+        let response = scanner.read_sequence(tty, entry.control())?;
         all_responses.push(response.to_owned());
     }
 
@@ -115,9 +115,9 @@ pub fn query3(tty: &mut TerminalAccess, scanner: &mut VtScanner, theme: &mut The
 /// THIS FUNCTION IS NOT PART OF PRETTYPRETTY'S PUBLIC API!
 #[doc(hidden)]
 #[inline]
-pub fn prepare(verbose: bool) -> Result<(TerminalAccess<'static>, VtScanner, Theme)> {
+pub fn prepare(verbose: bool) -> Result<(TerminalAccess<'static>, Scanner, Theme)> {
     let tty = terminal().access_with(Options::builder().verbose(verbose).build())?;
-    let scanner = VtScanner::new();
+    let scanner = Scanner::new();
     let theme = Theme::default();
 
     Ok((tty, scanner, theme))
@@ -129,10 +129,10 @@ pub fn prepare(verbose: bool) -> Result<(TerminalAccess<'static>, VtScanner, The
 #[doc(hidden)]
 pub fn apply<F>(query: F, options: Options) -> Result<Theme>
 where
-    F: Fn(&mut TerminalAccess, &mut VtScanner, &mut Theme) -> Result<()>,
+    F: Fn(&mut TerminalAccess, &mut Scanner, &mut Theme) -> Result<()>,
 {
     let mut tty = terminal().access_with(options)?;
-    let mut scanner = VtScanner::new();
+    let mut scanner = Scanner::new();
     let mut theme = Theme::default();
     query(&mut tty, &mut scanner, &mut theme)?;
     Ok(theme)
