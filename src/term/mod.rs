@@ -1,19 +1,20 @@
 //! Optional utility module for terminal integration. <i
 //! class=term-only>Term only!</i>
 //!
-//! This module provides a simple and solid foundation for building terminal user
-//! interfaces. The benchmark is querying a terminal for its current color theme.
-//! Two abstractions stand out:
+//! This module interfaces with the process' controlling terminal. It manages
+//! the connection as well as the terminal's mode. It also provides read and
+//! write access, including for arbitrary ANSI escape sequences.
 //!
-//!   - [`Terminal`] represents the controlling terminal. It is accessed with
-//!     [`terminal()`] and provides access to terminal I/O with
-//!     [`TerminalAccess`].
-//!   - [`Scanner`] implements the state machine for recognizing UTF-8 and
-//!     ANSI escape sequences.
+//! **Access controlling terminal with [`terminal()`]**. You can manually manage
+//! the connection with [`Terminal::connect`] / [`Terminal::connect_with`] and
+//! [`Terminal::disconnect`] or automatically connect with [`Terminal::access`]
+//! / [`Terminal::access_with`]. Since manual connection management requires
+//! explicit tear down, both `connect` and `connect_with` are unsafe.
 //!
-//! When combined with [`Theme`](crate::theme::Theme) and
-//! [`ThemeEntry`](crate::theme::ThemeEntry), querying the terminal for its
-//! color theme becomes fairly straightforward.
+//! **Perform I/O with [`TerminalAccess`]**, which provides exclusive access to
+//! the terminal. [`Scanner`] implements state machines for UTF-8 and ANSI
+//! escape sequences, thereby turning individual bytes into tokens for text,
+//! control characters, and control sequences.
 //!
 //!
 //! # Examples

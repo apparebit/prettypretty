@@ -1,27 +1,23 @@
 //! Controlling the terminal with ANSI escape sequences.
 //!
-//! [`Command`] is an instruction to change a terminal's screen, cursor,
-//! content, or some such. To execute a command, you either write its display to
-//! the terminal's output or error stream or use the [`WriteCommand`] extension
-//! trait to skip Rust's rather heavyweight display facility. The command's
-//! implementation then writes the necessary ANSI escape sequence to the
-//! terminal. This works even on Windows, which added support in Windows 10 TH2
-//! (v1511).
+//! This module uses three traits to represent ANSI escape sequences:
 //!
-//! [`Query`] encapsulates the functionality for scanning and parsing the
-//! response returned by a terminal after receiving the corresponding request.
-//! An implementation defines the [`Query::Response`] type, [`Query::control`]
-//! for accessing the control value, and [`Query::parse`] for parsing the
-//! response payload.
+//!   * A *command* instructs a terminal to do something differently. Since
+//!     doing so requires writing an ANSI escape sequence to the terminal's
+//!     output, this module reuses the `Display` trait for commands.
+//!   * [`Sgr`] is a special command using SGR escape sequences. Since
+//!     [`Sgr::write_param`] writes only the parameter, it enables composition
+//!     of several SGR commands with the [`sgr`](crate::sgr) macro into a
+//!     single, compound ANSI escape sequence.
+//!   * [`Query`] is a special command that expects a response from the terminal
+//!     in form of another ANSI escape sequence and knows how to parse the
+//!     payload of that sequence.
 //!
-//! This modules also implements a library of useful commands. Each command
-//! implements the `Debug` and `Display` traits as well. The `Debug`
-//! representation is the usual datatype representation, whereas the `Display`
-//! representation is the ANSI escape sequence. As a result, all commands
-//! defined by this module can be directly written to terminal output, just like
-//! [`Style`](crate::style::Style) and [`ThemeEntry`](crate::theme::ThemeEntry).
 //!
-//! The core library includes the following commands:
+//! # Command Library
+//!
+//! This modules also implements a library of useful commands. It covers the
+//! following features and commands:
 //!
 //!   * Terminal management:
 //!       * [`RequestTerminalId`]
@@ -65,29 +61,10 @@
 //!
 
 #![allow(dead_code)]
-use std::io::{Error, ErrorKind, Result};
 
+use std::io::{Error, ErrorKind, Result};
 use crate::term::{is_semi_colon, Control, Radix, SliceExt};
 
-/// A terminal command.
-///
-/// This trait effectively is a domain-specific `Display`.
-/// Every command has its own ANSI escape sequence. Simple commands have no
-/// parameters and hence always produce the same escape sequence. They are
-/// implemented as zero-sized types. In contrast, parameterized commands require
-/// storage space.
-pub trait Command {
-    /// Write out the command's ANSI escape sequence.
-    fn write_ansi(&self, out: &mut impl std::fmt::Write) -> std::fmt::Result;
-}
-
-impl<C: Command + ?Sized> Command for &C {
-    fn write_ansi(&self, out: &mut impl std::fmt::Write) -> std::fmt::Result {
-        (*self).write_ansi(out)
-    }
-}
-
-// -------------------------------------------------------------------------------------
 
 /// A command that uses the select-graphic-rendition ANSI escape sequence.
 ///
@@ -98,7 +75,7 @@ impl<C: Command + ?Sized> Command for &C {
 /// parameter(s), and suffix. More importantly, a separate
 /// [`write_sgr`](crate::write_sgr) macro composes several SGR commands into a
 /// single ANSI escape sequence.
-pub trait Sgr {
+pub trait Sgr: std::fmt::Display {
     /// Write the parameter(s) for this SGR command.
     fn write_param(&self, out: &mut impl ::std::fmt::Write) -> ::std::fmt::Result;
 }
@@ -123,7 +100,7 @@ impl<S: Sgr + ?Sized> Sgr for &S {
 /// two-stage approach, which first writes all 18 requests and then reads all 18
 /// responses, is faster than a one-stage or three-stage approach (with the
 /// latter separating scanning and parsing into two distinct stages).
-pub trait Query {
+pub trait Query: std::fmt::Display {
     /// The type of the response data.
     type Response;
 
@@ -147,92 +124,28 @@ impl<Q: Query + ?Sized> Query for &Q {
     }
 }
 
-// -------------------------------------------------------------------------------------
-
-/// Write a command to a stream.
-///
-/// This trait is implemented for all `std::io::Write` streams.
-pub trait WriteCommand {
-    fn write_cmd<C: Command>(&mut self, command: C) -> std::io::Result<()>;
-}
-
-/// An adapter for turning `std::io::Write` into `std::fmt::Write`.
-#[doc(hidden)]
-pub struct Adapter<T> {
-    inner: T,
-    result: std::io::Result<()>,
-}
-
-impl<T> Adapter<T> {
-    /// Create a new adapter for the writer.
-    pub fn new(inner: T) -> Self {
-        Self {
-            inner,
-            result: Ok(()),
-        }
-    }
-}
-
-impl<W: std::io::Write> std::fmt::Write for Adapter<W> {
-    fn write_str(&mut self, s: &str) -> std::fmt::Result {
-        self.inner.write_all(s.as_bytes()).map_err(|e| {
-            // Record the std::io::Error and replace with std::fmt::Error.
-            self.result = Err(e);
-            std::fmt::Error
-        })
-    }
-}
-
-impl<W: std::io::Write> WriteCommand for W {
-    fn write_cmd<C: Command>(&mut self, command: C) -> std::io::Result<()> {
-        let mut adapter = Adapter {
-            inner: self,
-            result: Ok(()),
-        };
-
-        command
-            .write_ansi(&mut adapter)
-            .map_err(|_| match adapter.result {
-                Ok(_) => panic!(
-                    "<{}>::write_ansi() unexpectedly returned error",
-                    std::any::type_name::<C>()
-                ),
-                // Restore std::io::Error.
-                Err(error) => error,
-            })
-    }
-}
-
-/// Helper macro to write several SGR commands as a *single* ANSI escape
-/// sequence.
-///
-/// The first argument is an `std::io::Write` and all subsequent arguments
-/// implement [`Sgr`].
+/// Macro to combine several SGR commands into a single ANSI escape sequence.
 #[macro_export]
-macro_rules! write_sgr {
-    ( $stream:expr, $sgr:expr, $( $sgr2:expr ),* $(,)? ) => {
-        {
-            use std::fmt::Write;
-            use $crate::cmd::Sgr;
+macro_rules! sgr {
+    ( $sgr:expr, $( $sgr2:expr ),* $(,)? ) => {{
+        use $crate::cmd::Sgr;
 
-            let mut out = $crate::cmd::Adapter::new($stream.by_ref());
+        struct SgrSeq;
 
-            Ok(()).and_then(|()| {
-                out.write_str("\x1b[")?;
-                $sgr.write_param(&mut out)?;
+        impl std::fmt::Display for SgrSeq {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("\x1b[")?;
+                $sgr.write_param(f)?;
                 $(
-                    out.write_str(";")?;
-                    $sgr2.write_param(&mut out)?;
+                    f.write_str(";")?;
+                    $sgr2.write_param(f)?;
                 )*
-                out.write_str("m")
-            })
-            .map_err(|_| match out.result {
-                Ok(_) => panic!("write_param() unexpectedly returned error"),
-                // Restore std::io::Error.
-                Err(error) => error,
-            })
+                f.write_str("m")
+            }
         }
-    };
+
+        SgrSeq
+    }};
 }
 
 // =================================== Local Macros ====================================
@@ -249,10 +162,10 @@ macro_rules! define_simple_struct {
 
 macro_rules! define_expr_impl {
     ($name:ident { $repr:expr }) => {
-        impl crate::cmd::Command for $name {
+        impl std::fmt::Display for $name {
             #[inline]
-            fn write_ansi(&self, out: &mut impl std::fmt::Write) -> std::fmt::Result {
-                out.write_str($repr)
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str($repr)
             }
         }
     };
@@ -267,10 +180,10 @@ macro_rules! define_sgr_impl {
             }
         }
 
-        impl crate::cmd::Command for $name {
+        impl std::fmt::Display for $name {
             #[inline]
-            fn write_ansi(&self, out: &mut impl ::std::fmt::Write) -> std::fmt::Result {
-                out.write_str(concat!("\x1b[", $repr, "m"))
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(concat!("\x1b[", $repr, "m"))
             }
         }
     };
@@ -278,30 +191,19 @@ macro_rules! define_sgr_impl {
 
 macro_rules! define_impl {
     ($name:ident : $selfish:ident ; $output:ident $body:block ) => {
-        impl crate::cmd::Command for $name {
+        impl std::fmt::Display for $name {
             #[inline]
-            fn write_ansi(&$selfish, $output: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
+            fn fmt(&$selfish, $output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 $body
             }
         }
     }
 }
 
-macro_rules! define_display {
-    ($name:ident) => {
-        impl std::fmt::Display for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                self.write_ansi(f)
-            }
-        }
-    };
-}
-
 macro_rules! define_simple_command {
     ($name:ident, $ansi:tt) => {
         define_simple_struct!($name);
         define_expr_impl!($name { $ansi });
-        define_display!($name);
     };
 }
 
@@ -309,7 +211,6 @@ macro_rules! define_simple_sgr {
     ($name:ident, $ansi:tt) => {
         define_simple_struct!($name);
         define_sgr_impl!($name { $ansi });
-        define_display!($name);
     };
 }
 
@@ -319,14 +220,13 @@ macro_rules! define_single_arg_command {
         #[doc = stringify!($name)]
         #[doc = "(‹n›)` command"]
         #[derive(Clone, Debug, PartialEq, Eq)]
-        pub struct $name($type);
+        pub struct $name(pub $type);
 
-        define_impl!($name: self; out {
-            out.write_str($prefix)?;
-            write!(out, "{}", self.0)?;
-            out.write_str($suffix)
+        define_impl!($name: self; f {
+            f.write_str($prefix)?;
+            write!(f, "{}", self.0)?;
+            f.write_str($suffix)
         });
-        define_display!($name);
     };
 }
 
@@ -336,18 +236,17 @@ macro_rules! define_triple_arg_command {
         #[doc = stringify!($name)]
         #[doc = "(‹r›, ‹g›, ‹b›)` command"]
         #[derive(Clone, Debug, PartialEq, Eq)]
-        pub struct $name($type, $type, $type);
+        pub struct $name(pub $type, pub $type, pub $type);
 
-        define_impl!($name: self; out {
-            out.write_str($prefix)?;
-            write!(out, "{}", self.0)?;
-            out.write_str(";")?;
-            write!(out, "{}", self.1)?;
-            out.write_str(";")?;
-            write!(out, "{}", self.2)?;
-            out.write_str($suffix)
+        define_impl!($name: self; f {
+            f.write_str($prefix)?;
+            write!(f, "{}", self.0)?;
+            f.write_str(";")?;
+            write!(f, "{}", self.1)?;
+            f.write_str(";")?;
+            write!(f, "{}", self.2)?;
+            f.write_str($suffix)
         });
-        define_display!($name);
     };
 }
 
@@ -408,10 +307,10 @@ define_simple_command!(EraseLine, "\x1b[2K");
 #[derive(Clone, Copy, Debug)]
 pub struct RequestScreenSize;
 
-impl Command for RequestScreenSize {
-    fn write_ansi(&self, out: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
-        MoveTo(999, 999).write_ansi(out)?;
-        RequestCursorPosition.write_ansi(out)
+impl std::fmt::Display for RequestScreenSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        MoveTo(999, 999).fmt(f)?;
+        RequestCursorPosition.fmt(f)
     }
 }
 
@@ -448,7 +347,6 @@ define_impl!(MoveTo: self; out {
     out.write_fmt(format_args!("{}", self.1))?;
     out.write_str("H")
 });
-define_display!(MoveTo);
 
 define_single_arg_command!(MoveToColumn: u16, "\x1b[", "G");
 define_single_arg_command!(MoveToRow: u16, "\x1b[", "d");
@@ -457,7 +355,6 @@ define_single_arg_command!(MoveToRow: u16, "\x1b[", "d");
 #[derive(Clone, Copy, Debug)]
 pub struct RequestCursorPosition;
 define_expr_impl!(RequestCursorPosition { "\x1b[6n" });
-define_display!(RequestCursorPosition);
 
 impl Query for RequestCursorPosition {
     /// The row and column of the cursor in that order.
@@ -579,7 +476,6 @@ pub fn link(href: impl AsRef<str>, text: impl AsRef<str>) -> Link {
 }
 
 define_impl!(Link: self; out { out.write_str(&self.0) } );
-define_display!(Link);
 
 /// The 1-ary `Print(‹displayable›)` command.
 pub struct Print<D>(D);
@@ -595,12 +491,6 @@ impl<D: std::fmt::Debug> std::fmt::Debug for Print<D> {
         f.write_str("Print(")?;
         self.0.fmt(f)?;
         f.write_str(")")
-    }
-}
-
-impl<D: std::fmt::Display> Command for Print<D> {
-    fn write_ansi(&self, out: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
-        write!(out, "{}", self.0)
     }
 }
 
@@ -734,8 +624,9 @@ mod test {
 
     #[test]
     fn test_sgr() -> std::io::Result<()> {
+        let bold_underline = sgr!(FormatBold, FormatUnderlined);
         let mut sink = Vec::new();
-        write_sgr!(sink, FormatBold, FormatUnderlined)?;
+        write!(sink, "{}", bold_underline)?;
 
         assert_eq!(String::from_utf8(sink).unwrap(), "\x1b[1;4m");
         Ok(())

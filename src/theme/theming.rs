@@ -1,7 +1,7 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use crate::cmd::{Command, Query};
+use crate::cmd::Query;
 use crate::core::parse_x;
 use crate::error::{ColorFormatError, OutOfBoundsError};
 use crate::style::{AnsiColor, Layer};
@@ -317,12 +317,6 @@ pub(crate) fn into_theme_entry(obj: &Bound<'_, PyAny>) -> PyResult<ThemeEntry> {
                 Layer::Background => ThemeEntry::DefaultBackground(),
             })
         })
-}
-
-impl Command for ThemeEntry {
-    fn write_ansi(&self, out: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
-        write!(out, "{}", self)
-    }
 }
 
 impl Query for ThemeEntry {

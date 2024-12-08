@@ -234,6 +234,7 @@ impl Scanner {
 
         if 0 < index {
             self.buffer.start_token();
+            self.buffer.consume_many(index);
             self.buffer.retain_many(index);
         }
 

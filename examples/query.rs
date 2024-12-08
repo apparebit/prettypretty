@@ -2,6 +2,7 @@
 use std::error::Error;
 use std::io::{Result, Write};
 
+use prettypretty::cmd::{FormatBold, SetForeground8, ResetStyle};
 use prettypretty::term::{terminal, Options, Scanner, TerminalAccess};
 use prettypretty::theme;
 
@@ -9,7 +10,7 @@ pub fn report<R>(result: Result<R>) {
     match result {
         Ok(_) => (),
         Err(error) => {
-            println!("ERROR {}", error);
+            println!("{}{}ERROR {}{}", FormatBold, SetForeground8(1), error, ResetStyle);
 
             let mut error: &dyn Error = &error;
             loop {
@@ -49,11 +50,11 @@ impl Runner {
         match result {
             Ok(_) => {
                 self.passed += 1;
-                write!(tty, "    PASS {}\r\n", label)?;
+                write!(tty, "    {}PASS{} {}\r\n", FormatBold, ResetStyle, label)?;
                 tty.flush()?;
             }
             Err(ref error) => {
-                write!(tty, "    FAIL {}\r\n", label)?;
+                write!(tty, "    {}FAIL{} {}\r\n", FormatBold, ResetStyle, label)?;
 
                 let mut error: &dyn Error = error;
                 loop {
@@ -72,8 +73,9 @@ impl Runner {
     }
 
     fn summary(&self) -> Result<()> {
-        let msg = format!("{}/{} runs passed", self.passed, self.runs);
-        println!("{}", &msg);
+        let msg = format!("\n{}/{} runs passed", self.passed, self.runs);
+        let clr = if self.passed == self.runs { 2 } else { 1 };
+        println!("{}{}{}{}", FormatBold, SetForeground8(clr), &msg, ResetStyle);
 
         if self.passed < self.runs {
             Err(std::io::Error::other(msg))

@@ -37,7 +37,7 @@
 use std::io::{Result, Write};
 
 use super::{Theme, ThemeEntry};
-use crate::cmd::{Query, WriteCommand};
+use crate::cmd::Query;
 use crate::term::{terminal, Options, Scanner, TerminalAccess};
 
 /// Use the terminal access and scanner to fill in the theme.
@@ -50,7 +50,7 @@ use crate::term::{terminal, Options, Scanner, TerminalAccess};
 #[inline]
 pub fn query1(tty: &mut TerminalAccess, scanner: &mut Scanner, theme: &mut Theme) -> Result<()> {
     for entry in ThemeEntry::all() {
-        tty.write_cmd(entry)?;
+        write!(tty, "{}", entry)?;
         tty.flush()?;
         let payload = scanner.read_sequence(tty, entry.control())?;
         theme[entry] = <ThemeEntry as Query>::parse(&entry, payload)?;
@@ -69,7 +69,7 @@ pub fn query1(tty: &mut TerminalAccess, scanner: &mut Scanner, theme: &mut Theme
 #[inline]
 pub fn query2(tty: &mut TerminalAccess, scanner: &mut Scanner, theme: &mut Theme) -> Result<()> {
     for entry in ThemeEntry::all() {
-        tty.write_cmd(entry)?;
+        write!(tty, "{}", entry)?;
     }
 
     tty.flush()?;
@@ -92,7 +92,7 @@ pub fn query2(tty: &mut TerminalAccess, scanner: &mut Scanner, theme: &mut Theme
 #[inline]
 pub fn query3(tty: &mut TerminalAccess, scanner: &mut Scanner, theme: &mut Theme) -> Result<()> {
     for entry in ThemeEntry::all() {
-        tty.write_cmd(entry)?;
+        write!(tty, "{}", entry)?;
     }
 
     tty.flush()?;

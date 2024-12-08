@@ -96,21 +96,22 @@ impl Buffer {
         self.cursor = new_cursor;
     }
 
-    /// Consume and retain the given number of bytes.
+    /// Retain the given number of bytes.
     ///
-    /// This method panics if the count is larger than the number of unread
-    /// bytes.
+    /// This method panics if the token doesn't end at least count bytes before
+    /// the cursor.
     pub fn retain_many(&mut self, count: usize) {
-        let new_cursor = self.cursor.saturating_add(count);
-        assert!(new_cursor <= self.filled);
-
-        let count = new_cursor - self.cursor;
-        if 0 < count {
-            self.data
-                .copy_within(self.cursor..new_cursor, self.token_end);
+        assert!(self.token_end + count <= self.cursor);
+        let many_start = self.cursor - count;
+        if self.token_start == self.token_end {
+            self.token_start = many_start;
+            self.token_end = self.cursor;
+        } else {
+            if self.token_end + count < self.cursor {
+                self.data.copy_within(many_start..self.cursor, self.token_end);
+            }
+            self.token_end += count;
         }
-        self.token_end += count;
-        self.cursor = new_cursor;
     }
 
     /// Get the token's value.
