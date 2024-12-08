@@ -5,7 +5,7 @@ use crate::cmd::{Command, Query};
 use crate::core::parse_x;
 use crate::error::{ColorFormatError, OutOfBoundsError};
 use crate::style::{AnsiColor, Layer};
-use crate::term::Options;
+use crate::term::{Control, Options};
 use crate::{rgb, Color, ColorSpace};
 
 /// A color theme.
@@ -328,8 +328,8 @@ impl Command for ThemeEntry {
 impl Query for ThemeEntry {
     type Response = Color;
 
-    fn is_valid(&self, control: crate::term::Control) -> bool {
-        control == crate::term::Control::CSI
+    fn control(&self) -> Control {
+        Control::OSC
     }
 
     fn parse(&self, payload: &[u8]) -> std::io::Result<Self::Response> {
