@@ -2,7 +2,7 @@
 use std::error::Error;
 use std::io::{Result, Write};
 
-use prettypretty::cmd::{FormatBold, SetForeground8, ResetStyle};
+use prettypretty::cmd::{FormatBold, ResetStyle, SetForeground8};
 use prettypretty::term::{terminal, Options, Scanner, TerminalAccess};
 use prettypretty::theme;
 
@@ -10,7 +10,13 @@ pub fn report<R>(result: Result<R>) {
     match result {
         Ok(_) => (),
         Err(error) => {
-            println!("{}{}ERROR {}{}", FormatBold, SetForeground8(1), error, ResetStyle);
+            println!(
+                "{}{}ERROR {}{}",
+                FormatBold,
+                SetForeground8(1),
+                error,
+                ResetStyle
+            );
 
             let mut error: &dyn Error = &error;
             loop {
@@ -75,7 +81,13 @@ impl Runner {
     fn summary(&self) -> Result<()> {
         let msg = format!("\n{}/{} runs passed", self.passed, self.runs);
         let clr = if self.passed == self.runs { 2 } else { 1 };
-        println!("{}{}{}{}", FormatBold, SetForeground8(clr), &msg, ResetStyle);
+        println!(
+            "{}{}{}{}",
+            FormatBold,
+            SetForeground8(clr),
+            &msg,
+            ResetStyle
+        );
 
         if self.passed < self.runs {
             Err(std::io::Error::other(msg))

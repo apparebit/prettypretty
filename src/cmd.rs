@@ -62,9 +62,8 @@
 
 #![allow(dead_code)]
 
-use std::io::{Error, ErrorKind, Result};
 use crate::term::{is_semi_colon, Control, Radix, SliceExt};
-
+use std::io::{Error, ErrorKind, Result};
 
 /// A command that uses the select-graphic-rendition ANSI escape sequence.
 ///

@@ -108,7 +108,8 @@ impl Buffer {
             self.token_end = self.cursor;
         } else {
             if self.token_end + count < self.cursor {
-                self.data.copy_within(many_start..self.cursor, self.token_end);
+                self.data
+                    .copy_within(many_start..self.cursor, self.token_end);
             }
             self.token_end += count;
         }
