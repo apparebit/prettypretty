@@ -157,14 +157,13 @@
 //! done. Potentially adding a future waker is easy as well: Just switch to
 //! `WaitForMultipleObjects`.
 
-mod render;
 mod scan;
-mod slice;
 mod sys;
 mod terminal;
+mod util;
 
-pub(crate) use slice::{is_semi_colon, Radix, SliceExt};
+pub(crate) use util::{is_semi_colon, Radix, SliceExt};
 
-pub use render::{write_nicely, ByteNicely};
 pub use scan::{Control, Error, Scanner, Token};
 pub use terminal::{terminal, Mode, OptionBuilder, Options, Terminal, TerminalAccess};
+pub use util::{write_nicely, write_nicely_with_column};

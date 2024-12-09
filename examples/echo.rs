@@ -10,7 +10,7 @@ use std::error::Error;
 use std::io::{stdout, IsTerminal, Read};
 
 use prettypretty::style::{stylist, Fidelity, Stylist};
-use prettypretty::term::{terminal, write_nicely};
+use prettypretty::term::{terminal, write_nicely_with_column};
 use prettypretty::theme::{Theme, ThemeEntry};
 use prettypretty::trans::Translator;
 use prettypretty::OkVersion;
@@ -42,7 +42,7 @@ fn run() -> std::io::Result<()> {
     ))?;
 
     let mut iterations = 0;
-    let mut written = 0;
+    let mut column = 0;
 
     tty.print(format!("{}", GRAY))?;
     loop {
@@ -52,43 +52,42 @@ fn run() -> std::io::Result<()> {
             break;
         }
 
-        if 70 < written {
+        if 70 < column {
             tty.print("\r\n")?;
-            written = 0;
+            column = 0;
         }
 
         let mut buffer = [0; 32];
         let count = tty.read(&mut buffer)?;
         if count == 0 {
             tty.print("◦")?;
-            written += 1;
+            column += 1;
             continue;
         }
 
         tty.print(format!("〈{}", !GRAY))?;
-        written += 2;
+        column += 2;
 
         let mut terminate = false;
         let mut query = None;
 
-        for b in buffer.iter().take(count) {
-            written += write_nicely(*b, &mut tty)?;
+        // By passing column 0, we should avoid linebreaks inside write_nicely.
+        column += write_nicely_with_column(&buffer[..count], &mut tty, 0)?;
 
-            if *b == b'q' {
-                terminate = true;
-            } else if *b == b't' {
-                let mut entry = entries.next();
-                if entry.is_none() {
-                    entries = ThemeEntry::all();
-                    entry = entries.next();
-                }
-
-                query = Some(entry.unwrap());
+        if buffer.contains(&b'q') {
+            terminate = true;
+        } else if buffer.contains(&b't') {
+            let mut entry = entries.next();
+            if entry.is_none() {
+                entries = ThemeEntry::all();
+                entry = entries.next();
             }
+
+            query = Some(entry.unwrap());
         }
 
         tty.print(format!("{}〉", GRAY))?;
-        written += 2;
+        column += 2;
 
         if terminate {
             tty.print(format!("{}", RESET))?;

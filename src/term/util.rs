@@ -1,5 +1,80 @@
 //! Utility module to bridge the gap between `str` and `[u8]`.
 
+/// Format the bytes with the given writer.
+///
+/// This function assumes that it starts writing at the first column. It also
+/// assumes that the writer is buffered. The result is the wrapped column number
+/// after formatting the slice.
+pub fn write_nicely(bytes: &[u8], writer: &mut impl std::io::Write) -> std::io::Result<usize> {
+    write_nicely_with_column(bytes, writer, 0)
+}
+
+/// Format the bytes with the given writer and column number.
+///
+/// This function assumes that the writer is buffered. The result is the wrapped
+/// column number after formattting the slice.
+pub fn write_nicely_with_column(
+    bytes: &[u8],
+    writer: &mut impl std::io::Write,
+    column: usize,
+) -> std::io::Result<usize> {
+    let mut column = column;
+    for byte in bytes.iter() {
+        if 70 <= column {
+            writer.write_all("\n".as_bytes())?;
+            writer.flush()?;
+            column = 0;
+        }
+
+        if (0x20..=0x7e).contains(byte) {
+            writer.write_all(&[*byte])?;
+            column += 1;
+            continue;
+        }
+
+        let replacement = match *byte {
+            // ‹› are 3 bytes each in UTF8, the math letters are 4 bytes each
+            0x08 => "‹𝖻s›",
+            0x0a => "‹𝗇𝗅›",
+            0x1d => "‹𝖼𝗋›",
+            0x9c => "‹𝗌𝗍›",
+            0x9e => "‹𝗉𝗆›",
+            _ => "",
+        };
+        if !replacement.is_empty() {
+            writer.write_all(replacement.as_bytes())?;
+            column += 4;
+            continue;
+        }
+
+        let replacement = match *byte {
+            // ‹› are 3 bytes each in UTF8, the math letters are 4 bytes each
+            0x07 => "‹𝖻𝖾𝗅›",
+            0x09 => "‹𝗍𝖺𝖻›",
+            0x1b => "‹𝖾𝗌𝖼›",
+            0x7f => "‹𝖽𝖾𝗅›",
+            0x90 => "‹𝖽𝖼𝗌›",
+            0x98 => "‹𝗌𝗈𝗌›",
+            0x9b => "‹𝖼𝗌𝗂›",
+            0x9d => "‹𝗈𝗌𝖼›",
+            0x9f => "‹𝖺𝗉𝖼›",
+            _ => "",
+        };
+        if !replacement.is_empty() {
+            writer.write_all(replacement.as_bytes())?;
+            column += 5;
+            continue;
+        }
+
+        writer.write_fmt(format_args!("‹{:02x}›", *byte))?;
+        column += 4;
+    }
+
+    Ok(column)
+}
+
+// ------------------------------------------------------------------------------------------------
+
 /// A choice of radix for converting byte slices to integers.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Radix {
@@ -92,7 +167,7 @@ impl SliceExt for [u8] {
     }
 }
 
-/// Determine whether the byte is a semicolon or colon.
+/// Determine whether the byte is a semi colon, i.e., semicolon or colon.
 pub(crate) fn is_semi_colon(b: &u8) -> bool {
     *b == b';' || *b == b':'
 }
