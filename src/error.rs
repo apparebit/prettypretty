@@ -183,7 +183,7 @@ pub struct ThemeError {
 
 impl ThemeError {
     /// Create a new theme error.
-    pub fn new(kind: ThemeErrorKind, source: Box<dyn std::error::Error + Sync + Send>) -> Self {
+    pub fn new(kind: ThemeErrorKind, source: Box<dyn std::error::Error + Send + Sync>) -> Self {
         Self {
             kind,
             source: Some(source),
