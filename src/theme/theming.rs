@@ -1,7 +1,7 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use crate::cmd::Query;
+use crate::cmd::{Command, Query};
 use crate::core::parse_x;
 use crate::error::{ColorFormatError, OutOfBoundsError};
 use crate::style::{AnsiColor, Layer};
@@ -319,18 +319,7 @@ pub(crate) fn into_theme_entry(obj: &Bound<'_, PyAny>) -> PyResult<ThemeEntry> {
         })
 }
 
-impl Query for ThemeEntry {
-    type Response = Color;
-
-    fn control(&self) -> Control {
-        Control::OSC
-    }
-
-    fn parse(&self, payload: &[u8]) -> std::io::Result<Self::Response> {
-        self.parse(payload)
-            .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidData))
-    }
-}
+impl Command for ThemeEntry {}
 
 impl std::fmt::Display for ThemeEntry {
     /// Get an ANSI escape sequence to query a terminal for this theme entry's
@@ -341,6 +330,19 @@ impl std::fmt::Display for ThemeEntry {
             Self::DefaultBackground() => f.write_str("\x1b]11;?\x1b\\"),
             Self::Ansi(color) => f.write_fmt(format_args!("\x1b]4;{};?\x1b\\", *color as u8)),
         }
+    }
+}
+
+impl Query for ThemeEntry {
+    type Response = Color;
+
+    fn control(&self) -> Control {
+        Control::OSC
+    }
+
+    fn parse(&self, payload: &[u8]) -> std::io::Result<Self::Response> {
+        self.parse(payload)
+            .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidData))
     }
 }
 
