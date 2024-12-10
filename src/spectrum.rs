@@ -33,7 +33,7 @@
     feature = "pyffi",
     doc = "  * [`Illuminant`] is an implementation of
         `SpectralDistribution<Value=Float>` that wraps a `Box<dyn
-         SpectralDistribution<Value=Float> + Send>`."
+         SpectralDistribution<Value=Float> + Send + Sync>`."
 )]
 //!   * [`IlluminatedObserver`] is a table-driven implementation of
 //!     `SpectralDistribution<Value=[Float;3]>`. Its data is the
@@ -153,16 +153,13 @@ pub trait SpectralDistribution {
 #[cfg(feature = "pyffi")]
 #[pyclass(frozen, module = "prettypretty.color.trans")]
 pub struct Illuminant {
-    distribution: Box<dyn SpectralDistribution<Value = Float> + Send>,
+    distribution: Box<dyn SpectralDistribution<Value = Float> + Send + Sync>,
 }
-
-#[cfg(feature = "pyffi")]
-unsafe impl std::marker::Sync for Illuminant {}
 
 #[cfg(feature = "pyffi")]
 impl Illuminant {
     /// Create a new illuminant.
-    pub fn new(distribution: Box<dyn SpectralDistribution<Value = Float> + Send>) -> Self {
+    pub fn new(distribution: Box<dyn SpectralDistribution<Value = Float> + Send + Sync>) -> Self {
         Self { distribution }
     }
 }

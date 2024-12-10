@@ -453,17 +453,17 @@ fn register_modgamut(m: &Bound<'_, PyModule>) -> PyResult<()> {
     modspectrum.add(
         "CIE_ILLUMINANT_D50",
         spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_D50.clone())
-            as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send>),
+            as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send + Sync>),
     )?;
     modspectrum.add(
         "CIE_ILLUMINANT_D65",
         spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_D65.clone())
-            as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send>),
+            as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send + Sync>),
     )?;
     modspectrum.add(
         "CIE_ILLUMINANT_E",
         spectrum::Illuminant::new(Box::new(spectrum::CIE_ILLUMINANT_E.clone())
-            as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send>),
+            as Box<dyn spectrum::SpectralDistribution<Value = Float> + Send + Sync>),
     )?;
     modspectrum.add(
         "CIE_OBSERVER_2DEG_1931",
