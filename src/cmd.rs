@@ -164,18 +164,7 @@ macro_rules! declare_struct {
     };
 }
 
-macro_rules! define_expr_impl {
-    ($name:ident { $repr:expr }) => {
-        impl std::fmt::Display for $name {
-            #[inline]
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.write_str($repr)
-            }
-        }
-    };
-}
-
-macro_rules! implement_display_sgr {
+macro_rules! implement_command_sgr {
     ($name:ident { $repr:expr }) => {
         impl crate::cmd::Command for $name {}
 
@@ -195,7 +184,7 @@ macro_rules! implement_display_sgr {
     };
 }
 
-macro_rules! implement_display_expr {
+macro_rules! implement_command_expr {
     ($name:ident { $repr:expr }) => {
         impl crate::cmd::Command for $name {}
 
@@ -208,7 +197,7 @@ macro_rules! implement_display_expr {
     };
 }
 
-macro_rules! implement_display {
+macro_rules! implement_command {
     ($name:ident : $selfish:ident ; $output:ident $body:block ) => {
         impl crate::cmd::Command for $name {}
 
@@ -224,14 +213,14 @@ macro_rules! implement_display {
 macro_rules! define_sgr {
     ($name:ident, $ansi:tt) => {
         declare_struct!($name);
-        implement_display_sgr!($name { $ansi });
+        implement_command_sgr!($name { $ansi });
     };
 }
 
 macro_rules! define_command0 {
     ($name:ident, $ansi:tt) => {
         declare_struct!($name);
-        implement_display_expr!($name { $ansi });
+        implement_command_expr!($name { $ansi });
     };
 }
 
@@ -241,7 +230,7 @@ macro_rules! define_command1 {
         #[derive(Clone, Debug, PartialEq, Eq)]
         pub struct $name(pub $typ);
 
-        implement_display!($name: self; f {
+        implement_command!($name: self; f {
             f.write_str($prefix)?;
             write!(f, "{}", self.0)?;
             f.write_str($suffix)
@@ -255,7 +244,7 @@ macro_rules! define_command3 {
         #[derive(Clone, Debug, PartialEq, Eq)]
         pub struct $name(pub $typ, pub $typ, pub $typ);
 
-        implement_display!($name: self; f {
+        implement_command!($name: self; f {
             f.write_str($prefix)?;
             write!(f, "{}", self.0)?;
             f.write_str(";")?;
@@ -272,7 +261,7 @@ macro_rules! define_command3 {
 // -------------------------------- Terminal Management --------------------------------
 
 declare_struct!(RequestTerminalId);
-implement_display_expr!(RequestTerminalId { "\x1b[>q" });
+implement_command_expr!(RequestTerminalId { "\x1b[>q" });
 
 impl Query for RequestTerminalId {
     type Response = (Option<Vec<u8>>, Option<Vec<u8>>);
@@ -359,7 +348,7 @@ define_command1!(MoveRight: u16, "\x1b[", "D");
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MoveTo(pub u16, pub u16);
 
-implement_display!(MoveTo: self; out {
+implement_command!(MoveTo: self; out {
     out.write_str("\x1b[")?;
     out.write_fmt(format_args!("{}", self.0))?;
     out.write_str(";")?;
@@ -374,7 +363,7 @@ define_command1!(MoveToRow: u16, "\x1b[", "d");
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RequestCursorPosition;
 
-implement_display_expr!(RequestCursorPosition { "\x1b[6n" });
+implement_command_expr!(RequestCursorPosition { "\x1b[6n" });
 
 impl Query for RequestCursorPosition {
     /// The row and column of the cursor in that order.
@@ -426,7 +415,7 @@ pub enum BatchMode {
 }
 
 declare_struct!(RequestBatchMode);
-implement_display_expr!(RequestBatchMode { "\x1b[?2026$p" });
+implement_command_expr!(RequestBatchMode { "\x1b[?2026$p" });
 
 impl Query for RequestBatchMode {
     type Response = BatchMode;
@@ -496,7 +485,7 @@ pub fn link(href: impl AsRef<str>, text: impl AsRef<str>) -> Link {
     Link::new(None, href, text)
 }
 
-implement_display!(Link: self; out { out.write_str(&self.0) } );
+implement_command!(Link: self; out { out.write_str(&self.0) } );
 
 // --------------------------------- Style Management ----------------------------------
 
@@ -546,7 +535,7 @@ define_sgr!(FormatNotHidden, "28");
 define_sgr!(FormatNotStricken, "29");
 
 declare_struct!(RequestActiveStyle);
-implement_display_expr!(RequestActiveStyle { "\x1bP$qm\x1b\\" });
+implement_command_expr!(RequestActiveStyle { "\x1bP$qm\x1b\\" });
 
 impl Query for RequestActiveStyle {
     type Response = Vec<u8>;
