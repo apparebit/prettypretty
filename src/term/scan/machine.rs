@@ -48,6 +48,7 @@ pub(super) enum State {
 /// The next action to take.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Action {
+    Print,
     StartSequence,
     IgnoreByte,
     RetainByte,
@@ -96,7 +97,7 @@ const fn ground(byte: u8) -> (State, Action, Option<Control>) {
         0x18 => (Ground, HandleControl, None),
         0x1a => (Ground, HandleControl, None),
         0x1b => (Escape, StartSequence, Some(Control::ESC)),
-        0x20..=0x7f => panic!("cannot handle ASCII characters"),
+        0x20..=0x7f => (Ground, Print, None),
         0x80..=0x8d | 0x91..=0x97 | 0x99 | 0x9a => (Ground, HandleControl, None),
         0x8e => (SingleShift, StartSequence, Some(Control::SS2)),
         0x8f => (SingleShift, StartSequence, Some(Control::SS3)),
@@ -107,7 +108,7 @@ const fn ground(byte: u8) -> (State, Action, Option<Control>) {
         0x9d => (StringBody, StartSequence, Some(Control::OSC)),
         0x9e => (StringBody, StartSequence, Some(Control::PM)),
         0x9f => (StringBody, StartSequence, Some(Control::APC)),
-        0xa0..=0xff => panic!("cannot handle UTF-8 characters"),
+        0xa0..=0xff => (Ground, Print, None),
         _ => otherwise(byte, Ground),
     }
 }

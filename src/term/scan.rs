@@ -255,6 +255,7 @@ impl Scanner {
         (self.state, action, control) = transition(self.state, byte);
 
         match action {
+            Print => unreachable!("printable characters are processed before control sequences"),
             AbortThenHandleControl | AbortThenStart => {
                 // Since we don't consume the byte and restore the ground
                 // state, the next invocation of read_token handles the
