@@ -1173,6 +1173,10 @@ class Terminal:
 
     # ----------------------------------------------------------------------------------
 
+    def is_dark_theme(self) -> bool:
+        """Determine whether the current theme is a dark theme."""
+        return current_translator().is_dark_theme()
+
     def reset_style(self) -> Self:
         """Reset all styles."""
         return self.write_control(Ansi.CSI, 'm')

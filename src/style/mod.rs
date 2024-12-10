@@ -136,7 +136,7 @@
 //! # let translator = Translator::new(
 //! #     OkVersion::Revised, VGA_COLORS.clone());
 //! # let style = style.cap(Fidelity::Ansi, &translator);
-//! let s = format!("{}Wow!{}", style, !&style);
+//! let s = format!("{}Wow!{}", style, -&style);
 //!
 //! assert_eq!(s, "\x1b[1;4;31mWow!\x1b[22;24;39m");
 //! ```

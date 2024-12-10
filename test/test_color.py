@@ -264,5 +264,5 @@ class TestColor(unittest.TestCase):
     #     ):
     #         actual_params = style.sgr_parameters()
     #         self.assertSequenceEqual(actual_params, expected_params)
-    #         actual_inverse = (~style).sgr_parameters()
+    #         actual_inverse = (-style).sgr_parameters()
     #         self.assertSequenceEqual(actual_inverse, inverse_params)

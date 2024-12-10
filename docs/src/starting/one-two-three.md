@@ -120,7 +120,7 @@ package's name, `prettypretty`.
 # let translator = Translator::new(
 #     OkVersion::Revised, VGA_COLORS.clone());
 # let style = style.cap(Fidelity::Ansi, &translator);
-let s = format!("{}prettypretty{}", style, !&style);
+let s = format!("{}prettypretty{}", style, -&style);
 
 assert_eq!(s, "\x1b[1;30;103mprettypretty\x1b[22;39;49m")
 ```

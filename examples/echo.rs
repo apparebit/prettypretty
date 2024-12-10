@@ -38,7 +38,7 @@ fn run() -> std::io::Result<()> {
     // Peek into terminal access
     tty.print(format!(
         "{}press ‹t› to query theme color, ‹q› to quit{}\r\n\r\n",
-        BOLD, !BOLD
+        BOLD, -BOLD
     ))?;
 
     let mut iterations = 0;
@@ -65,7 +65,7 @@ fn run() -> std::io::Result<()> {
             continue;
         }
 
-        tty.print(format!("〈{}", !GRAY))?;
+        tty.print(format!("〈{}", -GRAY))?;
         column += 2;
 
         let mut terminate = false;

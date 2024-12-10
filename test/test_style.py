@@ -19,7 +19,7 @@ class TestStyle(unittest.TestCase):
         attributes = [*format.attributes()]
         self.assertListEqual(attributes, [Attribute.Bold, Attribute.Underlined])
 
-        format = ~format
+        format = -format
         attributes = [*format.attributes()]
         self.assertListEqual(attributes, [Attribute.NotBoldOrThin, Attribute.NotUnderlined])
 

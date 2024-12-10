@@ -1219,7 +1219,7 @@ impl Colorant {
     /// appearance again. The result is `None` if the colorant is the default
     /// and  `Some(Colorant::Default())` otherwise.
     #[cfg(feature = "pyffi")]
-    pub fn __invert__(&self) -> Option<Self> {
+    pub fn __neg__(&self) -> Option<Self> {
         self.negate()
     }
 
@@ -1238,18 +1238,18 @@ impl Colorant {
     }
 }
 
-impl std::ops::Not for &Colorant {
+impl std::ops::Neg for &Colorant {
     type Output = Option<Colorant>;
 
-    fn not(self) -> Self::Output {
+    fn neg(self) -> Self::Output {
         self.negate()
     }
 }
 
-impl std::ops::Not for Colorant {
+impl std::ops::Neg for Colorant {
     type Output = Option<Colorant>;
 
-    fn not(self) -> Self::Output {
+    fn neg(self) -> Self::Output {
         self.negate()
     }
 }

@@ -199,7 +199,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # let translator = Translator::new(OkVersion::Revised, theme);
 //! # let effective_chic = &chic.cap(fidelity, &translator);
 //! // 3. Apply and revert styles
-//! println!("{}Wow!{}", effective_chic, !effective_chic);
+//! println!("{}Wow!{}", effective_chic, -effective_chic);
 //! # Ok(())
 //! # }
 //! ```

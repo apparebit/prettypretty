@@ -426,8 +426,8 @@ impl Format {
     /// If a terminal uses this format, the negated format restores the
     /// terminal's default appearance again.
     #[cfg(feature = "pyffi")]
-    pub fn __invert__(&self) -> Self {
-        !*self
+    pub fn __neg__(&self) -> Self {
+        -*self
     }
 
     /// Determine the difference between this and another format. <i
@@ -448,7 +448,7 @@ impl Format {
     }
 }
 
-impl std::ops::Not for Format {
+impl std::ops::Neg for Format {
     type Output = Self;
 
     /// Negate this format.
@@ -456,7 +456,7 @@ impl std::ops::Not for Format {
     /// If a terminal uses this format, the negated format restores the
     /// terminal's default appearance.
     #[inline]
-    fn not(self) -> Self::Output {
+    fn neg(self) -> Self::Output {
         Self(negate_bits(self.0))
     }
 }
@@ -480,6 +480,12 @@ impl std::ops::Sub for Format {
             disable = NotBoldOrThin.clear(disable);
         }
         Self(enable | disable)
+    }
+}
+
+impl std::ops::SubAssign for Format {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
     }
 }
 
@@ -586,7 +592,7 @@ mod test {
         }
 
         // Format 2: Not{Bold, Underlined} + Blinking
-        let format = (!format).blinking();
+        let format = (-format).blinking();
         assert_eq!(format.attribute_count(), 3);
         assert!(format.has(Blinking));
         assert!(format.has(NotBoldOrThin));
@@ -600,7 +606,7 @@ mod test {
         }
 
         // Format 3: Not{Not{Bold, Underlined} + Blinking}
-        let format = !format;
+        let format = -format;
         assert_eq!(format.attribute_count(), 1);
         assert!(format.has(NotBlinking));
 

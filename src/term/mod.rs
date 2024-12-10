@@ -38,8 +38,8 @@
 //! # Ok::<(), std::io::Error>(())
 //! ```
 //!
-//! This actually is a more general pattern, thanks to the
-//! [`Command`](crate::cmd::Command) and [`Query`](crate::cmd::Query) traits.
+//! This actually is a more general pattern, thanks to the `Display` and
+//! [`Query`](crate::cmd::Query) traits.
 //!
 //!
 //! # Background

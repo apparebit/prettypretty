@@ -620,10 +620,10 @@ impl Style {
             .collect()
     }
 
-    /// Invert this style. <i class=python-only>Python only!</i>
+    /// Negate this style. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
-    pub fn __invert__(&self) -> Self {
-        !self
+    pub fn __neg__(&self) -> Self {
+        -self
     }
 
     /// Render a debug representation of this style. <i class=python-only>Python
@@ -661,30 +661,30 @@ impl Style {
     }
 }
 
-impl std::ops::Not for &Style {
+impl std::ops::Neg for &Style {
     type Output = Style;
 
     /// Negate this style.
     ///
     /// This method returns the style to restore the terminal's default
     /// appearance from this style, which may be empty.
-    fn not(self) -> Self::Output {
+    fn neg(self) -> Self::Output {
         Style {
             data: StyleData {
                 reset: false,
-                format: self.data.format.map(|f| !f),
-                foreground: self.data.foreground.as_ref().and_then(|c| !c),
-                background: self.data.background.as_ref().and_then(|c| !c),
+                format: self.data.format.map(|f| -f),
+                foreground: self.data.foreground.as_ref().and_then(|c| -c),
+                background: self.data.background.as_ref().and_then(|c| -c),
             },
         }
     }
 }
 
-impl std::ops::Not for Style {
+impl std::ops::Neg for Style {
     type Output = Style;
 
-    fn not(self) -> Self::Output {
-        !(&self)
+    fn neg(self) -> Self::Output {
+        -(&self)
     }
 }
 

@@ -6,12 +6,15 @@ picked this topic for a few reasons:
 
  1. I've been itching to write a progress bar for quite a while now.
  2. An animated demo often is more interesting than a static one.
- 3. The script is simple enough to fit into less than 100 lines of Python.
- 4. The script provides a feature that's actually useful to terminal apps.
+ 3. The progress bar is simple enough to fit into less than 120 lines of Python.
+ 4. The progress bar is actually used by prettypretty's
+    [plot.py](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
 
 The complete script is, of course, part of [prettypretty's
-repository](https://github.com/apparebit/prettypretty/blob/main/prettypretty/progress.py)
-and also included in its distribution.
+distribution](https://github.com/apparebit/prettypretty/blob/main/prettypretty/progress.py).
+It started out as a demo script that was less than 100 lines long. But then
+`plot.py` needed a progress bar. So I abstracted over the progress bar
+implementation through the `ProgressBar` class, which added almost 20 lines.
 
 
 ## Visualizing Progress
@@ -83,8 +86,9 @@ one-two-three for better terminal styles.
 ## 1. Assemble Styles
 
 If we are to isolate terminal styles from content, we should start by grouping
-the definitions for all application styles together. For the progress bar
-script, that's a grand total of two styles:
+the definitions for all application styles together. For the progress bar,
+that's a grand total of two styles. You'll find their definitions inside the
+`ProgressBar` class:
 
 ```python,ignore
 LIGHT_MODE_BAR = stylist().foreground(Color.p3(0.0, 1.0, 0.0)).et_voila()
@@ -101,15 +105,16 @@ there are two different ways of specifying colors. `foreground()` and
 `background()` expect fully built color objects, which are internally converted
 to colorants. By contrast, `embedded_rgb()`, `gray()`, and `rgb()` take RGB
 component or gray level arguments and must be followed by `fg()`, `on()`, or
-`bg()` to select foreground or background, with `on()` an alias to `fg()`.
+`bg()` to select foreground or background. `on()` is an alias to `fg()`, as it
+enables method chains like `rgb(3, 151, 49).on().rgb(15, 17, 19).bg()`.
 
 When declaring styles, only include attributes that you want set and nothing
-else. Don't bother with defining styles that undo other styles or incrementally
-transition from one style to another. You can easily and automatically compute
-them with Python's negation `~` and subtraction `-` operators. In particular,
-the style `~style` undoes all attributes of `style`, hence restoring the
-terminal to its default appearance. The style `style2 - style1` incrementally
-transitions from `style1` to `style2` (note the reverse order).
+else. Don't bother with defining styles that undo other styles. You can easily
+and automatically compute them by negating styles, i.e., by applying Rust's or
+Python's *unary* minus operators. In other words, `-style` undoes all attributes
+set by `style` and hence restores the terminal to its default appearance. In the
+future, prettypretty may also add support for *binary* minus to compute the
+difference between two styles.
 
 
 ## 2. Adjust Styles
@@ -134,6 +139,8 @@ $ python -m prettypretty.plot -c "color(display-p3 0 1 0)" \
     --no-light --no-term --gamut srgb --gamut p3 --strong-gamut \
     -o green-primary-p3.svg
 ```
+(This particular invocation of `plot` won't display any progress bars because it
+doesn't perform any of the slow operations.)
 
 
 ### 2.1 Determine Terminal Capabilities and Configuration
@@ -182,15 +189,12 @@ the difference and support both.
 
 While there are no widely supported ANSI escape sequences to query terminals for
 their fidelity level, environment variables typically provide enough information
-to heuristically determine the fidelity level with high confidence.
+to heuristically determine the fidelity level with high confidence. Prettypretty
+includes such a heuristic for fidelity levels and also supports querying the
+terminal for its color theme. Alas, the latter functionality has not been
+unified, currently relying on two very different implementations.
 
-Prettypretty's Rust version already implements such a heuristic for fidelity
-level but lacks support for querying the terminal for its color theme.
-Meanwhile, the Python version includes a fairly expressive [`Terminal`]
-abstraction. It's a good thing then that the progress bar script is written in
-Python. 🧐
-
-Its `main` function initializes said terminal thusly:
+Our script's `main` function initializes said terminal thusly:
 
 ```python,ignore
 with (
@@ -224,15 +228,17 @@ may be removed in the future.
 The primary benefit of setting up the `Terminal` is access to a [`Translator`],
 which *is* implemented in Rust. Using said translator, picking between styles
 for dark or light mode as well as capping a style's fidelity level becomes
-straight-forward:
+straight-forward. The first two lines of `ProgressBar.__init__` read:
 
 ```python,ignore
 style = DARK_MODE_BAR if current_translator().is_dark_theme() else LIGHT_MODE_BAR
-style = style.cap(term.fidelity, current_translator())
+self._style = style.cap(term.fidelity, current_translator())
 ```
 
-Doing so once during startup means that the resulting styles are ready for
-(repeated) display, while incurring the overhead of color conversion only once.
+Doing so once during initialization means that the resulting styles are ready
+for (repeated) display, while incurring the overhead of color conversion only
+once. For good measure, the instance is reusable as well. For example, `plot`
+displays up to three progress bars, all backed by a single instance.
 
 
 ## 3. Apply Styles
@@ -240,18 +246,24 @@ Doing so once during startup means that the resulting styles are ready for
 We assembled and adjusted the progress bar styles. So all that's left is
 applying them as well. This part is really easy.
 
-The last line of the `format_bar` function uses the assembled and adjusted style.
+The last line of the `ProgressBar._format` method uses the assembled and
+adjusted style:
 ```python,ignore
-return ['  ┫', style, bar, ~style, '┣', f' {percent:5.1f}%']
+return ['  ┫', self._style, bar, -self._style, '┣', f' {percent:5.1f}%']
 ```
 It also uses the negated style to restore the terminal's default appearance.
 
-Meanwhile, the `main` function includes the following loop:
+The `main` function uses `ProgressBar` as follows. It instantiates the instance,
+loops over progress reports to `render(percent)`, and calls `done()` when it is
+done:
 ```python,ignore
+progress = ProgressBar(term)
+
 for percent in progress_reports():
-   bar = format_bar(percent, style)
-   term.column(0).render(bar).flush()
-   time.sleep(random.uniform(1/60, 1/10))
+     progress.render(percent)
+     time.sleep(random.uniform(1/60, 1/10))
+
+progress.done()
 ```
 Each iteration processes a progress report by formatting the progress bar and
 writing it to the terminal.
@@ -265,20 +277,21 @@ Well. There still is more code to `prettypretty.progress`. But much of that code
 is not specific to prettypretty. Here's the breakdown of per-section line counts
 for the script:
 
-| Section          |pretty¹|prettyⁿ| LoC |blank|
-|:---------------- |------:|------:|----:|----:|
-| Imports          |     6 |       |  10 |   1 |
-| Argument parser  |       |       |  18 |     |
-| Module constants |       |     2 |   6 |   1 |
-| Progress bar     |       |     1 |  12 |   2 |
-| Progress reports |       |       |   7 |     |
-| `main()`         |     6 |     3 |  17 |   4 |
-| Calling `main()` |       |       |   2 |     |
-| Between sections |       |       |     |  12 |
-| *Total*          |  *12* |   *6* | *72*| *20*|
+| Section             |pretty¹|prettyⁿ| LoC |blank|
+|:------------------- |------:|------:|----:|----:|
+| Imports             |     6 |       |  10 |   1 |
+| Argument parser     |       |       |  16 |     |
+| Class header        |       |     4 |  18 |   4 |
+| Format method       |       |     1 |  12 |   3 |
+| Render/done methods |       |       |  11 |   1 |
+| Progress reports    |       |       |   7 |     |
+| `main()`            |     6 |     3 |  16 |   2 |
+| Calling `main()`    |       |       |   2 |     |
+| Between sections    |       |       |     |  10 |
+| *Total*             |  *12* |   *8* | *92*| *21*|
 
 The final two columns count *all* lines of the script and distinguish between
-lines-of-code, or LoC, and blank lines, to a total of 72 lines-of-code in a 92
+lines-of-code, or LoC, and blank lines, to a total of 92 lines-of-code in a 113
 line script. The middle two columns count lines-of-code specific to prettypretty
 and distinguish between code that is a constant cost of using prettypretty,
 i.e., required only once per module or app, in the pretty¹ column and code that
@@ -286,14 +299,14 @@ is a variable cost of using prettypretty, i.e., required for each distinct
 style, in the prettyⁿ column.
 
 Overall, these line counts are encouraging: Code specific to prettypretty
-comprises 18 out of 72 or a quarter of the lines-of-code, even though the script
+comprises 18 out of 92 or a fifth of the lines-of-code, even though the script
 does little else than display styled text. Most of the code specific to
 prettypretty, i.e., 12 out of 18 or two thirds of the lines-of-code, is a
 constant cost, i.e., necessary for importing types and initializing the
 terminal. Without prettypretty, using literal ANSI escape sequences, the script
 would still require two lines for first formatting and then writing the progress
-bar. So the line overhead of prettypretty's one-two-three workflow is 6 instead
-of 2 lines-of-code or 3× per style. That seems low for an application that is
+bar. So the line overhead of prettypretty's one-two-three workflow is 8 instead
+of 2 lines-of-code or 4× per style. That seems low for an application that is
 easier to maintain because all styles are defined in one location, accommodates
 light and dark mode depending on terminal, looks great in terminals that support
 better color formats and passable otherwise, and takes user preferences into
@@ -315,19 +328,16 @@ applies to 🦟 bugs 🕷️ as well.
 
 ### Change Is in the Air
 
-Prettypretty started out as a Python-only library and is transitioning to a Rust
-library with first-class Python support. I'm also leveraging the transition as
-an opportunity for iterating over prettypretty's public interfaces. Now that
-fluent styles have been implemented in Rust, much of the transition is complete.
-The only major piece of functionality missing from the Rust version is terminal
-I/O. Or at least, some semblance of it: Prettypretty has specific and fairly
-unique needs when it comes to terminal I/O, notably, to interrogate a terminal
-for its current color theme. I strongly believe that the Rust version needs to
-offer support for that as well. It probably would also benefit from a minimal
-and easily replacable I/O driver as well. But those seem to be the limits of
-this library's functionality. In other words, this library still is a few
-releases away from the big 1.0 and those releases will likely entail some API
-churn. But that is also resulting in a cleaner, meaner API.s
+Prettypretty started out as a Python-only library and then became a Rust library
+with first-class Python support. As part of the transition, I've been iterating
+over prettypretty's public interfaces and lately I've been focusing on how to
+best interface with the terminal. While I didn't set out to implement a library
+for terminal I/O, existing Rust crates don't quite fit prettypretty's needs.
+They either offer not enough or too much functionality. So I did implement a
+fairly minimal layer that interfaces with the terminal. Whether that can or even
+should be exposed to Python is unclear. What is clear is that prettypretty will
+go through a few more releases before the big 1.0 and those releases will likely
+entail some API churn. But that is also resulting in cleaner, meaner APIs...
 
 </div>
 
@@ -335,7 +345,7 @@ churn. But that is also resulting in a cleaner, meaner API.s
 
 ### Accessibility
 
-Prettypretty's focus on colors manipulation is not just an aesthetic concern but
+Prettypretty's focus on color manipulation is not just an aesthetic concern but
 also touches upon accessibility. That is one reason why prettypretty already
 includes a [contrast
 metric](https://apparebit.github.io/prettypretty/prettypretty/struct.Color.html#method.contrast_against)

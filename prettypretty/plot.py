@@ -18,7 +18,6 @@ import math
 import pathlib
 from typing import Any, cast
 
-from .terminal import Terminal
 from .color import (
     close_enough,
     Color,
@@ -27,6 +26,8 @@ from .color import (
     theme, # pyright: ignore [reportMissingModuleSource]
 )
 from .color.gamut import GamutTraversalStep # pyright: ignore [reportMissingModuleSource]
+from .progress import add_fidelity, ProgressBar
+from .terminal import Terminal
 from .theme import current_translator
 
 
@@ -77,10 +78,20 @@ def create_parser() -> argparse.ArgumentParser:
         dest="colors",
         help="also plot color specified in CSS syntax"
     )
-    parser.add_argument(
+
+    inputs = parser.add_mutually_exclusive_group()
+    inputs.add_argument(
         "-i", "--input",
         help="read newline-separated colors in CSS syntax from named file",
     )
+    inputs.add_argument(
+        "--oktriples",
+        help=(
+            "read newline-separated Oklab colors "
+            "as comma-separated floating point numbers from named file"
+        ),
+    )
+
     parser.add_argument(
         "--no-light",
         action="store_true",
@@ -89,7 +100,10 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-term",
         action="store_true",
-        help="don't render terminal colors, only those specified with --color and --input",
+        help=(
+            "don't render terminal colors, "
+            "only those specified with --color, --input, --oktriples"
+        ),
     )
     parser.add_argument(
         "-g", "--gamut",
@@ -119,6 +133,29 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def ingest_oktriples(file: str) -> list[Color]:
+    """
+    Ingest the file with floating point triplets. Unless the line is empty or
+    starts with a hash, it must contain three comma-separated floating point
+    values.
+    """
+    colors: list[Color] = []
+
+    with open(file, mode="r", encoding="utf8") as fd:
+        for line in fd:
+            line = line.strip()
+            if line == "" or line.startswith("#"):
+                continue
+
+            color = Color(
+                ColorSpace.Oklab,
+                [float(num.strip()) for num in line.split(",")]
+            )
+            colors.append(color)
+
+    return colors
+
+
 class ColorPlotter:
     ACHROMATIC_THRESHOLD = 0.05
 
@@ -130,6 +167,7 @@ class ColorPlotter:
         strong_gamut: bool = False,
         chromaticity: bool = False,
         volume: int = 1,
+        progress: None | ProgressBar = None,
     ) -> None:
         self._collection_name = collection_name
         self._color_kind = color_kind
@@ -167,6 +205,8 @@ class ColorPlotter:
         self._white_point: None | Color = None
 
         self._volume = volume
+        self._progress = progress if 1 <= volume else None
+        print(self._progress)
 
     def status(self, msg: str) -> None:
         if self._volume >= 1:
@@ -175,6 +215,9 @@ class ColorPlotter:
     def detail(self, msg: str) -> None:
         if self._volume >= 2:
             print(msg)
+
+    # ----------------------------------------------------------------------------------
+    # Individual Color Markers
 
     def start_adding(self) -> None:
         self.status("                Color    L        Chroma   Hue    Dup")
@@ -250,6 +293,9 @@ class ColorPlotter:
             counts += f"+{grays}"
         return counts
 
+    # ----------------------------------------------------------------------------------
+    # Gamut Tracing
+
     def trace_spectrum(
         self,
         axes: Any,
@@ -266,7 +312,17 @@ class ColorPlotter:
         lines2d: list[list[tuple[float, float]]] = []
         all_colors: list[list[str]] = []
 
-        for step in self._illuminated_observer.visual_gamut(spectrum.ONE_NANOMETER):
+        iterator = self._illuminated_observer.visual_gamut(3)
+        total_steps = len(iterator)
+
+        self.status(f"Sampling human visual gamut at {total_steps:,} points")
+        if self._progress is not None:
+            self.status("")
+
+        for index, step in enumerate(iterator):
+            if self._progress is not None:
+                self._progress.render(index / total_steps * 100)
+
             if isinstance(step, GamutTraversalStep.MoveTo):
                 lines2d.append([])
                 all_colors.append([])
@@ -280,6 +336,9 @@ class ColorPlotter:
             lines2d[-1].append(self.to_2d(c))
             all_colors[-1].append(c.to_hex_format())
 
+        if self._progress is not None:
+            self._progress.done()
+
         if not locus_only:
             f, a = plt.subplots(subplot_kw={"projection": "3d"})  # type: ignore
             a.scatter(points[0], points[1], points[2], c=points[3])  # type: ignore
@@ -287,17 +346,29 @@ class ColorPlotter:
             #f.savefig("spectrum-3d.svg") # type: ignore
             #plt.close(f) # type: ignore
 
-        for line, colors in zip(lines2d, all_colors):
-            self.detail(f"Drawing spectral line with {len(line)} points")
+        total_lines = len(lines2d)
+
+        self.status(f"Connecting gamut samples into {total_lines} lines")
+        if self._progress is not None:
+            self.status("")
+
+        for index, (line, colors) in enumerate(zip(lines2d, all_colors)):
+            if self._progress is not None:
+                self._progress.render(index / total_lines * 100)
+
             self.add_line(
                 axes,
                 line,
                 color=colors, #'#000' if locus_only else '#ccc',
                 width=2 if locus_only else 0.8,
             )
+        if self._progress is not None:
+            self._progress.done()
 
     def trace_gamut(self, space: ColorSpace, axes: Any) -> None:
         """Trace the boundary of the gamut for the given color space."""
+        self.status(f"Tracing {space} gamut")
+
         if (
             self._largest_gamut is None
             or space is ColorSpace.Rec2020
@@ -398,6 +469,9 @@ class ColorPlotter:
         else:
             return f'x={x:.5f}  y={y:.5f}'
 
+    # ----------------------------------------------------------------------------------
+    # Figure Creation
+
     def create_figure(
         self,
         collection_name: None | str = None,
@@ -406,6 +480,8 @@ class ColorPlotter:
         with_spectrum: bool = False,
         with_lightness: bool = True,
     ) -> Any:
+        self.status("Creating figure")
+
         if self._chromaticity:
             fig: Any = plt.figure(figsize=(5, 5.5)) # type: ignore
             axes: Any = fig.add_subplot()
@@ -423,6 +499,7 @@ class ColorPlotter:
         # if with_spectrum or self._chromaticity:
         #     self.premultiply(spectrum.CIE_OBSERVER_2DEG_1931, spectrum.CIE_ILLUMINANT_D65)
         if with_spectrum:
+            self._with_spectrum = with_spectrum
             self.trace_spectrum(axes)
         if self._chromaticity:
             self.trace_spectrum(axes, locus_only=True)
@@ -441,9 +518,18 @@ class ColorPlotter:
 
         # Since markers are shared for all marks in a series, we use a new
         # series for every single color.
-        for x, y, color, marker in zip(
+        total_markers = len(self._xs)
+
+        self.status(f"Setting {total_markers:,} chromatic markers")
+        if self._progress is not None and 100 <= total_markers:
+            self.status("")
+
+        for index, (x, y, color, marker) in enumerate(zip(
             self._xs, self._ys, self._mark_colors, self._marks
-        ):
+        )):
+            if self._progress is not None and 100 <= total_markers:
+                self._progress.render(index / total_markers * 100)
+
             if marker == "o":
                 size = 80
             elif marker == "*":
@@ -459,6 +545,8 @@ class ColorPlotter:
                 edgecolors='#000',
                 zorder=5,
             )
+        if self._progress is not None and 100 <= total_markers:
+            self._progress.done()
 
         if self._grays and not self._chromaticity:
             gray = Color.oklab(sum(self._grays) / len(self._grays), 0.0, 0.0).to_hex_format()
@@ -568,7 +656,7 @@ class ColorPlotter:
 
     def effective_max_chroma(self) -> float:
         if self._with_spectrum:
-            return 0.6
+            return 0.5
         elif self._largest_gamut in (ColorSpace.Srgb, ColorSpace.DisplayP3):
             return 0.4
         elif self._largest_gamut is ColorSpace.Rec2020:
@@ -590,16 +678,9 @@ class ColorPlotter:
         else:
             return ""
 
+# ======================================================================================
 
-def main() -> None:
-    options = create_parser().parse_args()
-    plotter = ColorPlotter(
-        volume=1-options.quiet+options.verbose,
-        strong_gamut=options.strong_gamut,
-        chromaticity=options.chromaticity,
-    )
-    terminal_id = None
-
+def main(options: Any, term: Terminal) -> None:
     gamuts: list[ColorSpace] = []
     for gamut in cast(list[str], options.gamuts or []):
         gamut = gamut.casefold()
@@ -615,20 +696,27 @@ def main() -> None:
     # ----------------------------------------------------------------------------------
     # Prepare Colors for Plotting
 
+    plotter = ColorPlotter(
+        volume=1-options.quiet+options.verbose,
+        strong_gamut=options.strong_gamut,
+        chromaticity=options.chromaticity,
+        progress=ProgressBar(term),
+    )
+    terminal_id = None
+
     plotter.start_adding()
 
     if not options.no_term:
-        with Terminal().cbreak_mode().terminal_theme(options.theme) as term:
-            if not options.theme:
-                terminal_id = term.request_terminal_identity()
+        if not options.theme:
+            terminal_id = term.request_terminal_identity()
 
-            translator = current_translator()
-            for base_index in [0, 1, 3, 2, 6, 4, 5, 7]:
-                for index in [base_index, base_index + 8]:
-                    color = translator.resolve(index)
-                    name = theme.ThemeEntry.try_from_index(index + 2).name()
-                    label = theme.ThemeEntry.try_from_index(index + 2).abbr()
-                    plotter.add(name, color, label=label)
+        translator = current_translator()
+        for base_index in [0, 1, 3, 2, 6, 4, 5, 7]:
+            for index in [base_index, base_index + 8]:
+                color = translator.resolve(index)
+                name = theme.ThemeEntry.try_from_index(index + 2).name()
+                label = theme.ThemeEntry.try_from_index(index + 2).abbr()
+                plotter.add(name, color, label=label)
 
     cname = "" if options.no_term else "<extra>"
     marker = "o" if options.no_term else "d"
@@ -637,6 +725,9 @@ def main() -> None:
         with open(options.input, mode="r", encoding="utf8") as file:
             for color in [Color.parse(line) for line in file.readlines() if line.strip()]:
                 plotter.add(cname, color, marker=marker)
+    elif options.oktriples is not None:
+        for color in ingest_oktriples(options.oktriples):
+            plotter.add(cname, color, marker=".")
 
     for color in [Color.parse(c) for c in cast(list[str], options.colors) or []]:
         plotter.add(cname, color, marker=marker)
@@ -664,6 +755,8 @@ def main() -> None:
         file_name = options.output
     elif options.input is not None:
         file_name = pathlib.Path(options.input).with_suffix(".svg")
+    elif options.oktriples is not None:
+        file_name = pathlib.Path(options.oktriples).with_suffix(".svg")
     else:
         assert collection_name is not None
         file_name = f'{collection_name.replace(" ", "-").lower()}-colors.svg'
@@ -680,7 +773,16 @@ def main() -> None:
     )
     plotter.status(f"Saving plot to `{file_name}`")
     fig.savefig(file_name, bbox_inches="tight")  # type: ignore
+    plotter.status("Happy, happy, joy, joy!")
 
 
 if __name__ == "__main__":
-    main()
+    options = add_fidelity(create_parser()).parse_args()
+    with (
+        Terminal(options.fidelity)
+        .cbreak_mode()
+        .terminal_theme(options.theme)
+        .hidden_cursor()
+        .scoped_style()
+    ) as term:
+        main(options, term)

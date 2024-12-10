@@ -57,7 +57,7 @@
 //!       * [`FormatStricken`] and [`FormatNotStricken`]
 //!
 //! If a command starts with `Request` in its name, it implements the [`Query`]
-//! trait in addition to [`Command`].
+//! trait in addition to `Display`.
 //!
 
 #![allow(dead_code)]
@@ -71,9 +71,8 @@ use std::io::{Error, ErrorKind, Result};
 /// which only writes the parameter(s) for the command but not the leading CSI
 /// control or trailing `m`. A generic implementation then ensures that every
 /// `Sgr` also is a `Command`; its `write_ansi` method composes prefix,
-/// parameter(s), and suffix. More importantly, a separate
-/// [`write_sgr`](crate::write_sgr) macro composes several SGR commands into a
-/// single ANSI escape sequence.
+/// parameter(s), and suffix. More importantly, a separate [`sgr`](crate::sgr)
+/// macro composes several SGR commands into a single ANSI escape sequence.
 pub trait Sgr: std::fmt::Display {
     /// Write the parameter(s) for this SGR command.
     fn write_param(&self, out: &mut impl ::std::fmt::Write) -> ::std::fmt::Result;
@@ -83,6 +82,30 @@ impl<S: Sgr + ?Sized> Sgr for &S {
     fn write_param(&self, out: &mut impl ::std::fmt::Write) -> ::std::fmt::Result {
         (*self).write_param(out)
     }
+}
+
+/// Macro to combine several SGR commands into a single ANSI escape sequence.
+#[macro_export]
+macro_rules! sgr {
+    ( $sgr:expr, $( $sgr2:expr ),* $(,)? ) => {{
+        use $crate::cmd::Sgr;
+
+        struct SgrSeq;
+
+        impl std::fmt::Display for SgrSeq {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("\x1b[")?;
+                $sgr.write_param(f)?;
+                $(
+                    f.write_str(";")?;
+                    $sgr2.write_param(f)?;
+                )*
+                f.write_str("m")
+            }
+        }
+
+        SgrSeq
+    }};
 }
 
 // -------------------------------------------------------------------------------------
@@ -121,30 +144,6 @@ impl<Q: Query + ?Sized> Query for &Q {
     fn parse(&self, payload: &[u8]) -> Result<Self::Response> {
         (*self).parse(payload)
     }
-}
-
-/// Macro to combine several SGR commands into a single ANSI escape sequence.
-#[macro_export]
-macro_rules! sgr {
-    ( $sgr:expr, $( $sgr2:expr ),* $(,)? ) => {{
-        use $crate::cmd::Sgr;
-
-        struct SgrSeq;
-
-        impl std::fmt::Display for SgrSeq {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.write_str("\x1b[")?;
-                $sgr.write_param(f)?;
-                $(
-                    f.write_str(";")?;
-                    $sgr2.write_param(f)?;
-                )*
-                f.write_str("m")
-            }
-        }
-
-        SgrSeq
-    }};
 }
 
 // =================================== Local Macros ====================================
