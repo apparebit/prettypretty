@@ -277,18 +277,18 @@ Well. There still is more code to `prettypretty.progress`. But much of that code
 is not specific to prettypretty. Here's the breakdown of per-section line counts
 for the script:
 
-| Section             |pretty¹|prettyⁿ| LoC |blank|
-|:------------------- |------:|------:|----:|----:|
-| Imports             |     6 |       |  10 |   1 |
-| Argument parser     |       |       |  16 |     |
-| Class header        |       |     4 |  18 |   4 |
-| Format method       |       |     1 |  12 |   3 |
-| Render/done methods |       |       |  11 |   1 |
-| Progress reports    |       |       |   7 |     |
-| `main()`            |     6 |     3 |  16 |   2 |
-| Calling `main()`    |       |       |   2 |     |
-| Between sections    |       |       |     |  10 |
-| *Total*             |  *12* |   *8* | *92*| *21*|
+| Section              |pretty¹|prettyⁿ| LoC |blank|
+|:-------------------- |------:|------:|----:|----:|
+| Imports              |     6 |       |  10 |   1 |
+| Argument parser      |       |       |  16 |     |
+| `ProgressBar` init   |       |     4 |  18 |   4 |
+| `_format` method     |       |     1 |  12 |   3 |
+| `render()`, `done()` |       |       |  11 |   1 |
+| Progress "reports"   |       |       |   7 |     |
+| `main()`             |     6 |     3 |  16 |   2 |
+| Calling `main()`     |       |       |   2 |     |
+| Between sections     |       |       |     |  10 |
+| *Total*              |  *12* |   *8* | *92*| *21*|
 
 The final two columns count *all* lines of the script and distinguish between
 lines-of-code, or LoC, and blank lines, to a total of 92 lines-of-code in a 113
