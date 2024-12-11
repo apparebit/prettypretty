@@ -10,44 +10,44 @@ use crate::{rgb, Color, ColorSpace};
 
 /// A color theme.
 ///
-/// A color theme is a container with 18 colors, one each for the default
-/// foreground and background colors as well as the 16 ANSI colors. The public
-/// interface is a compromise between struct and array, a strarray if you will,
-/// to make the primary use case, processing the colors in a theme in order,
-/// safer than when using numeric indices. Hence, you index a color theme with
-/// semantic values, i.e., [`ThemeEntry`], [`Layer`](crate::style::Layer), or
-/// [`AnsiColor`](crate::style::AnsiColor). At the same time, you can still
+/// A color theme is a container with [`ThemeEntry::COUNT`] colors, one each for
+/// the default foreground and background colors as well as the 16 ANSI colors.
+/// The public interface is a compromise between struct and array, a strarray if
+/// you will, to make the primary use case, processing the colors in a theme in
+/// order, safer than when using numeric indices. Hence, you index a color theme
+/// with semantic values, i.e., [`ThemeEntry`], [`Layer`](crate::style::Layer),
+/// or [`AnsiColor`](crate::style::AnsiColor). At the same time, you can still
 /// access the underlying array storage through [`AsRef<[Color]> for
 /// Theme`](struct.Theme.html#impl-AsRef%3C%5BColor%5D%3E-for-Theme), albeit
 /// Rust-only and read-only.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.trans"))]
 #[derive(Clone)]
 pub struct Theme {
-    inner: [Color; 18],
+    inner: [Color; ThemeEntry::COUNT],
 }
 
 impl Theme {
-    /// Create a new color theme with 18 times the default color.
+    /// Create a new color theme with [`ThemeEntry::COUNT`] times the default color.
     pub fn new() -> Self {
         Self {
-            inner: <[Color; 18]>::default(),
+            inner: <[Color; ThemeEntry::COUNT]>::default(),
         }
     }
 
     /// Create a new color theme with the given colors.
-    pub const fn with_array(colors: [Color; 18]) -> Self {
+    pub const fn with_array(colors: [Color; ThemeEntry::COUNT]) -> Self {
         Self { inner: colors }
     }
 
     /// Create a new color theme with the given colors.
     ///
-    /// The given slice must have length 18. Otherwise, this method returns
-    /// `None`.
+    /// The given slice must have length [`ThemeEntry::COUNT`]. Otherwise, this
+    /// method returns `None`.
     pub fn with_slice(colors: &[Color]) -> Option<Self> {
-        if colors.len() != 18 {
+        if colors.len() != ThemeEntry::COUNT {
             None
         } else {
-            let mut inner = <[Color; 18]>::default();
+            let mut inner = <[Color; ThemeEntry::COUNT]>::default();
             inner.clone_from_slice(colors);
             Some(Self { inner })
         }
@@ -77,7 +77,7 @@ impl Theme {
 
     /// Create a new color theme with the given colors.
     #[new]
-    pub const fn py_with_array(inner: [Color; 18]) -> Self {
+    pub const fn py_with_array(inner: [Color; ThemeEntry::COUNT]) -> Self {
         Self::with_array(inner)
     }
 
@@ -178,9 +178,9 @@ impl std::fmt::Debug for Theme {
 ///
 /// This enumeration combines two variants for the default foreground and
 /// background color with another variant that wraps an [`AnsiColor`], in that
-/// order, to identify the 18 entries of a color theme. Displaying a theme entry
-/// produces the ANSI escape sequence used to query a terminal for the
-/// corresponding color.
+/// order, to identify the [`ThemeEntry::COUNT`] entries of a color theme.
+/// Displaying a theme entry produces the ANSI escape sequence used to query a
+/// terminal for the corresponding color.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, ord, module = "prettypretty.color.trans")
@@ -193,6 +193,9 @@ pub enum ThemeEntry {
 }
 
 impl ThemeEntry {
+    /// The total number of theme entries.
+    pub const COUNT: usize = 18;
+
     /// Create a new iterator over all theme entries in canonical order.
     pub fn all() -> ThemeEntryIterator {
         ThemeEntryIterator::new()
@@ -367,7 +370,7 @@ impl Iterator for ThemeEntryIterator {
     type Item = ThemeEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if 18 <= self.index {
+        if ThemeEntry::COUNT <= self.index {
             None
         } else {
             let item = ThemeEntry::try_from(self.index).unwrap();
@@ -377,14 +380,14 @@ impl Iterator for ThemeEntryIterator {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = 18 - self.index;
+        let remaining = ThemeEntry::COUNT - self.index;
         (remaining, Some(remaining))
     }
 }
 
 impl std::iter::ExactSizeIterator for ThemeEntryIterator {
     fn len(&self) -> usize {
-        18 - self.index
+        ThemeEntry::COUNT - self.index
     }
 }
 
