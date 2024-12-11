@@ -166,4 +166,4 @@ pub(crate) use util::{is_semi_colon, Radix, SliceExt};
 
 pub use scan::{Control, Error, Scanner, Token};
 pub use terminal::{terminal, Mode, OptionBuilder, Options, Terminal, TerminalAccess};
-pub use util::{write_nicely, write_nicely_with_column};
+pub use util::format_nicely;

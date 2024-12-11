@@ -10,7 +10,7 @@ use std::error::Error;
 use std::io::{stdout, IsTerminal, Read};
 
 use prettypretty::style::{stylist, Fidelity, Stylist};
-use prettypretty::term::{terminal, write_nicely_with_column};
+use prettypretty::term::{format_nicely, terminal};
 use prettypretty::theme::{Theme, ThemeEntry};
 use prettypretty::trans::Translator;
 use prettypretty::OkVersion;
@@ -72,7 +72,9 @@ fn run() -> std::io::Result<()> {
         let mut query = None;
 
         // By passing column 0, we should avoid linebreaks inside write_nicely.
-        column += write_nicely_with_column(&buffer[..count], &mut tty, 0)?;
+        for byte in buffer[..count].iter() {
+            column += format_nicely(*byte, &mut tty)?;
+        }
 
         if buffer.contains(&b'q') {
             terminate = true;
