@@ -124,12 +124,26 @@ macro_rules! sgr {
 /// payload of an ANSI escape sequence as `&[u8]`. Use `str::from_utf8`, if you
 /// absolutely need a string slice.
 ///
-/// `Query` does not declare `Command` as a supertrait to maintain a loose
-/// coupling between the request and response. In particular, performance
-/// experiments with querying for a terminal's current theme show that a
-/// two-stage approach, which first writes all 18 requests and then reads all 18
-/// responses, is faster than a one-stage or three-stage approach (with the
-/// latter separating scanning and parsing into two distinct stages).
+/// `Query` declares `Command` as a supertrait because eliciting a response
+/// requires first issueing a command. When performing more than one query, that
+/// ordering constraint still leaves considerable flexibility in deciding when
+/// to write a command, read the response token, and parse the response payload.
+/// Notably, the query
+/// [example](https://github.com/apparebit/prettypretty/blob/main/examples/query.rs)
+/// and
+/// [benchmark](https://github.com/apparebit/prettypretty/blob/main/benches/query.rs)
+/// compare three approaches to querying a terminal for the current color theme.
+/// The one-stage approach has one loop that writes, reads, and parses one query
+/// at a time. The two-stage approach has two loops, one to write all commands
+/// and one to read and parse all responses. Finally, the three-stage approach
+/// has three loops, one to write all commands, one to read all responses, and
+/// one to parse all responses.
+///
+/// In practice, the two-stage approach is fastest, the three-stage approach is
+/// a bit slower, and the one-stage approach is much slower. Going from one to
+/// two stages turns 18 system calls for writing the commands into one system
+/// call (assuming buffering). But going from two to three stages introduces in
+/// memory copies.
 pub trait Query: Command {
     /// The type of the response data.
     type Response;
@@ -158,7 +172,7 @@ impl<Q: Query + ?Sized> Query for &Q {
 
 macro_rules! declare_struct {
     ($name:ident) => {
-        #[doc = stringify!("The 0-ary `", $name, "` command.")]
+        #[doc = concat!("The `",stringify!($name),"` command.")]
         #[derive(Clone, Debug, PartialEq, Eq)]
         pub struct $name;
     };
@@ -226,7 +240,7 @@ macro_rules! define_command0 {
 
 macro_rules! define_command1 {
     ($name:ident : $typ:ty, $prefix:literal, $suffix:literal) => {
-        #[doc = stringify!("The 1-ary `", $name, "(‹n›)` command")]
+        #[doc = concat!("The `",stringify!($name),"(‹n›)` command")]
         #[derive(Clone, Debug, PartialEq, Eq)]
         pub struct $name(pub $typ);
 
@@ -240,7 +254,7 @@ macro_rules! define_command1 {
 
 macro_rules! define_command3 {
     ($name:ident : $typ:ty, $prefix:literal, $suffix:literal) => {
-        #[doc = stringify!("The 3-ary `", $name, "(‹r›, ‹g›, ‹b›)` command")]
+        #[doc = concat!("The `",stringify!($name),"(‹r›, ‹g›, ‹b›)` command")]
         #[derive(Clone, Debug, PartialEq, Eq)]
         pub struct $name(pub $typ, pub $typ, pub $typ);
 
@@ -306,13 +320,7 @@ define_command0!(ExitAlternateScreen, "\x1b[?1049l");
 define_command0!(EraseScreen, "\x1b[2J");
 define_command0!(EraseLine, "\x1b[2K");
 
-/// The 0-ary `RequestScreenSize` command.
-///
-/// This command moves the cursor to the lower right corner of the screen. To
-/// preserve cursor position, execute [`SaveCursorPosition`] before this command
-/// and [`RestoreCursorPosition`] after parsing the response.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RequestScreenSize;
+declare_struct!(RequestScreenSize);
 impl Command for RequestScreenSize {}
 
 impl std::fmt::Display for RequestScreenSize {
@@ -344,7 +352,7 @@ define_command1!(MoveDown: u16, "\x1b[", "B");
 define_command1!(MoveLeft: u16, "\x1b[", "C");
 define_command1!(MoveRight: u16, "\x1b[", "D");
 
-/// The 2-ary `MoveTo(‹row›, ‹column›)` command.
+/// The `MoveTo(‹row›, ‹column›)` command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MoveTo(pub u16, pub u16);
 
@@ -359,10 +367,10 @@ implement_command!(MoveTo: self; out {
 define_command1!(MoveToColumn: u16, "\x1b[", "G");
 define_command1!(MoveToRow: u16, "\x1b[", "d");
 
-/// The 0-ary command to request the cursor position in row-column order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RequestCursorPosition;
+define_command0!(SaveCursorPosition, "\x1b7");
+define_command0!(RestoreCursorPosition, "\x1b8");
 
+declare_struct!(RequestCursorPosition);
 implement_command_expr!(RequestCursorPosition { "\x1b[6n" });
 
 impl Query for RequestCursorPosition {
@@ -398,9 +406,6 @@ impl Query for RequestCursorPosition {
         Ok((params[0], params[1]))
     }
 }
-
-define_command0!(SaveCursorPosition, "\x1b7");
-define_command0!(RestoreCursorPosition, "\x1b8");
 
 // -------------------------------- Content Management ---------------------------------
 
@@ -449,7 +454,7 @@ define_command0!(EndBatch, "\x1b[?2026l");
 define_command0!(BeginPaste, "\x1b[?2004h");
 define_command0!(EndPaste, "\x1b[?2004l");
 
-/// The 3-ary `Link(‹id›, ‹href›, ‹text›)` command.
+/// The `Link(‹id›, ‹href›, ‹text›)` command.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Link(String);
 
@@ -496,7 +501,7 @@ define_command1!(SetBackground8: u8, "\x1b[48;5;", "m");
 define_command3!(SetForeground24: u8, "\x1b[38;2;", "m");
 define_command3!(SetBackground24: u8, "\x1b[48;2;", "m");
 
-/// 1-/3-ary helper macro to `SetForeground!(‹n› / ‹r›, ‹g›, ‹b›)`
+/// Helper macro to generate `SetForeground!(‹n› / ‹r›, ‹g›, ‹b›)` command.
 #[macro_export]
 macro_rules! SetForeground {
     ($r:expr, $g:expr, $b:expr) => {
@@ -507,7 +512,7 @@ macro_rules! SetForeground {
     };
 }
 
-/// 1-/3-ary helper macro to `SetBackground!(‹n› / ‹r›, ‹g›, ‹b›)`
+/// Helper macro to generate `SetBackground!(‹n› / ‹r›, ‹g›, ‹b›)` command.
 #[macro_export]
 macro_rules! SetBackground {
     ($r:expr, $g:expr, $b:expr) => {
