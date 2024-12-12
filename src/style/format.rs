@@ -148,10 +148,11 @@ impl Attribute {
 
 /// An iterator over all text attributes.
 ///
-/// This iterator adheres to the canonical text attribute order, which places
-/// enabling variants before disabling variants and orders each disabling
-/// variant amongst other disabling variants the same as it orders the
-/// corresponding enabling variant.
+/// This iterator yields disabling variants before enabling ones, preserving the
+/// relative order of variants for the same text attribute. For example, it
+/// always yields [`Attribute::NotUnderlined`] just before
+/// [`Attribute::NotBlinking`] and likewise [`Attribute::Underlined`] just
+/// before [`Attribute::Blinking`].
 #[cfg_attr(feature = "pyffi", pyclass)]
 #[derive(Debug)]
 pub struct AllAttributes(u8);
@@ -199,21 +200,21 @@ impl Iterator for AllAttributes {
 
     fn next(&mut self) -> Option<Self::Item> {
         let attr = match self.0 {
-            0 => Bold,
-            1 => Thin,
-            2 => Italic,
-            3 => Underlined,
-            4 => Blinking,
-            5 => Reversed,
-            6 => Hidden,
-            7 => Stricken,
-            8 => NotBoldOrThin,
-            9 => NotItalic,
-            10 => NotUnderlined,
-            11 => NotBlinking,
-            12 => NotReversed,
-            13 => NotHidden,
-            14 => NotStricken,
+            0 => NotBoldOrThin,
+            1 => NotItalic,
+            2 => NotUnderlined,
+            3 => NotBlinking,
+            4 => NotReversed,
+            5 => NotHidden,
+            6 => NotStricken,
+            7 => Bold,
+            8 => Thin,
+            9 => Italic,
+            10 => Underlined,
+            11 => Blinking,
+            12 => Reversed,
+            13 => Hidden,
+            14 => Stricken,
             _ => return None,
         };
 
@@ -248,7 +249,7 @@ enum Mask {
     Reversed = (Reversed.bits() | NotReversed.bits()) as isize,
     Hidden = (Hidden.bits() | NotHidden.bits()) as isize,
     Stricken = (Stricken.bits() | NotStricken.bits()) as isize,
-    NonDefaultFormats = 0xff,
+    EnabledFormats = 0xff,
 }
 
 impl Mask {
@@ -474,7 +475,7 @@ impl std::ops::Sub for Format {
     /// ```
     /// The returned difference is minimal.
     fn sub(self, rhs: Self) -> Self::Output {
-        let enable = Mask::NonDefaultFormats.apply(self.0 & !rhs.0);
+        let enable = Mask::EnabledFormats.apply(self.0 & !rhs.0);
         let mut disable = negate_bits(rhs.0 & !self.0);
         if Mask::Weight.apply(enable) != 0 {
             disable = NotBoldOrThin.clear(disable);
