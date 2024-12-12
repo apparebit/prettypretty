@@ -456,41 +456,34 @@ define_command0!(EndPaste, "\x1b[?2004l");
 
 /// The `Link(‹id›, ‹href›, ‹text›)` command.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Link(String);
+pub struct Link(Option<String>, String, String);
 
 impl Link {
     /// Create a new hyperlink with the given text, URL, and optional ID.
-    pub fn new<'a, ID, HREF, TEXT>(id: ID, href: HREF, text: TEXT) -> Self
+    pub fn new<I, H, T>(id: Option<I>, href: H, text: T) -> Self
     where
-        ID: Into<Option<&'a str>>,
-        HREF: AsRef<str>,
-        TEXT: AsRef<str>,
+        I: Into<String>,
+        H: Into<String>,
+        T: Into<String>,
     {
-        let mut s = String::new();
-        let id = id.into();
-        match id {
-            Some(id) => {
-                s.push_str("\x1b]8;id=");
-                s.push_str(id);
-                s.push(';');
-            }
-            None => s.push_str("\x1b]8;;"),
-        }
-        s.push_str(href.as_ref());
-        s.push_str("\x1b\\");
-        s.push_str(text.as_ref());
-        s.push_str("\x1b]8;;\x1b\\");
-
-        Self(s)
+        Self(id.map(|s| s.into()), href.into(), text.into())
     }
 }
 
-/// Create a new hyperlink for terminal display.
-pub fn link(href: impl AsRef<str>, text: impl AsRef<str>) -> Link {
-    Link::new(None, href, text)
-}
+implement_command!(Link: self; out {
+    if let Some(ref id) = self.0 {
+        out.write_str("\x1b]8;id=")?;
+        out.write_str(id)?;
+        out.write_str(";")?;
+    } else {
+        out.write_str("\x1b]8;;")?;
+    }
 
-implement_command!(Link: self; out { out.write_str(&self.0) } );
+    out.write_str(self.1.as_ref())?;
+    out.write_str("\x1b\\")?;
+    out.write_str(self.2.as_ref())?;
+    out.write_str("\x1b]8;;\x1b\\")
+});
 
 // --------------------------------- Style Management ----------------------------------
 
