@@ -49,7 +49,7 @@ pub(crate) fn parse_x(s: &str) -> Result<[Float; 3], ColorFormatError> {
         Ok(n as Float / (16_u32.pow(t.len() as u32) - 1) as Float)
     }
 
-    // SAFETY: unwrap() is safe because we tested for just that prefix above.
+    // SAFETY: we tested for just that prefix above.
     let mut iter = s.strip_prefix("rgb:").unwrap().split('/');
     let c1 = parse_coordinate(iter.next(), 0)?;
     let c2 = parse_coordinate(iter.next(), 1)?;

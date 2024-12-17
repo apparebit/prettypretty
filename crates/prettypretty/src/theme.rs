@@ -439,7 +439,7 @@ impl Iterator for ThemeEntryIterator {
         if ThemeEntry::COUNT <= self.index {
             None
         } else {
-            let item = ThemeEntry::try_from(self.index).unwrap();
+            let item = ThemeEntry::try_from(self.index).expect("index should be smaller than count");
             self.index += 1;
             Some(item)
         }

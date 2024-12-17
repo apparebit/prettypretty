@@ -113,6 +113,7 @@ impl Radix {
         let mut result = 0;
 
         while index < length {
+            // SAFETY: by construction
             let digit = (bytes[index] as char).to_digit(*self as u32).unwrap();
             result = (*self as u64) * result + digit as u64;
             index += 1;

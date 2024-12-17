@@ -42,11 +42,13 @@ impl Connection {
             connection.output(),
         ));
         let stamp = if options.verbose() {
-            // macOS duration has microsecond resolution only.
+            // macOS duration has microsecond resolution only, so that's our
+            // least common denominator. If duration_since() fails, we use an
+            // obviously wrong value as stamp.
             std::time::SystemTime::now()
                 .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .subsec_micros()
+                .map(|d| d.subsec_micros())
+                .unwrap_or(0xff_ff_ff_ff)
         } else {
             0
         };
@@ -77,20 +79,20 @@ impl Connection {
     /// Get the terminal input.
     pub fn input(&self) -> Input {
         Input {
-            scanner: self.scanner.lock().unwrap(),
+            scanner: self.scanner.lock().expect("mutex is not poisoned")
         }
     }
 
     /// Get the terminal output.
     pub fn output(&self) -> Output {
         Output {
-            writer: self.writer.lock().unwrap(),
+            writer: self.writer.lock().expect("mutex is not poisoned"),
         }
     }
 
     fn log(&self, message: impl AsRef<str>) -> Result<()> {
         if self.options.verbose() {
-            let mut writer = self.writer.lock().unwrap();
+            let mut writer = self.writer.lock().expect("mutex is not poisoned");
             write!(
                 writer,
                 "{} pid={} group={} stamp={}\r\n",
@@ -109,7 +111,10 @@ impl Connection {
 impl Drop for Connection {
     fn drop(&mut self) {
         let _ = self.log("terminal::disconnect");
-        let _ = self.writer.lock().unwrap().flush();
+        // Map instead of unwrap so that we don't panic in drop.
+        let _ = self.writer.lock().map(|mut w| {
+            let _ = w.flush();
+        });
         let _ = self.config.write(self.connection.output());
     }
 }

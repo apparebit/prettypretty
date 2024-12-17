@@ -112,6 +112,7 @@ impl AnsiColor {
         if 8 <= index {
             index -= 8;
         }
+        // SAFETY: index is within bounds by construction
         AnsiColor::try_from(index).unwrap()
     }
 
@@ -124,6 +125,7 @@ impl AnsiColor {
         if index < 8 {
             index += 8;
         }
+        // SAFETY: index is within bounds by construction
         AnsiColor::try_from(index).unwrap()
     }
 
@@ -244,8 +246,9 @@ impl Iterator for AnsiColorIterator {
         if 16 <= self.index {
             None
         } else {
+            let index = self.index;
             self.index += 1;
-            Some(AnsiColor::try_from(self.index as u8 - 1).unwrap())
+            Some(AnsiColor::try_from(index as u8).unwrap())
         }
     }
 
@@ -822,6 +825,7 @@ impl From<GrayGradient> for EightBitColor {
 
 impl From<u8> for EightBitColor {
     fn from(value: u8) -> Self {
+        // SAFETY: explicit range checks
         if (0..=15).contains(&value) {
             Self::Ansi(AnsiColor::try_from(value).unwrap())
         } else if (16..=231).contains(&value) {

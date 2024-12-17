@@ -213,7 +213,7 @@ impl<R: std::io::Read> Scanner<R> {
         match action {
             AbortSequence => return Err(ErrorKind::MalformedSequence.into()),
             RetainByte => self.buffer.retain(),
-            Dispatch if matches!(self.control.unwrap(), CSI | ESC | SS2 | SS3) => {
+            Dispatch if matches!(self.control.expect("dispatching a control sequence requires a control"), CSI | ESC | SS2 | SS3) => {
                 self.buffer.retain()
             }
             _ => {}
@@ -233,7 +233,7 @@ impl<R: std::io::Read> Scanner<R> {
         if self.did_overflow {
             Err(ErrorKind::OutOfMemory.into())
         } else {
-            Ok(Token::Sequence(self.control.unwrap(), self.buffer.token()))
+            Ok(Token::Sequence(self.control.expect("a control sequence has a control"), self.buffer.token()))
         }
     }
 
