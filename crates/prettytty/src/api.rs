@@ -146,7 +146,7 @@ macro_rules! sgr {
 /// # let rcp = RequestCursorPosition;
 /// # let tty = Connection::open()?;
 /// # let pos = {
-/// # let (mut output, mut input) = (tty.output(), tty.input());
+/// # let (mut input, mut output) = tty.io();
 /// # output.exec(MoveToColumn(17))?;
 /// # output.exec(rcp)?;
 /// match input.read_token()? {
