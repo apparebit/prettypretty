@@ -183,10 +183,9 @@ The example code below illustrates the use of each major entry point besides
 
 ```rust
 # extern crate prettypretty;
-# use prettypretty::{Color, OkVersion};
+# use prettypretty::{Color, OkVersion, Translator};
 # use prettypretty::style::{AnsiColor, EmbeddedRgb, Fidelity, TrueColor};
 # use prettypretty::theme::VGA_COLORS;
-# use prettypretty::trans::Translator;
 # use prettypretty::error::ColorFormatError;
 # use std::str::FromStr;
 let red = &VGA_COLORS[AnsiColor::BrightRed];
@@ -214,11 +213,10 @@ assert_eq!(maroon, Some(EmbeddedRgb::new(2,0,1).unwrap().into()));
 The Python version is a close match:
 
 ```python
-~from prettypretty.color import Color, OkVersion
+~from prettypretty.color import Color, OkVersion, Translator
 ~from prettypretty.color.style import AnsiColor, Colorant, EmbeddedRgb
 ~from prettypretty.color.style import Fidelity, TrueColor
 ~from prettypretty.color.theme import ThemeEntry, VGA_COLORS
-~from prettypretty.color.trans import Translator
 red = VGA_COLORS[ThemeEntry.Ansi(AnsiColor.BrightRed)]
 assert red == Color.srgb(1.0, 0.333333333333333, 0.333333333333333)
 

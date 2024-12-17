@@ -74,20 +74,20 @@ jobs:
 
     - name: Check Rust code (with & without features)
       run: |
-        cargo check
-        cargo check --all-features
+        cargo check --workspace
+        cargo check --workspace --all-features
 
     - name: Run Clippy (with & without features)
       run: |
-        cargo clippy
-        cargo clippy --all-features
+        cargo clippy --workspace
+        cargo clippy --workspace --all-features
 
     - name: Check Rust format
-      run: cargo fmt --check
+      run: cargo fmt --all --check
 
     - name: Test Rust code
       run: |
-        cargo test
+        cargo test --workspace --features f64,gamut,tty
         cargo test --example query -- --nocapture
 
     - name: Build extension module
@@ -136,7 +136,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist
+          args: --release --out dist --manifest-path crates/prettypretty/Cargo.toml
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -168,7 +168,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist
+          args: --release --out dist --manifest-path crates/prettypretty/Cargo.toml
           sccache: 'true'
           manylinux: musllinux_1_2
       - name: Upload wheels
@@ -197,7 +197,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist
+          args: --release --out dist --manifest-path crates/prettypretty/Cargo.toml
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -224,7 +224,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist
+          args: --release --out dist --manifest-path crates/prettypretty/Cargo.toml
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -241,7 +241,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out dist
+          args: --out dist --manifest-path crates/prettypretty/Cargo.toml
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:

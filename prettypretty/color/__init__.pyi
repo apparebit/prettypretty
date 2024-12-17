@@ -5,7 +5,7 @@ from typing import ClassVar, Self
 from . import gamut as gamut
 from . import spectrum as spectrum
 from . import style as style
-from . import trans as trans
+from . import theme as theme
 
 
 class ColorSpace:
@@ -136,3 +136,52 @@ class Interpolator:
 
 
 def close_enough(f1: float, f2: float) -> bool: ...
+
+
+class Translator:
+    """A class for translating between terminal and high-resolution colors."""
+    def __new__(cls, version: OkVersion, theme: theme.Theme) -> Self: ...
+    def __repr__(self) -> str: ...
+
+    # Interrogate the color theme
+    def is_dark_theme(self) -> bool: ...
+
+    # Translate terminal to high-resolution colors
+    def resolve(
+        self,
+        color: (
+            int | style.AnsiColor | style.EmbeddedRgb | style.GrayGradient |
+            style.EightBitColor | style.TrueColor | Color | style.Colorant
+        ),
+    ) -> Color: ...
+    def resolve_all(
+        self,
+        color: (
+            int | style.AnsiColor | style.EmbeddedRgb | style.GrayGradient |
+            style.EightBitColor | style.TrueColor | Color | style.Colorant
+        ),
+        layer: style.Layer,
+    ) -> Color: ...
+
+    # Translate high-resolution to ANSI colors
+    def to_ansi(self, color: Color) -> Color: ...
+    def supports_hue_lightness(self) -> bool: ...
+    def to_ansi_hue_lightness(self, color: Color) -> None | style.AnsiColor: ...
+    def to_closest_ansi(self, color: Color) -> style.AnsiColor: ...
+    def to_ansi_rgb(self, color: Color) -> style.AnsiColor: ...
+
+    # Translate high-resolution to 8-bit colors
+    def to_closest_8bit(self, color: Color) -> style.EightBitColor: ...
+    def to_closest_8bit_with_ansi(self, color: Color) -> style.EightBitColor: ...
+
+    # Cap terminal colors
+    def cap_hires(self, color: Color, fidelity: style.Fidelity) -> None | style.Colorant: ...
+    def cap_colorant(self, color: style.Colorant, fidelity: style.Fidelity) -> None | style.Colorant: ...
+    def cap(
+        self,
+        color: (
+            int | style.AnsiColor | style.EmbeddedRgb | style.GrayGradient |
+            style.EightBitColor | style.TrueColor | Color | style.Colorant
+        ),
+        fidelity: style.Fidelity,
+    ) -> None | style.Colorant: ...

@@ -6,9 +6,8 @@ to meaningful color values.
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from .color import OkVersion
+from .color import OkVersion, Translator
 from .color.theme import Theme, VGA_COLORS # pyright: ignore [reportMissingModuleSource]
-from .color.trans import Translator # pyright: ignore [reportMissingModuleSource]
 
 
 _current_translator: list[Translator] = [Translator(OkVersion.Revised, VGA_COLORS)]

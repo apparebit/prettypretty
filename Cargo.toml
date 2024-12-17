@@ -1,59 +1,8 @@
-[package]
-name = "prettypretty"
-description = "Applying 2020s color science to 1970s terminal user interfaces"
-keywords = ["awesome", "terminal", "color", "ANSI-escapes", "TUI"]
-categories = ["command-line-interface", "gui", "graphics", "encoding"]
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
 authors = ["Robert Grimm <rgrimm@alum.mit.edu>"]
-version = "0.11.0"
-edition = "2021"
 repository = "https://github.com/apparebit/prettypretty"
-documentation = "https://docs.rs/prettypretty/latest/prettypretty/"
-homepage = "https://crates.io/crates/prettypretty"
 license = "Apache-2.0"
-include = ["/README.md", "/LICENSE", "/src"]
-rust-version = "1.79"
-
-
-[dependencies]
-pyo3 = { version = "0.23.3", features = ["extension-module", "abi3", "abi3-py311"], optional = true }
-
-[target.'cfg(unix)'.dependencies]
-libc = { version = "0.2.168", optional = true }
-
-[target.'cfg(windows)'.dependencies.windows-sys]
-version = "0.59.0"
-optional = true
-features = [
-    "Win32_Foundation",
-    "Win32_Globalization",
-    "Win32_System_Console",
-    "Win32_System_Threading",
-]
-
-[dev-dependencies]
-criterion = { version = "0.5.1", features = ["html_reports"] }
-
-
-[features]
-default = ["f64", "term", "utf8"]
-f64 = []
-gamut = []
-pyffi = ["dep:pyo3"]
-term = ["dep:libc", "dep:windows-sys"]
-utf8 = []
-
-
-[lib]
-name = "prettypretty"
-crate-type = ["lib", "cdylib"]
-path = "src/lib.rs"
-
-
-[package.metadata.docs.rs]
-features = ["f64", "gamut", "term"]
-rustdoc-args = ["-e", "./docs/pretty.css"]
-
-
-[[bench]]
-name = "query"
-harness = false

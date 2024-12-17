@@ -1,8 +1,7 @@
 from typing import ClassVar, Literal, Self
 
 from .format import Format
-from .. import Color
-from ..trans import Translator
+from .. import Color, Translator
 
 
 class AnsiColor:

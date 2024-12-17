@@ -25,4 +25,4 @@ class TestStyle(unittest.TestCase):
 
         format = format.thin()
         attributes = [*format.attributes()]
-        self.assertListEqual(attributes, [Attribute.Thin, Attribute.NotUnderlined])
+        self.assertListEqual(attributes, [Attribute.NotUnderlined, Attribute.Thin])

@@ -282,18 +282,16 @@ install() {
 
 build() {
     run cargo fmt
-    run maturin dev --all-features
+    run maturin dev --all-features -m crates/prettypretty/Cargo.toml
 }
 
 check() {
-    run cargo fmt --check
-    run cargo check
-    run cargo check --features f64,gamut
-    run cargo check --all-features
-    run cargo clippy
-    run cargo clippy --features f64,gamut
-    run cargo clippy --all-features
-    run cargo test --features f64,gamut,term
+    run cargo fmt --all --check
+    run cargo check --workspace
+    run cargo check --workspace --all-features
+    run cargo clippy --workspace
+    run cargo clippy --workspace --all-features
+    run cargo test --workspace --features f64,gamut,tty
     run cargo test --example query -- --nocapture
 
     if [ -d prettypretty ]; then
@@ -354,7 +352,8 @@ doc() {
         run mdbook build docs
     fi
 
-    run cargo rustdoc --all-features --lib -- -e "$(realpath docs/pretty.css)"
+    run cargo rustdoc --all-features --lib -p prettypretty -- -e "$(realpath docs/pretty.css)"
+    run cargo rustdoc --all-features --lib -p prettytty -- -e "$(realpath docs/pretty.css)"
 
     if [ -d docs ]; then
         run ./.venv/bin/sphinx-build -a -b html docs target/doc/python

@@ -1,0 +1,27 @@
+[package]
+name = "prettytty"
+authors = ["Robert Grimm <rgrimm@alum.mit.edu>"]
+description = "Simple, lightweight terminal I/O and configuration"
+keywords = ["terminal", "tty", "raw mode", "cbreak mode", "console"]
+categories = ["command-line-interface"]
+version = "0.1.0"
+edition = "2021"
+repository = "https://github.com/apparebit/prettypretty"
+license = "Apache-2.0"
+
+
+[target.'cfg(unix)'.dependencies]
+libc = { version = "0.2.168" }
+
+[target.'cfg(windows)'.dependencies.windows-sys]
+version = "0.59.0"
+features = [
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_System_Console",
+    "Win32_System_Threading",
+]
+
+
+[lib]
+name = "prettytty"
