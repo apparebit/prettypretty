@@ -23,8 +23,9 @@ then some.
 
 Here's how the above mentioned abstractions are used in practice:
 
-```
-# use prettytty::{Connection, Query, Scan, cmd::{MoveTo, RequestCursorPosition}};
+```rust
+use prettytty::{Connection, Query, Scan, cmd::{MoveTo, RequestCursorPosition}};
+// Make short alias
 let rcp = RequestCursorPosition;
 
 // Open a connection to the terminal
@@ -37,7 +38,7 @@ let pos = {
     output.exec(MoveTo(6, 65))?;
     output.exec(rcp)?;
 
-    // Read sequence with response, then check control
+    // Read sequence with response, validate control
     let response = input.read_sequence(rcp.control())?;
 
     // Parse payload of response

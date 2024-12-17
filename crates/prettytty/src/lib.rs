@@ -1,4 +1,4 @@
-#![doc(html_logo_url = "")]
+#![doc(html_logo_url = "https://raw.githubusercontent.com/apparebit/prettypretty/refs/heads/main/docs/figures/prettytty.png")]
 
 //! # The prettytty terminal library 🌸
 //!

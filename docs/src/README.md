@@ -1,4 +1,28 @@
-# Pretty 🌸 Pretty
+# Pretty 🌸 Terminals
+
+The <https://github.com/apparebit/prettypretty> repository hosts two Rust
+crates:
+
+ 1. The **[prettytty crate](https://crates.io/crates/prettytty)** provides
+    terminal I/O and configuration. The [API
+    documentation](https://apparebit.github.io/prettypretty/prettypretty/) on
+    GitHub pages reflects current development, whereas
+    [docs.rs](https://docs.rs/prettypretty/latest/prettypretty/) reflects the
+    latest release.
+ 2. The **[prettypretty crate](https://crates.io/crates/prettypretty)** provides
+    adjustable styles for terminal applications, with a focus on colors. The
+    [API documentation](https://apparebit.github.io/prettypretty/prettypretty/)
+    on GitHub pages reflects current development, whereas
+    [docs.rs](https://docs.rs/prettypretty/latest/prettypretty/) reflects the
+    latest release.
+
+The [prettypretty package](https://pypi.org/project/prettypretty/) provides the
+second crate's functionality in Python. It also includes Python code that makes
+up for prettytty not being ported to Python.
+
+----
+
+## Pretty 🌸 Pretty
 
 Prettypretty is a Rust library with optional Python integration that brings
 2020s color science to 1970s terminals for building awesome terminal user

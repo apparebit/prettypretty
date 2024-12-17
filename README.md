@@ -1,11 +1,15 @@
-# Pretty 🌸 (Pre)tty
+# Pretty 🌸 Terminals
 
 [![Run Tests, Build Wheels, & Publish to PyPI](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml)
 [![Publish to GitHub Pages](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml)
 
-Pretty 🌸 tty: [**Documentation**](https://docs.rs/prettypretty/latest/prettytty/)
+## Pretty 🌸 Tty
+
+\[  [**Docs.rs**](https://docs.rs/prettypretty/latest/prettytty/)
+| [**GitHub Pages**](https://apparebit.github.io/prettypretty/prettytty/)
 | [**Rust Crate**](https://crates.io/crates/prettytty)
 | [**Repository**](https://github.com/apparebit/prettypretty)
+\]
 
 Prettytty is a **lightweight and flexible terminal library** for Rust that has
 only one low-level dependency, i.e., [`libc`](https://crates.io/crates/libc) on
@@ -16,13 +20,16 @@ responses from [`Input`]. [`Scan::read_token`] takes care of low-level UTF-8 and
 ANSI escape sequence decoding and [`Query::parse`] turns their payloads into
 objects. A [`cmd`] library with 70+ built-in commands covers all basic needs.
 
-
 ----
 
-Pretty 🌸 Pretty: [**Documentation**](https://docs.rs/prettypretty/latest/prettypretty/)
+## Pretty 🌸 Pretty:
+
+\[  [**Docs.rs**](https://docs.rs/prettypretty/latest/prettypretty/)
+| [**GitHub Pages**](https://apparebit.github.io/prettypretty/prettypretty/)
 | [**Rust Crate**](https://crates.io/crates/prettytty)
 | [**Python Package**](https://pypi.org/project/prettypretty/)
 | [**Repository**](https://github.com/apparebit/prettypretty)
+\]
 
 🎖️ As featured on [Real Python #211](https://realpython.com/podcasts/rpp/211/)
 
