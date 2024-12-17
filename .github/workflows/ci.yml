@@ -86,6 +86,8 @@ jobs:
       run: cargo fmt --all --check
 
     - name: Test Rust code
+      env:
+        RUST_BACKTRACE: 1
       run: |
         cargo test --workspace --features f64,gamut,tty
         cargo test --example query -- --nocapture
