@@ -79,7 +79,7 @@ impl Connection {
     /// Get the terminal input.
     pub fn input(&self) -> Input {
         Input {
-            scanner: self.scanner.lock().expect("mutex is not poisoned")
+            scanner: self.scanner.lock().expect("mutex is not poisoned"),
         }
     }
 
