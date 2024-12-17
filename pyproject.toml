@@ -65,6 +65,7 @@ python-packages = ["prettypretty"]
 module-name = "prettypretty.color"
 bindings = "pyo3"
 features = ["pyffi"]
+manifest-path = "crates/prettypretty/Cargo.toml"
 
 
 [tool.pyright]

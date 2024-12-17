@@ -1,8 +1,3 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
-
-[workspace.package]
-authors = ["Robert Grimm <rgrimm@alum.mit.edu>"]
-repository = "https://github.com/apparebit/prettypretty"
-license = "Apache-2.0"
