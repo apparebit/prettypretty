@@ -35,10 +35,11 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let result = run_queries();
+    let mut result = run_queries();
     if let Err(err) = &result {
         if err.kind() == ErrorKind::ConnectionRefused {
-            println!("Unable to connect to terminal. Skipping queries.")
+            println!("Unable to connect to terminal. Skipping queries.");
+            result = Ok(());
         } else {
             report(err);
         }
