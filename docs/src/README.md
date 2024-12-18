@@ -5,20 +5,21 @@ crates:
 
  1. The **[prettytty crate](https://crates.io/crates/prettytty)** provides
     terminal I/O and configuration. The [API
+    documentation](https://apparebit.github.io/prettypretty/prettytty/) on
+    GitHub pages reflects current development, whereas
+    [docs.rs](https://docs.rs/prettytty/latest/prettytty/) reflects the
+    latest release.
+ 2. The **[prettypretty crate](https://crates.io/crates/prettypretty)** provides
+    adjustable styles for terminal applications, with a focus on colors. As for
+    prettytty, the [API
     documentation](https://apparebit.github.io/prettypretty/prettypretty/) on
     GitHub pages reflects current development, whereas
     [docs.rs](https://docs.rs/prettypretty/latest/prettypretty/) reflects the
     latest release.
- 2. The **[prettypretty crate](https://crates.io/crates/prettypretty)** provides
-    adjustable styles for terminal applications, with a focus on colors. The
-    [API documentation](https://apparebit.github.io/prettypretty/prettypretty/)
-    on GitHub pages reflects current development, whereas
-    [docs.rs](https://docs.rs/prettypretty/latest/prettypretty/) reflects the
-    latest release.
 
-The [prettypretty package](https://pypi.org/project/prettypretty/) provides the
-second crate's functionality in Python. It also includes Python code that makes
-up for prettytty not being ported to Python.
+Only the latter crate has Python bindings. However, the [prettypretty
+package](https://pypi.org/project/prettypretty/) has its own terminal
+abstraction and several useful scripts for visualizing colors and color themes.
 
 ----
 

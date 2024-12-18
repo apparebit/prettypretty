@@ -47,7 +47,6 @@
 //!     let response = input.read_sequence(RequestCursorPosition.control())?;
 //!     RequestCursorPosition.parse(response)?
 //! };
-//! drop(tty);
 //! assert_eq!(pos.1, 17);
 //! # Ok(())
 //! # }
