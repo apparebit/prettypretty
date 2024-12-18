@@ -1,7 +1,6 @@
 use std::ffi::c_void;
 use std::fs::OpenOptions;
 use std::io::{Error, ErrorKind, Read, Result, Write};
-use std::num::{NonZeroU8, NonZeroUsize};
 use std::os::windows::io::{AsRawHandle, OwnedHandle};
 use std::ptr::{from_mut, null};
 
@@ -11,7 +10,7 @@ use windows_sys::Win32::System::Console::{self, CONSOLE_MODE as ConsoleMode};
 use windows_sys::Win32::System::Threading;
 
 use super::{into_result::IntoResult, RawHandle};
-use crate::term::{Mode, Options};
+use crate::opt::{Mode, Options};
 
 // ----------------------------------------------------------------------------------------------------------
 
@@ -134,17 +133,6 @@ impl Config {
     }
 }
 
-/// Make `Config` safe to send across threads.
-///
-/// Many Windows handles can be safely shared across threads even though
-/// [`HANDLE` is
-/// defined](https://docs.rs/windows-sys/0.59.0/windows_sys/Win32/Foundation/type.HANDLE.html)
-/// to be a [`*mut c_void`]. Rust's standard library [implements `Send` and
-/// `Sync`](https://github.com/rust-lang/rust/blob/8e37e151835d96d6a7415e93e6876561485a3354/library/std/src/os/windows/io/handle.rs#L111),
-/// but not `RawHandle`. Since `Config` stores handles and needs to be
-/// accessible across threads, we must manually implement `Send`.
-unsafe impl Send for Config {}
-
 // ----------------------------------------------------------------------------------------------------------
 
 #[derive(Debug)]
@@ -154,14 +142,22 @@ pub(crate) struct RawInput {
 }
 
 impl RawInput {
+    #[inline]
     fn new(handle: RawHandle, timeout: u32) -> Self {
         Self { handle, timeout }
     }
 
+    #[inline]
     fn handle(&self) -> RawHandle {
         self.handle
     }
 }
+
+// SAFETY: Windows HANDLE is defined as a *mut c_void but most instances are
+// thread-safe. In fact, Rust's standard library [implements `Send` and
+// `Sync`](https://github.com/rust-lang/rust/blob/8e37e151835d96d6a7415e93e6876561485a3354/library/std/src/os/windows/io/handle.rs#L111),
+// for wrapped handles, too. Also, access to raw input is gated by a mutex.
+unsafe impl Send for RawInput {}
 
 impl Read for RawInput {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
@@ -199,10 +195,22 @@ pub(crate) struct RawOutput {
 
 impl RawOutput {
     /// Create a new writer with a raw file descriptor.
+    #[inline]
     pub fn new(handle: RawHandle) -> Self {
         Self { handle }
     }
+
+    #[inline]
+    pub fn handle(&self) -> RawHandle {
+        self.handle
+    }
 }
+
+// SAFETY: Windows HANDLE is defined as a *mut c_void but most instances are
+// thread-safe. In fact, Rust's standard library [implements `Send` and
+// `Sync`](https://github.com/rust-lang/rust/blob/8e37e151835d96d6a7415e93e6876561485a3354/library/std/src/os/windows/io/handle.rs#L111),
+// for wrapped handles, too. Also, access to raw input is gated by a mutex.
+unsafe impl Send for RawOutput {}
 
 impl Write for RawOutput {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {

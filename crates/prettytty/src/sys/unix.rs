@@ -216,6 +216,7 @@ pub(crate) struct RawInput {
 }
 
 impl RawInput {
+    #[inline]
     fn new(handle: RawHandle) -> Self {
         Self { handle }
     }
@@ -248,6 +249,7 @@ pub(crate) struct RawOutput {
 }
 
 impl RawOutput {
+    #[inline]
     fn new(handle: RawHandle) -> Self {
         Self { handle }
     }
