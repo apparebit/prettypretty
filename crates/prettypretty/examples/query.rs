@@ -1,6 +1,6 @@
+use std::io::{ErrorKind, Result};
 use prettypretty::theme::Theme;
 use prettytty::{err::report, opt::Options, Connection};
-use std::io::Result;
 
 fn run_queries() -> Result<()> {
     let options = Options::builder().timeout(50).verbose(true).build();
@@ -36,7 +36,11 @@ fn main() -> Result<()> {
 
     let result = run_queries();
     if let Err(err) = &result {
-        report(err);
+        if err.kind() == ErrorKind::ConnectionRefused {
+            println!("Unable to connect to terminal. Skipping queries.")
+        } else {
+            report(err);
+        }
     }
     result
 }
