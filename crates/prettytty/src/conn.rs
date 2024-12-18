@@ -1,4 +1,4 @@
-use std::io::{BufRead, BufWriter, Read, Result, Write};
+use std::io::{BufRead, BufWriter, Error, ErrorKind, Read, Result, Write};
 use std::sync::{Mutex, MutexGuard};
 
 use crate::opt::Options;
@@ -37,8 +37,12 @@ impl Connection {
     }
 
     /// Open a terminal connection with the given options.
+    ///
+    /// If this method cannot establish a connection to the controlling
+    /// terminal, it fails with a [`ErrorKind::ConnectionRefused`] error.
     pub fn with_options(options: Options) -> Result<Self> {
-        let connection = RawConnection::open(&options)?;
+        let connection = RawConnection::open(&options)
+            .map_err(|e| Error::new(ErrorKind::ConnectionRefused, e))?;
         let config = Config::read(connection.input())?;
         config.apply(&options).write(connection.output())?;
         let scanner = Mutex::new(Scanner::with_options(&options, connection.input()));
@@ -53,7 +57,7 @@ impl Connection {
             std::time::SystemTime::now()
                 .duration_since(std::time::SystemTime::UNIX_EPOCH)
                 .map(|d| d.subsec_micros())
-                .unwrap_or(0xff_ff_ff_ff)
+                .unwrap_or(0)
         } else {
             0
         };
@@ -103,7 +107,7 @@ impl Connection {
                 "{} pid={} group={} stamp={}\r\n",
                 message.as_ref(),
                 std::process::id(),
-                self.connection.group()?,
+                self.connection.group().unwrap_or(0),
                 self.stamp
             )?;
             writer.flush()

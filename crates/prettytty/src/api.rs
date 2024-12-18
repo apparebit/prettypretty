@@ -145,24 +145,41 @@ macro_rules! sgr {
 /// # use prettytty::{Connection, Query, Scan, Token};
 /// # use prettytty::cmd::{MoveToColumn, RequestCursorPosition};
 /// # use prettytty::err::ErrorKind;
-/// # let rcp = RequestCursorPosition;
-/// # let tty = Connection::open()?;
+/// # use prettytty::opt::Options;
+/// # let options = Options::builder().timeout(50).build();
+/// # let tty = match Connection::with_options(options) {
+/// #     Ok(tty) => tty,
+/// #     Err(err) if err.kind() == std::io::ErrorKind::ConnectionRefused => return Ok(()),
+/// #     Err(err) => return Err(err),
+/// # };
 /// # let pos = {
 /// # let (mut input, mut output) = tty.io();
 /// # output.exec(MoveToColumn(17))?;
-/// # output.exec(rcp)?;
-/// match input.read_token()? {
-///     Token::Sequence(ctrl, payload) if ctrl == rcp.control() => {
-///         rcp.parse(payload)?
+/// // Write the command
+/// output.exec(RequestCursorPosition)?;
+///
+/// // Read the token
+/// let token = input.read_token()?;
+///
+/// // Extract and parse payload
+/// if let Token::Sequence(control, payload) = input.read_token()? {
+///     if control == RequestCursorPosition.control() {
+///         RequestCursorPosition.parse(payload)?
+///     } else {
+///         return Err(ErrorKind::BadControl.into());
 ///     }
-///     Token::Sequence(_, _) => return Err(ErrorKind::BadControl.into()),
-///     _ => return Err(ErrorKind::NotASequence.into()),
+/// } else {
+///     return Err(ErrorKind::NotASequence.into());
 /// }
 /// # };
 /// # drop(tty);
 /// # assert_eq!(pos.1, 17);
 /// # Ok::<(), std::io::Error>(())
 /// ```
+///
+/// In the above example, generating precise errors requires about as much code
+/// as extracting and parsing the payload. The [`Scan::read_sequence`] method
+/// abstracts over this boilerplate.
 pub trait Query: Command {
     /// The type of the response data.
     type Response;

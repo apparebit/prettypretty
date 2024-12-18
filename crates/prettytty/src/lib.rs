@@ -1,4 +1,6 @@
-#![doc(html_logo_url = "https://raw.githubusercontent.com/apparebit/prettypretty/refs/heads/main/docs/figures/prettytty.png")]
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/apparebit/prettypretty/refs/heads/main/docs/figures/prettytty.png"
+)]
 
 //! # The prettytty terminal library 🌸
 //!
@@ -31,19 +33,31 @@
 //! terminal is a breeze:
 //!
 //! ```
-//! # use prettytty::{Connection, Query, Scan, cmd::{MoveTo, RequestCursorPosition}};
-//! let rcp = RequestCursorPosition;
-//! let tty = Connection::open()?;
+//! # use std::io::{ErrorKind, Result};
+//! # use prettytty::{Connection, Query, Scan};
+//! # use prettytty::cmd::{MoveToColumn, RequestCursorPosition};
+//! # use prettytty::opt::Options;
+//! # fn run() -> Result<()> {
+//! let tty = Connection::with_options(Options::builder().timeout(10).build())?;
 //! let pos = {
-//!     let (mut output, mut input) = (tty.output(), tty.input());
-//!     output.exec(MoveTo(6, 65))?;
-//!     output.exec(rcp)?;
+//!     let (mut input, mut output) = tty.io();
+//!     output.exec(MoveToColumn(17))?;
+//!     output.exec(RequestCursorPosition)?;
 //!
-//!     let response = input.read_sequence(rcp.control())?;
-//!     rcp.parse(response)?
+//!     let response = input.read_sequence(RequestCursorPosition.control())?;
+//!     RequestCursorPosition.parse(response)?
 //! };
 //! drop(tty);
-//! assert_eq!(pos, (6, 65));
+//! assert_eq!(pos.1, 17);
+//! # Ok(())
+//! # }
+//! # // Treat connection refused errors in CI as implying no TTY.
+//! # match run() {
+//! #     Ok(()) => (),
+//! #     Err(err) if err.kind() == ErrorKind::ConnectionRefused &&
+//! #         std::env::var_os("CI").is_some() => (),
+//! #     Err(err) => return Err(err),
+//! # };
 //! # Ok::<(), std::io::Error>(())
 //! ```
 //!

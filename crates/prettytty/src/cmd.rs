@@ -231,7 +231,7 @@ impl Command for RequestScreenSize {}
 
 impl std::fmt::Display for RequestScreenSize {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        MoveTo(999, 999).fmt(f)?;
+        MoveTo(u16::MAX, u16::MAX).fmt(f)?;
         RequestCursorPosition.fmt(f)
     }
 }
