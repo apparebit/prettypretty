@@ -25,6 +25,11 @@ pub struct Connection {
     connection: RawConnection,
 }
 
+fn _assert_connection_is_sync_send() {
+    fn is_sync_send<T: Sync + Send>() {}
+    is_sync_send::<Connection>();
+}
+
 impl Connection {
     /// Open a terminal connection with the default options.
     pub fn open() -> Result<Self> {

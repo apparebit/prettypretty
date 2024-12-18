@@ -52,6 +52,8 @@ impl std::fmt::Display for Control {
 /// Commands provide instructions to the terminal and are communicated in-band
 /// by writing ANSI escape codes. The actual writing is performed by the display
 /// trait's `fmt` method.
+///
+/// This trait is object-safe.
 pub trait Command: std::fmt::Display {}
 
 /// A borrowed command is a command.
@@ -232,9 +234,11 @@ impl Token<'_> {
 
 /// A scanner for UTF-8 characters and control sequences.
 ///
-/// An implementation of this trait implements the state machine necessary for
+/// An implementation of this trait provides the state machine necessary for
 /// scanning UTF-8 characters and control sequences. It also buffers the data it
 /// reads from the terminal.
+///
+/// This trait is object-safe.
 pub trait Scan: std::io::BufRead {
     /// Determine if the state machine currently is in-flight.
     ///
@@ -282,4 +286,13 @@ impl<S: Scan + ?Sized> Scan for Box<S> {
     fn read_token(&mut self) -> Result<Token> {
         (**self).read_token()
     }
+}
+
+fn _assert_traits_are_object_safe<T>() {
+    fn is_object_safe<T: ?Sized>() {}
+
+    is_object_safe::<dyn Command>();
+    is_object_safe::<dyn Sgr>();
+    is_object_safe::<dyn Query<Response = T>>();
+    is_object_safe::<dyn Scan>();
 }
