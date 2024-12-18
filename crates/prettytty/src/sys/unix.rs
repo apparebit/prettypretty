@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 use std::fs::OpenOptions;
-use std::io::{Read, Result, Write};
+use std::io::{stderr, stdin, stdout, IsTerminal, Read, Result, Write};
 use std::os::fd::{AsRawFd, OwnedFd};
 use std::ptr::{from_mut, from_ref};
 
@@ -9,10 +9,33 @@ use crate::opt::{Mode, Options};
 
 // ----------------------------------------------------------------------------------------------------------
 
+#[derive(Debug)]
+enum RawConnectionHandle {
+    Owned(OwnedFd),
+    #[allow(dead_code)]
+    StdIo(RawHandle, RawHandle),
+}
+
+impl RawConnectionHandle {
+    fn input(&self) -> RawHandle {
+        match self {
+            Self::Owned(handle) => handle.as_raw_fd(),
+            Self::StdIo(handle, _) => *handle,
+        }
+    }
+
+    fn output(&self) -> RawHandle {
+        match self {
+            Self::Owned(handle) => handle.as_raw_fd(),
+            Self::StdIo(_, handle) => *handle,
+        }
+    }
+}
+
 /// A connection to a terminal device.
 #[derive(Debug)]
 pub(crate) struct RawConnection {
-    fd: OwnedFd,
+    handle: RawConnectionHandle,
 }
 
 impl RawConnection {
@@ -24,24 +47,58 @@ impl RawConnection {
             .open("/dev/tty")?
             .into();
 
-        Ok(Self { fd })
+        Ok(Self {
+            handle: RawConnectionHandle::Owned(fd),
+        })
+    }
+
+    /// Simulate a terminal connection with standard I/O.
+    ///
+    /// This method returns a connection as long as standard input and either
+    /// standard output or standard error have not been redirected and are
+    /// connected to a terminal.
+    ///
+    /// Such a simulated connection is *not* equivalent to an actual terminal
+    /// connection because any I/O through Rust's standard library can interfere
+    /// with the connection's operation. That applies even to I/O that happened
+    /// before the connection was created, since Rust's standard library
+    /// performs its own buffering of standard I/O. In other words, a simulated
+    /// connection is only safe to use as long as the standard library
+    /// facilities are only used after the last connection has been dropped.
+    #[allow(dead_code)]
+    pub fn with_stdio() -> Option<Self> {
+        if stdin().is_terminal() {
+            let output = if stdout().is_terminal() {
+                stdout().as_raw_fd()
+            } else if stderr().is_terminal() {
+                stderr().as_raw_fd()
+            } else {
+                return None;
+            };
+
+            Some(Self {
+                handle: RawConnectionHandle::StdIo(stdin().as_raw_fd(), output),
+            })
+        } else {
+            None
+        }
     }
 
     /// Get process group ID.
     #[inline]
     pub fn group(&self) -> Result<u32> {
-        unsafe { libc::tcgetsid(self.fd.as_raw_fd()) }.into_result()
+        unsafe { libc::tcgetsid(self.handle.input()) }.into_result()
     }
 
     /// Get a handle for reading from the connection.
     #[inline]
     pub fn input(&self) -> RawInput {
-        RawInput::new(self.fd.as_raw_fd())
+        RawInput::new(self.handle.input())
     }
 
     /// Get a handle for writing to the connection.
     pub fn output(&self) -> RawOutput {
-        RawOutput::new(self.fd.as_raw_fd())
+        RawOutput::new(self.handle.output())
     }
 }
 
