@@ -20,7 +20,19 @@ responses from [`Input`]. [`Scan::read_token`] takes care of low-level UTF-8 and
 ANSI escape sequence decoding and [`Query::parse`] turns their payloads into
 objects. A [`cmd`] library with 70+ built-in commands covers all basic needs.
 
+
+[`cmd`]: https://apparebit.github.io/prettypretty/prettytty/cmd/index.html
+[`Command`]: https://apparebit.github.io/prettypretty/prettytty/trait.Command.html
+[`Connection`]: https://apparebit.github.io/prettypretty/prettytty/struct.Connection.html
+[`Input`]: https://apparebit.github.io/prettypretty/prettytty/struct.Input.html
+[`Output`]: https://apparebit.github.io/prettypretty/prettytty/struct.Output.html
+[`Query`]: https://apparebit.github.io/prettypretty/prettytty/trait.Query.html
+[`Query::parse`]: https://apparebit.github.io/prettypretty/prettytty/trait.Query.html#method.parse
+[`Scan`]: https://apparebit.github.io/prettypretty/prettytty/trait.Scan.html
+[`Scan::read_token`]: https://apparebit.github.io/prettypretty/prettytty/trait.Scan.html#method.read_token
+
 ----
+
 
 ## Pretty 🌸 Pretty:
 
@@ -43,12 +55,12 @@ adjusts them to terminal capabilities and user preferences at program startup,
 and (3) your app uses the resulting styles at will.
 
 Of course, prettypretty integrates with prettytty, mostly to use
-[`Theme::query`] for **querying the terminal for its current color theme**.
-Said color theme then informs color conversions in step two above. But the
-integration also is entirely optional, controlled by the `tty` feature, and
-pretty small, comprising about 90 lines of code, 50 of which used for
-reimplementing that query function two more times to help determine the most
-performant approach.
+[`Theme::query`](https://apparebit.github.io/prettypretty/prettypretty/struct.Theme.html#method.query)
+for **querying the terminal for its current color theme**. Said color theme then
+informs color conversions in step two above. But the integration also is
+entirely optional, controlled by the `tty` feature, and pretty small, comprising
+about 90 lines of code, 50 of which used for reimplementing that query function
+two more times to help determine the most performant approach.
 
 As far as colors are concerned, prettypretty comes with all the expressivity and
 convenience of **high-resolution, floating point colors and [color

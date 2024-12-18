@@ -1,4 +1,5 @@
 use std::io::{ErrorKind, Result};
+
 use prettypretty::theme::Theme;
 use prettytty::{err::report, opt::Options, Connection};
 
