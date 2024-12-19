@@ -16,7 +16,14 @@
 //! ```
 
 /// A terminal mode.
-#[derive(Clone, Copy, Debug, Default)]
+///
+/// Terminals usually operate in canonical line-editing mode. As a result, input
+/// usually only becomes available for reading after the user pressed the return
+/// key. Rare or cbreak mode disables line-editing but leaves other features
+/// such as control-c processing active. Raw mode also disables these additional
+/// features, giving the application full control while also requiring that the
+/// application implement everything itself.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Mode {
     /// Rare or cbreak mode.
     #[default]
