@@ -1,49 +1,15 @@
 //! Helper module with utilities for byte strings.
 
-/// Nicely format the byte with the given writer.
-///
-/// This function writes
-///
-///   * printable ASCII characters as just that, ASCII characters;
-///   * replaces common C0 and C1 controls with two- or three-letter mnemonics
-///     between `‹›`, e.g., `‹𝖻𝖾𝗅›`;
-///   * formats all other bytes as two-digit hexadecimal numbers, again between
-///     `‹›`, e.g., ‹17› for ETM (End of Transmission).
-///
-/// To ensure that mnemonics and hexadecimal codes are easily distinguishable,
-/// this function only uses mnemonics that have at least one letter that is not
-/// a hexadecimal digit and formats them with Unicode sans-serif math
-/// characters. For that reason, FF (form-feed) is not formatted as `‹𝖿𝖿›` but
-/// rather as `‹0c›`
-///
-/// This function does *not* flush the output.
-///
-///
-/// # Examples
-///
-/// ```
-/// # use std::io::Write;
-/// # use prettytty::util::format_nicely;
-/// let mut buffer = [0_u8; 100];
-/// let mut cursor = buffer.as_mut();
-/// for byte in b"\x1bP>|tty\x07" {
-///     format_nicely(*byte, &mut cursor)?;
-/// }
-///
-/// // Since cursor mutably borrows buffer,
-/// // we first get cursor's length only:
-/// let len = cursor.len();
-///
-/// // Cursor's lifetime ends with this comment,
-/// // restoring access to buffer:
-/// let len = buffer.len() - len;
-///
-/// assert_eq!(&buffer[..len], "‹𝖾𝗌𝖼›P>|tty‹𝖻𝖾𝗅›".as_bytes());
-/// # Ok::<(), std::io::Error>(())
-/// ```
-pub fn format_nicely(byte: u8, writer: &mut impl std::io::Write) -> std::io::Result<usize> {
+use std::fmt;
+use std::io::Write;
+
+/// Nicely format a byte.
+fn format_nicely<W>(byte: u8, output: &mut W) -> Result<usize, fmt::Error>
+where
+    W: fmt::Write + ?Sized,
+{
     if (0x20..=0x7e).contains(&byte) {
-        writer.write_all(&[byte])?;
+        output.write_char(byte as char)?;
         return Ok(1);
     }
 
@@ -76,12 +42,123 @@ pub fn format_nicely(byte: u8, writer: &mut impl std::io::Write) -> std::io::Res
         _ => "",
     };
     if !replacement.is_empty() {
-        writer.write_all(replacement.as_bytes())?;
+        output.write_str(replacement)?;
         return Ok(2 + (replacement.len() - 6) / 4);
     }
 
-    writer.write_fmt(format_args!("‹{:02x}›", byte))?;
+    output.write_fmt(format_args!("‹{:02x}›", byte))?;
     Ok(4)
+}
+
+/// Write bytes nicely.
+///
+/// Conveniently, this trait's two methods have default implementations, and the
+/// trait has a default implementation for all writers.
+///
+/// # Example
+///
+/// Bring the trait into scope and use it to format individual bytes as well as
+/// byte strings:
+///
+/// ```
+/// use prettytty::util::WriteNicely;
+/// let mut buffer = [0; 20];
+/// let mut cursor = buffer.as_mut_slice();
+/// let mut size = 0;
+///
+/// size += cursor.write_slice_nicely(b"yo")?;
+/// size += cursor.write_nicely(0x07)?;
+/// assert_eq!(size, 7);
+///
+/// let len = cursor.len();
+/// let len = buffer.len() - len;
+/// assert_eq!(&buffer[..len], "yo‹𝖻𝖾𝗅›".as_bytes());
+/// # Ok::<(), std::io::Error>(())
+/// ```
+pub trait WriteNicely: Write {
+    /// Output a nicely formatted byte with the writer.
+    ///
+    /// This method formats:
+    ///
+    ///   * Printable ASCII characters as ASCII characters;
+    ///   * Common C0 and C1 controls as two- or three-letter mnemonics, e.g.,
+    ///     `‹𝖻𝖾𝗅›`;
+    ///   * All other bytes as two-digit hexadecimal numbers, e.g., ‹17› for ETM
+    ///     (End of Transmission).
+    ///
+    /// To ensure that mnemonics and hexadecimal codes are clearly
+    /// distinguishable, this function only uses mnemonics that have at least
+    /// one letter that is *not* a hexadecimal digit. It also formats them with
+    /// Unicode sans-serif math characters. As a result, FF (form-feed) is not
+    /// formatted as `‹𝖿𝖿›` but rather as `‹0c›`
+    fn write_nicely(&mut self, byte: u8) -> std::io::Result<usize> {
+        struct Adapter<'a, T: ?Sized + 'a> {
+            inner: &'a mut T,
+            error: std::io::Result<usize>,
+        }
+
+        impl<T: std::io::Write + ?Sized> fmt::Write for Adapter<'_, T> {
+            fn write_str(&mut self, s: &str) -> fmt::Result {
+                self.inner.write_all(s.as_bytes()).map_err(|e| {
+                    self.error = Err(e);
+                    fmt::Error
+                })
+            }
+        }
+
+        let mut output = Adapter {
+            inner: self,
+            error: Ok(0),
+        };
+
+        format_nicely(byte, &mut output).map_err(|_| {
+            match output.error {
+                Ok(_) => panic!("a formatting trait implementation returned an error when the underlying stream did not"),
+                Err(err) => err,
+            }
+        })
+    }
+
+    /// Write the slice of bytes nicely.
+    fn write_slice_nicely(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let mut size = 0;
+        for byte in bytes.iter() {
+            size += self.write_nicely(*byte)?;
+        }
+        Ok(size)
+    }
+}
+
+impl<W: Write> WriteNicely for W {}
+
+// -----------------------------------------------------------------------------------------------
+
+/// A newtype for nicely formatting a byte slice.
+struct ByteStringNicely<'a>(&'a [u8]);
+
+impl std::fmt::Display for ByteStringNicely<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("\"")?;
+        for byte in self.0.iter() {
+            if *byte == b'"' {
+                f.write_str("\\\"")?;
+            } else {
+                format_nicely(*byte, f)?;
+            }
+        }
+        f.write_str("\"")
+    }
+}
+
+impl std::fmt::Debug for ByteStringNicely<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+/// Turn the slice into a value that displays nicely.
+pub fn nicely_str(bytes: &[u8]) -> impl std::fmt::Debug + std::fmt::Display + use<'_> {
+    ByteStringNicely(bytes)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -148,13 +225,32 @@ pub(crate) fn is_semi_colon(b: &u8) -> bool {
 
 #[cfg(test)]
 mod test {
-    use super::{is_semi_colon, Radix};
+    use super::{is_semi_colon, Radix, WriteNicely};
+    use std::io::Error;
 
     #[test]
-    fn test_slice_ext() {
+    fn test_radix_semi_colon() {
         assert_eq!(Radix::Decimal.parse(b"665").unwrap(), 665);
         assert_eq!(Radix::Hexadecimal.parse(b"665").unwrap(), 1_637);
         assert!(is_semi_colon(&b';'));
         assert!(!is_semi_colon(&b'@'));
+    }
+
+    #[test]
+    fn test_nicely() -> std::io::Result<()> {
+        let mut buffer = [0; 128];
+        let mut cursor = buffer.as_mut_slice();
+
+        assert_eq!(cursor.write_nicely(b'R')?, 1);
+        assert_eq!(cursor.write_nicely(0x1b)?, 5);
+        assert_eq!(cursor.write_nicely(b'[')?, 1);
+        assert_eq!(cursor.write_nicely(0xaf)?, 4);
+
+        let cursor_len = cursor.len();
+        let len = buffer.len() - cursor_len;
+        let data = &buffer[..len];
+        assert_eq!(data, "R‹𝖾𝗌𝖼›[‹af›".as_bytes());
+        assert_eq!(len, 28);
+        Ok::<(), Error>(())
     }
 }

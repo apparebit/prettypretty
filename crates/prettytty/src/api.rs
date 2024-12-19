@@ -1,5 +1,7 @@
 use std::io::Result;
 
+use crate::util::nicely_str;
+
 /// Control codes that start or end ANSI escape sequences.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Control {
@@ -92,27 +94,23 @@ impl<S: Sgr + ?Sized> Sgr for Box<S> {
     }
 }
 
-/// A macro to compose several SGR commands into a composite one.
+/// Compose SGR commands into another SGR command.
 #[macro_export]
 macro_rules! sgr {
     ( $sgr:expr, $( $sgr2:expr ),* $(,)? ) => {{
         struct SgrSeq;
 
-        impl std::fmt::Display for SgrSeq {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        impl ::std::fmt::Display for SgrSeq {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                 f.write_str("\x1b[")?;
-                $sgr.write_param(f)?;
-                $(
-                    f.write_str(";")?;
-                    $sgr2.write_param(f)?;
-                )*
+                self.write_param(f)?;
                 f.write_str("m")
             }
         }
 
         impl $crate::Command for SgrSeq {}
         impl $crate::Sgr for SgrSeq {
-            fn write_param(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt:Result {
+            fn write_param(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                 $sgr.write_param(f)?;
                 $(
                     f.write_str(";")?;
@@ -146,7 +144,7 @@ macro_rules! sgr {
 /// # use prettytty::cmd::{MoveToColumn, RequestCursorPosition};
 /// # use prettytty::err::ErrorKind;
 /// # use prettytty::opt::Options;
-/// # let options = Options::builder().timeout(50).build();
+/// # let options = Options::builder().timeout(100).build();
 /// # let tty = match Connection::with_options(options) {
 /// #     Ok(tty) => tty,
 /// #     Err(err) if err.kind() == std::io::ErrorKind::ConnectionRefused => return Ok(()),
@@ -162,7 +160,7 @@ macro_rules! sgr {
 /// let token = input.read_token()?;
 ///
 /// // Extract and parse payload
-/// if let Token::Sequence(control, payload) = input.read_token()? {
+/// if let Token::Sequence(control, payload) = token {
 ///     if control == RequestCursorPosition.control() {
 ///         RequestCursorPosition.parse(payload)?
 ///     } else {
@@ -218,7 +216,7 @@ impl<Q: Query + ?Sized> Query for Box<Q> {
 }
 
 /// A text or control sequence token.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Token<'t> {
     /// One or more UTF-8 characters excluding C0 and C1 controls.
     Text(&'t [u8]),
@@ -246,6 +244,22 @@ impl Token<'_> {
             Control(data) => data,
             Sequence(_, data) => data,
         }
+    }
+}
+
+impl std::fmt::Debug for Token<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Self::Text(_) => "Text",
+            Self::Control(_) => "Control",
+            Self::Sequence(_, _) => "Sequence",
+        };
+
+        let mut debug = f.debug_tuple(name);
+        if let Some(control) = self.control() {
+            debug.field(&control);
+        }
+        debug.field(&nicely_str(self.data())).finish()
     }
 }
 

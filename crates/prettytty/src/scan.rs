@@ -31,13 +31,19 @@ use super::{Control, Token};
 /// returning to the start state.
 #[derive(Debug)]
 pub struct Scanner<R> {
+    // The underlying reader.
     reader: R,
+    // The state machine state while scanning tokens.
     state: State,
     control: Option<Control>,
+    // The actual data buffer and a flag for it having overflowed.
     buffer: Buffer,
     did_overflow: bool,
+    // The actual and maximum lengths for sequences. The limit must be at least
+    // the maximum.
     sequence_length: usize,
     sequence_limit: usize,
+    // A single byte buffer for control characters while sequence is being read.
     extra: [u8; 1],
 }
 
@@ -74,7 +80,7 @@ impl<R: std::io::Read> Scanner<R> {
             } else if !self.buffer.has_capacity() {
                 // Some terminals require two reads for OSC/ST sequence.
                 // Only backshift if there is no more capacity.
-                self.buffer.backshift();
+                self.buffer.defrag();
             }
 
             let count = self.buffer.fill(&mut self.reader)?;
@@ -94,9 +100,8 @@ impl<R: std::io::Read> Scanner<R> {
 
     /// Get a buffer with unread bytes.
     ///
-    /// Unless the state machine is in-flight, this method returns a buffer with
-    /// the currently unread bytes. If there are none on invocation, it first
-    /// reads from the underlying input.
+    /// This method returns a buffer with all unread bytes. If there are none,
+    /// it first tries to read more bytes from the underlying input.
     pub fn fill_buf(&mut self) -> Result<&[u8], Error> {
         if self.in_flight() {
             return Err(ErrorKind::InFlight.into());

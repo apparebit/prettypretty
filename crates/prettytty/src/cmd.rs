@@ -46,6 +46,23 @@
 //! If a command starts with `Request` in its name, it implements the [`Query`]
 //! trait and hence knows how to parse the response's payload.
 //!
+//!
+//! # Example
+//!
+//! Executing a command is as simple as writing its display:
+//! ```
+//! # use prettytty::{sgr, Sgr, cmd::{Format, ResetStyle, SetForeground8}};
+//! println!(
+//!     "{}Wow!{}",
+//!     sgr!(Format::Bold, Format::Underlined, SetForeground8(124)),
+//!     ResetStyle
+//! );
+//! ```
+//! The macro [`sgr!`](crate::sgr) is not strictly necessary but conveniently
+//! emits a single ANSI escape sequence for the first three stylistic commands.
+//! The terminal says <img style="display: inline-block; vertical-align: text-top"
+//! src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
+//!      alt="wow!" width="42">. Wow indeed.
 
 use crate::util::{is_semi_colon, Radix};
 use crate::{Command, Control, Query, Sgr};
@@ -68,7 +85,7 @@ macro_rules! declare_struct_n {
     }
 }
 
-macro_rules! implement_command_sgr {
+macro_rules! implement_sgr_expr {
     ($name:ident { $repr:expr }) => {
         impl crate::cmd::Command for $name {}
 
@@ -88,6 +105,28 @@ macro_rules! implement_command_sgr {
     };
 }
 
+macro_rules! implement_sgr {
+    ($name:ident : $selfish:ident ; $output:ident $body:block) => {
+        impl crate::cmd::Command for $name {}
+
+        impl crate::cmd::Sgr for $name {
+            #[inline]
+            fn write_param(&$selfish, $output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                $body
+            }
+        }
+
+        impl std::fmt::Display for $name {
+            #[inline]
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("\x1b[")?;
+                self.write_param(f)?;
+                f.write_str("m")
+            }
+        }
+    };
+}
+
 macro_rules! implement_command_expr {
     ($name:ident { $repr:expr }) => {
         impl crate::cmd::Command for $name {}
@@ -102,7 +141,7 @@ macro_rules! implement_command_expr {
 }
 
 macro_rules! implement_command {
-    ($name:ident : $selfish:ident ; $output:ident $body:block ) => {
+    ($name:ident : $selfish:ident ; $output:ident $body:block) => {
         impl crate::cmd::Command for $name {}
 
         impl std::fmt::Display for $name {
@@ -117,7 +156,7 @@ macro_rules! implement_command {
 macro_rules! define_sgr_0 {
     ($name:ident, $ansi:tt) => {
         declare_struct_0!($name);
-        implement_command_sgr!($name { $ansi });
+        implement_sgr_expr!($name { $ansi });
     };
 }
 
@@ -128,27 +167,36 @@ macro_rules! define_command_0 {
     };
 }
 
+macro_rules! define_sgr_1 {
+    ($name:ident : $typ:ty, $prefix:literal) => {
+        declare_struct_n!($name($typ));
+        implement_sgr!($name: self; f {
+            f.write_str($prefix)?;
+            write!(f, "{}", self.0)
+        });
+    }
+}
+
+macro_rules! define_sgr_3 {
+    ($name:ident : $typ:ty, $prefix:literal) => {
+        declare_struct_n!($name($typ, $typ, $typ));
+        implement_sgr!($name: self; f {
+            f.write_str($prefix)?;
+            write!(f, "{}", self.0)?;
+            f.write_str(";")?;
+            write!(f, "{}", self.1)?;
+            f.write_str(";")?;
+            write!(f, "{}", self.2)
+        });
+    }
+}
+
 macro_rules! define_command_1 {
     ($name:ident : $typ:ty, $prefix:literal, $suffix:literal) => {
         declare_struct_n!($name($typ));
         implement_command!($name: self; f {
             f.write_str($prefix)?;
             write!(f, "{}", self.0)?;
-            f.write_str($suffix)
-        });
-    };
-}
-
-macro_rules! define_command_3 {
-    ($name:ident : $typ:ty, $prefix:literal, $suffix:literal) => {
-        declare_struct_n!($name($typ, $typ, $typ));
-        implement_command!($name: self; f {
-            f.write_str($prefix)?;
-            write!(f, "{}", self.0)?;
-            f.write_str(";")?;
-            write!(f, "{}", self.1)?;
-            f.write_str(";")?;
-            write!(f, "{}", self.2)?;
             f.write_str($suffix)
         });
     };
@@ -398,10 +446,10 @@ define_command_0!(ResetStyle, "\x1b[m");
 
 define_sgr_0!(SetForegroundDefault, "39");
 define_sgr_0!(SetBackgroundDefault, "49");
-define_command_1!(SetForeground8: u8, "\x1b[38;5;", "m");
-define_command_1!(SetBackground8: u8, "\x1b[48;5;", "m");
-define_command_3!(SetForeground24: u8, "\x1b[38;2;", "m");
-define_command_3!(SetBackground24: u8, "\x1b[48;2;", "m");
+define_sgr_1!(SetForeground8: u8, "38;5;");
+define_sgr_1!(SetBackground8: u8, "48;5;");
+define_sgr_3!(SetForeground24: u8, "38;2;");
+define_sgr_3!(SetBackground24: u8, "48;2;");
 
 /// The enumeration of `Format` commands.
 #[derive(Clone, Copy, Debug, PartialEq)]

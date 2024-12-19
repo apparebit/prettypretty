@@ -38,15 +38,23 @@
 //! # use prettytty::cmd::{MoveToColumn, RequestCursorPosition};
 //! # use prettytty::opt::Options;
 //! # fn run() -> Result<()> {
-//! let tty = Connection::with_options(Options::builder().timeout(10).build())?;
+//! // Open a terminal connection with 1s timeout.
+//! let tty = Connection::with_options(
+//!     Options::builder().timeout(10).build())?;
+//!
 //! let pos = {
 //!     let (mut input, mut output) = tty.io();
+//!
+//!     // Move cursor, issue query for position.
 //!     output.exec(MoveToColumn(17))?;
 //!     output.exec(RequestCursorPosition)?;
 //!
-//!     let response = input.read_sequence(RequestCursorPosition.control())?;
+//!     // Read and parse response.
+//!     let response = input.read_sequence(
+//!         RequestCursorPosition.control())?;
 //!     RequestCursorPosition.parse(response)?
 //! };
+//!
 //! assert_eq!(pos.1, 17);
 //! # Ok(())
 //! # }

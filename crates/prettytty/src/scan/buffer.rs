@@ -56,8 +56,11 @@ impl Buffer {
 
     /// Consume the next byte.
     ///
-    /// This method panics if there are no more bytes to read. It should be
-    /// invoked at most once right after `peek`.
+    /// # Panics
+    ///
+    /// If there are no more bytes to read. This method should be invoked only
+    /// after an immediately preceding invocation of [`Buffer::peek`] that
+    /// produced a byte.
     pub fn consume(&mut self) {
         assert!(self.cursor < self.filled);
         self.cursor += 1;
@@ -65,8 +68,11 @@ impl Buffer {
 
     /// Retain the most recently consumed byte for the current token.
     ///
-    /// This method panics if the token doesn't end before the cursor. It should
-    /// be invoked at most once right after `consume`.
+    /// # Panics
+    ///
+    /// If the token doesn't end strictly *before* the cursor. This method
+    /// should be invoked only after immediately preceding invocations of
+    /// [`Buffer::peek`] and [`Buffer::consume`].
     pub fn retain(&mut self) {
         assert!(self.token_end < self.cursor);
         if self.token_start == self.token_end {
@@ -86,18 +92,26 @@ impl Buffer {
     pub fn peek_many(&self) -> &[u8] {
         self.data
             .get(self.cursor..self.filled)
-            .expect("Buffer's cursor..filled should be in-bounds")
+            .expect("buffer's unread bytes should be in-bounds")
     }
 
-    /// Consume as many bytes as possible, up to the given number.
+    /// Consume up to `count` bytes.
+    ///
+    /// This method should be invoked only after an immediately preceding
+    /// invocation of [`Buffer::peek_many`] that produced a slice with at least
+    /// `count` bytes.
     pub fn consume_many(&mut self, count: usize) {
         self.cursor = min(self.filled, self.cursor.saturating_add(count));
     }
 
     /// Retain the given number of bytes.
     ///
-    /// This method panics if the token doesn't end at least count bytes before
-    /// the cursor.
+    /// # Panics
+    ///
+    /// If the token doesn't end at least `count` bytes before the cursor. This
+    /// method should be invoked only after immediately preceding invocations of
+    /// [`Buffer::peek_many`] and [`Buffer::consume_many`] for a slice with at
+    /// least `count` bytes.
     pub fn retain_many(&mut self, count: usize) {
         assert!(self.token_end + count <= self.cursor);
         let many_start = self.cursor - count;
@@ -118,12 +132,14 @@ impl Buffer {
         &self.data[self.token_start..self.token_end]
     }
 
-    /// Determine whether this buffer can create space by backshifting.
+    /// Determine whether this buffer is fragmented.
     ///
-    /// This method returns `true` if the there is space before the token or
-    /// between token and cursor.
+    /// The buffer is fragmented if it has space before the token or between
+    /// token and cursor. In that case, [`Buffer::defrag`] can maximize
+    /// continuous free space by shifting token and unread bytes towards the
+    /// buffer start.
     #[inline]
-    pub fn is_backshiftable(&self) -> bool {
+    pub fn is_fragmented(&self) -> bool {
         0 < self.token_start || self.token_end < self.cursor
     }
 
@@ -138,16 +154,18 @@ impl Buffer {
 
     /// Determine whether this buffer has been exhausted.
     ///
-    /// A buffer is exhausted if it is not readable, not backshiftable, and
-    /// without capacity.
+    /// A buffer is exhausted if it is not readable, not fragmented, and without
+    /// capacity.
     pub fn is_exhausted(&self) -> bool {
-        !self.is_readable() && !self.is_backshiftable() && !self.has_capacity()
+        !self.is_readable() && !self.is_fragmented() && !self.has_capacity()
     }
 
-    /// Backshift the buffer contents.
+    /// Defragment the buffer contents.
     ///
-    /// This method reclaims space before token and between token and cursor.
-    pub fn backshift(&mut self) {
+    /// This method reclaims any space before the token and between the token
+    /// and cursor by shifting token and unread bytes as far down as possible.
+    /// In both cases, it is careful to copy bytes only when necessary.
+    pub fn defrag(&mut self) {
         // Backshift token
         let token_length = self.token_end - self.token_start;
         if 0 < self.token_start && 0 < token_length {
@@ -168,9 +186,15 @@ impl Buffer {
     }
 
     /// Fill the buffer and return the number of bytes read.
+    ///
+    /// # Panics
+    ///
+    /// If the number of bytes read is larger than the size of the read buffer.
     pub fn fill(&mut self, reader: &mut impl Read) -> std::io::Result<usize> {
-        let slice = self.data.get_mut(self.filled..).unwrap();
+        // SAFETY: .filled being in bounds is a critical invariant for this struct.
+        let slice = unsafe { self.data.get_unchecked_mut(self.filled..) };
         let count = reader.read(slice)?;
+        assert!(count <= slice.len(), "read count is at most buffer size");
         self.filled += count;
         Ok(count)
     }
