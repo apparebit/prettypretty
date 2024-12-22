@@ -120,10 +120,11 @@ impl Config {
     }
 
     /// Apply the options to create a new configuration.
-    pub fn apply(&self, options: &Options) -> Self {
+    pub fn apply(&self, options: &Options) -> Option<Self> {
         let mut state = self.state;
 
         match options.mode() {
+            Mode::Charred | Mode::Cooked => return None,
             Mode::Rare => {
                 state.c_lflag &= !(libc::ECHO | libc::ICANON);
             }
@@ -134,7 +135,7 @@ impl Config {
 
         state.c_cc[libc::VMIN] = 0;
         state.c_cc[libc::VTIME] = options.timeout();
-        Self { state }
+        Some(Self { state })
     }
 
     /// Write the configuration.
@@ -148,35 +149,66 @@ impl Config {
 impl std::fmt::Debug for Config {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Determine enabled flags
-        let mut flags = Vec::new();
+        let mut labels = Vec::new();
 
-        for (name, value) in [
+        fn maybe_add(labels: &mut Vec<&str>, field: u64, mask: u64, label: &'static str) {
+            if field & mask != 0 {
+                labels.push(label);
+            }
+        }
+
+        // Input Modes
+        for (label, mask) in [
             ("BRKINT", libc::BRKINT),
             ("ICRNL", libc::ICRNL),
             ("IGNBRK", libc::IGNBRK),
             ("IGNCR", libc::IGNCR),
+            ("IGNPAR", libc::IGNPAR),
             ("INLCR", libc::INLCR),
+            ("INPCK", libc::INPCK),
+            ("ISTRIP", libc::ISTRIP),
             ("IXANY", libc::IXANY),
             ("IXOFF", libc::IXOFF),
             ("IXON", libc::IXON),
+            ("PARMRK", libc::PARMRK),
         ] {
-            if self.state.c_iflag & value != 0 {
-                flags.push(name);
-            }
+            maybe_add(&mut labels, self.state.c_iflag, mask, label);
         }
 
-        for (name, value) in [
+        // Output Modes
+        for (label, mask) in [
             ("OPOST", libc::OPOST),
             ("OCRNL", libc::OCRNL),
             ("ONOCR", libc::ONOCR),
             ("ONLRET", libc::ONLRET),
+            ("OFILL", libc::OFILL),
+            ("OFDEL", libc::OFDEL),
+            // Missing: NLDLY, CRDLY, TABDLY, BSDLY, VTDLY, FFDLY
         ] {
-            if self.state.c_oflag & value != 0 {
-                flags.push(name);
-            }
+            maybe_add(&mut labels, self.state.c_oflag, mask, label);
         }
 
-        for (name, value) in [
+        // Control Modes
+        maybe_add(&mut labels, self.state.c_cflag, libc::CLOCAL, "CLOCAL");
+        maybe_add(&mut labels, self.state.c_cflag, libc::CREAD, "CREAD");
+        match self.state.c_cflag & libc::CSIZE {
+            libc::CS5 => labels.push("CS5"),
+            libc::CS6 => labels.push("CS6"),
+            libc::CS7 => labels.push("CS7"),
+            libc::CS8 => labels.push("CS8"),
+            _ => (),
+        }
+        for (label, mask) in [
+            ("CSTOPB", libc::CSTOPB),
+            ("HUPCL", libc::HUPCL),
+            ("PARENB", libc::PARENB),
+            ("PARODD", libc::PARODD),
+        ] {
+            maybe_add(&mut labels, self.state.c_cflag, mask, label);
+        }
+
+        // Local Modes
+        for (label, mask) in [
             ("ECHO", libc::ECHO),
             ("ECHOE", libc::ECHOE),
             ("ECHOK", libc::ECHOK),
@@ -185,22 +217,21 @@ impl std::fmt::Debug for Config {
             ("IEXTEN", libc::IEXTEN),
             ("ISIG", libc::ISIG),
             ("NOFLSH", libc::NOFLSH),
+            ("TOSTOP", libc::TOSTOP),
         ] {
-            if self.state.c_lflag & value != 0 {
-                flags.push(name);
-            }
+            maybe_add(&mut labels, self.state.c_lflag, mask, label);
         }
 
-        struct Flags<'a>(Vec<&'a str>);
+        struct Labels<'a>(Vec<&'a str>);
 
-        impl std::fmt::Debug for Flags<'_> {
+        impl std::fmt::Debug for Labels<'_> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.debug_list().entries(self.0.iter()).finish()
             }
         }
 
         f.debug_struct("Termios")
-            .field("flags", &Flags(flags))
+            .field("flags", &Labels(labels))
             .field("vmin", &self.state.c_cc[libc::VMIN])
             .field("vtime", &self.state.c_cc[libc::VTIME])
             .finish()

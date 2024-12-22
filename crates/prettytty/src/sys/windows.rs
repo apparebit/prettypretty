@@ -94,27 +94,40 @@ impl Config {
         Ok(mode)
     }
 
-    pub fn apply(&self, options: &Options) -> Self {
-        // Determine new input and output modes.
-        let mut input_mode = self.input_mode
-            & !Console::ENABLE_ECHO_INPUT
-            & !Console::ENABLE_LINE_INPUT
-            & Console::ENABLE_VIRTUAL_TERMINAL_INPUT;
+    /// Apply the terminal mode to this configuration.
+    ///
+    /// For Unix, charred and cooked mode are the same; they make no changes.
+    /// For Windows, charred mode makes no changes, but cooked mode switches
+    /// to the UTF-8 encoding, `ENABLE_VIRTUAL_TERMINAL_INPUT`,
+    /// `ENABLE_PROCESSED_OUTPUT`, amd `ENABLE_VIRTUAL_TERMINAL_PROCESSING`.
+    /// These options ensure that the terminal actually processed ANSI
+    /// escape sequences.
+    pub fn apply(&self, options: &Options) -> Option<Self> {
+        // Charred mode means "do not touch"
+        if options.mode() == Mode::Charred {
+            return None;
+        }
+
+        let mut input_mode = self.input_mode & Console::ENABLE_VIRTUAL_TERMINAL_INPUT;
+        if options.mode() != Mode::Cooked {
+            input_mode = input_mode & !Console::ENABLE_ECHO_INPUT & !Console::ENABLE_LINE_INPUT;
+        }
         if options.mode() == Mode::Raw {
-            input_mode &= !Console::ENABLE_PROCESSED_INPUT;
+            input_mode = input_mode & !Console::ENABLE_PROCESSED_INPUT;
         }
         let input_encoding = Globalization::CP_UTF8;
-        let output_mode = self.output_mode
+
+        let mut output_mode = self.output_mode
             & Console::ENABLE_PROCESSED_OUTPUT
             & Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING;
         let output_encoding = Globalization::CP_UTF8;
 
-        Self {
+        Some(Self {
             input_mode,
             input_encoding,
             output_mode,
             output_encoding,
-        }
+        })
     }
 
     pub fn write(&self, output: RawOutput) -> Result<()> {

@@ -17,14 +17,39 @@
 
 /// A terminal mode.
 ///
-/// Terminals usually operate in canonical line-editing mode. As a result, input
-/// usually only becomes available for reading after the user pressed the return
-/// key. Rare or cbreak mode disables line-editing but leaves other features
-/// such as control-c processing active. Raw mode also disables these additional
-/// features, giving the application full control while also requiring that the
-/// application implement everything itself.
+/// Currently four terminal modes are supported:
+///
+///   * __Charred mode__ considers the terminal configuration as too hot to
+///     touch and makes no changes.
+///
+///   * __Cooked mode__ is the usual mode of operation on Unix and includes
+///     several features that go beyond character-based I/O, including editing
+///     the input line by line, turning key presses such as control-c into
+///     signals, and translating line endings.
+///
+///     On Windows, this mode optimizes for interoperability, enables the UTF-8
+///     code page for input and output, while also activating
+///     `ENABLE_VIRTUAL_TERMINAL_INPUT`, `ENABLE_PROCESSED_OUTPUT`, and
+///     `ENABLE_VIRTUAL_TERMINAL_PROCESSING`.
+///
+///   * __Rare mode__, also called cbreak mode, disables the line editor but
+///     leaves other terminal convenience features such as processing control-c
+///     enabled. This is the default mode for prettytty.
+///
+///   * __Raw mode__ disables all features beyond character-based I/O and ANSI
+///     escape sequences. It maximizes the application's control over input and
+///     output, but it also places the burden of implementing features at least as
+///     good as line editing on the application developer.
+///
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Mode {
+    /// Charred mode doesn't dare to touch the terminal configuration; it's too
+    /// hot.
+    Charred,
+    /// Cooked mode means turning control-c/d into signals, fiddling with
+    /// line-endings in the output, and always editing the input line by line.
+    /// Still, it allows for ANSI escape sequences.
+    Cooked,
     /// Rare or cbreak mode.
     #[default]
     Rare,

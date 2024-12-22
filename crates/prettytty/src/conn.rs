@@ -19,7 +19,7 @@ use crate::{Command, Scan};
 pub struct Connection {
     options: Options,
     stamp: u32,
-    config: Config,
+    config: Option<Config>,
     scanner: Mutex<Scanner<RawInput>>,
     writer: Mutex<BufWriter<RawOutput>>,
     connection: RawConnection,
@@ -43,8 +43,15 @@ impl Connection {
     pub fn with_options(options: Options) -> Result<Self> {
         let connection = RawConnection::open(&options)
             .map_err(|e| Error::new(ErrorKind::ConnectionRefused, e))?;
-        let config = Config::read(connection.input())?;
-        config.apply(&options).write(connection.output())?;
+
+        let mut config = Some(Config::read(connection.input())?);
+        let reconfig = config.as_ref().unwrap().apply(&options);
+        if let Some(cfg) = reconfig {
+            cfg.write(connection.output())?;
+        } else {
+            config = None;
+        }
+
         let scanner = Mutex::new(Scanner::with_options(&options, connection.input()));
         let writer = Mutex::new(BufWriter::with_capacity(
             options.write_buffer_size(),
@@ -76,16 +83,19 @@ impl Connection {
     }
 
     /// Get the options.
+    #[inline]
     pub fn options(&self) -> &Options {
         &self.options
     }
 
     /// Get both terminal input and output.
+    #[inline]
     pub fn io(&self) -> (Input, Output) {
         (self.input(), self.output())
     }
 
     /// Get the terminal input.
+    #[inline]
     pub fn input(&self) -> Input {
         Input {
             scanner: self.scanner.lock().expect("mutex is not poisoned"),
@@ -93,6 +103,7 @@ impl Connection {
     }
 
     /// Get the terminal output.
+    #[inline]
     pub fn output(&self) -> Output {
         Output {
             writer: self.writer.lock().expect("mutex is not poisoned"),
@@ -124,18 +135,23 @@ impl Drop for Connection {
         let _ = self.writer.lock().map(|mut w| {
             let _ = w.flush();
         });
-        let _ = self.config.write(self.connection.output());
+        if let Some(cfg) = &self.config {
+            let _ = cfg.write(self.connection.output());
+        }
     }
 }
 
 /// A terminal [`Connection`]'s input.
 ///
-/// Token scanning internally buffers input data, whereas the readers perform
-/// unbuffered reads from the terminal. Reads always time out after a duration
-/// configurable in 0.1s increments and return a zero-length slice or zero byte
-/// count. [`read_token()`](crate::Scan::read_token) returns an
-/// [`ErrorKind::Interrupted`](std::io::ErrorKind::Interrupted) instead. On
-/// Unix, the timeout is implemented with the terminal's [`MIN` and `TIME`
+/// In addition to [`Read`] and [`BufRead`], terminal input also implements
+/// [`Scan`] for ingesting text and ANSI escape sequences. The implementation of
+/// all three traits shares the same buffer. Though that buffer is not shared
+/// with standard I/O in Rust's standard library. Reads from the terminal
+/// connection time out after a duration configurable in 0.1s increments. In
+/// that case, [`Read::read`] returns a count of 0, [`BufRead::fill_buf`] an
+/// empty slice, and [`Scan::read_token`] an error with kind
+/// [`ErrorKind::Interrupted`](std::io::ErrorKind::Interrupted). On Unix, the
+/// timeout is implemented with the terminal's [`MIN` and `TIME`
 /// parameters](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap11.html#tag_11_01_07_03)
 /// On Windows, the timeout is implemented with
 /// [`WaitForSingleObject`](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject).
@@ -145,19 +161,19 @@ impl Drop for Connection {
 ///
 /// Despite requiring a fairly elaborate state machine, the implementation of
 /// [`read_token()`](crate::Scan::read_token) has been carefully engineered to
-/// return to the start state before returning whenever possible. The two
-/// exceptions are (1) errors when reading from the terminal connection and (2)
-/// a [`Token::Control`](crate::Token::Control) result when in the middle of
-/// recognizing a [`Token::Sequence`](crate::Token::Sequence). In these cases,
+/// return to the start state whenever possible. However, that is not possible
+/// when reading from the terminal connection results in an error or when a
+/// [`Token::Control`](crate::Token::Control) appears in the middle of a
+/// [`Token::Sequence`](crate::Token::Sequence). In these cases,
 /// [`in_flight()`](crate::Scan::in_flight) returns `true`.
 ///
-/// Correctly consuming tokens through [`Scan`] and bytes through [`BufRead`]
-/// and [`Read`] requires that byte-reads consume data at token granularity as
-/// well. For that reason, [`fill_buf()`](BufRead::fill_buf) and
-/// [`consume()`](BufRead::consume) are much preferred over
-/// [`read()`](Read::read), since the former two methods provide exact control
-/// over consumed bytes, whereas the latter method does not. For the same
-/// reason, byte-reads fail with
+/// It is possible to interleave reading bytes through [`Read`] and [`BufRead`]
+/// as well as tokens through [`Scan`], as long as byte-reads consume data at
+/// token granularity as well. For that reason,
+/// [`fill_buf()`](BufRead::fill_buf) and [`consume()`](BufRead::consume) are
+/// much preferred over [`read()`](Read::read) because the former two methods
+/// provide exact control over consumed bytes, whereas the latter method does
+/// not. For the same reason, byte-reads fail with
 /// [`ErrorKind::InFlight`](crate::err::ErrorKind::InFlight), if the state
 /// machine currently is in-flight.
 ///
@@ -171,7 +187,7 @@ impl Drop for Connection {
 /// pathological ANSI escape sequences.
 ///
 ///
-/// # Pathological Inputs
+/// # Pathological Input
 ///
 /// To protect against such pathological inputs, the implementation gracefully
 /// handles out-of-memory conditions, i.e., when a sequence is longer than the
@@ -190,16 +206,19 @@ pub struct Input<'a> {
 }
 
 impl Scan for Input<'_> {
+    #[inline]
     fn in_flight(&self) -> bool {
         self.scanner.in_flight()
     }
 
+    #[inline]
     fn read_token(&mut self) -> Result<crate::Token> {
         self.scanner.read_token().map_err(|e| e.into())
     }
 }
 
 impl Read for Input<'_> {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let mut source = self.scanner.fill_buf()?;
         let count = source.read(buf)?;
@@ -209,10 +228,12 @@ impl Read for Input<'_> {
 }
 
 impl BufRead for Input<'_> {
+    #[inline]
     fn fill_buf(&mut self) -> Result<&[u8]> {
         self.scanner.fill_buf().map_err(|e| e.into())
     }
 
+    #[inline]
     fn consume(&mut self, amt: usize) {
         // Don't panic...
         let _ = self.scanner.consume(amt);
@@ -222,8 +243,9 @@ impl BufRead for Input<'_> {
 /// A terminal [`Connection`]'s output.
 ///
 /// Since terminal output is buffered, actually executing commands requires
-/// flushing the output. [`Output::print`] helps write and flush simple strings,
-/// and [`Output::exec`] helps write and flush individual commands.
+/// flushing the output. As a convenience, [`Output::print`] and
+/// [`Output::println`] write strings and [`Output::exec`] writes individual
+/// commands, while also flushing the output on every invocation.
 #[derive(Debug)]
 pub struct Output<'a> {
     writer: MutexGuard<'a, BufWriter<RawOutput>>,
@@ -231,12 +253,22 @@ pub struct Output<'a> {
 
 impl Output<'_> {
     /// Write and flush the text.
+    #[inline]
     pub fn print(&mut self, text: impl AsRef<str>) -> Result<()> {
         self.writer.write_all(text.as_ref().as_bytes())?;
         self.writer.flush()
     }
 
+    /// Write and flush the text followed by carriage return and line feed.
+    #[inline]
+    pub fn println(&mut self, text: impl AsRef<str>) -> Result<()> {
+        self.writer.write_all(text.as_ref().as_bytes())?;
+        self.writer.write_all(b"\r\n")?;
+        self.writer.flush()
+    }
+
     /// Write and flush the command.
+    #[inline]
     pub fn exec(&mut self, cmd: impl Command) -> Result<()> {
         write!(self.writer, "{}", cmd)?;
         self.writer.flush()
@@ -244,10 +276,12 @@ impl Output<'_> {
 }
 
 impl Write for Output<'_> {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         self.writer.write(buf)
     }
 
+    #[inline]
     fn flush(&mut self) -> Result<()> {
         self.writer.flush()
     }
