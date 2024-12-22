@@ -1,12 +1,10 @@
+use std::env::var_os;
 use std::io::{ErrorKind, Result};
 
 use prettypretty::theme::Theme;
 use prettytty::{err::report, opt::Options, Connection};
 
-fn run_queries() -> Result<()> {
-    let options = Options::builder().timeout(50).verbose(true).build();
-    let tty = Connection::with_options(options)?;
-
+fn run_queries(tty: Connection) -> Result<()> {
     {
         tty.output().print("1-loop\r\n")?;
     }
@@ -35,16 +33,26 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let mut result = run_queries();
-    if let Err(err) = &result {
-        if err.kind() == ErrorKind::ConnectionRefused {
-            println!("Unable to connect to terminal. Skipping queries.");
-            result = Ok(());
-        } else {
-            report(err);
+    let options = Options::builder().timeout(50).verbose(true).build();
+    let tty = match Connection::with_options(options) {
+        Ok(conn) => conn,
+        Err(err) if err.kind() == ErrorKind::ConnectionRefused && var_os("CI").is_some() => {
+            println!("Unable to connect to terminal in CI; skipping queries!");
+            return Ok(());
+        }
+        Err(err) => {
+            report(&err);
+            return Err(err);
+        }
+    };
+
+    match run_queries(tty) {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            report(&err);
+            Err(err)
         }
     }
-    result
 }
 
 #[cfg(test)]

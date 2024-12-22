@@ -161,7 +161,7 @@ where
 }
 
 /// Report the error, including any sources.
-pub fn report<E: std::error::Error>(error: E) {
+pub fn report<E: std::error::Error>(error: &E) {
     println!(
         "{}{}ERROR: {}{}",
         Format::Bold,
@@ -170,7 +170,7 @@ pub fn report<E: std::error::Error>(error: E) {
         ResetStyle
     );
 
-    let mut error: &dyn std::error::Error = &error;
+    let mut error: &dyn std::error::Error = error;
     while let Some(inner) = error.source() {
         println!("    {}", inner);
         error = inner;

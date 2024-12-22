@@ -112,6 +112,6 @@ fn run() -> std::io::Result<()> {
 
 fn main() {
     if let Err(error) = run() {
-        report(error);
+        report(&error);
     }
 }
