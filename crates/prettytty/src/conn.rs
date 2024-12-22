@@ -44,13 +44,14 @@ impl Connection {
         let connection = RawConnection::open(&options)
             .map_err(|e| Error::new(ErrorKind::ConnectionRefused, e))?;
 
-        let mut config = Some(Config::read(connection.input())?);
-        let reconfig = config.as_ref().unwrap().apply(&options);
-        if let Some(cfg) = reconfig {
-            cfg.write(connection.output())?;
-        } else {
-            config = None;
-        }
+        let config = Config::read(connection.input())?;
+        let config = config.apply(&options).map_or_else(
+            || Ok::<Option<Config>, Error>(None),
+            |reconfig| {
+                reconfig.write(connection.output())?;
+                Ok(Some(config))
+            },
+        )?;
 
         let scanner = Mutex::new(Scanner::with_options(&options, connection.input()));
         let writer = Mutex::new(BufWriter::with_capacity(
