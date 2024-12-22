@@ -37,7 +37,7 @@ path = "src/lib.rs"
 
 
 [package.metadata.docs.rs]
-features = ["f64", "gamut", "term"]
+features = ["f64", "gamut", "tty"]
 rustdoc-args = ["-e", "./docs/pretty.css"]
 
 

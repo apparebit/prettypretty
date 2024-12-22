@@ -64,7 +64,8 @@ python-packages = ["prettypretty"]
 # Keep consistent with name of module function in src/lib.rs:
 module-name = "prettypretty.color"
 bindings = "pyo3"
-features = ["pyffi"]
+no-default-features = true
+features = ["f64", "gamut", "pyffi"]
 manifest-path = "crates/prettypretty/Cargo.toml"
 
 

@@ -282,7 +282,7 @@ install() {
 
 build() {
     run cargo fmt
-    run maturin dev --all-features -m crates/prettypretty/Cargo.toml
+    run maturin dev
 }
 
 check() {
