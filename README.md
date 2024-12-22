@@ -17,8 +17,9 @@ Unix and [`windows-sys`](https://crates.io/crates/windows-sys) on Windows. Its
 API is clean and simple: Open a [`Connection`] to the terminal and share it
 across threads as needed. Write [`Command`]s to [`Output`]. Read [`Query`]
 responses from [`Input`]. [`Scan::read_token`] takes care of low-level UTF-8 and
-ANSI escape sequence decoding and [`Query::parse`] turns their payloads into
-objects. A [`cmd`] library with 70+ built-in commands covers all basic needs.
+ANSI escape sequence decoding and [`Query::parse`] turns token payloads into
+objects. A [`cmd`] library with 70+ built-in commands covers basic needs and
+then some.
 
 
 [`cmd`]: https://apparebit.github.io/prettypretty/prettytty/cmd/index.html
@@ -38,7 +39,7 @@ objects. A [`cmd`] library with 70+ built-in commands covers all basic needs.
 
 \[  [**Docs.rs**](https://docs.rs/prettypretty/latest/prettypretty/)
 | [**GitHub Pages**](https://apparebit.github.io/prettypretty/prettypretty/)
-| [**Rust Crate**](https://crates.io/crates/prettytty)
+| [**Rust Crate**](https://crates.io/crates/prettypretty)
 | [**Python Package**](https://pypi.org/project/prettypretty/)
 | [**Repository**](https://github.com/apparebit/prettypretty)
 \]
@@ -47,20 +48,27 @@ objects. A [`cmd`] library with 70+ built-in commands covers all basic needs.
 
 🎖️ Inspired [iTerm2's color preferences](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/iterm2-color-preferences.jpg)
 
-Prettypretty is a Rust library with optional Python integration that applies
+Prettypretty is a Rust library with optional Python bindings that applies
 **2020s color science to 1970s terminals** to facilitate scalable user
 interfaces. However, instead of progressive enhancement, it primarily relies on
-graceful degradation: (1) You declare high-resolution styles, (2) prettypretty
-adjusts them to terminal capabilities and user preferences at program startup,
-and (3) your app uses the resulting styles at will.
+graceful degradation from high-resolution colors down to more limited terminal
+colors.
 
-Of course, prettypretty integrates with prettytty, mostly to use
-[`Theme::query`](https://apparebit.github.io/prettypretty/prettypretty/struct.Theme.html#method.query)
-for **querying the terminal for its current color theme**. Said color theme then
-informs color conversions in step two above. But the integration also is
-entirely optional, controlled by the `tty` feature, and pretty small, comprising
-about 90 lines of code, 50 of which used for reimplementing that query function
-two more times to help determine the most performant approach.
+The **three steps for better terminal styles** are:
+
+ 1. Fluently declare high-resolution styles.
+ 2. Let prettypretty adjust styles to terminal capabilities and user preferences at
+    program startup.
+ 3. Use adjusted styles at will.
+
+Prettypretty seamlessly integrates with
+[prettytty](https://crates.io/crates/prettytty) for **querying the terminal for
+its current color theme**. It then uses said color theme to produce more
+accurate results when converting high resultion colors down to 256 or 16
+terminal colors. The integration also is entirely optional, controlled by the
+`tty` feature, and fairly small, requiring about 80 lines of code for
+[`Theme::query`](https://apparebit.github.io/prettypretty/prettypretty/theme/struct.Theme.html#method.query).
+Hence integration with another terminal library should be easy enough.
 
 As far as colors are concerned, prettypretty comes with all the expressivity and
 convenience of **high-resolution, floating point colors and [color

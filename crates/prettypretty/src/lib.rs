@@ -18,9 +18,9 @@ feature enabled,
 interfaces**. You can find a version without Python integration, with the `pyffi`
 feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/). "
 )]
-//! Separately, the [user guide](https://apparebit.github.io/prettypretty/)
-//! provides a comprehensive overview and several deep dives covering both
-//! languages. There also are the [type
+//! The [user guide](https://apparebit.github.io/prettypretty/) provides a
+//! comprehensive overview and several deep dives covering both languages. There
+//! also are the [type
 //! stubs](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color/__init__.pyi)
 //! and [API documentation](https://apparebit.github.io/prettypretty/python/)
 //! for Python as well as the shared [source
@@ -31,40 +31,26 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!
 //! ## Overview
 //!
-//!   * [`Color`] is prettypretty's abstraction for **high-resolution colors**.
-//!     It combines a [`ColorSpace`] with three [`Float`] coordinates. Its
-//!     methods expose much of prettypretty's functionality, including
-//!     conversion between color spaces, interpolation between colors,
-//!     calculation of perceptual contrast, as well as gamut testing, clipping,
-//!     and mapping.
-//!   * The [`style`] module's primary abstraction, [`Style`](style::Style),
-//!     models **terminal appearance** as a text
-//!     [`Format`](style::format::Format) combined with foreground and
-//!     background [`Colorant`](style::Colorant)s. The latter maximizes
-//!     expressivity by combining the terminal-specific color formats
-//!     [`AnsiColor`](style::AnsiColor), [`EmbeddedRgb`](style::EmbeddedRgb),
+//! Prettypretty's main abstractions are:
+//!
+//!   * [`Color`] implements **high-resolution colors** by combining a
+//!     [`ColorSpace`] with three [`Float`] coordinates. Its methods expose much
+//!     of prettypretty's functionality, including conversion between color
+//!     spaces, interpolation between colors, calculation of perceptual
+//!     contrast, as well as gamut testing, clipping, and mapping.
+//!   * The [`style`] module defines **terminal [`Style`](style::Style)s** as a
+//!     text [`Format`](style::format::Format) and foreground/background
+//!     [`Colorant`](style::Colorant)s. The latter offers a choice of
+//!     terminal-specific color formats [`AnsiColor`](style::AnsiColor),
+//!     [`EmbeddedRgb`](style::EmbeddedRgb),
 //!     [`GrayGradient`](style::GrayGradient),
 //!     [`EightBitColor`](style::EightBitColor), and
-//!     [`TrueColor`](style::TrueColor) with high-resolution [`Color`].
-//!
-//!     **Using styles** is straight-forward:
-//!
-//!       * Fluently assemble a style with
-//!         [`Style::builder`](style::Style::builder) or
-//!         [`stylist`](style::stylist()).
-//!       * Adjust the style to terminal capabilities with
-//!         [`Style::cap`](style::Style::cap).
-//!       * Apply the style by displaying it, e.g., `print!("{}",style)`.
-//!       * Undo the style by displaying its negation, e.g.,
-//!         `print!("{}",!style)`.
-//!
+//!     [`TrueColor`](style::TrueColor) as well as high-resolution [`Color`].
 //!   * [`Translator`] implements **translation between color formats**. To
 //!     ensure high quality results, its preferred algorithms leverage the
 //!     perceptually uniform Oklab/Oklch color space. For conversion to the 16
-//!     ANSI colors, it also reqires the terminal's current color theme.
-//!   * The [`theme`] module's FIXME **queries the terminal for such a theme**
-//!     and returns a [`Theme`](crate::theme::Theme) object with the default
-//!     foreground and background as well as 16 ANSI colors.
+//!     ANSI colors, it also reqires the terminal's current color
+//!     [`Theme`](theme::Theme).
 #![cfg_attr(
     feature = "gamut",
     doc = "  * The optional [`gamut`] and [`spectrum`] submodules enable the traversal
@@ -88,18 +74,17 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! Prettypretty's three-step workflow for awesome terminal styles works like
 //! this.
 //!
-//! ### 1. Declare Your Styles
+//! ### 1. Assemble Your Styles
 //!
-//! First, you declare your application's styles. If the
-//! [`stylist`](style::stylist()) shantaying
-//! [`Stylist::et_voila`](style::Stylist::et_voila) is too sassy for you,
-//! [`Style::builder`](style::Style::builder) chanting
-//! [`Stylist::build`](style::Stylist::build) works just as well.
+//! First, assemble your application's styles with a
+//! [`Style::builder()`](style::Style::builder) ending in
+//! [`build()`](style::Stylist::build) or, equivalently, the sassier
+//! [`stylist()`](style::stylist()) ending in
+//! [`et_voila()`](style::Stylist::et_voila).
 //!
-//! ```no_run
-//! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
-//! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}, Translator};
-//! # use prettypretty::theme::Theme;
+//! ```
+//! # use std::io::Result;
+//! # use prettypretty::style::stylist;
 //! # fn main() -> Result<()> {
 //! // 1. Assemble application styles
 //! let chic = stylist()
@@ -112,34 +97,38 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # }
 //! ```
 //!
-//! As illustrated above, you can use
+//! You can specify colors with
 //! [`Stylist::embedded_rgb`](style::Stylist::embedded_rgb),
 //! [`Stylist::gray`](style::Stylist::gray), or
-//! [`Stylist::rgb`](style::Stylist::rgb) followed by
-//! [`Colorist::fg`](style::Colorist::fg),
-//! [`Colorist::on`](style::Colorist::on), or
-//! [`Colorist::bg`](style::Colorist::bg) to specify an 8-bit or 24-bit terminal
-//! color. Alternatively, you can use
-//! [`Stylist::foreground`](style::Stylist::foreground) or
+//! [`Stylist::rgb`](style::Stylist::rgb) for the color value followed by
+//! [`Colorist::fg`](style::Colorist::fg) or
+//! [`Colorist::bg`](style::Colorist::bg) for the layer. You can also specify
+//! them with [`Stylist::foreground`](style::Stylist::foreground) or
 //! [`Stylist::background`](style::Stylist::background), which accept any of
 //! prettypretty's colors.
 //!
 //!
 //! ### 2. Adjust Your Styles
 //!
-//! Second, determine the terminal's current color theme with FIXME and
-//! `stdout`'s color support with
+//! Second, determine the terminal's current color theme with
+//! [`Theme::query`](theme::Theme::query) and its color support with
 //! [`Fidelity::from_environment`](style::Fidelity::from_environment).
 //!
-//! ```no_run
-//! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
-//! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}, Translator};
-//! # use prettypretty::theme::Theme;
+//! ```
+//! # use std::io::Result;
+//! # use prettypretty::style::{stylist, Fidelity};
+//! # use prettypretty::theme::{Theme, VGA_COLORS};
+//! # use prettytty::Connection;
+//! # use prettytty::opt::Options;
 //! # fn main() -> Result<()> {
 //! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
-//! // 2a. Determine color theme, stdout's color support
-//! // let theme = Theme::query_terminal()?;
-//! // let fidelity = Fidelity::from_environment(stdout().is_terminal());
+//! // 2a. Determine terminal's color support and theme
+//! let options = Options::builder().timeout(50).build();
+//! let (has_tty, theme) = match Connection::with_options(options) {
+//!     Ok(tty) => (true, Theme::query(&tty)?),
+//!     Err(_) => (false, VGA_COLORS),
+//! };
+//! let fidelity = Fidelity::from_environment(has_tty);
 //! # Ok(())
 //! # }
 //! ```
@@ -150,17 +139,24 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! [`Style::cap`](style::Style::cap) puts a cap on styles with the help of
 //! [`Translator::cap`](trans::Translator::cap), which takes care of colors.
 //!
-//! ```no_run
-//! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
-//! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}, Translator};
-//! # use prettypretty::theme::Theme;
+//! ```
+//! # use std::io::Result;
+//! # use prettypretty::{OkVersion, Translator};
+//! # use prettypretty::style::{stylist, Fidelity};
+//! # use prettypretty::theme::{Theme, VGA_COLORS};
+//! # use prettytty::Connection;
+//! # use prettytty::opt::Options;
 //! # fn main() -> Result<()> {
 //! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
-//! // // let theme = Theme::query_terminal()?;
-//! // // let fidelity = Fidelity::from_environment(stdout().is_terminal());
-//! // // 2b. Adjust fidelity of styles
-//! // // let translator = Translator::new(OkVersion::Revised, theme);
-//! // // let effective_chic = &chic.cap(fidelity, &translator);
+//! # let options = Options::builder().timeout(50).build();
+//! # let (has_tty, theme) = match Connection::with_options(options) {
+//! #     Ok(tty) => (true, Theme::query(&tty)?),
+//! #     Err(_) => (false, VGA_COLORS),
+//! # };
+//! # let fidelity = Fidelity::from_environment(has_tty);
+//! // 2b. Actually adjust styles
+//! let translator = Translator::new(OkVersion::Revised, theme);
+//! let effective_chic = &chic.cap(fidelity, &translator);
 //! # Ok(())
 //! # }
 //! ```
@@ -170,18 +166,25 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! Third, to apply a style, just write its display. To undo the style again,
 //! just write the negation's display.
 //!
-//! ```no_run
-//! # use std::io::{stdout, ErrorKind, IsTerminal, Result};
-//! # use prettypretty::{rgb, OkVersion, style::{Fidelity, stylist}, Translator};
-//! # use prettypretty::theme::Theme;
+//! ```
+//! # use std::io::Result;
+//! # use prettypretty::{OkVersion, Translator};
+//! # use prettypretty::style::{stylist, Fidelity};
+//! # use prettypretty::theme::{Theme, VGA_COLORS};
+//! # use prettytty::Connection;
+//! # use prettytty::opt::Options;
 //! # fn main() -> Result<()> {
 //! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
-//! # // let theme = Theme::query_terminal()?;
-//! # // let fidelity = Fidelity::from_environment(stdout().is_terminal());
-//! # // let translator = Translator::new(OkVersion::Revised, theme);
-//! # // let effective_chic = &chic.cap(fidelity, &translator);
+//! # let options = Options::builder().timeout(50).build();
+//! # let (has_tty, theme) = match Connection::with_options(options) {
+//! #     Ok(tty) => (true, Theme::query(&tty)?),
+//! #     Err(_) => (false, VGA_COLORS),
+//! # };
+//! # let fidelity = Fidelity::from_environment(has_tty);
+//! # let translator = Translator::new(OkVersion::Revised, theme);
+//! # let effective_chic = &chic.cap(fidelity, &translator);
 //! // 3. Apply and revert styles
-//! // println!("{}Wow!{}", effective_chic, -effective_chic);
+//! println!("{}Wow!{}", effective_chic, -effective_chic);
 //! # Ok(())
 //! # }
 //! ```
@@ -190,38 +193,29 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
 //!      alt="wow!" width="77">
 //!
-//! Commands work the same way, too: Just write the display to the terminal, and
-//! the terminal is updating. Well, at least in theory. In practice, support for
-//! the different ANSI escape sequences varies widely by terminal.
-//!
-//! [Demicode](https://github.com/apparebit/demicode), my tool for exploring the
-//! fixed-width rendering of Unicode, includes the
-//! [orchestrate.py](https://github.com/apparebit/demicode/blob/boss/script/orchestrate.py)
-//! script written in a combination of Python and AppleScript to automatically
-//! collect screenshots for output printed to a dozen or so macOS terminals.
-//! That just might be the starting point for a very useful testing tool.
-//!
 //!
 //! ## Feature Flags
 //!
-//! Prettypretty supports three feature flags:
+//! Prettypretty has four feature flags:
 //!
 //!   - `f64` selects the eponymous type as floating point type [`Float`] and
 //!     `u64` as [`Bits`] instead of `f32` as [`Float`] and `u32` as [`Bits`].
 //!     This feature is enabled by default.
-//!   - `gamut` controls prettypretty's support for tracing the boundaries of
-//!     color spaces (`mod gamut`, `ColorSpace::gamut`) and the human visual
-//!     gamut (`mod spectrum`). This feature is disabled by default.
+//!   - `tty` controls [`Theme::query`](theme::Theme::query) and its
+//!     implementation with the [prettytty](https://crates.io/crates/prettytty)
+//!     terminal library. This feature is enabled by default.
+//!   - `gamut` controls support for tracing the boundaries of color spaces
+//!     (`mod gamut`, `ColorSpace::gamut`) and the human visual gamut (`mod
+//!     spectrum`). This feature is disabled by default.
 //!   - `pyffi` controls prettypretty's Python integration through
-//!     [PyO3](https://pyo3.rs/). Enabling the feature activates handwritten
-//!     code in prettypretty as well as new types and trait implementations
-//!     generated by PyO3's macros. This feature is disabled by default.
+//!     [PyO3](https://pyo3.rs/). This feature is disabled by default.
 //!
 //! Prettypretty's Python extension module is best built with
 //! [Maturin](https://www.maturin.rs), PyO3's dedicated build tool. It requires
 //! the `pyffi` feature. Since Python packages typically come with "batteries
-//! included," the `term` and `gamut` features are also enabled when building
-//! the Python extension module.
+//! included," the `gamut` feature is also enabled when building the Python
+//! extension module. However, the `tty` feature is disabled, and prettypretty's
+//! Python package includes its own terminal abstraction.
 //!
 //! Throughout the API documentation, items that are only available in Rust are
 //! decorated with <i class=rust-only>Rust only!</i>.
@@ -230,9 +224,9 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
     doc = "Items that are only available in Python are decorated with <i
     class=python-only>Python only!</i>."
 )]
-//! Similarly, items only available with the `term` feature are decorated with
-//! <i class=term-only>Term only!</i> and the `gamut` feature are decorated
-//! with <i class=gamut-only>Gamut only!</i>.
+//! Similarly, items only available with the `tty` feature are decorated with <i
+//! class=tty-only>TTY only!</i> and the `gamut` feature are decorated with <i
+//! class=gamut-only>Gamut only!</i>.
 //!
 //!
 //! ## Acknowledgements
@@ -274,9 +268,8 @@ mod util;
 mod cie;
 #[cfg(feature = "gamut")]
 pub mod gamut {
-    //! Optional utility module for traversing RGB gamut boundaries with
-    //! [`ColorSpace::gamut`](crate::ColorSpace).  <i class=gamut-only>Gamut
-    //! only!</i>
+    //! Optional module implementing the traversal of RGB gamut boundaries with
+    //! [`ColorSpace::gamut`](crate::ColorSpace).
     pub use crate::core::{GamutTraversal, GamutTraversalStep};
 }
 #[cfg(feature = "gamut")]

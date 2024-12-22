@@ -266,8 +266,17 @@ impl std::fmt::Debug for Token<'_> {
 /// A scanner for UTF-8 characters and control sequences.
 ///
 /// An implementation of this trait provides the state machine necessary for
-/// scanning UTF-8 characters and control sequences. It also buffers the data it
-/// reads from the terminal.
+/// scanning UTF-8 characters and control sequences. Since scanning control
+/// sequences requires one byte lookahead, an implementation also buffers the
+/// data it reads from the terminal.
+///
+/// Some terminal emulators may require more than one read from terminal input
+/// to consume a complete ANSI escape sequence serving as query response. Hence
+/// [`Scan::read_token`] may perform an arbitrary number of reads from the
+/// underlying input, including none, to recognize a complete control sequence.
+/// However, an implementation must not issue reads after it has started
+/// recognizing a text token. In other words, when reading a text token, the end
+/// of buffered data also is the end of the text token.
 ///
 /// This trait is object-safe.
 pub trait Scan: std::io::BufRead {
@@ -277,6 +286,11 @@ pub trait Scan: std::io::BufRead {
     fn in_flight(&self) -> bool;
 
     /// Read the next token.
+    ///
+    /// If the internal buffer has been exhausted, this method may read from the
+    /// connection upon invocation. For text tokens, it performs no further
+    /// reads. That is, a text token always ends with the currently buffered
+    /// data.
     fn read_token(&mut self) -> Result<Token>;
 
     /// Read the next token as a control sequence.
@@ -299,10 +313,12 @@ pub trait Scan: std::io::BufRead {
 
 /// A mutably borrowed scanner is a scanner.
 impl<S: Scan + ?Sized> Scan for &mut S {
+    #[inline]
     fn in_flight(&self) -> bool {
         (**self).in_flight()
     }
 
+    #[inline]
     fn read_token(&mut self) -> Result<Token> {
         (**self).read_token()
     }
@@ -310,10 +326,12 @@ impl<S: Scan + ?Sized> Scan for &mut S {
 
 /// A boxed scanner is a scanner.
 impl<S: Scan + ?Sized> Scan for Box<S> {
+    #[inline]
     fn in_flight(&self) -> bool {
         (**self).in_flight()
     }
 
+    #[inline]
     fn read_token(&mut self) -> Result<Token> {
         (**self).read_token()
     }

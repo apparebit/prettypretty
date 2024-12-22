@@ -1,5 +1,4 @@
-//! Optional utility module with CIE standard observers and illuminants. <i
-//! class=gamut-only>Gamut only!</i>
+//! Optional module implementing the traversal of the human visual gamut.
 //!
 #![cfg_attr(
     feature = "pyffi",

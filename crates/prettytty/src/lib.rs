@@ -2,35 +2,46 @@
     html_logo_url = "https://raw.githubusercontent.com/apparebit/prettypretty/refs/heads/main/docs/figures/prettytty.png"
 )]
 
-//! # The prettytty terminal library 🌸
+//! # Pretty 🌸 Tty
+//!
+//! \[  [**Docs.rs**](https://docs.rs/prettypretty/latest/prettytty/)
+//! | [**GitHub Pages**](https://apparebit.github.io/prettypretty/prettytty/)
+//! | [**Rust Crate**](https://crates.io/crates/prettytty)
+//! | [**Repository**](https://github.com/apparebit/prettypretty)
+//! \]
 //!
 //! This crate provides **lightweight and cross-platform terminal access**. Its
 //! only dependency is the low-level crate enabling system calls, i.e.,
 //! [`libc`](https://crates.io/crates/libc) on Unix and
-//! [`windows-sys`](https://crates.io/crates/windows-sys) on Windows. Similar to
-//! [crossterm](https://crates.io/crates/crossterm), prettytty sports a
-//! [`Command`] trait for terminal instructions. But it doesn't stop there and
-//! also supports a [`Query`] trait for processing responses. While those traits
-//! ensure easy extensibility, the [`cmd`] library with over 70 built-in
-//! commands probably covers your needs already.
+//! [`windows-sys`](https://crates.io/crates/windows-sys) on Windows.
 //!
-//! To facilitate integration with sync and async I/O, **terminal input times
-//! out**. That suffices for simple polling but is slow when there is no input.
-//! Otherwise, it's easy enough to integrate a dedicated polling thread with
-//! your favorite notification primitive.
+//! Using its **connection-oriented interface** is easy:
 //!
-//! Accessing the terminal is as simple as **opening a [`Connection`] and using
-//! its [`Input`] and [`Output`]**. The former not only supports buffered input
-//! with [`Read`](std::io::Read) and [`BufRead`](std::io::BufRead) but, more
-//! importantly, reading text and control sequence [`Token`]s with [`Scan`]. The
-//! latter implements [`Write`](std::io::Write) and provides auto-flushing
-//! [`print()`](Output::print) and [`exec`](Output::exec) as well.
+//!   * Open a [`Connection`].
+//!   * Issue [`Command`]s by writing them to the connection's [`Output`].
+//!   * Read [`Query`] responses from its [`Input`].
+//!
+//! More generally, [`Input`] implements [`Read`](std::io::Read),
+//! [`BufRead`](std::io::BufRead), and [`Scan`], whereas [`Output`] implements
+//! [`Write`](std::io::Write) as well as the auto-flushing
+//! [`print()`](Output::print), [`println()`](Output::println), and
+//! [`exec()`](Output::exec).
+//!
+//! The [`cmd`] module provides a **library of common [`Command`] and [`Query`]
+//! implementations**. It includes, for example, commands to set the window
+//! title, erase (parts of) the screen, to move the cursor, and to style text.
+//!
+//! To facilitate orderly shutdown, **read operations time out** in configurable
+//! increments of 0.1s. That suffices for simple polling but is slow when there
+//! is no input. If you need faster timeouts or integration with I/O
+//! notifications, use a dedicated polling thread with either an
+//! [`std::sync::mpsc`] queue or Unix domain socket.
 //!
 //!
 //! # Example
 //!
-//! Thanks to [`Connection`], [`Input`], and [`Output`], interacting with the
-//! terminal is a breeze:
+//! Prettytty's connection-oriented interface makes interacting with the
+//! terminal a breeze:
 //!
 //! ```
 //! # use std::io::{ErrorKind, Result};
@@ -68,6 +79,16 @@
 //! # Ok::<(), std::io::Error>(())
 //! ```
 //!
+//! # Windows
+//!
+//! Prettytty uses platform-specific APIs for configuring the terminal. But
+//! otherwise, all commands and queries are implemented as ANSI escape sequences
+//! only. Since Windows started supporting control sequences for styling output
+//! in the Windows Console with Windows 10 version 1511 only, prettytty does not
+//! support earlier versions of the operating system. Windows Terminal 1.22
+//! improves on Console's support for ANSI escape sequences, including, for
+//! example, support for querying the terminal for its color theme. Hence, we
+//! strongly recommend using Windows Terminal 1.22 or later.
 
 mod api;
 pub mod cmd;

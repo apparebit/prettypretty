@@ -1,10 +1,13 @@
+//! Utility module implementing terminal color themes.
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
 use crate::error::OutOfBoundsError;
 use crate::style::{AnsiColor, Layer};
-use crate::{rgb, Color, Float};
+use crate::{rgb, Color};
 
+#[cfg(feature = "tty")]
+use crate::Float;
 #[cfg(feature = "tty")]
 use prettytty::{cmd::RequestColor, Command, Connection, Control, Query, Scan};
 #[cfg(feature = "tty")]
@@ -13,13 +16,13 @@ use std::io::Write;
 /// A color theme.
 ///
 /// A color theme is a container with [`ThemeEntry::COUNT`] colors, one each for
-/// the default foreground and background colors as well as the 16 ANSI colors.
-/// The public interface is a compromise between struct and array, a strarray if
-/// you will, to make the primary use case, processing the colors in a theme in
-/// order, safer than when using numeric indices. Hence, you index a color theme
-/// with semantic values, i.e., [`ThemeEntry`], [`Layer`], or [`AnsiColor`]. At
-/// the same time, you can still access the underlying array storage through
-/// [`AsRef<[Color]> for
+/// the 16 ANSI colors as well as the default foreground and background colors
+/// (in that order). The public interface is a compromise between struct and
+/// array, a straurray if you will, to make the primary use case, processing the
+/// colors in a theme, safer than when using numeric indices. Hence, you index a
+/// color theme with semantic values, i.e., [`ThemeEntry`], [`Layer`], or
+/// [`AnsiColor`]. At the same time, you can still access the underlying array
+/// storage through [`AsRef<[Color]> for
 /// Theme`](struct.Theme.html#impl-AsRef%3C%5BColor%5D%3E-for-Theme), albeit
 /// Rust-only and read-only.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.theme"))]
@@ -147,7 +150,8 @@ impl Theme {
         Ok(theme)
     }
 
-    /// Query the terminal for the current color theme.
+    /// Query the terminal for the current color theme. <i class=tty-only>TTY
+    /// only!</i>
     pub fn query(connection: &Connection) -> std::io::Result<Self> {
         Self::query2(connection)
     }
@@ -224,13 +228,13 @@ impl std::fmt::Debug for Theme {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-/// The entries of a color theme.
+/// A color theme entry.
 ///
-/// This enumeration combines two variants for the default foreground and
-/// background color with another variant that wraps an [`AnsiColor`], in that
-/// order, to identify the [`ThemeEntry::COUNT`] entries of a color theme.
-/// Displaying a theme entry produces the ANSI escape sequence used to query a
-/// terminal for the corresponding color.
+/// This enumeration combines a variant wrapping an [`AnsiColor`] with two more
+/// variants for the default foreground and background colors to identify the
+/// [`ThemeEntry::COUNT`] entries of a color theme. Displaying a theme entry
+/// produces the ANSI escape sequence used to query a terminal for the
+/// corresponding color.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, ord, module = "prettypretty.color.theme")
@@ -308,7 +312,8 @@ impl ThemeEntry {
 
 #[cfg(feature = "tty")]
 impl ThemeEntry {
-    /// Convert the theme entry to a color request.
+    /// Convert the theme entry to a color request. <i class=tty-only>TTY
+    /// only!</i>
     pub fn request(&self) -> RequestColor {
         if let ThemeEntry::Ansi(color) = self {
             match color {
@@ -375,9 +380,11 @@ pub(crate) fn into_theme_entry(obj: &Bound<'_, PyAny>) -> PyResult<ThemeEntry> {
 }
 
 #[cfg(feature = "tty")]
+/// Theme entry as a command. <i class=tty-only>TTY only!</i>
 impl Command for ThemeEntry {}
 
 #[cfg(feature = "tty")]
+/// Theme entry as a query. <i class=tty-only>TTY only!</i>
 impl Query for ThemeEntry {
     type Response = Color;
 
@@ -388,15 +395,8 @@ impl Query for ThemeEntry {
     fn parse(&self, payload: &[u8]) -> std::io::Result<Self::Response> {
         let [r, g, b] = self.request().parse(payload)?;
         fn as_float((numerator, denominator): (u16, u16)) -> Float {
-            let denominator = match denominator {
-                1 => 0xf,
-                2 => 0xff,
-                3 => 0xfff,
-                4 => 0xffff,
-                _ => panic!("denominator outside valid range of 1 to 4 digits"),
-            };
-
-            numerator as Float / denominator as Float
+            // 1, 2, 3, 4 --> 4, 8, 12, 16 --> 0x10, 0x100, 0x1000, 0x10000
+            numerator as Float / ((1 << (denominator << 2)) - 1) as Float
         }
 
         Ok(Color::srgb(as_float(r), as_float(g), as_float(b)))
@@ -415,10 +415,11 @@ impl std::fmt::Display for ThemeEntry {
     }
 }
 
-/// A helper for iterating over theme entries.
+/// An iterator over theme entries.
 ///
-/// This iterator is fused, i.e., after returning `None` once, it will keep
-/// returning `None`. This iterator also is exact, i.e., its `size_hint()`
+/// [`ThemeEntry::all`] returns this iterator, which produces all theme entries
+/// in the canonical order. It is fused, i.e., after returning `None` once, it
+/// will keep returning `None`. It also is exact, i.e., its `size_hint()`
 /// returns the exact number of remaining items.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.theme"))]
 #[derive(Debug)]

@@ -3,7 +3,8 @@
 [![Run Tests, Build Wheels, & Publish to PyPI](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml)
 [![Publish to GitHub Pages](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml)
 
-\[  [**Documentation**](https://docs.rs/prettypretty/latest/prettytty/)
+\[  [**Docs.rs**](https://docs.rs/prettypretty/latest/prettytty/)
+| [**GitHub Pages**](https://apparebit.github.io/prettypretty/prettytty/)
 | [**Rust Crate**](https://crates.io/crates/prettytty)
 | [**Repository**](https://github.com/apparebit/prettypretty)
 \]
@@ -24,31 +25,28 @@ then some.
 Here's how the above mentioned abstractions are used in practice:
 
 ```rust
-use prettytty::{Connection, Query, Scan, cmd::{MoveTo, RequestCursorPosition}};
-// Make short alias
-let rcp = RequestCursorPosition;
+use prettytty::{Connection, Query, Scan};
+use prettytty::cmd::{MoveToColumn, RequestCursorPosition};
+use prettytty::opt::Options;
 
-// Open a connection to the terminal
-let tty = Connection::open()?;
+// Open a terminal connection with 1s timeout.
+let tty = Connection::with_options(
+    Options::builder().timeout(10).build())?;
+
 let pos = {
-    // Get input and output
     let (mut input, mut output) = tty.io();
 
-    // Execute some commands
-    output.exec(MoveTo(6, 65))?;
-    output.exec(rcp)?;
+    // Move cursor, issue query for position.
+    output.exec(MoveToColumn(17))?;
+    output.exec(RequestCursorPosition)?;
 
-    // Read sequence with response, validate control
-    let response = input.read_sequence(rcp.control())?;
-
-    // Parse payload of response
-    rcp.parse(response)?
+    // Read and parse response.
+    let response = input.read_sequence(
+        RequestCursorPosition.control())?;
+    RequestCursorPosition.parse(response)?
 };
 
-// Done
-drop(tty);
-assert_eq!(pos, (6, 65));
-# Ok::<(), std::io::Error>(())
+assert_eq!(pos.1, 17);
 ```
 
 [`cmd`]: https://apparebit.github.io/prettypretty/prettytty/cmd/index.html

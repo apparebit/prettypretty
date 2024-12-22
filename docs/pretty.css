@@ -37,7 +37,7 @@
  * Python-only and Rust-only labels: <i class=python-only>Python only!</i>
  */
 
-.python-only, .term-only, .rust-only, .gamut-only {
+.python-only, .tty-only, .rust-only, .gamut-only {
     font-size: 0.8em;
     display: inline-block;
     border-radius: 0.5em;
@@ -49,6 +49,6 @@
 }
 
 .python-only { background: #84c5fb; }
-.term-only   { background: #ddd; }
+.tty-only    { background: #ffa9ff; }
 .rust-only   { background: #f0ac84; }
 .gamut-only  { background: #ddd; }

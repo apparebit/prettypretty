@@ -1,10 +1,11 @@
-# Pretty 🌸 (Pre)tty
+# Pretty 🌸 Pretty
 
 [![Run Tests, Build Wheels, & Publish to PyPI](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml)
 [![Publish to GitHub Pages](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml)
 
-\[  [**Documentation**](https://docs.rs/prettypretty/latest/prettypretty/)
-| [**Rust Crate**](https://crates.io/crates/prettytty)
+\[  [**Docs.rs**](https://docs.rs/prettypretty/latest/prettypretty/)
+| [**GitHub Pages**](https://apparebit.github.io/prettypretty/prettypretty/)
+| [**Rust Crate**](https://crates.io/crates/prettypretty)
 | [**Python Package**](https://pypi.org/project/prettypretty/)
 | [**Repository**](https://github.com/apparebit/prettypretty)
 \]
@@ -13,20 +14,27 @@
 
 🎖️ Inspired [iTerm2's color preferences](https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/iterm2-color-preferences.jpg)
 
-Prettypretty is a Rust library with optional Python integration that applies
+Prettypretty is a Rust library with optional Python bindings that applies
 **2020s color science to 1970s terminals** to facilitate scalable user
 interfaces. However, instead of progressive enhancement, it primarily relies on
-graceful degradation: (1) You declare high-resolution styles, (2) prettypretty
-adjusts them to terminal capabilities and user preferences at program startup,
-and (3) your app uses the resulting styles at will.
+graceful degradation from high-resolution colors down to more limited terminal
+colors.
 
-Of course, prettypretty integrates with prettytty, mostly to use
-[`Theme::query`] for **querying the terminal for its current color theme**.
-Said color theme then informs color conversions in step two above. But the
-integration also is entirely optional, controlled by the `tty` feature, and
-pretty small, comprising about 90 lines of code, 50 of which used for
-reimplementing that query function two more times to help determine the most
-performant approach.
+The **three steps for better terminal styles** are:
+
+ 1. Fluently declare high-resolution styles.
+ 2. Let prettypretty adjust styles to terminal capabilities and user preferences at
+    program startup.
+ 3. Use adjusted styles at will.
+
+Prettypretty seamlessly integrates with
+[prettytty](https://crates.io/crates/prettytty) for **querying the terminal for
+its current color theme**. It then uses said color theme to produce more
+accurate results when converting high resultion colors down to 256 or 16
+terminal colors. The integration also is entirely optional, controlled by the
+`tty` feature, and fairly small, requiring about 80 lines of code for
+[`Theme::query`](https://apparebit.github.io/prettypretty/prettypretty/theme/struct.Theme.html#method.query).
+Hence integration with another terminal library should be easy enough.
 
 As far as colors are concerned, prettypretty comes with all the expressivity and
 convenience of **high-resolution, floating point colors and [color
@@ -43,10 +51,10 @@ lightness-based downsampling for optimal selection of ANSI colors.
 
 ## Python Integration
 
-The optional Python integration is enabled with the `pyffi` feature flag and
-relies on [PyO3](https://pyo3.rs/v0.22.0/) and [Maturin](https://www.maturin.rs)
-for building an extension module with the same functionality. Only where the
-Rust library uses trait implementations, the Python module [uses dedicated
+The optional Python integration is enabled with the `pyffi` feature and relies
+on [PyO3](https://pyo3.rs/) and [Maturin](https://www.maturin.rs) for building
+an extension module with the same functionality. Only where the Rust library
+uses trait implementations, the Python module [uses dedicated
 methods](https://github.com/apparebit/prettypretty/blob/main/prettypretty/color/__init__.pyi).
 While prettytty takes care of terminal access for Rust, the Python version of
 prettypretty has its own terminal abstraction, with its own Pythonic interface.

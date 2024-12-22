@@ -527,6 +527,8 @@ impl Query for RequestActiveStyle {
 }
 
 /// The enumeration of `RequestColor` commands.
+///
+/// On Windows, this query is only supported by Terminal 1.22 or later.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(u8)]
 pub enum RequestColor {
@@ -609,7 +611,8 @@ impl Query for RequestColor {
     /// The parsed response comprises one pair per RGB channel, with the first
     /// number the signal strength and the second number the signal width. The
     /// signal width is the number of hexadecimal digits, always between 1 and 4
-    /// inclusive, and usually 4.
+    /// inclusive, and usually 4. Hence, to normalize (_s_, _w_) to a floating
+    /// point number between 0 and 1, compute _s_/((16^_w_)-1).
     type Response = [(u16, u16); 3];
 
     fn control(&self) -> Control {

@@ -12,8 +12,7 @@ use crate::core::{
 
 use crate::Float;
 
-/// Create a new sRGB color from 24-bit integer coordinates. <i
-/// class=rust-only>Rust only!</i>
+/// Create a new sRGB color from 24-bit integer coordinates.
 ///
 /// Like [`Color::from_24bit`], this macro creates a new color from 24-bit
 /// integer coordinates. However, it also is safe to use in const expressions.

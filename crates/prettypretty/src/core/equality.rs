@@ -5,8 +5,7 @@ use super::ColorSpace;
 use crate::core::{conversion::okxab_to_okxch, convert, FloatExt};
 use crate::{Bits, Float};
 
-/// Test macro for asserting that two floating point numbers can be considered
-/// equal. <i class=rust-only>Rust only!</i>
+/// Test macro for asserting the equality of floating point numbers.
 ///
 /// This macro relies on [`to_eq_bits`] to normalize the two floating point
 /// numbers by zeroing out not-a-numbers, reducing resolution, and dropping the
@@ -58,8 +57,7 @@ macro_rules! assert_same_coordinates {
 #[cfg(test)]
 pub(crate) use assert_same_coordinates;
 
-/// Test macro for asserting that two color objects describe the same color.
-/// <i class=rust-only>Rust only!</i>
+/// Test macro for asserting the equality of colors.
 ///
 /// This macro tests the color objects for equality using the `Eq` trait. The
 /// implementation, in turn, normalizes the coordinates of colors with the same

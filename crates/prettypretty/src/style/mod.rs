@@ -1,4 +1,4 @@
-//! Terminal styles including terminal-specific color representations.
+//! Terminal-specific text fromatting and colors.
 //!
 //! This module supports styling terminal appearance with ANSI SGR escape
 //! sequences through these **abstractions**:
