@@ -4,7 +4,8 @@ use std::io::{stderr, stdin, stdout, IsTerminal, Read, Result, Write};
 use std::os::fd::{AsRawFd, OwnedFd};
 use std::ptr::{from_mut, from_ref};
 
-use super::{into_result::IntoResult, RawHandle};
+use super::RawHandle;
+use super::util::{IdentList, IntoResult};
 use crate::opt::{Mode, Options};
 
 // ----------------------------------------------------------------------------------------------------------
@@ -148,9 +149,8 @@ impl Config {
 
 impl std::fmt::Debug for Config {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Determine enabled flags
-        let mut labels = Vec::new();
-
+        // Different Unix-like operating systems use differently sized modes,
+        // which is just fine with a macro.
         macro_rules! maybe_add {
             ($labels:expr, $field:expr, $mask:expr, $label:expr) => {
                 if $field & $mask != 0 {
@@ -160,6 +160,7 @@ impl std::fmt::Debug for Config {
         }
 
         // Input Modes
+        let mut input_labels = Vec::new();
         for (label, mask) in [
             ("BRKINT", libc::BRKINT),
             ("ICRNL", libc::ICRNL),
@@ -174,10 +175,11 @@ impl std::fmt::Debug for Config {
             ("IXON", libc::IXON),
             ("PARMRK", libc::PARMRK),
         ] {
-            maybe_add!(labels, self.state.c_iflag, mask, label);
+            maybe_add!(input_labels, self.state.c_iflag, mask, label);
         }
 
         // Output Modes
+        let mut output_labels = Vec::new();
         for (label, mask) in [
             ("OPOST", libc::OPOST),
             ("OCRNL", libc::OCRNL),
@@ -187,17 +189,18 @@ impl std::fmt::Debug for Config {
             ("OFDEL", libc::OFDEL),
             // Missing: NLDLY, CRDLY, TABDLY, BSDLY, VTDLY, FFDLY
         ] {
-            maybe_add!(labels, self.state.c_oflag, mask, label);
+            maybe_add!(output_labels, self.state.c_oflag, mask, label);
         }
 
         // Control Modes
-        maybe_add!(&mut labels, self.state.c_cflag, libc::CLOCAL, "CLOCAL");
-        maybe_add!(&mut labels, self.state.c_cflag, libc::CREAD, "CREAD");
+        let mut control_labels = Vec::new();
+        maybe_add!(control_labels, self.state.c_cflag, libc::CLOCAL, "CLOCAL");
+        maybe_add!(control_labels, self.state.c_cflag, libc::CREAD, "CREAD");
         match self.state.c_cflag & libc::CSIZE {
-            libc::CS5 => labels.push("CS5"),
-            libc::CS6 => labels.push("CS6"),
-            libc::CS7 => labels.push("CS7"),
-            libc::CS8 => labels.push("CS8"),
+            libc::CS5 => control_labels.push("CS5"),
+            libc::CS6 => control_labels.push("CS6"),
+            libc::CS7 => control_labels.push("CS7"),
+            libc::CS8 => control_labels.push("CS8"),
             _ => (),
         }
         for (label, mask) in [
@@ -206,10 +209,11 @@ impl std::fmt::Debug for Config {
             ("PARENB", libc::PARENB),
             ("PARODD", libc::PARODD),
         ] {
-            maybe_add!(labels, self.state.c_cflag, mask, label);
+            maybe_add!(control_labels, self.state.c_cflag, mask, label);
         }
 
         // Local Modes
+        let mut local_labels = Vec::new();
         for (label, mask) in [
             ("ECHO", libc::ECHO),
             ("ECHOE", libc::ECHOE),
@@ -221,19 +225,14 @@ impl std::fmt::Debug for Config {
             ("NOFLSH", libc::NOFLSH),
             ("TOSTOP", libc::TOSTOP),
         ] {
-            maybe_add!(labels, self.state.c_lflag, mask, label);
+            maybe_add!(local_labels, self.state.c_lflag, mask, label);
         }
 
-        struct Labels<'a>(Vec<&'a str>);
-
-        impl std::fmt::Debug for Labels<'_> {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_list().entries(self.0.iter()).finish()
-            }
-        }
-
-        f.debug_struct("Termios")
-            .field("flags", &Labels(labels))
+        f.debug_struct("Config")
+            .field("input_mode", &IdentList::new(input_labels))
+            .field("output_mode", &IdentList::new(output_labels))
+            .field("control_mode", &IdentList::new(control_labels))
+            .field("local_mode", &IdentList::new(local_labels))
             .field("vmin", &self.state.c_cc[libc::VMIN])
             .field("vtime", &self.state.c_cc[libc::VTIME])
             .finish()

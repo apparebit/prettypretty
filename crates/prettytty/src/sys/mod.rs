@@ -3,7 +3,7 @@ pub(crate) type RawHandle = std::os::fd::RawFd;
 #[cfg(target_family = "windows")]
 pub(crate) type RawHandle = std::os::windows::io::RawHandle;
 
-mod into_result;
+mod util;
 #[cfg(target_family = "unix")]
 mod unix;
 #[cfg(target_family = "windows")]

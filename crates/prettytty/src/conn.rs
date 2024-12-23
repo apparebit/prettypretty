@@ -45,9 +45,11 @@ impl Connection {
             .map_err(|e| Error::new(ErrorKind::ConnectionRefused, e))?;
 
         let config = Config::read(connection.input())?;
+        println!("{:#?}", &config);
         let config = config.apply(&options).map_or_else(
             || Ok::<Option<Config>, Error>(None),
             |reconfig| {
+                println!("{:#?}", &reconfig);
                 reconfig.write(connection.output())?;
                 Ok(Some(config))
             },

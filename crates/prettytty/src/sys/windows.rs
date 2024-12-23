@@ -9,7 +9,8 @@ use windows_sys::Win32::Globalization;
 use windows_sys::Win32::System::Console::{self, CONSOLE_MODE as ConsoleMode};
 use windows_sys::Win32::System::Threading;
 
-use super::{into_result::IntoResult, RawHandle};
+use super::RawHandle;
+use super::util::{IdentList, IntoResult};
 use crate::opt::{Mode, Options};
 
 // ----------------------------------------------------------------------------------------------------------
@@ -58,7 +59,7 @@ impl RawConnection {
     /// Get a handle for the terminal's output.
     #[inline]
     pub fn output(&self) -> RawOutput {
-        RawOutput::new(self.input.as_raw_handle())
+        RawOutput::new(self.output.as_raw_handle())
     }
 }
 
@@ -117,7 +118,7 @@ impl Config {
         }
         let input_encoding = Globalization::CP_UTF8;
 
-        let mut output_mode = self.output_mode
+        let output_mode = self.output_mode
             & Console::ENABLE_PROCESSED_OUTPUT
             & Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING;
         let output_encoding = Globalization::CP_UTF8;
@@ -143,6 +144,46 @@ impl Config {
     fn write_mode(output: &RawOutput, mode: ConsoleMode) -> Result<()> {
         unsafe { Console::SetConsoleMode(output.handle(), mode) }.into_result()?;
         Ok(())
+    }
+}
+
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut input_labels = Vec::new();
+        for (label, mask) in [
+            ("ENABLE_ECHO_INPUT", Console::ENABLE_ECHO_INPUT),
+            ("ENABLE_INSERT_MODE", Console::ENABLE_INSERT_MODE),
+            ("ENABLE_LINE_INPUT", Console::ENABLE_LINE_INPUT),
+            ("ENABLE_MOUSE_INPUT", Console::ENABLE_MOUSE_INPUT),
+            ("ENABLE_PROCESSED_INPUT", Console::ENABLE_PROCESSED_INPUT),
+            ("ENABLE_QUICK_EDIT_MODE", Console::ENABLE_QUICK_EDIT_MODE),
+            ("ENABLE_WINDOW_INPUT", Console::ENABLE_WINDOW_INPUT),
+            ("ENABLE_VIRTUAL_TERMINAL_INPUT", Console::ENABLE_VIRTUAL_TERMINAL_INPUT),
+        ] {
+            if self.input_mode & mask != 0 {
+                input_labels.push(label);
+            }
+        }
+
+        let mut output_labels = Vec::new();
+        for (label, mask) in [
+            ("ENABLE_PROCESSED_OUTPUT", Console::ENABLE_PROCESSED_OUTPUT),
+            ("ENABLE_WRAP_AT_EOL_OUTPUT", Console::ENABLE_WRAP_AT_EOL_OUTPUT),
+            ("ENABLE_VIRTUAL_TERMINAL_PROCESSING", Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING),
+            ("DISABLE_NEWLINE_AUTO_RETURN", Console::DISABLE_NEWLINE_AUTO_RETURN),
+            ("ENABLE_LVB_GRID_WORLDWIDE", Console::ENABLE_LVB_GRID_WORLDWIDE),
+        ] {
+            if self.output_mode & mask != 0 {
+                output_labels.push(label);
+            }
+        }
+
+        f.debug_struct("Config")
+            .field("input_mode", &IdentList::new(input_labels))
+            .field("input_encoding", &self.input_encoding)
+            .field("output_mode", &IdentList::new(output_labels))
+            .field("output_encoding", &self.output_encoding)
+            .finish()
     }
 }
 
