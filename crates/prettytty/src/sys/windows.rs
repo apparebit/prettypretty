@@ -9,8 +9,8 @@ use windows_sys::Win32::Globalization;
 use windows_sys::Win32::System::Console::{self, CONSOLE_MODE as ConsoleMode};
 use windows_sys::Win32::System::Threading;
 
-use super::RawHandle;
 use super::util::{IdentList, IntoResult};
+use super::RawHandle;
 use crate::opt::{Mode, Options};
 
 // ----------------------------------------------------------------------------------------------------------
@@ -73,13 +73,12 @@ pub(crate) enum ModeGroup {
 
 impl ModeGroup {
     pub fn all() -> impl std::iter::Iterator<Item = ModeGroup> {
-        std::iter::successors(
-            Some(Self::Input),
-            |n| Some(match n {
+        std::iter::successors(Some(Self::Input), |n| {
+            Some(match n {
                 Self::Input => Self::Output,
                 Self::Output => return None,
             })
-        )
+        })
     }
 
     pub fn name(&self) -> &'static str {
@@ -192,7 +191,10 @@ impl Config {
                     ("ENABLE_PROCESSED_INPUT", Console::ENABLE_PROCESSED_INPUT),
                     ("ENABLE_QUICK_EDIT_MODE", Console::ENABLE_QUICK_EDIT_MODE),
                     ("ENABLE_WINDOW_INPUT", Console::ENABLE_WINDOW_INPUT),
-                    ("ENABLE_VIRTUAL_TERMINAL_INPUT", Console::ENABLE_VIRTUAL_TERMINAL_INPUT),
+                    (
+                        "ENABLE_VIRTUAL_TERMINAL_INPUT",
+                        Console::ENABLE_VIRTUAL_TERMINAL_INPUT,
+                    ),
                 ] {
                     maybe_add!(self.input_modes, mask, label);
                 }
@@ -200,10 +202,22 @@ impl Config {
             ModeGroup::Output => {
                 for (label, mask) in [
                     ("ENABLE_PROCESSED_OUTPUT", Console::ENABLE_PROCESSED_OUTPUT),
-                    ("ENABLE_WRAP_AT_EOL_OUTPUT", Console::ENABLE_WRAP_AT_EOL_OUTPUT),
-                    ("ENABLE_VIRTUAL_TERMINAL_PROCESSING", Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING),
-                    ("DISABLE_NEWLINE_AUTO_RETURN", Console::DISABLE_NEWLINE_AUTO_RETURN),
-                    ("ENABLE_LVB_GRID_WORLDWIDE", Console::ENABLE_LVB_GRID_WORLDWIDE),
+                    (
+                        "ENABLE_WRAP_AT_EOL_OUTPUT",
+                        Console::ENABLE_WRAP_AT_EOL_OUTPUT,
+                    ),
+                    (
+                        "ENABLE_VIRTUAL_TERMINAL_PROCESSING",
+                        Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING,
+                    ),
+                    (
+                        "DISABLE_NEWLINE_AUTO_RETURN",
+                        Console::DISABLE_NEWLINE_AUTO_RETURN,
+                    ),
+                    (
+                        "ENABLE_LVB_GRID_WORLDWIDE",
+                        Console::ENABLE_LVB_GRID_WORLDWIDE,
+                    ),
                 ] {
                     maybe_add!(self.output_modes, mask, label);
                 }

@@ -4,8 +4,8 @@ use std::io::{stderr, stdin, stdout, IsTerminal, Read, Result, Write};
 use std::os::fd::{AsRawFd, OwnedFd};
 use std::ptr::{from_mut, from_ref};
 
-use super::RawHandle;
 use super::util::{IdentList, IntoResult};
+use super::RawHandle;
 use crate::opt::{Mode, Options};
 
 // ----------------------------------------------------------------------------------------------------------
@@ -117,15 +117,14 @@ impl ModeGroup {
     pub fn all() -> impl std::iter::Iterator<Item = ModeGroup> {
         use self::ModeGroup::*;
 
-        std::iter::successors(
-            Some(Input),
-            |n| Some(match n {
+        std::iter::successors(Some(Input), |n| {
+            Some(match n {
                 Input => Output,
                 Output => Control,
                 Control => Local,
                 Local => return None,
             })
-        )
+        })
     }
 
     pub fn name(&self) -> &'static str {
@@ -135,7 +134,7 @@ impl ModeGroup {
             Input => "input_modes",
             Output => "output_modes",
             Control => "control_modes",
-            Local => "local_modes"
+            Local => "local_modes",
         }
     }
 }
@@ -149,7 +148,8 @@ impl Config {
     /// Read the configuration.
     pub fn read(connection: &RawConnection) -> Result<Self> {
         let mut state = std::mem::MaybeUninit::uninit();
-        unsafe { libc::tcgetattr(connection.input().handle(), state.as_mut_ptr()) }.into_result()?;
+        unsafe { libc::tcgetattr(connection.input().handle(), state.as_mut_ptr()) }
+            .into_result()?;
         Ok(Self {
             state: unsafe { state.assume_init() },
         })
@@ -176,8 +176,14 @@ impl Config {
 
     /// Write the configuration.
     pub fn write(&self, connection: &RawConnection) -> Result<()> {
-        unsafe { libc::tcsetattr(connection.input().handle(), libc::TCSAFLUSH, from_ref(&self.state)) }
-            .into_result()?;
+        unsafe {
+            libc::tcsetattr(
+                connection.input().handle(),
+                libc::TCSAFLUSH,
+                from_ref(&self.state),
+            )
+        }
+        .into_result()?;
         Ok(())
     }
 
@@ -224,7 +230,6 @@ impl Config {
                 ] {
                     maybe_add!(self.state.c_oflag, mask, label);
                 }
-
             }
             ModeGroup::Control => {
                 maybe_add!(self.state.c_cflag, libc::CLOCAL, "CLOCAL");
