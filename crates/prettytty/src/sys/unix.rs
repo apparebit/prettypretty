@@ -105,7 +105,7 @@ impl RawConnection {
 
 // ----------------------------------------------------------------------------------------------------------
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ModeGroup {
     Input,
     Output,

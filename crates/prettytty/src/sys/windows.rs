@@ -65,7 +65,7 @@ impl RawConnection {
 
 // ----------------------------------------------------------------------------------------------------------
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ModeGroup {
     Input,
     Output,
@@ -220,9 +220,9 @@ impl std::fmt::Debug for Config {
         for group in ModeGroup::all() {
             debugger.field(group.name(), &IdentList::new(self.labels(group)));
             if group == ModeGroup::Input {
-                debugger.field("input_encoding", &self.input_encoding)
+                debugger.field("input_encoding", &self.input_encoding);
             } else {
-                debugger.field("output_encoding", &self.output_encoding)
+                debugger.field("output_encoding", &self.output_encoding);
             }
         }
         debugger.finish()
