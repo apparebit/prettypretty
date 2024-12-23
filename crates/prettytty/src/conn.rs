@@ -56,6 +56,9 @@ impl Connection {
                     println!("terminal::reconfig {:?}", &reconfig);
                 }
                 reconfig.write(connection.output())?;
+                if verbose {
+                    println!("terminal::reconfigured")
+                }
                 Ok(Some(config))
             },
         )?;

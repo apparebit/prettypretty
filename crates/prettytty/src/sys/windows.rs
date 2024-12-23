@@ -84,8 +84,8 @@ impl ModeGroup {
 
     pub fn name(&self) -> &'static str {
         match self {
-            Self::Input => "input",
-            Self::Output => "output",
+            Self::Input => "input_modes",
+            Self::Output => "output_modes",
         }
     }
 }
@@ -216,12 +216,16 @@ impl Config {
 
 impl std::fmt::Debug for Config {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Config")
-            .field("input_modes", &IdentList::new(self.labels(ModeGroup::Input)))
-            .field("input_encoding", &self.input_encoding)
-            .field("output_modes", &IdentList::new(self.labels(ModeGroup::Output)))
-            .field("output_encoding", &self.output_encoding)
-            .finish()
+        let mut debugger = f.debug_struct("Config");
+        for group in ModeGroup::all() {
+            debugger.field(group.name(), &IdentList::new(self.labels(group)));
+            if group == ModeGroup::Input {
+                debugger.field("input_encoding", &self.input_encoding)
+            } else {
+                debugger.field("output_encoding", &self.output_encoding)
+            }
+        }
+        debugger.finish()
     }
 }
 

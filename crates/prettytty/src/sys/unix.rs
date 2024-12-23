@@ -132,10 +132,10 @@ impl ModeGroup {
         use self::ModeGroup::*;
 
         match self {
-            Input => "input",
-            Output => "output",
-            Control => "control",
-            Local => "local"
+            Input => "input_modes",
+            Output => "output_modes",
+            Control => "control_modes",
+            Local => "local_modes"
         }
     }
 }
