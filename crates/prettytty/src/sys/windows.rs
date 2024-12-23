@@ -66,7 +66,6 @@ impl RawConnection {
 // ----------------------------------------------------------------------------------------------------------
 
 /// A terminal configuration.
-#[derive(Debug)]
 pub(crate) struct Config {
     input_mode: ConsoleMode,
     input_encoding: u32,
