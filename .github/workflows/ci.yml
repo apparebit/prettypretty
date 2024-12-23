@@ -252,10 +252,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: >
-            --release --out dist
-            --no-default-features --features f64,gamut,pyffi
-            --manifest-path crates/prettypretty/Cargo.toml
+          args: --out dist --manifest-path crates/prettypretty/Cargo.toml
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
