@@ -7,6 +7,8 @@ categories = ["command-line-interface"]
 version = "0.1.0"
 edition = "2021"
 repository = "https://github.com/apparebit/prettypretty"
+documentation = "https://docs.rs/prettytty/latest/prettytty/"
+homepage = "https://crates.io/crates/prettytty"
 license = "Apache-2.0"
 
 
