@@ -151,10 +151,12 @@ impl std::fmt::Debug for Config {
         // Determine enabled flags
         let mut labels = Vec::new();
 
-        fn maybe_add(labels: &mut Vec<&str>, field: u64, mask: u64, label: &'static str) {
-            if field & mask != 0 {
-                labels.push(label);
-            }
+        macro_rules! maybe_add {
+            ($labels:expr, $field:expr, $mask:expr, $label:expr) => {
+                if $field & $mask != 0 {
+                    $labels.push($label);
+                }
+            };
         }
 
         // Input Modes
@@ -172,7 +174,7 @@ impl std::fmt::Debug for Config {
             ("IXON", libc::IXON),
             ("PARMRK", libc::PARMRK),
         ] {
-            maybe_add(&mut labels, self.state.c_iflag, mask, label);
+            maybe_add!(labels, self.state.c_iflag, mask, label);
         }
 
         // Output Modes
@@ -185,12 +187,12 @@ impl std::fmt::Debug for Config {
             ("OFDEL", libc::OFDEL),
             // Missing: NLDLY, CRDLY, TABDLY, BSDLY, VTDLY, FFDLY
         ] {
-            maybe_add(&mut labels, self.state.c_oflag, mask, label);
+            maybe_add!(labels, self.state.c_oflag, mask, label);
         }
 
         // Control Modes
-        maybe_add(&mut labels, self.state.c_cflag, libc::CLOCAL, "CLOCAL");
-        maybe_add(&mut labels, self.state.c_cflag, libc::CREAD, "CREAD");
+        maybe_add!(&mut labels, self.state.c_cflag, libc::CLOCAL, "CLOCAL");
+        maybe_add!(&mut labels, self.state.c_cflag, libc::CREAD, "CREAD");
         match self.state.c_cflag & libc::CSIZE {
             libc::CS5 => labels.push("CS5"),
             libc::CS6 => labels.push("CS6"),
@@ -204,7 +206,7 @@ impl std::fmt::Debug for Config {
             ("PARENB", libc::PARENB),
             ("PARODD", libc::PARODD),
         ] {
-            maybe_add(&mut labels, self.state.c_cflag, mask, label);
+            maybe_add!(labels, self.state.c_cflag, mask, label);
         }
 
         // Local Modes
@@ -219,7 +221,7 @@ impl std::fmt::Debug for Config {
             ("NOFLSH", libc::NOFLSH),
             ("TOSTOP", libc::TOSTOP),
         ] {
-            maybe_add(&mut labels, self.state.c_lflag, mask, label);
+            maybe_add!(labels, self.state.c_lflag, mask, label);
         }
 
         struct Labels<'a>(Vec<&'a str>);
