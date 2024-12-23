@@ -44,7 +44,7 @@ impl Connection {
         let connection = RawConnection::open(&options)
             .map_err(|e| Error::new(ErrorKind::ConnectionRefused, e))?;
 
-        let config = Config::read(connection.input())?;
+        let config = Config::read(&connection)?;
         let verbose = options.verbose();
         if verbose {
             println!("terminal::config {:?}", &config);
@@ -55,9 +55,11 @@ impl Connection {
                 if verbose {
                     println!("terminal::reconfig {:?}", &reconfig);
                 }
-                reconfig.write(connection.output())?;
+                reconfig.write(&connection)?;
                 if verbose {
-                    println!("terminal::reconfigured")
+                    // We need explicit carriage-return and line-feed characters
+                    // because the reconfiguratio just took effect.
+                    print!("terminal::reconfigured\r\n")
                 }
                 Ok(Some(config))
             },
@@ -147,7 +149,7 @@ impl Drop for Connection {
             let _ = w.flush();
         });
         if let Some(cfg) = &self.config {
-            let _ = cfg.write(self.connection.output());
+            let _ = cfg.write(&self.connection);
         }
     }
 }

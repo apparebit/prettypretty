@@ -147,9 +147,9 @@ pub(crate) struct Config {
 
 impl Config {
     /// Read the configuration.
-    pub fn read(input: RawInput) -> Result<Self> {
+    pub fn read(connection: &RawConnection) -> Result<Self> {
         let mut state = std::mem::MaybeUninit::uninit();
-        unsafe { libc::tcgetattr(input.handle(), state.as_mut_ptr()) }.into_result()?;
+        unsafe { libc::tcgetattr(connection.input().handle(), state.as_mut_ptr()) }.into_result()?;
         Ok(Self {
             state: unsafe { state.assume_init() },
         })
@@ -175,8 +175,8 @@ impl Config {
     }
 
     /// Write the configuration.
-    pub fn write(&self, output: RawOutput) -> Result<()> {
-        unsafe { libc::tcsetattr(output.handle(), libc::TCSAFLUSH, from_ref(&self.state)) }
+    pub fn write(&self, connection: &RawConnection) -> Result<()> {
+        unsafe { libc::tcsetattr(connection.input().handle(), libc::TCSAFLUSH, from_ref(&self.state)) }
             .into_result()?;
         Ok(())
     }
@@ -327,6 +327,7 @@ impl RawOutput {
         Self { handle }
     }
 
+    #[allow(dead_code)]
     #[inline]
     fn handle(&self) -> RawHandle {
         self.handle

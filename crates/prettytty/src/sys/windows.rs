@@ -99,10 +99,10 @@ pub(crate) struct Config {
 }
 
 impl Config {
-    pub fn read(input: RawInput) -> Result<Self> {
-        let input_modes = Self::read_mode(&input)?;
+    pub fn read(connection: &RawConnection) -> Result<Self> {
+        let input_modes = Self::read_mode(connection.input())?;
         let input_encoding = unsafe { Console::GetConsoleCP() }.into_result()?;
-        let output_modes = Self::read_mode(&input)?;
+        let output_modes = Self::read_mode(connection.output())?;
         let output_encoding = unsafe { Console::GetConsoleOutputCP() }.into_result()?;
 
         Ok(Self {
@@ -113,9 +113,9 @@ impl Config {
         })
     }
 
-    fn read_mode(input: &RawInput) -> Result<ConsoleMode> {
+    fn read_mode(handle: impl Into<RawHandle>) -> Result<ConsoleMode> {
         let mut mode = 0;
-        unsafe { Console::GetConsoleMode(input.handle(), from_mut(&mut mode)) }.into_result()?;
+        unsafe { Console::GetConsoleMode(handle.into(), from_mut(&mut mode)) }.into_result()?;
         Ok(mode)
     }
 
@@ -156,18 +156,18 @@ impl Config {
         })
     }
 
-    pub fn write(&self, output: RawOutput) -> Result<()> {
-        let result1 = Self::write_mode(&output, self.input_modes);
+    pub fn write(&self, connection: &RawConnection) -> Result<()> {
+        let result1 = Self::write_mode(connection.input(), self.input_modes);
         let result2 = unsafe { Console::SetConsoleCP(self.input_encoding) }.into_result();
-        let result3 = Self::write_mode(&output, self.output_modes);
+        let result3 = Self::write_mode(connection.output(), self.output_modes);
         let result4 = unsafe { Console::SetConsoleOutputCP(self.output_encoding) }.into_result();
 
         result1.and(result2).and(result3).and(result4)?;
         Ok(())
     }
 
-    fn write_mode(output: &RawOutput, mode: ConsoleMode) -> Result<()> {
-        unsafe { Console::SetConsoleMode(output.handle(), mode) }.into_result()?;
+    fn write_mode(handle: impl Into<RawHandle>, mode: ConsoleMode) -> Result<()> {
+        unsafe { Console::SetConsoleMode(handle.into(), mode) }.into_result()?;
         Ok(())
     }
 
@@ -243,6 +243,7 @@ impl RawInput {
         Self { handle, timeout }
     }
 
+    #[allow(dead_code)]
     #[inline]
     fn handle(&self) -> RawHandle {
         self.handle
@@ -254,6 +255,12 @@ impl RawInput {
 // `Sync`](https://github.com/rust-lang/rust/blob/8e37e151835d96d6a7415e93e6876561485a3354/library/std/src/os/windows/io/handle.rs#L111),
 // for wrapped handles, too. Also, access to raw input is gated by a mutex.
 unsafe impl Send for RawInput {}
+
+impl From<RawInput> for RawHandle {
+    fn from(value: RawInput) -> Self {
+        value.handle
+    }
+}
 
 impl Read for RawInput {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
@@ -296,6 +303,7 @@ impl RawOutput {
         Self { handle }
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn handle(&self) -> RawHandle {
         self.handle
@@ -307,6 +315,12 @@ impl RawOutput {
 // `Sync`](https://github.com/rust-lang/rust/blob/8e37e151835d96d6a7415e93e6876561485a3354/library/std/src/os/windows/io/handle.rs#L111),
 // for wrapped handles, too. Also, access to raw input is gated by a mutex.
 unsafe impl Send for RawOutput {}
+
+impl From<RawOutput> for RawHandle {
+    fn from(value: RawOutput) -> Self {
+        value.handle
+    }
+}
 
 impl Write for RawOutput {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
