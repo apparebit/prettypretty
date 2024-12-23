@@ -8,6 +8,7 @@ use std::io::{Read, Write};
 
 use prettytty::cmd::{Format, RequestColor, ResetStyle, SetForeground8, SetForegroundDefault};
 use prettytty::err::report;
+use prettytty::opt::Options;
 use prettytty::util::WriteNicely;
 use prettytty::Connection;
 
@@ -16,7 +17,9 @@ const GRAY: SetForeground8 = SetForeground8(244);
 #[allow(unused_assignments)]
 fn run() -> std::io::Result<()> {
     // Access the terminal
-    let tty = Connection::open()?;
+    println!("\n");
+    let options = Options::verbose_default();
+    let tty = Connection::with_options(options)?;
     let mut input = tty.input();
     let mut output = tty.output();
 
@@ -26,7 +29,7 @@ fn run() -> std::io::Result<()> {
     // Peek into terminal access
     write!(
         output,
-        "{}press ‹t› to query theme color, ‹q› to quit{}\r\n\r\n",
+        "\r\n\r\n{}press ‹t› to query theme color, ‹q› to quit{}\r\n\r\n",
         Format::Bold,
         Format::Bold.undo()
     )?;
@@ -89,6 +92,7 @@ fn run() -> std::io::Result<()> {
         // Handle user input.
         if buffer.contains(&b'q') {
             output.exec(ResetStyle)?;
+            output.println("\n\n")?;
             break;
         } else if buffer.contains(&b't') {
             let mut entry = color_requests.next();
@@ -105,7 +109,7 @@ fn run() -> std::io::Result<()> {
     drop(input);
     drop(output);
     drop(tty);
-    println!("\n\nbye bye!");
+    println!("bye bye!");
 
     Ok(())
 }

@@ -65,25 +65,50 @@ impl RawConnection {
 
 // ----------------------------------------------------------------------------------------------------------
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ModeGroup {
+    Input,
+    Output,
+}
+
+impl ModeGroup {
+    pub fn all() -> impl std::iter::Iterator<Item = ModeGroup> {
+        std::iter::successors(
+            Some(Self::Input),
+            |n| Some(match n {
+                Self::Input => Self::Output,
+                Self::Output => return None,
+            })
+        )
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Input => "input",
+            Self::Output => "output",
+        }
+    }
+}
+
 /// A terminal configuration.
 pub(crate) struct Config {
-    input_mode: ConsoleMode,
+    input_modes: ConsoleMode,
     input_encoding: u32,
-    output_mode: ConsoleMode,
+    output_modes: ConsoleMode,
     output_encoding: u32,
 }
 
 impl Config {
     pub fn read(input: RawInput) -> Result<Self> {
-        let input_mode = Self::read_mode(&input)?;
+        let input_modes = Self::read_mode(&input)?;
         let input_encoding = unsafe { Console::GetConsoleCP() }.into_result()?;
-        let output_mode = Self::read_mode(&input)?;
+        let output_modes = Self::read_mode(&input)?;
         let output_encoding = unsafe { Console::GetConsoleOutputCP() }.into_result()?;
 
         Ok(Self {
-            input_mode,
+            input_modes,
             input_encoding,
-            output_mode,
+            output_modes,
             output_encoding,
         })
     }
@@ -99,7 +124,7 @@ impl Config {
     /// For Unix, charred and cooked mode are the same; they make no changes.
     /// For Windows, charred mode makes no changes, but cooked mode switches
     /// to the UTF-8 encoding, `ENABLE_VIRTUAL_TERMINAL_INPUT`,
-    /// `ENABLE_PROCESSED_OUTPUT`, amd `ENABLE_VIRTUAL_TERMINAL_PROCESSING`.
+    /// `ENABLE_PROCESSED_OUTPUT`, and `ENABLE_VIRTUAL_TERMINAL_PROCESSING`.
     /// These options ensure that the terminal actually processed ANSI
     /// escape sequences.
     pub fn apply(&self, options: &Options) -> Option<Self> {
@@ -108,32 +133,33 @@ impl Config {
             return None;
         }
 
-        let mut input_mode = self.input_mode & Console::ENABLE_VIRTUAL_TERMINAL_INPUT;
+        let mut input_modes = self.input_modes | Console::ENABLE_VIRTUAL_TERMINAL_INPUT;
         if options.mode() != Mode::Cooked {
-            input_mode = input_mode & !Console::ENABLE_ECHO_INPUT & !Console::ENABLE_LINE_INPUT;
+            input_modes = input_modes & !Console::ENABLE_ECHO_INPUT & !Console::ENABLE_LINE_INPUT;
         }
         if options.mode() == Mode::Raw {
-            input_mode = input_mode & !Console::ENABLE_PROCESSED_INPUT;
+            input_modes = input_modes & !Console::ENABLE_PROCESSED_INPUT;
         }
         let input_encoding = Globalization::CP_UTF8;
 
-        let output_mode = self.output_mode
-            & Console::ENABLE_PROCESSED_OUTPUT
-            & Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        let output_modes = self.output_modes
+            | Console::ENABLE_PROCESSED_OUTPUT
+            | Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            | Console::DISABLE_NEWLINE_AUTO_RETURN;
         let output_encoding = Globalization::CP_UTF8;
 
         Some(Self {
-            input_mode,
+            input_modes,
             input_encoding,
-            output_mode,
+            output_modes,
             output_encoding,
         })
     }
 
     pub fn write(&self, output: RawOutput) -> Result<()> {
-        let result1 = Self::write_mode(&output, self.input_mode);
+        let result1 = Self::write_mode(&output, self.input_modes);
         let result2 = unsafe { Console::SetConsoleCP(self.input_encoding) }.into_result();
-        let result3 = Self::write_mode(&output, self.output_mode);
+        let result3 = Self::write_mode(&output, self.output_modes);
         let result4 = unsafe { Console::SetConsoleOutputCP(self.output_encoding) }.into_result();
 
         result1.and(result2).and(result3).and(result4)?;
@@ -144,43 +170,56 @@ impl Config {
         unsafe { Console::SetConsoleMode(output.handle(), mode) }.into_result()?;
         Ok(())
     }
+
+    pub fn labels(&self, group: ModeGroup) -> Vec<&'static str> {
+        let mut labels = Vec::new();
+
+        macro_rules! maybe_add {
+            ($field:expr, $mask:expr, $label:expr) => {
+                if $field & $mask != 0 {
+                    labels.push($label);
+                }
+            };
+        }
+
+        match group {
+            ModeGroup::Input => {
+                for (label, mask) in [
+                    ("ENABLE_ECHO_INPUT", Console::ENABLE_ECHO_INPUT),
+                    ("ENABLE_INSERT_MODE", Console::ENABLE_INSERT_MODE),
+                    ("ENABLE_LINE_INPUT", Console::ENABLE_LINE_INPUT),
+                    ("ENABLE_MOUSE_INPUT", Console::ENABLE_MOUSE_INPUT),
+                    ("ENABLE_PROCESSED_INPUT", Console::ENABLE_PROCESSED_INPUT),
+                    ("ENABLE_QUICK_EDIT_MODE", Console::ENABLE_QUICK_EDIT_MODE),
+                    ("ENABLE_WINDOW_INPUT", Console::ENABLE_WINDOW_INPUT),
+                    ("ENABLE_VIRTUAL_TERMINAL_INPUT", Console::ENABLE_VIRTUAL_TERMINAL_INPUT),
+                ] {
+                    maybe_add!(self.input_modes, mask, label);
+                }
+            }
+            ModeGroup::Output => {
+                for (label, mask) in [
+                    ("ENABLE_PROCESSED_OUTPUT", Console::ENABLE_PROCESSED_OUTPUT),
+                    ("ENABLE_WRAP_AT_EOL_OUTPUT", Console::ENABLE_WRAP_AT_EOL_OUTPUT),
+                    ("ENABLE_VIRTUAL_TERMINAL_PROCESSING", Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING),
+                    ("DISABLE_NEWLINE_AUTO_RETURN", Console::DISABLE_NEWLINE_AUTO_RETURN),
+                    ("ENABLE_LVB_GRID_WORLDWIDE", Console::ENABLE_LVB_GRID_WORLDWIDE),
+                ] {
+                    maybe_add!(self.output_modes, mask, label);
+                }
+            }
+        }
+
+        labels
+    }
 }
 
 impl std::fmt::Debug for Config {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut input_labels = Vec::new();
-        for (label, mask) in [
-            ("ENABLE_ECHO_INPUT", Console::ENABLE_ECHO_INPUT),
-            ("ENABLE_INSERT_MODE", Console::ENABLE_INSERT_MODE),
-            ("ENABLE_LINE_INPUT", Console::ENABLE_LINE_INPUT),
-            ("ENABLE_MOUSE_INPUT", Console::ENABLE_MOUSE_INPUT),
-            ("ENABLE_PROCESSED_INPUT", Console::ENABLE_PROCESSED_INPUT),
-            ("ENABLE_QUICK_EDIT_MODE", Console::ENABLE_QUICK_EDIT_MODE),
-            ("ENABLE_WINDOW_INPUT", Console::ENABLE_WINDOW_INPUT),
-            ("ENABLE_VIRTUAL_TERMINAL_INPUT", Console::ENABLE_VIRTUAL_TERMINAL_INPUT),
-        ] {
-            if self.input_mode & mask != 0 {
-                input_labels.push(label);
-            }
-        }
-
-        let mut output_labels = Vec::new();
-        for (label, mask) in [
-            ("ENABLE_PROCESSED_OUTPUT", Console::ENABLE_PROCESSED_OUTPUT),
-            ("ENABLE_WRAP_AT_EOL_OUTPUT", Console::ENABLE_WRAP_AT_EOL_OUTPUT),
-            ("ENABLE_VIRTUAL_TERMINAL_PROCESSING", Console::ENABLE_VIRTUAL_TERMINAL_PROCESSING),
-            ("DISABLE_NEWLINE_AUTO_RETURN", Console::DISABLE_NEWLINE_AUTO_RETURN),
-            ("ENABLE_LVB_GRID_WORLDWIDE", Console::ENABLE_LVB_GRID_WORLDWIDE),
-        ] {
-            if self.output_mode & mask != 0 {
-                output_labels.push(label);
-            }
-        }
-
         f.debug_struct("Config")
-            .field("input_mode", &IdentList::new(input_labels))
+            .field("input_modes", &IdentList::new(self.labels(ModeGroup::Input)))
             .field("input_encoding", &self.input_encoding)
-            .field("output_mode", &IdentList::new(output_labels))
+            .field("output_modes", &IdentList::new(self.labels(ModeGroup::Output)))
             .field("output_encoding", &self.output_encoding)
             .finish()
     }

@@ -105,6 +105,41 @@ impl RawConnection {
 
 // ----------------------------------------------------------------------------------------------------------
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ModeGroup {
+    Input,
+    Output,
+    Control,
+    Local,
+}
+
+impl ModeGroup {
+    pub fn all() -> impl std::iter::Iterator<Item = ModeGroup> {
+        use self::ModeGroup::*;
+
+        std::iter::successors(
+            Some(Input),
+            |n| Some(match n {
+                Input => Output,
+                Output => Control,
+                Control => Local,
+                Local => return None,
+            })
+        )
+    }
+
+    pub fn name(&self) -> &'static str {
+        use self::ModeGroup::*;
+
+        match self {
+            Input => "input",
+            Output => "output",
+            Control => "control",
+            Local => "local"
+        }
+    }
+}
+
 /// A terminal configuration.
 pub(crate) struct Config {
     state: libc::termios,
@@ -145,94 +180,100 @@ impl Config {
             .into_result()?;
         Ok(())
     }
-}
 
-impl std::fmt::Debug for Config {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Different Unix-like operating systems use differently sized modes,
-        // which is just fine with a macro.
+    /// Get labels for active modes in given group.
+    pub fn labels(&self, group: ModeGroup) -> Vec<&'static str> {
+        let mut labels = Vec::new();
+
         macro_rules! maybe_add {
-            ($labels:expr, $field:expr, $mask:expr, $label:expr) => {
+            ($field:expr, $mask:expr, $label:expr) => {
                 if $field & $mask != 0 {
-                    $labels.push($label);
+                    labels.push($label);
                 }
             };
         }
 
-        // Input Modes
-        let mut input_labels = Vec::new();
-        for (label, mask) in [
-            ("BRKINT", libc::BRKINT),
-            ("ICRNL", libc::ICRNL),
-            ("IGNBRK", libc::IGNBRK),
-            ("IGNCR", libc::IGNCR),
-            ("IGNPAR", libc::IGNPAR),
-            ("INLCR", libc::INLCR),
-            ("INPCK", libc::INPCK),
-            ("ISTRIP", libc::ISTRIP),
-            ("IXANY", libc::IXANY),
-            ("IXOFF", libc::IXOFF),
-            ("IXON", libc::IXON),
-            ("PARMRK", libc::PARMRK),
-        ] {
-            maybe_add!(input_labels, self.state.c_iflag, mask, label);
+        match group {
+            ModeGroup::Input => {
+                for (label, mask) in [
+                    ("BRKINT", libc::BRKINT),
+                    ("ICRNL", libc::ICRNL),
+                    ("IGNBRK", libc::IGNBRK),
+                    ("IGNCR", libc::IGNCR),
+                    ("IGNPAR", libc::IGNPAR),
+                    ("INLCR", libc::INLCR),
+                    ("INPCK", libc::INPCK),
+                    ("ISTRIP", libc::ISTRIP),
+                    ("IXANY", libc::IXANY),
+                    ("IXOFF", libc::IXOFF),
+                    ("IXON", libc::IXON),
+                    ("PARMRK", libc::PARMRK),
+                ] {
+                    maybe_add!(self.state.c_iflag, mask, label);
+                }
+            }
+            ModeGroup::Output => {
+                for (label, mask) in [
+                    ("OPOST", libc::OPOST),
+                    ("OCRNL", libc::OCRNL),
+                    ("ONOCR", libc::ONOCR),
+                    ("ONLRET", libc::ONLRET),
+                    ("OFILL", libc::OFILL),
+                    ("OFDEL", libc::OFDEL),
+                    // Missing: NLDLY, CRDLY, TABDLY, BSDLY, VTDLY, FFDLY
+                ] {
+                    maybe_add!(self.state.c_oflag, mask, label);
+                }
+
+            }
+            ModeGroup::Control => {
+                maybe_add!(self.state.c_cflag, libc::CLOCAL, "CLOCAL");
+                maybe_add!(self.state.c_cflag, libc::CREAD, "CREAD");
+                match self.state.c_cflag & libc::CSIZE {
+                    libc::CS5 => labels.push("CS5"),
+                    libc::CS6 => labels.push("CS6"),
+                    libc::CS7 => labels.push("CS7"),
+                    libc::CS8 => labels.push("CS8"),
+                    _ => (),
+                }
+                for (label, mask) in [
+                    ("CSTOPB", libc::CSTOPB),
+                    ("HUPCL", libc::HUPCL),
+                    ("PARENB", libc::PARENB),
+                    ("PARODD", libc::PARODD),
+                ] {
+                    maybe_add!(self.state.c_cflag, mask, label);
+                }
+            }
+            ModeGroup::Local => {
+                for (label, mask) in [
+                    ("ECHO", libc::ECHO),
+                    ("ECHOE", libc::ECHOE),
+                    ("ECHOK", libc::ECHOK),
+                    ("ECHONL", libc::ECHONL),
+                    ("ICANON", libc::ICANON),
+                    ("IEXTEN", libc::IEXTEN),
+                    ("ISIG", libc::ISIG),
+                    ("NOFLSH", libc::NOFLSH),
+                    ("TOSTOP", libc::TOSTOP),
+                ] {
+                    maybe_add!(self.state.c_lflag, mask, label);
+                }
+            }
         }
 
-        // Output Modes
-        let mut output_labels = Vec::new();
-        for (label, mask) in [
-            ("OPOST", libc::OPOST),
-            ("OCRNL", libc::OCRNL),
-            ("ONOCR", libc::ONOCR),
-            ("ONLRET", libc::ONLRET),
-            ("OFILL", libc::OFILL),
-            ("OFDEL", libc::OFDEL),
-            // Missing: NLDLY, CRDLY, TABDLY, BSDLY, VTDLY, FFDLY
-        ] {
-            maybe_add!(output_labels, self.state.c_oflag, mask, label);
+        labels
+    }
+}
+
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debugger = f.debug_struct("Config");
+        for group in ModeGroup::all() {
+            debugger.field(group.name(), &IdentList::new(self.labels(group)));
         }
 
-        // Control Modes
-        let mut control_labels = Vec::new();
-        maybe_add!(control_labels, self.state.c_cflag, libc::CLOCAL, "CLOCAL");
-        maybe_add!(control_labels, self.state.c_cflag, libc::CREAD, "CREAD");
-        match self.state.c_cflag & libc::CSIZE {
-            libc::CS5 => control_labels.push("CS5"),
-            libc::CS6 => control_labels.push("CS6"),
-            libc::CS7 => control_labels.push("CS7"),
-            libc::CS8 => control_labels.push("CS8"),
-            _ => (),
-        }
-        for (label, mask) in [
-            ("CSTOPB", libc::CSTOPB),
-            ("HUPCL", libc::HUPCL),
-            ("PARENB", libc::PARENB),
-            ("PARODD", libc::PARODD),
-        ] {
-            maybe_add!(control_labels, self.state.c_cflag, mask, label);
-        }
-
-        // Local Modes
-        let mut local_labels = Vec::new();
-        for (label, mask) in [
-            ("ECHO", libc::ECHO),
-            ("ECHOE", libc::ECHOE),
-            ("ECHOK", libc::ECHOK),
-            ("ECHONL", libc::ECHONL),
-            ("ICANON", libc::ICANON),
-            ("IEXTEN", libc::IEXTEN),
-            ("ISIG", libc::ISIG),
-            ("NOFLSH", libc::NOFLSH),
-            ("TOSTOP", libc::TOSTOP),
-        ] {
-            maybe_add!(local_labels, self.state.c_lflag, mask, label);
-        }
-
-        f.debug_struct("Config")
-            .field("input_mode", &IdentList::new(input_labels))
-            .field("output_mode", &IdentList::new(output_labels))
-            .field("control_mode", &IdentList::new(control_labels))
-            .field("local_mode", &IdentList::new(local_labels))
+        debugger
             .field("vmin", &self.state.c_cc[libc::VMIN])
             .field("vtime", &self.state.c_cc[libc::VTIME])
             .finish()
