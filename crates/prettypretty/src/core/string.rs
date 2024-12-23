@@ -375,13 +375,13 @@ mod test {
         let clr = Color::srgb(0.3, 0.336, 0.123456);
         assert_eq!(clr.to_string(), "color(srgb 0.3 0.336 0.12346)");
         assert_eq!(format!("{:.2}", clr), "color(srgb 0.3 0.34 0.12)");
-        assert_eq!(Color::oklab(1, 0, 0).to_string(), "oklab(1 0 0)");
+        assert_eq!(Color::oklab(1.0, 0.0, 0.0).to_string(), "oklab(1 0 0)");
         assert_eq!(
-            Color::oklch(0.5, 0.1, 167).to_string(),
+            Color::oklch(0.5, 0.1, 167.0).to_string(),
             "oklch(0.5 0.1 167)"
         );
         assert_eq!(
-            Color::oklrch(0.5, 0.1, 167).to_string(),
+            Color::oklrch(0.5, 0.1, 167.0).to_string(),
             "color(--oklrch 0.5 0.1 167)"
         );
     }

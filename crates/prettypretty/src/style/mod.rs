@@ -143,6 +143,7 @@
 
 mod color;
 mod context;
+pub mod fmt;
 pub mod format;
 mod styling;
 
