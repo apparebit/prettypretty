@@ -73,19 +73,23 @@ jobs:
       run: cargo install mdbook
 
     - name: Check Rust code (with & without features)
+      shell: bash
       run: |
         cargo check --workspace
         cargo check --workspace --all-features
 
     - name: Run Clippy (with & without features)
+      shell: bash
       run: |
         cargo clippy --workspace
         cargo clippy --workspace --all-features
 
     - name: Check Rust format
+      shell: bash
       run: cargo fmt --all --check
 
     - name: Test Rust code
+      shell: bash
       env:
         RUST_BACKTRACE: 1
       run: |
@@ -96,6 +100,7 @@ jobs:
       run: pip install -e .[dev]
 
     - name: Typecheck and test Python code
+      shell: bash
       run: python -m runtest
 
     - name: Test guide's Rust examples

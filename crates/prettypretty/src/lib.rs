@@ -121,6 +121,8 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # use prettytty::Connection;
 //! # use prettytty::opt::Options;
 //! # fn main() -> Result<()> {
+//! # #[cfg(not(target_family = "windows"))]
+//! # {
 //! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
 //! // 2a. Determine terminal's color support and theme
 //! let options = Options::builder().timeout(50).build();
@@ -129,6 +131,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     Err(_) => (false, VGA_COLORS),
 //! };
 //! let fidelity = Fidelity::from_environment(has_tty);
+//! # }
 //! # Ok(())
 //! # }
 //! ```
@@ -147,6 +150,8 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # use prettytty::Connection;
 //! # use prettytty::opt::Options;
 //! # fn main() -> Result<()> {
+//! # #[cfg(not(target_family = "windows"))]
+//! # {
 //! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
 //! # let options = Options::builder().timeout(50).build();
 //! # let (has_tty, theme) = match Connection::with_options(options) {
@@ -157,6 +162,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! // 2b. Actually adjust styles
 //! let translator = Translator::new(OkVersion::Revised, theme);
 //! let effective_chic = &chic.cap(fidelity, &translator);
+//! # }
 //! # Ok(())
 //! # }
 //! ```
@@ -174,6 +180,8 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # use prettytty::Connection;
 //! # use prettytty::opt::Options;
 //! # fn main() -> Result<()> {
+//! # #[cfg(not(target_family = "windows"))]
+//! # {
 //! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
 //! # let options = Options::builder().timeout(50).build();
 //! # let (has_tty, theme) = match Connection::with_options(options) {
@@ -185,6 +193,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # let effective_chic = &chic.cap(fidelity, &translator);
 //! // 3. Apply and revert styles
 //! println!("{}Wow!{}", effective_chic, -effective_chic);
+//! # }
 //! # Ok(())
 //! # }
 //! ```
