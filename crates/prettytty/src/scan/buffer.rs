@@ -146,7 +146,7 @@ impl Buffer {
     /// Determine whether this buffer has spare capacity.
     ///
     /// This method returns `true` if there is space to read in more data
-    /// without backshifting.
+    /// without defragmenting.
     #[inline]
     pub fn has_capacity(&self) -> bool {
         self.filled < self.data.capacity()
@@ -179,6 +179,7 @@ impl Buffer {
                 .copy_within(self.cursor..self.filled, token_length);
         }
 
+        // Update indices
         self.token_start = 0;
         self.token_end = token_length;
         self.cursor = token_length;

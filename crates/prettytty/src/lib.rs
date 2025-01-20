@@ -18,14 +18,16 @@
 //! Using its **connection-oriented interface** is easy:
 //!
 //!   * Open a [`Connection`].
-//!   * Issue [`Command`]s by writing them to the connection's [`Output`].
-//!   * Read [`Query`] responses from its [`Input`].
+//!   * Issue [`Command`]s by writing their [`Display`](std::fmt::Display) to
+//!     the connection's [`Output`].
+//!   * [`Scan`] and read [`Query`] responses from its [`Input`].
 //!
 //! More generally, [`Input`] implements [`Read`](std::io::Read),
-//! [`BufRead`](std::io::BufRead), and [`Scan`], whereas [`Output`] implements
-//! [`Write`](std::io::Write) as well as the auto-flushing
+//! [`BufRead`](std::io::BufRead), and [`Scan`], with the latter turning bytes
+//! into UTF-8 text, control code, and control sequence tokens. Meanwhile,
+//! [`Output`] implements [`Write`](std::io::Write) as well as the auto-flushing
 //! [`print()`](Output::print), [`println()`](Output::println), and
-//! [`exec()`](Output::exec).
+//! [`exec()`](Output::exec) methods.
 //!
 //! The [`cmd`] module provides a **library of common [`Command`] and [`Query`]
 //! implementations**. It includes, for example, commands to set the window
@@ -36,6 +38,9 @@
 //! is no input. If you need faster timeouts or integration with I/O
 //! notifications, use a dedicated polling thread with either an
 //! [`std::sync::mpsc`] queue or Unix domain socket.
+//!
+//! Since terminal connections reconfigure the terminal, an application should
+//! go out of its way to **always run [`Connection`]'s drop handler**.
 //!
 //!
 //! # Example
@@ -57,7 +62,7 @@
 //!     let (mut input, mut output) = tty.io();
 //!
 //!     // Move cursor, issue query for position.
-//!     output.exec(MoveToColumn(17))?;
+//!     output.exec(MoveToColumn::<17>)?;
 //!     output.exec(RequestCursorPosition)?;
 //!
 //!     // Read and parse response.
@@ -81,14 +86,13 @@
 //!
 //! # Windows
 //!
-//! Prettytty uses platform-specific APIs for configuring the terminal. But
-//! otherwise, all commands and queries are implemented as ANSI escape sequences
-//! only. Since Windows started supporting control sequences for styling output
-//! in the Windows Console with Windows 10 version 1511 only, prettytty does not
-//! support earlier versions of the operating system. Windows Terminal 1.22
-//! improves on Console's support for ANSI escape sequences, including, for
-//! example, support for querying the terminal for its color theme. Hence, we
-//! strongly recommend using Windows Terminal 1.22 or later.
+//! Prettytty uses platform-specific APIs for configuring the terminal, notably
+//! for setting the correct mode. By contrast, commands and queries are
+//! implemented with ANSI escape sequences. Windows started supporting control
+//! sequences for styling output with Windows 10 version 1511 only. It started
+//! supporting queries for the current color theme with Windows Terminal 1.22
+//! only. Hence, we strongly recommend using prettytty with Windows Terminal
+//! 1.22 or later.
 
 mod api;
 pub mod cmd;

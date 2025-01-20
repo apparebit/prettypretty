@@ -13,8 +13,8 @@ use crate::{Command, Scan};
 /// [`Output`]. On Unix, the I/O types share the same underlying file
 /// descriptor, whereas on Windows each I/O type uses a distinct handle.
 ///
-/// Since a connection temporarily reconfigures the terminal, an application
-/// should go out of its way to always execute this type's drop handler before
+/// Since a connection temporarily reconfigures the terminal, **an application
+/// should go out of its way to always execute this type's drop handler** before
 /// exit.
 pub struct Connection {
     options: Options,
@@ -95,19 +95,26 @@ impl Connection {
         Ok(this)
     }
 
-    /// Get the options.
+    /// Get the options used when opening this connection.
     #[inline]
     pub fn options(&self) -> &Options {
         &self.options
     }
 
     /// Get both terminal input and output.
+    ///
+    /// The returned input and output objects ensure mutually exclusive access
+    /// to the terminal's input and output, respectively. Dropping them releases
+    /// access again.
     #[inline]
     pub fn io(&self) -> (Input, Output) {
         (self.input(), self.output())
     }
 
     /// Get the terminal input.
+    ///
+    /// The returned input object ensures mutually exclusive access to the
+    /// terminal's input. Dropping the input object releases access again.
     #[inline]
     pub fn input(&self) -> Input {
         Input {
@@ -116,6 +123,9 @@ impl Connection {
     }
 
     /// Get the terminal output.
+    ///
+    /// The returned output object ensures mutually exclusive access to the
+    /// terminal's output. Dropping the output object releases access again.
     #[inline]
     pub fn output(&self) -> Output {
         Output {
@@ -125,7 +135,12 @@ impl Connection {
 
     fn log(&self, message: impl AsRef<str>) -> Result<()> {
         if self.options.verbose() {
-            let mut writer = self.writer.lock().expect("mutex is not poisoned");
+            // Don't wait for output.
+            let mut writer = self
+                .writer
+                .try_lock()
+                .map_err(|_| Error::from(ErrorKind::WouldBlock))?;
+
             write!(
                 writer,
                 "{} pid={} group={} stamp={}\r\n",

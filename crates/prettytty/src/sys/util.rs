@@ -72,7 +72,7 @@ struct Ident<'a>(&'a str);
 
 impl<'a> Ident<'a> {
     pub fn new(name: &&'a str) -> Self {
-        Self(*name)
+        Self(name)
     }
 }
 

@@ -40,7 +40,7 @@ pub struct Scanner<R> {
     buffer: Buffer,
     did_overflow: bool,
     // The actual and maximum lengths for sequences. The limit must be at least
-    // the maximum.
+    // the buffer size but usually is larger.
     sequence_length: usize,
     sequence_limit: usize,
     // A single byte buffer for control characters while sequence is being read.
@@ -67,7 +67,11 @@ impl<R: std::io::Read> Scanner<R> {
 
     /// Ensure that the buffer has readable content.
     ///
-    /// This method returns some 0 if there is no data.
+    /// This method returns an option indicating how many bytes were read from
+    /// the underlying input. If the internal buffer contains readable bytes,
+    /// this method returns `None`. If it doesn't, this method makes space in
+    /// the buffer and reads from the underlying input. If that read returns no
+    /// bytes, this method returns `Some(0)`.
     fn ensure_readable(&mut self) -> Result<Option<usize>, Error> {
         if !self.buffer.is_readable() {
             if matches!(self.state, State::Ground) {
@@ -100,8 +104,8 @@ impl<R: std::io::Read> Scanner<R> {
 
     /// Get a buffer with unread bytes.
     ///
-    /// This method returns a buffer with all unread bytes. If there are none,
-    /// it first tries to read more bytes from the underlying input.
+    /// This method only reads from the underlying input, if there are no unread
+    /// bytes already buffered.
     pub fn fill_buf(&mut self) -> Result<&[u8], Error> {
         if self.in_flight() {
             return Err(ErrorKind::InFlight.into());
@@ -184,11 +188,11 @@ impl<R: std::io::Read> Scanner<R> {
         match action {
             Print => unreachable!("printable characters are processed before control sequences"),
             AbortThenHandleControl | AbortThenStart => {
-                // Since we don't consume the byte and restore the ground
-                // state, the next invocation of read_token handles the
-                // control or starts the sequence. That works only because
-                // AbortThenDoSomething transitions out of arbitrary states
-                // are DoSomething transitions out of ground.
+                // Since we don't consume the byte and restore the ground state,
+                // the next invocation of read_token handles the control or
+                // starts the sequence. That works only because, whereas
+                // AbortThenDoSomething transitions out of arbitrary states,
+                // DoSomething always transitions out of ground.
                 self.state = State::Ground;
                 return Err(ErrorKind::MalformedSequence.into());
             }
@@ -234,13 +238,13 @@ impl<R: std::io::Read> Scanner<R> {
     }
 
     /// Create a control token for the byte.
-    fn control_token(&mut self, byte: u8) -> Result<Token, Error> {
+    fn new_control_token(&mut self, byte: u8) -> Result<Token, Error> {
         self.extra[0] = byte;
         Ok(Token::Control(&self.extra))
     }
 
     /// Create a new sequence token.
-    fn sequence_token(&self) -> Result<Token, Error> {
+    fn new_sequence_token(&self) -> Result<Token, Error> {
         if self.did_overflow {
             Err(ErrorKind::OutOfMemory.into())
         } else {
@@ -271,8 +275,8 @@ impl<R: std::io::Read> Scanner<R> {
                 use self::Action::*;
 
                 match self.step_sequence(byte)? {
-                    HandleControl => return self.control_token(byte),
-                    Dispatch => return self.sequence_token(),
+                    HandleControl => return self.new_control_token(byte),
+                    Dispatch => return self.new_sequence_token(),
                     _ => continue,
                 }
             }
