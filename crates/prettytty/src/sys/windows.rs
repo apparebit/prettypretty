@@ -134,10 +134,10 @@ impl Config {
 
         let mut input_modes = self.input_modes | Console::ENABLE_VIRTUAL_TERMINAL_INPUT;
         if options.mode() != Mode::Cooked {
-            input_modes = input_modes & !Console::ENABLE_ECHO_INPUT & !Console::ENABLE_LINE_INPUT;
+            input_modes &= !Console::ENABLE_ECHO_INPUT & !Console::ENABLE_LINE_INPUT;
         }
         if options.mode() == Mode::Raw {
-            input_modes = input_modes & !Console::ENABLE_PROCESSED_INPUT;
+            input_modes &= !Console::ENABLE_PROCESSED_INPUT;
         }
         let input_encoding = Globalization::CP_UTF8;
 
