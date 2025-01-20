@@ -18,7 +18,7 @@ pub type Progress = f32;
 ///
 /// The first value is 0.0 and the final value is 100.0. Increments are
 /// randomized by a normal distribution with mean 1.0 and standard deviation
-/// 1.0/3.0.
+/// 2.0/3.0.
 pub struct ProgressReporter {
     normal: Normal<Progress>,
     rng: ThreadRng,
@@ -46,11 +46,13 @@ impl std::iter::Iterator for ProgressReporter {
             return None;
         }
 
+        // Always use old status to ensure iterator produces 0.0
+        // Compute min(100.0) to ensure iterator produces 100.0
         let result = self.status.min(100.0);
         if 100.0 <= self.status {
             self.done = true;
         } else {
-            // Ensure that progress is monotonically increasing.
+            // Compute max(0.1) to ensure monotonically increasing progress
             let incr = self.normal.sample(&mut self.rng).max(0.1);
             self.status += incr;
         }
@@ -64,8 +66,13 @@ impl std::iter::FusedIterator for ProgressReporter {}
 // -------------------------------------------------------------------------------------
 
 /// A progress renderer.
+///
+/// The renderer's display implementation assumes that the underlying binary
+/// writer is buffered. Otherwise, performance will be terrible.
 pub struct Renderer(pub Progress);
 
+// The progress bar has a width of 25 fixed-width cells, each of which can
+// display 4 distinct steps, resulting in a resolution of 100 distinct lengths
 const WIDTH: usize = 25;
 const STEPS: usize = 4;
 
@@ -76,6 +83,7 @@ impl std::fmt::Display for Renderer {
         let partial = uprog % STEPS;
         let empty = WIDTH - full - (if 0 < partial { 1 } else { 0 });
 
+        // The 11th 8-bit color is bright green
         write!(f, "{}  ┫{}", MoveToColumn::<0>, SetForeground8::<10>)?;
 
         for _ in 0..full {
@@ -96,10 +104,11 @@ impl std::fmt::Display for Renderer {
 
 /// Animate a progress bar's progress from 0 to 100 percent.
 pub fn animate(output: &mut impl Write) -> Result<()> {
+    // Nap time is between 1/60 and 1/10 seconds
     let uniform = Uniform::new_inclusive(16, 100);
     let mut rng = thread_rng();
 
-    // Flushed by first write_bar()
+    // Flushed by first animation loop iteration
     write!(output, "{}", HideCursor)?;
 
     for progress in ProgressReporter::new() {
@@ -114,9 +123,10 @@ pub fn animate(output: &mut impl Write) -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    // MoveUp is flushed by first animation loop iteration
     print!("\n\n{}", MoveUp::<1>);
     let result = animate(&mut stdout());
-    // Clean up: Always make cursor visible again.
+    // Clean up: Make cursor visible again. Note: stdout flushes on newline.
     print!("{}\n\n", ShowCursor);
     result
 }
