@@ -2,6 +2,110 @@ use std::io::Result;
 
 use crate::util::nicely_str;
 
+/// A command for the terminal.
+///
+/// Commands provide instructions to the terminal and are communicated in-band
+/// by writing ANSI escape codes. The actual writing is performed by the display
+/// trait's `fmt` method.
+///
+/// This trait is object-safe.
+pub trait Command: std::fmt::Display {}
+
+/// A borrowed command is a command.
+impl<C: Command + ?Sized> Command for &C {}
+
+/// A boxed command is a command.
+impl<C: Command + ?Sized> Command for Box<C> {}
+
+/// Combine several commands into a single new command.
+///
+/// The new command preserves the order of its component commands. Upon display,
+/// it emits as many ANSI escape sequence as it has component commands.
+#[macro_export]
+macro_rules! fuse {
+    ($($command:expr),+ $(,)?) => {{
+        /// One or more combined commands.
+        struct Fused;
+
+        impl $crate::Command for Fused {}
+        impl ::std::fmt::Display for Fused {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                $($command.fmt(f)?;)*
+            }
+        }
+
+        Fused
+    }}
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/// A command using select-graphic-rendition ANSI escape sequences.
+///
+/// To facilitate composition, SGR commands implement [`Sgr::write_param`],
+/// which writes the parameter(s) with the leading `CSI` and the trailing `m`.
+///
+/// Technically, an `impl &mut std::fmt::Write` would suffice for `out`, but
+/// that would make the method generic and hence also prevent the trait from
+/// being object-safe. Declaring `out` to be a formatter instead doesn't
+/// restrict the trait by much, since `write_param()` is most likely invoked
+/// inside an implementation of `Display::fmt` anyways, while also ensuring that
+/// the trait is object-safe.
+pub trait Sgr: Command {
+    /// Write the parameter(s) for this SGR command.
+    fn write_param(&self, out: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result;
+}
+
+/// A borrowed SGR is an SGR.
+impl<S: Sgr + ?Sized> Sgr for &S {
+    fn write_param(&self, out: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        (**self).write_param(out)
+    }
+}
+
+/// A boxed SGR is an SGR.
+impl<S: Sgr + ?Sized> Sgr for Box<S> {
+    fn write_param(&self, out: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        (**self).write_param(out)
+    }
+}
+
+/// Combine several SGR commands into a single new SGR command.
+///
+/// The new SGR command preserves the order of its component commands. Upon
+/// display, it emits only one ANSI escape sequence.
+#[macro_export]
+macro_rules! fuse_sgr {
+    ( $sgr:expr, $( $sgr2:expr ),* $(,)? ) => {{
+        /// One or more SGR commands fused into one.
+        struct FusedSgr;
+
+        impl ::std::fmt::Display for FusedSgr {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                f.write_str("\x1b[")?;
+                self.write_param(f)?;
+                f.write_str("m")
+            }
+        }
+
+        impl $crate::Command for FusedSgr {}
+        impl $crate::Sgr for FusedSgr {
+            fn write_param(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                $sgr.write_param(f)?;
+                $(
+                    f.write_str(";")?;
+                    $sgr2.write_param(f)?;
+                )*
+                Ok(())
+            }
+        }
+
+        FusedSgr
+    }};
+}
+
+// ------------------------------------------------------------------------------------------------
+
 /// Control codes that start or end ANSI escape sequences.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Control {
@@ -49,81 +153,6 @@ impl std::fmt::Display for Control {
     }
 }
 
-/// A command for the terminal.
-///
-/// Commands provide instructions to the terminal and are communicated in-band
-/// by writing ANSI escape codes. The actual writing is performed by the display
-/// trait's `fmt` method.
-///
-/// This trait is object-safe.
-pub trait Command: std::fmt::Display {}
-
-/// A borrowed command is a command.
-impl<C: Command + ?Sized> Command for &C {}
-
-/// A boxed command is a command.
-impl<C: Command + ?Sized> Command for Box<C> {}
-
-/// A command using select-graphic-rendition ANSI escape sequences.
-///
-/// To facilitate composition, SGR commands implement [`Sgr::write_param`],
-/// which write the parameter(s) with the leading `CSI` and the trailing `m`.
-///
-/// Technically, an `impl &mut std::fmt::Write` would suffice for `out`, but
-/// that would make the method generic and hence also prevent the trait from
-/// being object-safe. Declaring `out` to be a formatter instead doesn't
-/// restrict the trait by much, since `write_param()` is most likely invoked
-/// inside an implementation of `Display::fmt` anyways, while also ensuring that
-/// the trait is object-safe.
-pub trait Sgr: Command {
-    /// Write the parameter(s) for this SGR command.
-    fn write_param(&self, out: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result;
-}
-
-/// A borrowed SGR is an SGR.
-impl<S: Sgr + ?Sized> Sgr for &S {
-    fn write_param(&self, out: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        (**self).write_param(out)
-    }
-}
-
-/// A boxed SGR is an SGR.
-impl<S: Sgr + ?Sized> Sgr for Box<S> {
-    fn write_param(&self, out: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        (**self).write_param(out)
-    }
-}
-
-/// Compose SGR commands into another SGR command.
-#[macro_export]
-macro_rules! sgr {
-    ( $sgr:expr, $( $sgr2:expr ),* $(,)? ) => {{
-        struct SgrSeq;
-
-        impl ::std::fmt::Display for SgrSeq {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                f.write_str("\x1b[")?;
-                self.write_param(f)?;
-                f.write_str("m")
-            }
-        }
-
-        impl $crate::Command for SgrSeq {}
-        impl $crate::Sgr for SgrSeq {
-            fn write_param(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                $sgr.write_param(f)?;
-                $(
-                    f.write_str(";")?;
-                    $sgr2.write_param(f)?;
-                )*
-                Ok(())
-            }
-        }
-
-        SgrSeq
-    }};
-}
-
 /// A command that receives a response.
 ///
 /// Queries are request/response interactions with the terminal. For purposes of
@@ -152,7 +181,7 @@ macro_rules! sgr {
 /// # };
 /// # let pos = {
 /// # let (mut input, mut output) = tty.io();
-/// # output.exec(MoveToColumn(17))?;
+/// # output.exec(MoveToColumn::<17>)?;
 /// // Write the command
 /// output.exec(RequestCursorPosition)?;
 ///
@@ -214,6 +243,8 @@ impl<Q: Query + ?Sized> Query for Box<Q> {
         (**self).parse(payload)
     }
 }
+
+// ------------------------------------------------------------------------------------------------
 
 /// A text or control sequence token.
 #[derive(Clone, PartialEq)]
