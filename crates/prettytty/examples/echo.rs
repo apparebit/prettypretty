@@ -6,13 +6,13 @@
 /// Typing `q` exits the program.
 use std::io::{Read, Write};
 
-use prettytty::cmd::{Format, RequestColor, ResetStyle, SetForeground8, SetForegroundDefault};
+use prettytty::cmd::{Format, RequestColor, ResetStyle, SetDefaultForeground, SetForeground8};
 use prettytty::err::report;
 use prettytty::opt::Options;
 use prettytty::util::WriteNicely;
 use prettytty::Connection;
 
-const GRAY: SetForeground8 = SetForeground8(244);
+const GRAY: SetForeground8<244> = SetForeground8::<244>;
 
 #[allow(unused_assignments)]
 fn run() -> std::io::Result<()> {
@@ -84,7 +84,7 @@ fn run() -> std::io::Result<()> {
 
         // Actually write out token.
         wrap!(char_len);
-        output.write(format!("{}", SetForegroundDefault).as_bytes())?;
+        output.write(format!("{}", SetDefaultForeground).as_bytes())?;
         output.write(&token_buffer[..token_len])?;
         output.write(format!("{}", GRAY).as_bytes())?;
         output.flush()?;

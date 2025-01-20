@@ -9,7 +9,7 @@
 //!       * [`RequestTerminalId`]
 //!   * Window title management:
 //!       * [`SaveWindowTitle`] and [`RestoreWindowTitle`]
-//!       * [`SetWindowTitle`]
+//!       * [`DynSetWindowTitle`]
 //!   * Screen management:
 //!       * [`RequestScreenSize`]
 //!       * [`EnterAlternateScreen`] and [`ExitAlternateScreen`]
@@ -17,20 +17,25 @@
 //!   * Cursor management:
 //!       * [`HideCursor`] and [`ShowCursor`]
 //!       * [`RequestCursorPosition`]
-//!       * Relative [`MoveUp`], [`MoveDown`], [`MoveLeft`], and [`MoveRight`]
-//!       * Absolute [`MoveToColumn`], [`MoveToRow`], and [`MoveTo`]
+//!       * Relative [`MoveUp`], [`MoveDown`], [`MoveLeft`], [`MoveRight`],
+//!         [`DynMoveUp`], [`DynMoveDown`], [`DynMoveLeft`], and
+//!         [`DynMoveRight`]
+//!       * Absolute [`MoveToColumn`], [`MoveToRow`], [`MoveTo`],
+//!         [`DynMoveToColumn`], [`DynMoveToRow`], and [`DynMoveTo`]
 //!       * [`SaveCursorPosition`] and [`RestoreCursorPosition`]
 //!   * Managing content:
 //!       * [`RequestBatchMode`]
 //!       * [`BeginBatch`] and [`EndBatch`]
 //!       * [`BeginPaste`] and [`EndPaste`] to perform a
 //!         [bracketed paste](https://cirw.in/blog/bracketed-paste) operation
-//!       * [`Link`]
+//!       * [`DynLink`]
 //!   * Styling content:
 //!       * [`ResetStyle`]
 //!       * [`RequestActiveStyle`]
-//!       * [`SetForegroundDefault`], [`SetForeground8`], and [`SetForeground24`]
-//!       * [`SetBackgroundDefault`], [`SetBackground8`], and [`SetBackground24`]
+//!       * [`SetDefaultForeground`], [`SetForeground8`], [`SetForeground24`],
+//!         [`DynSetForeground8`], and [`DynSetForeground24`]
+//!       * [`SetDefaultBackground`], [`SetBackground8`], [`SetBackground24`],
+//!         [`DynSetBackground8`], and [`DynSetBackground24`]
 //!       * [`Format::Bold`], [`Format::Thin`], and [`Format::Regular`]
 //!       * [`Format::Italic`] and [`Format::Upright`]
 //!       * [`Format::Underlined`] and [`Format::NotUnderlined`]
@@ -43,7 +48,13 @@
 //!         [`RequestColor::Background`], [`RequestColor::Cursor`], and
 //!         [`RequestColor::Selection`]
 //!
-//! If a command starts with `Request` in its name, it implements the [`Query`]
+//! Most commands are implemented by zero-sized unit structs and enum variants.
+//! Commands that require arguments may come in one or both of two flavors, a
+//! static flavor relying on const generics and a dynamic flavor storing the
+//! arguments. The command name for the latter flavor starts with `Dyn`; it
+//! obviously is *not* zero-sized.
+//!
+//! If a command name starts with `Request`, it also implements the [`Query`]
 //! trait and hence knows how to parse the response's payload.
 //!
 //!
@@ -54,34 +65,43 @@
 //! # use prettytty::{sgr, Sgr, cmd::{Format, ResetStyle, SetForeground8}};
 //! println!(
 //!     "{}Wow!{}",
-//!     sgr!(Format::Bold, Format::Underlined, SetForeground8(124)),
+//!     fuse_sgr!(Format::Bold, Format::Underlined, SetForeground8::<124>),
 //!     ResetStyle
 //! );
 //! ```
-//! The macro [`sgr!`](crate::sgr) is not strictly necessary but conveniently
-//! emits a single ANSI escape sequence for the first three stylistic commands.
-//! The terminal says <img style="display: inline-block; vertical-align: text-top"
-//! src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
-//!      alt="wow!" width="42">. Wow indeed.
+//! The invocation of the [`fuse_sgr!`](crate::fuse_sgr) macro in the above
+//! example is not strictly necessary. Separately writing `Format::Bold`,
+//! `Format::Underlined`, and `SetForeground8::<124>` to the console would set
+//! the same style. However, that would also write three distinct ANSI escape
+//! sequences, whereas `fuse_sgr!` returns a value that writes only one ANSI
+//! escape sequence. After receiving the above text, the terminal prints <img
+//! style="display: inline-block; vertical-align: text-top"
+//!      src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
+//!      alt="wow!" width="42">. Wow indeed 😜
 
 use crate::util::{is_semi_colon, Radix};
 use crate::{Command, Control, Query, Sgr};
 use std::io::{Error, ErrorKind, Result};
 use std::iter::successors;
 
-macro_rules! declare_struct_0 {
+macro_rules! declare_unit_struct {
     ($name:ident) => {
-        #[doc = concat!("The `",stringify!($name),"` command.")]
+        #[doc = concat!("The unit `",stringify!($name),"` command.")]
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub struct $name;
     };
 }
 
-macro_rules! declare_struct_n {
-    ($name:ident( $( $typ:ty ),+ $(,)? )) => {
-        #[doc = concat!("The `",stringify!($name),"(",stringify!($($typ),+),")` command.")]
+macro_rules! declare_n_struct {
+    ($name:ident( $( $arg:ident : $typ:ty ),+ $(,)? )) => {
+        #[doc = concat!("The dynamic `",stringify!($name),"(",stringify!($($arg),+),")` command.")]
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub struct $name( $( pub $typ ),+ );
+    };
+    ($name:ident< $( $arg:ident : $typ:ty ),+ >) => {
+        #[doc = concat!("The static `",stringify!($name),"<",stringify!($($arg),+),">` command.")]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub struct $name< $(const $arg: $typ),+ >;
     }
 }
 
@@ -91,8 +111,8 @@ macro_rules! implement_sgr_expr {
 
         impl crate::cmd::Sgr for $name {
             #[inline]
-            fn write_param(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                out.write_str($repr)
+            fn write_param(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str($repr)
             }
         }
 
@@ -106,17 +126,17 @@ macro_rules! implement_sgr_expr {
 }
 
 macro_rules! implement_sgr {
-    ($name:ident : $selfish:ident ; $output:ident $body:block) => {
-        impl crate::cmd::Command for $name {}
+    ($name:ident $(< $( $arg:ident : $typ:ty ),+ >)? : $selfish:ident ; $output:ident $body:block) => {
+        impl $(< $(const $arg: $typ),+ >)? crate::cmd::Command for $name $(< $($arg),+ >)? {}
 
-        impl crate::cmd::Sgr for $name {
+        impl $(< $(const $arg: $typ),+ >)? crate::cmd::Sgr for $name $(< $($arg),+ >)? {
             #[inline]
             fn write_param(&$selfish, $output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 $body
             }
         }
 
-        impl std::fmt::Display for $name {
+        impl $(< $(const $arg: $typ),+ >)?  std::fmt::Display for $name $(< $($arg),+ >)? {
             #[inline]
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.write_str("\x1b[")?;
@@ -127,24 +147,11 @@ macro_rules! implement_sgr {
     };
 }
 
-macro_rules! implement_command_expr {
-    ($name:ident { $repr:expr }) => {
-        impl crate::cmd::Command for $name {}
-
-        impl std::fmt::Display for $name {
-            #[inline]
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.write_str($repr)
-            }
-        }
-    };
-}
-
 macro_rules! implement_command {
-    ($name:ident : $selfish:ident ; $output:ident $body:block) => {
-        impl crate::cmd::Command for $name {}
+    ($name:ident $(< $( $arg:ident : $typ:ty ),+ >)? : $selfish:ident ; $output:ident $body:block) => {
+        impl $(< $(const $arg: $typ),+ >)? crate::cmd::Command for $name $(< $($arg),+ >)? {}
 
-        impl std::fmt::Display for $name {
+        impl $(< $(const $arg: $typ),+ >)? std::fmt::Display for $name $(< $($arg),+ >)? {
             #[inline]
             fn fmt(&$selfish, $output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 $body
@@ -153,65 +160,88 @@ macro_rules! implement_command {
     }
 }
 
-macro_rules! define_sgr_0 {
+macro_rules! define_unit_sgr {
     ($name:ident, $ansi:tt) => {
-        declare_struct_0!($name);
+        declare_unit_struct!($name);
         implement_sgr_expr!($name { $ansi });
     };
 }
 
-macro_rules! define_command_0 {
+macro_rules! define_unit_command {
     ($name:ident, $ansi:tt) => {
-        declare_struct_0!($name);
-        implement_command_expr!($name { $ansi });
+        declare_unit_struct!($name);
+        implement_command!($name: self; f { f.write_str($ansi) });
     };
 }
 
-macro_rules! define_sgr_1 {
-    ($name:ident : $typ:ty, $prefix:literal) => {
-        declare_struct_n!($name($typ));
-        implement_sgr!($name: self; f {
+macro_rules! define_8bit_color {
+    ($name:ident, $dyn_name:ident, $prefix:literal) => {
+        declare_n_struct!($name<COLOR: u8>);
+        implement_sgr!($name<COLOR: u8>: self; f {
             f.write_str($prefix)?;
-            write!(f, "{}", self.0)
+            <_ as std::fmt::Display>::fmt(&COLOR, f)
+        });
+
+        declare_n_struct!($dyn_name(COLOR: u8));
+        implement_sgr!($dyn_name: self; f {
+            f.write_str($prefix)?;
+            <_ as std::fmt::Display>::fmt(&self.0, f)
         });
     }
 }
 
-macro_rules! define_sgr_3 {
-    ($name:ident : $typ:ty, $prefix:literal) => {
-        declare_struct_n!($name($typ, $typ, $typ));
-        implement_sgr!($name: self; f {
+macro_rules! define_24bit_color {
+    ($name:ident, $dyn_name:ident, $prefix:literal) => {
+        declare_n_struct!($name<R: u8, G: u8, B: u8>);
+        implement_sgr!($name<R: u8, G: u8, B: u8>: self; f {
             f.write_str($prefix)?;
-            write!(f, "{}", self.0)?;
+            <_ as std::fmt::Display>::fmt(&R, f)?;
             f.write_str(";")?;
-            write!(f, "{}", self.1)?;
+            <_ as std::fmt::Display>::fmt(&G, f)?;
             f.write_str(";")?;
-            write!(f, "{}", self.2)
+            <_ as std::fmt::Display>::fmt(&B, f)
+        });
+
+        declare_n_struct!($dyn_name(R: u8, G: u8, B: u8));
+        implement_sgr!($dyn_name: self; f {
+            f.write_str($prefix)?;
+            <_ as std::fmt::Display>::fmt(&self.0, f)?;
+            f.write_str(";")?;
+            <_ as std::fmt::Display>::fmt(&self.1, f)?;
+            f.write_str(";")?;
+            <_ as std::fmt::Display>::fmt(&self.2, f)
         });
     }
 }
 
-macro_rules! define_command_1 {
-    ($name:ident : $typ:ty, $prefix:literal, $suffix:literal) => {
-        declare_struct_n!($name($typ));
-        implement_command!($name: self; f {
+macro_rules! define_cmd_1 {
+    ($name:ident <$arg:ident : $typ:ty>, $dyn_name:ident, $prefix:literal, $suffix:literal) => {
+        declare_n_struct!($name<$arg : $typ>);
+        implement_command!($name<$arg : $typ>: self; f {
             f.write_str($prefix)?;
-            write!(f, "{}", self.0)?;
+            <_ as std::fmt::Display>::fmt(&$arg, f)?;
             f.write_str($suffix)
         });
-    };
+
+        declare_n_struct!($dyn_name($arg : $typ));
+        implement_command!($dyn_name: self; f {
+            f.write_str($prefix)?;
+            <_ as std::fmt::Display>::fmt(&self.0, f)?;
+            f.write_str($suffix)
+        });
+    }
 }
 
 // ====================================== Library ======================================
 
 // -------------------------------- Terminal Management --------------------------------
 
-declare_struct_0!(RequestTerminalId);
-implement_command_expr!(RequestTerminalId { "\x1b[>q" });
+define_unit_command!(RequestTerminalId, "\x1b[>q");
 
 impl Query for RequestTerminalId {
     type Response = (Option<Vec<u8>>, Option<Vec<u8>>);
 
+    #[inline]
     fn control(&self) -> Control {
         Control::DCS
     }
@@ -252,34 +282,34 @@ impl Query for RequestTerminalId {
 
 // --------------------------------- Window Management ---------------------------------
 
-define_command_0!(SaveWindowTitle, "\x1b[22;2t");
-define_command_0!(RestoreWindowTitle, "\x1b[23;2t");
+define_unit_command!(SaveWindowTitle, "\x1b[22;2t");
+define_unit_command!(RestoreWindowTitle, "\x1b[23;2t");
 
-/// The `SetWindowTitle(String)` command.
+/// The dynamic `DynSetWindowTitle(String)` command.
 ///
-/// This is one of few commands that cannot be copied, only cloned.
+/// This command cannot be copied, only cloned.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SetWindowTitle(String);
-implement_command!(SetWindowTitle: self; f {
+pub struct DynSetWindowTitle(String);
+implement_command!(DynSetWindowTitle: self; f {
     f.write_str("\x1b]2;")?;
-    write!(f, "{}", self.0)?;
+    f.write_str(self.0.as_str())?;
     f.write_str("\x1b\\")
 });
 
 // --------------------------------- Screen Management ---------------------------------
 
-define_command_0!(EnterAlternateScreen, "\x1b[?1049h");
-define_command_0!(ExitAlternateScreen, "\x1b[?1049l");
+define_unit_command!(EnterAlternateScreen, "\x1b[?1049h");
+define_unit_command!(ExitAlternateScreen, "\x1b[?1049l");
 
-define_command_0!(EraseScreen, "\x1b[2J");
-define_command_0!(EraseLine, "\x1b[2K");
+define_unit_command!(EraseScreen, "\x1b[2J");
+define_unit_command!(EraseLine, "\x1b[2K");
 
-declare_struct_0!(RequestScreenSize);
+declare_unit_struct!(RequestScreenSize);
 impl Command for RequestScreenSize {}
 
 impl std::fmt::Display for RequestScreenSize {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        MoveTo(u16::MAX, u16::MAX).fmt(f)?;
+        MoveTo::<{ u16::MAX }, { u16::MAX }>.fmt(f)?;
         RequestCursorPosition.fmt(f)
     }
 }
@@ -287,6 +317,7 @@ impl std::fmt::Display for RequestScreenSize {
 impl Query for RequestScreenSize {
     type Response = <RequestCursorPosition as Query>::Response;
 
+    #[inline]
     fn control(&self) -> Control {
         RequestCursorPosition.control()
     }
@@ -298,39 +329,52 @@ impl Query for RequestScreenSize {
 
 // --------------------------------- Cursor Management ---------------------------------
 
-define_command_0!(HideCursor, "\x1b[?25l");
-define_command_0!(ShowCursor, "\x1b[?25h");
+define_unit_command!(HideCursor, "\x1b[?25l");
+define_unit_command!(ShowCursor, "\x1b[?25h");
 
-define_command_1!(MoveUp: u16, "\x1b[", "A");
-define_command_1!(MoveDown: u16, "\x1b[", "B");
-define_command_1!(MoveLeft: u16, "\x1b[", "C");
-define_command_1!(MoveRight: u16, "\x1b[", "D");
+define_cmd_1!(MoveUp<ROWS: u16>, DynMoveUp, "\x1b[", "A");
+define_cmd_1!(MoveDown<ROWS: u16>, DynMoveDown, "\x1b[", "B");
+define_cmd_1!(MoveLeft<COLUMNS: u16>, DynMoveLeft, "\x1b[", "C");
+define_cmd_1!(MoveRight<COLUMNS: u16>, DynMoveRight, "\x1b[", "D");
 
-/// The `MoveTo(‹row›, ‹column›)` command.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MoveTo(pub u16, pub u16);
+declare_n_struct!(MoveTo<ROW: u16, COLUMN: u16>);
 
-implement_command!(MoveTo: self; out {
-    out.write_str("\x1b[")?;
-    out.write_fmt(format_args!("{}", self.0))?;
-    out.write_str(";")?;
-    out.write_fmt(format_args!("{}", self.1))?;
-    out.write_str("H")
+impl<const ROW: u16, const COLUMN: u16> Command for MoveTo<ROW, COLUMN> {}
+
+impl<const ROW: u16, const COLUMN: u16> std::fmt::Display for MoveTo<ROW, COLUMN> {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("\x1b[")?;
+        <_ as std::fmt::Display>::fmt(&ROW, f)?;
+        f.write_str(";")?;
+        <_ as std::fmt::Display>::fmt(&COLUMN, f)?;
+        f.write_str("H")
+    }
+}
+
+declare_n_struct!(DynMoveTo(ROW: u16, COLUMN: u16));
+
+implement_command!(DynMoveTo: self; f {
+    f.write_str("\x1b[")?;
+    <_ as std::fmt::Display>::fmt(&self.0, f)?;
+    f.write_str(";")?;
+    <_ as std::fmt::Display>::fmt(&self.1, f)?;
+    f.write_str("H")
 });
 
-define_command_1!(MoveToColumn: u16, "\x1b[", "G");
-define_command_1!(MoveToRow: u16, "\x1b[", "d");
+define_cmd_1!(MoveToColumn<COLUMN: u16>, DynMoveToColumn, "\x1b[", "G");
+define_cmd_1!(MoveToRow<ROW: u16>, DynMoveToRow, "\x1b[", "d");
 
-define_command_0!(SaveCursorPosition, "\x1b7");
-define_command_0!(RestoreCursorPosition, "\x1b8");
+define_unit_command!(SaveCursorPosition, "\x1b7");
+define_unit_command!(RestoreCursorPosition, "\x1b8");
 
-declare_struct_0!(RequestCursorPosition);
-implement_command_expr!(RequestCursorPosition { "\x1b[6n" });
+define_unit_command!(RequestCursorPosition, "\x1b[6n");
 
 impl Query for RequestCursorPosition {
     /// The row and column of the cursor in that order.
     type Response = (u16, u16);
 
+    #[inline]
     fn control(&self) -> Control {
         Control::CSI
     }
@@ -372,12 +416,12 @@ pub enum BatchMode {
     PermanentlyDisabled = 4,
 }
 
-declare_struct_0!(RequestBatchMode);
-implement_command_expr!(RequestBatchMode { "\x1b[?2026$p" });
+define_unit_command!(RequestBatchMode, "\x1b[?2026$p");
 
 impl Query for RequestBatchMode {
     type Response = BatchMode;
 
+    #[inline]
     fn control(&self) -> Control {
         Control::CSI
     }
@@ -401,21 +445,30 @@ impl Query for RequestBatchMode {
     }
 }
 
-define_command_0!(BeginBatch, "\x1b[?2026h");
-define_command_0!(EndBatch, "\x1b[?2026l");
+define_unit_command!(BeginBatch, "\x1b[?2026h");
+define_unit_command!(EndBatch, "\x1b[?2026l");
 
-define_command_0!(BeginPaste, "\x1b[?2004h");
-define_command_0!(EndPaste, "\x1b[?2004l");
+define_unit_command!(BeginPaste, "\x1b[?2004h");
+define_unit_command!(EndPaste, "\x1b[?2004l");
 
-/// The `Link(‹id›, ‹href›, ‹text›)` command.
+/// The dynamic `DynLink(ID, HREF, TEXT)` command.
 ///
-/// This is one of few commands that cannot be copied, only cloned.
+/// This command cannot be copied, only cloned.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Link(Option<String>, String, String);
+pub struct DynLink(Option<String>, String, String);
 
-impl Link {
-    /// Create a new hyperlink with the given text, URL, and optional ID.
-    pub fn new<I, H, T>(id: Option<I>, href: H, text: T) -> Self
+impl DynLink {
+    /// Create a new hyperlink with the given URL and text.
+    pub fn new<H, T>(href: H, text: T) -> Self
+    where
+        H: Into<String>,
+        T: Into<String>,
+    {
+        Self(None, href.into(), text.into())
+    }
+
+    /// Create a new hyperlink with the given ID, URL, and text.
+    pub fn with_id<I, H, T>(id: Option<I>, href: H, text: T) -> Self
     where
         I: Into<String>,
         H: Into<String>,
@@ -425,33 +478,33 @@ impl Link {
     }
 }
 
-implement_command!(Link: self; out {
+implement_command!(DynLink: self; f {
     if let Some(ref id) = self.0 {
-        out.write_str("\x1b]8;id=")?;
-        out.write_str(id)?;
-        out.write_str(";")?;
+        f.write_str("\x1b]8;id=")?;
+        f.write_str(id)?;
+        f.write_str(";")?;
     } else {
-        out.write_str("\x1b]8;;")?;
+        f.write_str("\x1b]8;;")?;
     }
 
-    out.write_str(self.1.as_ref())?;
-    out.write_str("\x1b\\")?;
-    out.write_str(self.2.as_ref())?;
-    out.write_str("\x1b]8;;\x1b\\")
+    f.write_str(self.1.as_str())?;
+    f.write_str("\x1b\\")?;
+    f.write_str(self.2.as_str())?;
+    f.write_str("\x1b]8;;\x1b\\")
 });
 
 // --------------------------------- Style Management ----------------------------------
 
-define_command_0!(ResetStyle, "\x1b[m");
+define_unit_command!(ResetStyle, "\x1b[m");
 
-define_sgr_0!(SetForegroundDefault, "39");
-define_sgr_0!(SetBackgroundDefault, "49");
-define_sgr_1!(SetForeground8: u8, "38;5;");
-define_sgr_1!(SetBackground8: u8, "48;5;");
-define_sgr_3!(SetForeground24: u8, "38;2;");
-define_sgr_3!(SetBackground24: u8, "48;2;");
+define_unit_sgr!(SetDefaultForeground, "39");
+define_unit_sgr!(SetDefaultBackground, "49");
+define_8bit_color!(SetForeground8, DynSetForeground8, "38;5;");
+define_8bit_color!(SetBackground8, DynSetBackground8, "48;5;");
+define_24bit_color!(SetForeground24, DynSetForeground24, "38;2;");
+define_24bit_color!(SetBackground24, DynSetBackground24, "48;2;");
 
-/// The enumeration of `Format` commands.
+/// The enumeration of unit `Format` commands.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(u8)]
 pub enum Format {
@@ -491,8 +544,9 @@ impl Format {
 }
 
 impl Sgr for Format {
-    fn write_param(&self, out: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        write!(out, "{}", *self as u8)
+    #[inline]
+    fn write_param(&self, f: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        <_ as std::fmt::Display>::fmt(&(*self as u8), f)
     }
 }
 
@@ -506,12 +560,12 @@ impl std::fmt::Display for Format {
     }
 }
 
-declare_struct_0!(RequestActiveStyle);
-implement_command_expr!(RequestActiveStyle { "\x1bP$qm\x1b\\" });
+define_unit_command!(RequestActiveStyle, "\x1bP$qm\x1b\\");
 
 impl Query for RequestActiveStyle {
     type Response = Vec<u8>;
 
+    #[inline]
     fn control(&self) -> Control {
         Control::DCS
     }
@@ -526,9 +580,12 @@ impl Query for RequestActiveStyle {
     }
 }
 
-/// The enumeration of `RequestColor` commands.
+/// The enumeration of unit `RequestColor` commands.
 ///
-/// On Windows, this query is only supported by Terminal 1.22 or later.
+/// The discriminant ranges from 0 to 15 for the 16 ANSI colors. For the default
+/// foreground, default background, cursor, or selection colors, it is 100 plus
+/// the code used in the query. On Windows, this query is only supported by
+/// Terminal 1.22 or later.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(u8)]
 pub enum RequestColor {
@@ -598,9 +655,13 @@ impl std::fmt::Display for RequestColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let code = *self as u32;
         if code < 16 {
-            write!(f, "\x1b]4;{};?\x1b\\", code)
+            f.write_str("\x1b]4;")?;
+            <_ as std::fmt::Display>::fmt(&code, f)?;
+            f.write_str(";?\x1b\\")
         } else {
-            write!(f, "\x1b]{};?\x1b\\", code - 100)
+            f.write_str("\x1b]")?;
+            <_ as std::fmt::Display>::fmt(&(code - 100), f)?;
+            f.write_str(";?\x1b\\")
         }
     }
 }
@@ -615,6 +676,7 @@ impl Query for RequestColor {
     /// point number between 0 and 1, compute _s_/((16^_w_)-1).
     type Response = [(u16, u16); 3];
 
+    #[inline]
     fn control(&self) -> Control {
         Control::OSC
     }
@@ -675,18 +737,23 @@ impl Query for RequestColor {
 #[cfg(test)]
 mod test {
     use super::{
-        BeginBatch, MoveLeft, MoveTo, Query, RequestColor, RequestCursorPosition, RequestTerminalId,
+        BeginBatch, DynMoveLeft, DynMoveTo, MoveLeft, MoveTo, Query, RequestColor,
+        RequestCursorPosition, RequestTerminalId,
     };
 
     #[test]
     fn test_size_and_display() {
         assert_eq!(std::mem::size_of::<BeginBatch>(), 0);
-        assert_eq!(std::mem::size_of::<MoveLeft>(), 2);
-        assert_eq!(std::mem::size_of::<MoveTo>(), 4);
+        assert_eq!(std::mem::size_of::<MoveLeft::<2>>(), 0);
+        assert_eq!(std::mem::size_of::<DynMoveLeft>(), 2);
+        assert_eq!(std::mem::size_of::<MoveTo::<5, 7>>(), 0);
+        assert_eq!(std::mem::size_of::<DynMoveTo>(), 4);
 
         assert_eq!(format!("{}", BeginBatch), "\x1b[?2026h");
-        assert_eq!(format!("{}", MoveLeft(2)), "\x1b[2C");
-        assert_eq!(format!("{}", MoveTo(5, 7)), "\x1b[5;7H")
+        assert_eq!(format!("{}", MoveLeft::<2>), "\x1b[2C");
+        assert_eq!(format!("{}", DynMoveLeft(2)), "\x1b[2C");
+        assert_eq!(format!("{}", MoveTo::<5, 7>), "\x1b[5;7H");
+        assert_eq!(format!("{}", DynMoveTo(5, 7)), "\x1b[5;7H");
     }
 
     #[test]

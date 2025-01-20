@@ -165,7 +165,7 @@ pub fn report<E: std::error::Error>(error: &E) {
     println!(
         "{}{}ERROR: {}{}",
         Format::Bold,
-        SetForeground8(1),
+        SetForeground8::<1>,
         error,
         ResetStyle
     );
