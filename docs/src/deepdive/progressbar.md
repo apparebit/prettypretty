@@ -324,26 +324,20 @@ out](https://github.com/apparebit/prettypretty/issues/new). Of course, that
 applies to 🦟 bugs 🕷️ as well.
 
 
-<div class=warning>
+## Rust Progress
 
-### Change Is in the Air
+Since prettypretty's Python version builds on the underlying Rust library,
+adjusting colors in Rust largely uses the same types and methods as the Python
+code above. However, the `prettytty` terminal library exposes a substantially
+different interface than Python's `Terminal`. The
+[`progress.rs`](https://github.com/apparebit/prettypretty/blob/main/crates/prettytty/examples/progress.rs)
+example illustrates how to use that crate's interface for animating a progress
+bar with the same appearance. Though it does not adjust any colors.
 
-Prettypretty started out as a Python-only library and then became a Rust library
-with first-class Python support. As part of the transition, I've been iterating
-over prettypretty's public interfaces and lately I've been focusing on how to
-best interface with the terminal. While I didn't set out to implement a library
-for terminal I/O, existing Rust crates don't quite fit prettypretty's needs.
-They either offer not enough or too much functionality. So I did implement a
-fairly minimal layer that interfaces with the terminal. Whether that can or even
-should be exposed to Python is unclear. What is clear is that prettypretty will
-go through a few more releases before the big 1.0 and those releases will likely
-entail some API churn. But that is also resulting in cleaner, meaner APIs...
-
-</div>
 
 <div class=warning>
 
-### Accessibility
+## Accessibility
 
 Prettypretty's focus on color manipulation is not just an aesthetic concern but
 also touches upon accessibility. That is one reason why prettypretty already

@@ -2,11 +2,11 @@ use std::io::{stdout, Result, Write};
 use std::thread;
 use std::time::Duration;
 
-use rand::{thread_rng, rngs::ThreadRng};
+use rand::{rngs::ThreadRng, thread_rng};
 use rand_distr::{Distribution, Normal, Uniform};
 
 use prettytty::cmd::{
-    HideCursor, MoveToColumn, MoveUp, SetDefaultForeground, SetForeground8, ShowCursor
+    HideCursor, MoveToColumn, MoveUp, SetDefaultForeground, SetForeground8, ShowCursor,
 };
 
 // -------------------------------------------------------------------------------------
@@ -66,12 +66,15 @@ impl std::iter::FusedIterator for ProgressReporter {}
 /// A progress renderer.
 pub struct Renderer(pub Progress);
 
+const WIDTH: usize = 25;
+const STEPS: usize = 4;
+
 impl std::fmt::Display for Renderer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let uprog = self.0 as usize;
-        let full = uprog / 4;
-        let partial = uprog % 4;
-        let empty = 25 - full - (if 0 < partial { 1 } else { 0 });
+        let full = uprog / STEPS;
+        let partial = uprog % STEPS;
+        let empty = WIDTH - full - (if 0 < partial { 1 } else { 0 });
 
         write!(f, "{}  ┫{}", MoveToColumn::<0>, SetForeground8::<10>)?;
 

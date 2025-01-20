@@ -62,7 +62,7 @@
 //!
 //! Executing a command is as simple as writing its display:
 //! ```
-//! # use prettytty::{sgr, Sgr, cmd::{Format, ResetStyle, SetForeground8}};
+//! # use prettytty::{fuse_sgr, Sgr, cmd::{Format, ResetStyle, SetForeground8}};
 //! println!(
 //!     "{}Wow!{}",
 //!     fuse_sgr!(Format::Bold, Format::Underlined, SetForeground8::<124>),
