@@ -1,51 +1,34 @@
 # Changelog
 
-## v0.11.0 (2024-11-03)
 
-### A Seemingly Simpler, Yet More Powerful API
+## Prettypretty v0.11.0 (2025-01-??)
 
-This version introduces significant new functionality while also reorganizing
-the already existing functionality. To significantly reduce the cognitive
-overhead of using prettypretty, the public API now is modularized. The primary
-modules and their main types are:
+### A Simpler, More Powerful API
+
+To reduce the cognitive overhead of using prettypretty, its functionality has
+been reorganized into modules. The primary modules and abstractions now are:
 
   - `prettypretty` provides high-resolution colors through
     [`ColorSpace`](https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html)
-    and [`Color`](https://apparebit.github.io/prettypretty/prettypretty/struct.Color.html)
+    and
+    [`Color`](https://apparebit.github.io/prettypretty/prettypretty/struct.Color.html).
+    It also defines
+    [`Translator`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html)
+    for translating between color representations.
   - `prettypretty::style` abstracts over terminal styles with
     [`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)
-    and terminals' substantially different color representations with
+    and terminal color representations with
     [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html).
-  - `prettypretty::trans` defines
-    [`Translator`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html)
-    née `Sampler` for translating between the color representations.
-  - `prettypretty::theme` uses
+  - `prettypretty::theme` defines
     [`Theme`](https://apparebit.github.io/prettypretty/prettypretty/theme/struct.Theme.html)
-    to represent a terminal's current color theme.
-  - `prettypretty::cmd` is a small library of further
-    [`Command`](https://apparebit.github.io/prettypretty/prettypretty/cmd/trait.Command.html)s
-    that let you control aspects other than style, including window title,
-    terminal screen, and cursor position.
-  - `prettypretty::term` provides direct access to the terminal device with
-    [`Terminal`](https://apparebit.github.io/prettypretty/prettypretty/term/struct.Terminal.html)
-    and parses UTF-8 and ANSI escape sequences with
-    [`VtScanner`](https://apparebit.github.io/prettypretty/prettypretty/term/struct.VtScanner.html).
-    `Terminal` is supported on Unix and Windows, though the latter version is
-    largely untested.
+    to represent a terminal's current color theme. The `tty` feature enables
+    integration with [prettytty](https://crates.io/crates/prettytty), adding the
+    ability to query the terminal for its theme.
 
-Since `cmd` and `term` overlap with existing Rust terminal crates such as
-[`crossterm`](https://github.com/crossterm-rs/crossterm), both modules are
-optional. THe corresponding Cargo feature is `term`. It is enabled by default.
-
-Prettypretty also has a utility module:
-
-  - `prettypretty::error` is a utility module defining prettypretty's error
-    types.
-
-Finally, two more optional modules support color gamuts and the human visual
-gamut. Both modules are disabled by default in Rust and enabled by default in
-Python, with the latter adhering to that ecosystem's "batteries included"
-approach.
+Prettypretty also includes one utility module, `prettypretty::error`, with its
+errors. Prettypretty includes two more optional modules. By default, they are
+disabled in Rust, whereas they are always available in Python, consistent with
+the latter language's "batteries included" motto.
 
   - `prettypretty::gamut` is a utility module defining an iterator for
     traversing color space gamuts. It is enabled with the `gamut` feature.
@@ -64,13 +47,12 @@ approach.
 
 ### New Functionality
 
-In addition to the entirely new `gamut`, `spectrum`, and `term` modules, new
-features include:
+In addition to the already mentioned
+[`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)
+and
+[`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html),
+notable new features are:
 
-  * [`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)
-    represents a terminal style and
-    [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html)
-    represents a color, with the latter replacing `TerminalColor`.
   * [`ColorSpace::XyzD50`](https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html#variant.XyzD50)
     adds support for the XYZ color space with a D50 illuminant. Chromatic
     adaptation uses the (linear) Bradford method.
@@ -87,11 +69,8 @@ features include:
     script uses the `spectrum` module to generate a 3D mesh of the human visual
     gamut.
 
-With these features, prettypretty is rapidly approaching feature-complete
-status.
 
-
-## v0.10.0 (2024-07-12)
+## Prettypretty v0.10.0 (2024-07-12)
 
 ### New Features
 
@@ -113,7 +92,7 @@ status.
     full fidelity.
 
 
-## v0.9.0 (2024-07-09)
+## Prettypretty v0.9.0 (2024-07-09)
 
 As it turns out, v0.9.0 is the new v0.1.0. At least, it feels that way writing
 up the changes. Thankfully, minor version numbers are not limited to single
