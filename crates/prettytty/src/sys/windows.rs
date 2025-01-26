@@ -90,14 +90,14 @@ impl ModeGroup {
 }
 
 /// A terminal configuration.
-pub(crate) struct Config {
+pub(crate) struct RawConfig {
     input_modes: ConsoleMode,
     input_encoding: u32,
     output_modes: ConsoleMode,
     output_encoding: u32,
 }
 
-impl Config {
+impl RawConfig {
     pub fn read(connection: &RawConnection) -> Result<Self> {
         let input_modes = Self::read_mode(connection.input())?;
         let input_encoding = unsafe { Console::GetConsoleCP() }.into_result()?;
@@ -228,9 +228,9 @@ impl Config {
     }
 }
 
-impl std::fmt::Debug for Config {
+impl std::fmt::Debug for RawConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut debugger = f.debug_struct("Config");
+        let mut debugger = f.debug_struct("RawConfig");
         for group in ModeGroup::all() {
             debugger.field(group.name(), &IdentList::new(self.labels(group)));
             if group == ModeGroup::Input {

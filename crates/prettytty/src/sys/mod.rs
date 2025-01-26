@@ -1,3 +1,5 @@
+// Platform-dependent types are prefixed with `Raw`.
+
 #[cfg(target_family = "unix")]
 pub(crate) type RawHandle = std::os::fd::RawFd;
 #[cfg(target_family = "windows")]
@@ -11,6 +13,6 @@ mod unix;
 mod windows;
 
 #[cfg(target_family = "unix")]
-pub(crate) use self::unix::{Config, RawConnection, RawInput, RawOutput};
+pub(crate) use self::unix::{RawConfig, RawConnection, RawInput, RawOutput};
 #[cfg(target_family = "windows")]
-pub(crate) use windows::{Config, RawConnection, RawInput, RawOutput};
+pub(crate) use windows::{RawConfig, RawConnection, RawInput, RawOutput};

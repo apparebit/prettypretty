@@ -139,12 +139,12 @@ impl ModeGroup {
     }
 }
 
-/// A terminal configuration.
-pub(crate) struct Config {
+/// A raw terminal configuration.
+pub(crate) struct RawConfig {
     state: libc::termios,
 }
 
-impl Config {
+impl RawConfig {
     /// Read the configuration.
     pub fn read(connection: &RawConnection) -> Result<Self> {
         let mut state = std::mem::MaybeUninit::uninit();
@@ -271,9 +271,9 @@ impl Config {
     }
 }
 
-impl std::fmt::Debug for Config {
+impl std::fmt::Debug for RawConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut debugger = f.debug_struct("Config");
+        let mut debugger = f.debug_struct("RawConfig");
         for group in ModeGroup::all() {
             debugger.field(group.name(), &IdentList::new(self.labels(group)));
         }
