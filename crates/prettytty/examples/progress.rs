@@ -1,4 +1,4 @@
-use std::io::{stdout, Result, Write};
+use std::io::{Result, Write};
 use std::thread;
 use std::time::Duration;
 
@@ -8,6 +8,7 @@ use rand_distr::{Distribution, Normal, Uniform};
 use prettytty::cmd::{
     HideCursor, MoveToColumn, MoveUp, SetDefaultForeground, SetForeground8, ShowCursor,
 };
+use prettytty::Connection;
 
 // -------------------------------------------------------------------------------------
 
@@ -103,14 +104,12 @@ impl std::fmt::Display for Renderer {
 // -------------------------------------------------------------------------------------
 
 /// Animate a progress bar's progress from 0 to 100 percent.
-pub fn animate(output: &mut impl Write) -> Result<()> {
+pub fn animate(tty: &Connection) -> Result<()> {
     // Nap time is between 1/60 and 1/10 seconds
     let uniform = Uniform::new_inclusive(16, 100);
     let mut rng = thread_rng();
 
-    // Flushed by first animation loop iteration
-    write!(output, "{}", HideCursor)?;
-
+    let mut output = tty.output();
     for progress in ProgressReporter::new() {
         write!(output, "{}", Renderer(progress))?;
         output.flush()?;
@@ -123,10 +122,9 @@ pub fn animate(output: &mut impl Write) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    // MoveUp is flushed by first animation loop iteration
-    print!("\n\n{}", MoveUp::<1>);
-    let result = animate(&mut stdout());
-    // Clean up: Make cursor visible again. Note: stdout flushes on newline.
-    print!("{}\n\n", ShowCursor);
+    let tty = Connection::open()?;
+    write!(tty.output(), "{}\n\n{}", HideCursor, MoveUp::<1>)?;
+    let result = animate(&tty);
+    let _ = write!(tty.output(), "{}\n\n", ShowCursor);
     result
 }

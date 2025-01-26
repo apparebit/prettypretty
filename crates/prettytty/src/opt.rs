@@ -97,7 +97,7 @@ impl OptionBuilder {
         self
     }
 
-    /// Set the timeout in 0.1s increments.
+    /// Set the timeout in deciseconds (0.1s).
     pub fn timeout(&mut self, timeout: u8) -> &mut Self {
         self.0.timeout = timeout;
         self

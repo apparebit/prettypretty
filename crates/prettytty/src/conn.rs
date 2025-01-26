@@ -3,7 +3,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use crate::opt::Options;
 use crate::scan::Scanner;
-use crate::sys::{Config, RawConnection, RawInput, RawOutput};
+use crate::sys::{RawConfig, RawConnection, RawInput, RawOutput};
 use crate::{Command, Scan};
 
 /// A terminal connection providing [`Input`] and [`Output`].
@@ -19,7 +19,7 @@ use crate::{Command, Scan};
 pub struct Connection {
     options: Options,
     stamp: u32,
-    config: Option<Config>,
+    config: Option<RawConfig>,
     scanner: Mutex<Scanner<RawInput>>,
     writer: Mutex<BufWriter<RawOutput>>,
     connection: RawConnection,
@@ -44,13 +44,13 @@ impl Connection {
         let connection = RawConnection::open(&options)
             .map_err(|e| Error::new(ErrorKind::ConnectionRefused, e))?;
 
-        let config = Config::read(&connection)?;
+        let config = RawConfig::read(&connection)?;
         let verbose = options.verbose();
         if verbose {
             println!("terminal::config {:?}", &config);
         }
         let config = config.apply(&options).map_or_else(
-            || Ok::<Option<Config>, Error>(None),
+            || Ok::<Option<RawConfig>, Error>(None),
             |reconfig| {
                 if verbose {
                     println!("terminal::reconfig {:?}", &reconfig);
@@ -58,7 +58,7 @@ impl Connection {
                 reconfig.write(&connection)?;
                 if verbose {
                     // We need explicit carriage-return and line-feed characters
-                    // because the reconfiguratio just took effect.
+                    // because the reconfiguration just took effect.
                     print!("terminal::reconfigured\r\n")
                 }
                 Ok(Some(config))
@@ -159,10 +159,13 @@ impl Connection {
 impl Drop for Connection {
     fn drop(&mut self) {
         let _ = self.log("terminal::disconnect");
-        // Map instead of unwrap so that we don't panic in drop.
-        let _ = self.writer.lock().map(|mut w| {
-            let _ = w.flush();
+
+        // map() avoids panic for poisoned mutex
+        let _ = self.writer.lock().map(|mut writer| {
+            let _ = writer.flush();
         });
+
+        // Restore terminal configuration
         if let Some(cfg) = &self.config {
             let _ = cfg.write(&self.connection);
         }
