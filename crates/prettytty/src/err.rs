@@ -45,14 +45,14 @@ impl ErrorKind {
     /// Turn the error kind to an error message.
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::NoData => "no data reading terminal",
+            Self::NoData => "reading terminal input timed out without returning data",
             Self::InFlight => "token is in-flight, hence access to raw bytes is not safe",
             Self::MalformedUtf8 => "malformed UTF-8",
             Self::MalformedSequence => "malformed ANSI escape sequence",
             Self::PathologicalSequence => "pathologically long ANSI escape sequence",
             Self::BadControl => "unexpected control for ANSI escape sequence",
             Self::BadSequence => "unexpected ANSI escape sequence",
-            Self::NotASequence => "token not a sequence",
+            Self::NotASequence => "token not an ANSI escape sequence",
             Self::OutOfMemory => "ANSI escape sequence too long for internal buffer",
             Self::Unreadable => "error reading terminal",
             Self::TooFewCoordinates => "too few color coordinates",
@@ -134,7 +134,7 @@ impl From<Error> for std::io::Error {
             | OversizedCoordinate | MalformedCoordinate => {
                 Self::new(std::io::ErrorKind::InvalidData, value)
             }
-            NoData => std::io::ErrorKind::Interrupted.into(),
+            NoData => std::io::ErrorKind::TimedOut.into(),
             InFlight => std::io::ErrorKind::ResourceBusy.into(),
             OutOfMemory => std::io::ErrorKind::OutOfMemory.into(),
             Unreadable => {
@@ -148,13 +148,16 @@ impl From<Error> for std::io::Error {
     }
 }
 
-/// Determine whether a read operation was interrupted.
-pub fn is_interrupted<T, E>(result: std::result::Result<T, E>) -> bool
+/// Determine whether an operation should be retried.
+///
+/// This function treats both interrupted and timed out operations as retryable.
+pub fn should_retry<T, E>(result: std::result::Result<T, E>) -> bool
 where
     E: Into<std::io::Error>,
 {
     if let Err(err) = result {
-        err.into().kind() == std::io::ErrorKind::Interrupted
+        let kind = err.into().kind();
+        kind == std::io::ErrorKind::Interrupted || kind == std::io::ErrorKind::TimedOut
     } else {
         false
     }

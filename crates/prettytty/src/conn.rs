@@ -176,12 +176,14 @@ impl Drop for Connection {
 ///
 /// In addition to [`Read`] and [`BufRead`], terminal input also implements
 /// [`Scan`] for ingesting text and ANSI escape sequences. The implementation of
-/// all three traits shares the same buffer. Though that buffer is not shared
-/// with standard I/O in Rust's standard library. Reads from the terminal
-/// connection time out after a duration configurable in 0.1s increments. In
-/// that case, [`Read::read`] returns a count of 0, [`BufRead::fill_buf`] an
-/// empty slice, and [`Scan::read_token`] an error with kind
-/// [`ErrorKind::Interrupted`](std::io::ErrorKind::Interrupted). On Unix, the
+/// all three traits uses the same, shared buffer. At the same time, it does not
+/// share any state (nor implementation) with standard I/O in Rust's standard
+/// library.
+///
+/// Reads from the terminal connection time out after a duration configurable in
+/// 0.1s increments. In that case, [`Read::read`] returns a count of 0,
+/// [`BufRead::fill_buf`] an empty slice, and [`Scan::read_token`] an error with
+/// kind [`ErrorKind::TimedOut`](std::io::ErrorKind::TimedOut). On Unix, the
 /// timeout is implemented with the terminal's [`MIN` and `TIME`
 /// parameters](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap11.html#tag_11_01_07_03)
 /// On Windows, the timeout is implemented with
