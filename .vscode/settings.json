@@ -9,6 +9,7 @@
         "Hifi",
         "libc",
         "modcmd",
+        "modtermco",
         "modtermio",
         "Munge",
         "OKLAB",
@@ -29,6 +30,7 @@
         "rustfmt",
         "srgb",
         "systemsy",
+        "termco",
         "termio",
         "tristimulus",
         "WCAG"
