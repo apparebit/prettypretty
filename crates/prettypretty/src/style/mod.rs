@@ -1,23 +1,20 @@
-//! Terminal-specific text fromatting and colors.
+//! Terminal-specific text fromatting and styles.
 //!
 //! This module supports styling terminal appearance with ANSI SGR escape
-//! sequences through these **abstractions**:
+//! sequences through [`Style`]s, which combine an optional [`FormatUpdate`]
+//! with an optional foreground [`Colorant`](crate::termco::Colorant) and an
+//! optional background [`Colorant`](crate::termco::Colorant).
 //!
-//!   * This module's primary abstraction is the [`Style`], which combines an
-//!     optional text [`format::Format`] with an optional foreground and
-//!     optional background [`Colorant`].
-//!   * A colorant can be any of the color formats defined by this crate,
-//!     including [`AnsiColor`], [`EmbeddedRgb`], [`GrayGradient`],
-//!     [`EightBitColor`] (as one of the previous three unwrapped colors),
-//!     [`TrueColor`], or the high-resolution [`Color`](crate::Color), thus
-//!     maximizing expressivity and user choice.
-//!   * A terminal's level of support for ANSI escape codes and their various
-//!     color formats is captured by its [`Fidelity`].
+//! It also defines [`Layer`] to distinguish between foreground and background
+//! colors as well as [`Fidelity`] to capture a terminal's level of color
+//! support.
 //!
-//! The **three steps for using styles** are:
 //!
-//!  1. Fluently assemble a style with [`Style::builder`] or preferrably
-//!     [`stylist()`].
+//! # The One-Two-Three of Styles
+//!
+//! The three steps for using styles are:
+//!
+//!  1. Fluently assemble a style by modifying the empty [`Style::default`].
 //!  2. Adjust the style to the terminal's fidelity level with [`Style::cap`],
 //!     which can translate even high-resolution colors to ANSI colors.
 //!  3. Apply the style by writing it to the terminal and restore default
@@ -30,23 +27,22 @@
 //!
 //! ## Fluently Assemble Style
 //!
-//! Fluently assemble a style for bold, underlined red text using
-//! [`Style::builder`] or [`stylist()`]:
+//! Fluently assemble a style for bold, underlined red text:
 //! ```
-//! # use prettypretty::style::{stylist, Colorant, format::Format, TrueColor};
-//! let style = stylist()
+//! # use prettypretty::style::{Attribute, FormatUpdate, Style};
+//! # use prettypretty::termco::{Colorant, Rgb};
+//! let style = Style::default()
 //!     .bold()
-//!     .foreground(TrueColor::new(215, 40, 39))
-//!     .underlined()
-//!     .et_voila();
+//!     .with_foreground(Rgb::new(215, 40, 39))
+//!     .underlined();
 //!
 //! assert_eq!(
 //!     style.format(),
-//!     Some(Format::new().bold().underlined())
+//!     FormatUpdate::from(Attribute::Bold + Attribute::Underlined)
 //! );
 //! assert_eq!(
 //!     style.foreground(),
-//!     Some(Colorant::Rgb(TrueColor::new(215, 40, 39))).as_ref()
+//!     Some(Colorant::Rgb(Rgb::new(215, 40, 39))).as_ref()
 //! );
 //! assert_eq!(style.background(), None);
 //! ```
@@ -55,38 +51,9 @@
 //! </div>
 //! <br>
 //!
-//! As demonstrated above, the order of builder method invocations does not
-//! matter. If you set a color more than once, the most recent invocation wins.
-//!
-//! If `stylist()` and `et_voila()` are too sassy for you, prettypretty includes
-//! [`Style::builder()`] and [`build()`](Stylist::build) as well. Furthermore,
-//! 8-bit and 24-bit terminal colors can be written more concisely as
-//! [`Stylist::embedded_rgb`], [`Stylist::gray`], or [`Stylist::rgb`] followed
-//! by [`Colorist::fg`], [`Colorist::on`], or [`Colorist::bg`]. For instance,
-//! the following example code is equivalent to the one above:
-//! ```
-//! # use prettypretty::style::{Style, Colorant, format::Format, TrueColor};
-//! let style = Style::builder()
-//!     .bold()
-//!     .rgb(215, 40, 39)
-//!     .fg()
-//!     .underlined()
-//!     .build();
-//!
-//! assert_eq!(
-//!     style.format(),
-//!     Some(Format::new().bold().underlined())
-//! );
-//! assert_eq!(
-//!     style.foreground(),
-//!     Some(Colorant::Rgb(TrueColor::new(215, 40, 39))).as_ref()
-//! );
-//! assert_eq!(style.background(), None);
-//! ```
-//! <div class=color-swatch>
-//! <div style="background-color: rgb(215 40 39);"></div>
-//! </div>
-//! <br>
+//! As demonstrated above, the order of method invocations does not matter when
+//! assembling styles. If you set a color more than once, the most recent
+//! invocation wins.
 //!
 //!
 //! ## Adjust Style to Terminal
@@ -95,13 +62,13 @@
 //! supports only ANSI colors:
 //! ```
 //! # use prettypretty::{OkVersion, Translator};
-//! # use prettypretty::style::{stylist, AnsiColor, Colorant, Fidelity, TrueColor};
+//! # use prettypretty::style::{Fidelity, Style};
+//! # use prettypretty::termco::{AnsiColor, Colorant, Rgb};
 //! # use prettypretty::theme::VGA_COLORS;
-//! # let style = stylist()
+//! # let style = Style::default()
 //! #     .bold()
-//! #     .foreground(TrueColor::new(215, 40, 39))
-//! #     .underlined()
-//! #     .et_voila();
+//! #     .with_foreground(Rgb::new(215, 40, 39))
+//! #     .underlined();
 //! let translator = Translator::new(
 //!     OkVersion::Revised, VGA_COLORS.clone());
 //!
@@ -124,13 +91,13 @@
 //! restoring terminal appearance again:
 //! ```
 //! # use prettypretty::{OkVersion, Translator};
-//! # use prettypretty::style::{stylist, AnsiColor, Colorant, Fidelity, TrueColor};
+//! # use prettypretty::style::{Fidelity, Style};
+//! # use prettypretty::termco::{AnsiColor, Colorant, Rgb};
 //! # use prettypretty::theme::VGA_COLORS;
-//! # let style = stylist()
+//! # let style = Style::default()
 //! #     .bold()
-//! #     .foreground(TrueColor::new(215, 40, 39))
-//! #     .underlined()
-//! #     .et_voila();
+//! #     .with_foreground(Rgb::new(215, 40, 39))
+//! #     .underlined();
 //! # let translator = Translator::new(
 //! #     OkVersion::Revised, VGA_COLORS.clone());
 //! # let style = style.cap(Fidelity::Ansi, &translator);
@@ -141,17 +108,10 @@
 //! <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
 //!      alt="wow!" width="77">
 
-mod color;
 mod context;
-pub mod fmt;
-pub mod format;
+mod format;
 mod styling;
 
-#[cfg(feature = "pyffi")]
-pub(crate) use color::into_colorant;
-
-pub use color::{
-    AnsiColor, AnsiColorIterator, Colorant, EightBitColor, EmbeddedRgb, GrayGradient, TrueColor,
-};
 pub use context::{Fidelity, Layer};
-pub use styling::{stylist, Colorist, Style, Stylist};
+pub use format::{Attribute, AttributeIter, Format, FormatUpdate};
+pub use styling::Style;

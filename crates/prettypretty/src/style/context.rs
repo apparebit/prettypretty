@@ -1,11 +1,8 @@
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
-use super::Colorant;
+use crate::termco::Colorant;
 use crate::util::{Env, Environment};
-
-// ====================================================================================================================
-// Layer and Fidelity
 
 /// The targeted display layer: Foreground or background.
 #[cfg_attr(
@@ -81,7 +78,7 @@ impl Fidelity {
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn from_color(
-        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
+        #[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant,
     ) -> Self {
         colorant.into()
     }
@@ -117,7 +114,7 @@ impl Fidelity {
     #[pyo3(name = "covers")]
     pub fn py_covers(
         &self,
-        #[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant,
+        #[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant,
     ) -> bool {
         self.covers(colorant)
     }

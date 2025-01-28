@@ -1,45 +1,19 @@
-//! Utility module for stylistic attributes of text other than color.
-//!
-//! Thanks to the fluent assembly of [`Style`](crate::style::Style)s with
-//! [`stylist`](crate::style::stylist()), chances are that you don't need to
-//! directly access this module's types.
-//!
-//! But in case that you do: A text [`Format`] combines [`Attribute`]s that
-//! represent the appearance of terminal output. [`AllAttributes`] iterates over
-//! all possible attributes, whereas [`AttributeIterator`] iterates over a
-//! format's attributes.
-//!
-//! To avoid a proliferation of formatting-related data structures, [`Format`]
-//! and [`Attribute`] can be used as both state and state-change. Hence, a text
-//! format is a collection of attributes representing the appearance of terminal
-//! output. But a text format also is a collection of changes to text
-//! attributes, some of which enable and some of which disable a specific
-//! appearance. To keep the interface for styling text simple, the public API
-//! for fluently constructing arbitrary formats allows enabling attributes only.
-
-use std::iter::ExactSizeIterator;
-
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
 
 use super::Fidelity;
-use Attribute::*;
 
-/// Text attributes other than colors.
+/// A text attribute other than regular.
 ///
-/// This enum includes two variants for each text attribute that diverges from
-/// the default appearance, one to enable the attribute and one to disable it
-/// again.
-///
-/// Names for the disabling variants start with `Not`. Enabling variants are
-/// sorted before disabling variants, with corresponding enabling/disabling
-/// variants in the same order. `Bold` and `Thin` are mutually exclusive and
-/// hence share the same disabling variant `NotBoldOrThin`.
+/// This enumeration models attributes that differ from the default appearance.
+/// Discriminants are powers of two and hence can be combined into a bit vector.
+/// Bold and thin are mutually exclusive attributes and cancel each other out
+/// when both are enabled.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, eq_int, frozen, hash, module = "prettypretty.color.style")
 )]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Attribute {
     Bold = 0x1,
     Thin = 0x2,
@@ -49,57 +23,36 @@ pub enum Attribute {
     Reversed = 0x20,
     Hidden = 0x40,
     Stricken = 0x80,
-
-    NotBoldOrThin = 0x100,
-    // Reserved
-    NotItalic = 0x400,
-    NotUnderlined = 0x800,
-    NotBlinking = 0x1000,
-    NotReversed = 0x2000,
-    NotHidden = 0x4000,
-    NotStricken = 0x8000,
 }
 
-#[cfg(not(feature = "pyffi"))]
 impl Attribute {
-    /// Get an iterator over all text attributes.
-    pub fn all() -> AllAttributes {
-        AllAttributes(0)
+    #[inline]
+    const fn bits(&self) -> u8 {
+        *self as u8
+    }
+
+    const fn successor(&self) -> Option<Self> {
+        use self::Attribute::*;
+
+        Some(match self {
+            Bold => Thin,
+            Thin => Italic,
+            Italic => Underlined,
+            Underlined => Blinking,
+            Blinking => Reversed,
+            Reversed => Hidden,
+            Hidden => Stricken,
+            Stricken => return None,
+        })
     }
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl Attribute {
-    /// Get an iterator over all text attributes.
-    #[cfg(feature = "pyffi")]
-    #[staticmethod]
-    pub fn all() -> AllAttributes {
-        AllAttributes(0)
-    }
+    /// Get the SGR parameter for enabling this format.
+    pub const fn enable_sgr(&self) -> u8 {
+        use self::Attribute::*;
 
-    /// Get the attribute's human-readable name.
-    pub const fn name(&self) -> &'static str {
-        match self {
-            Bold => "bold",
-            Thin => "thin",
-            Italic => "italic",
-            Underlined => "underlined",
-            Blinking => "blinking",
-            Reversed => "reversed",
-            Hidden => "hidden",
-            Stricken => "stricken",
-            NotBoldOrThin => "neither bold nor thin",
-            NotItalic => "not italic",
-            NotUnderlined => "not underlined",
-            NotBlinking => "not blinking",
-            NotReversed => "not reversed",
-            NotHidden => "not hidden",
-            NotStricken => "not stricken",
-        }
-    }
-
-    /// Get the SGR parameter for this text attribute.
-    pub const fn sgr_parameter(&self) -> u8 {
         match self {
             Bold => 1,
             Thin => 2,
@@ -109,402 +62,248 @@ impl Attribute {
             Reversed => 7,
             Hidden => 8,
             Stricken => 9,
-            NotBoldOrThin => 22,
-            NotItalic => 23,
-            NotUnderlined => 24,
-            NotBlinking => 25,
-            NotReversed => 27,
-            NotHidden => 28,
-            NotStricken => 29,
         }
     }
 
-    /// Get the flag bit corresponding to this text attribute.
-    #[inline]
-    const fn bits(&self) -> u16 {
-        *self as u16
-    }
+    /// Get the SGR parameter for disabling this format.
+    pub const fn disable_sgr(&self) -> u8 {
+        use self::Attribute::*;
 
-    /// Test whether the value's flag bit for this text attribute is set.
-    #[inline]
-    const fn test(&self, value: u16) -> bool {
-        value & (*self as u16) != 0
-    }
-
-    /// Clear the value's flag bit for this text attribute.
-    #[inline]
-    const fn clear(&self, value: u16) -> u16 {
-        value & !(*self as u16)
-    }
-
-    /// Set the value's flag bit for this text attribute.
-    #[inline]
-    const fn set(&self, value: u16) -> u16 {
-        value | (*self as u16)
-    }
-}
-
-// -------------------------------------------------------------------------------------
-
-/// An iterator over all text attributes.
-///
-/// This iterator yields disabling variants before enabling ones, preserving the
-/// relative order of variants for the same text attribute. For example, it
-/// always yields [`Attribute::NotUnderlined`] just before
-/// [`Attribute::NotBlinking`] and likewise [`Attribute::Underlined`] just
-/// before [`Attribute::Blinking`].
-#[cfg_attr(feature = "pyffi", pyclass)]
-#[derive(Debug)]
-pub struct AllAttributes(u8);
-
-#[cfg_attr(feature = "pyffi", pymethods)]
-impl AllAttributes {
-    /// Drain this iterator.
-    pub fn drain(&mut self) {
-        loop {
-            if self.next().is_none() {
-                return;
-            }
+        match self {
+            Bold => 22,
+            Thin => 22,
+            Italic => 23,
+            Underlined => 24,
+            Blinking => 25,
+            Reversed => 27,
+            Hidden => 28,
+            Stricken => 29,
         }
     }
 
-    /// Get the number of attributes still to be yielded. <i
-    /// class=python-only>Python only!</i>
+    /// Add this text attribute to another attribute, format, or format update.
+    /// <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
-    pub fn __len__(&self) -> usize {
-        self.len()
+    pub fn __add__(&self, other: &Bound<'_, PyAny>) -> Result<FormatUpdate, PyErr> {
+        other
+            .extract::<Attribute>()
+            .map(|o| (*self + o).into())
+            .or_else(|_| other.extract::<Format>().map(|o| (*self + o).into()))
+            .or_else(|_| other.extract::<FormatUpdate>().map(|o| *self + o))
     }
 
-    /// Access this iterator. <i class=python-only>Python only!</i>
+    /// Subtract another attribute, format, or format update from this text
+    /// attribute. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
-    pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
-        slf
+    pub fn __sub__(&self, other: &Bound<'_, PyAny>) -> Result<FormatUpdate, PyErr> {
+        other
+            .extract::<Attribute>()
+            .map(|o| *self - o)
+            .or_else(|_| other.extract::<Format>().map(|o| *self - o))
+            .or_else(|_| other.extract::<FormatUpdate>().map(|o| *self - o))
     }
 
-    /// Get the next text attribute. <i class=python-only>Python only!</i>
+    /// Negate this format. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
-    pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<Attribute> {
-        slf.next()
+    pub fn __neg__(&self) -> FormatUpdate {
+        -(*self)
     }
 
-    /// Get a debug representation for this iterator. <i
-    /// class=python-only>Python only!</i>
+    /// Get a debug representation.  <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
     }
 }
 
-impl Iterator for AllAttributes {
-    type Item = Attribute;
+// ----------------------------------------------------------------------------------------------------------
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let attr = match self.0 {
-            0 => NotBoldOrThin,
-            1 => NotItalic,
-            2 => NotUnderlined,
-            3 => NotBlinking,
-            4 => NotReversed,
-            5 => NotHidden,
-            6 => NotStricken,
-            7 => Bold,
-            8 => Thin,
-            9 => Italic,
-            10 => Underlined,
-            11 => Blinking,
-            12 => Reversed,
-            13 => Hidden,
-            14 => Stricken,
-            _ => return None,
-        };
-
-        self.0 += 1;
-
-        Some(attr)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = 15 - self.0 as usize;
-        (remaining, Some(remaining))
-    }
-}
-
-impl ExactSizeIterator for AllAttributes {
-    fn len(&self) -> usize {
-        15 - self.0 as usize
-    }
-}
-
-impl std::iter::FusedIterator for AllAttributes {}
-
-// -------------------------------------------------------------------------------------
-
-/// Masks for related text attributes.
-#[derive(Copy, Clone, Debug)]
-enum Mask {
-    Weight = (Bold.bits() | Thin.bits() | NotBoldOrThin.bits()) as isize,
-    Slant = (Italic.bits() | NotItalic.bits()) as isize,
-    Underlined = (Underlined.bits() | NotUnderlined.bits()) as isize,
-    Blinking = (Blinking.bits() | NotBlinking.bits()) as isize,
-    Reversed = (Reversed.bits() | NotReversed.bits()) as isize,
-    Hidden = (Hidden.bits() | NotHidden.bits()) as isize,
-    Stricken = (Stricken.bits() | NotStricken.bits()) as isize,
-    EnabledFormats = 0xff,
-}
-
-impl Mask {
-    /// Apply the mask, which clears all other bits.
-    #[inline]
-    const fn apply(&self, value: u16) -> u16 {
-        value & (*self as u16)
-    }
-
-    /// Clear the mask's bits.
-    #[inline]
-    const fn clear(&self, value: u16) -> u16 {
-        value & !(*self as u16)
-    }
-}
-
-// -------------------------------------------------------------------------------------
-
-/// Text formatting other than colors.
+/// A text format combining zero or more format attributes.
 ///
 /// There are two fundamentally different representations of a terminal's text
 /// formatting. The first representation captures the *formatting state*, i.e.,
 /// models only attributes that differ from the terminal's default appearance.
 /// The second representation captures *formatting changes*, i.e., models
-/// instructions for changing a terminal's appearance. Both representations are
-/// closely related, since the difference between two formatting states is a
-/// formatting change and applying a formatting change to a terminal replaces
-/// its old formatting state with a new one. Finally, for every text attribute
-/// of a formatting state, a formatting change has options to enable or disable
-/// the attribute, with the same option possibly disabling more than one
-/// attribute.
-///
-/// Exposing the formatting state to users is very much preferable because they
-/// are concerned with the results, i.e., the terminal appearance, and not the
-/// commands required for configuring the terminal accordingly. But
-/// prettypretty's implementation necessarily makes formatting changes and ANSI
-/// escape codes also embody formatting changes. To avoid a proliferation of
-/// formatting-related data structures, this struct reflects a hybrid approach.
-/// While it is based on format changes, its public interface only supports the
-/// fluent enabling of text attributes that differ from the default appearance.
-/// Yet negation and subtraction may very well result in formats that also
-/// disable text attributes. The implementation does ensure that at most one out
-/// of a group of mutually exclusive attributes is set. Hence, any format can
-/// have at most seven attributes.
+/// instructions for changing a terminal's appearance. This struct implements
+/// the former representation, i.e., a *formatting state*.
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, module = "prettypretty.color.style")
 )]
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct Format(u16);
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct Format(u8);
 
 impl Format {
-    /// Create a new, empty format.
+    // The bitmask for the mutually exclusive bold and thin attributes.
+    const WEIGHT: u8 = Attribute::Bold.bits() | Attribute::Thin.bits();
+
     #[inline]
-    pub const fn new() -> Self {
+    const fn empty() -> Self {
         Self(0)
     }
-}
 
-/// Negate a format's bits.
-#[inline]
-pub(crate) const fn negate_bits(value: u16) -> u16 {
-    // Turn Thin into NotBoldOrThin, which is Bold << 8.
-    if Thin.test(value) {
-        Bold.set(Thin.clear(value)) << 8
-    } else {
-        value << 8
+    #[inline]
+    const fn new(bits: u8) -> Self {
+        if bits & Self::WEIGHT == Self::WEIGHT {
+            Self(bits & !Self::WEIGHT)
+        } else {
+            Self(bits)
+        }
+    }
+
+    #[inline]
+    const fn with_sum(bits1: u8, bits2: u8) -> Self {
+        Self::new(bits1 | bits2)
+    }
+
+    #[inline]
+    const fn bits(&self) -> u8 {
+        self.0
+    }
+
+    #[inline]
+    const fn and_not(&self, other: Self) -> Self {
+        Self::new(self.bits() & !other.bits())
     }
 }
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl Format {
-    /// Create a new, empty format.
+    /// Get the empty, default format.
     #[cfg(feature = "pyffi")]
     #[new]
-    #[inline]
-    pub const fn py_new() -> Self {
-        Self(0)
+    pub fn py_new() -> Self {
+        Self::default()
     }
 
-    /// Create a new format like this one that also uses bold font weight.
-    #[inline]
-    pub const fn bold(&self) -> Self {
-        Self(Bold.set(Mask::Weight.clear(self.0)))
+    /// Create a new format from the formatting entity.
+    #[cfg(feature = "pyffi")]
+    #[pyo3(name = "of")]
+    #[staticmethod]
+    pub fn py_of(formatting: &Bound<'_, PyAny>) -> Result<Format, PyErr> {
+        formatting
+            .extract::<Attribute>()
+            .map(|f| f.into())
+            .or_else(|_| formatting.extract::<Format>())
     }
 
-    /// Create a new format like this one that also uses thin font weight.
+    /// Determine whether this format is the default format.
     #[inline]
-    pub const fn thin(&self) -> Self {
-        Self(Thin.set(Mask::Weight.clear(self.0)))
+    pub const fn is_empty(&self) -> bool {
+        self.0 == 0
     }
 
-    /// Create a new format like this one that also uses italic font slant.
-    #[inline]
-    pub const fn italic(&self) -> Self {
-        Self(Italic.set(Mask::Slant.clear(self.0)))
+    /// Get the number of format attributes that diverge from the default
+    /// formatting. <i class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __len__(&self) -> usize {
+        self.len()
     }
 
-    /// Create a new format like this one that also is underlined.
+    /// Get the number of format attributes that diverge from the default
+    /// formatting.
     #[inline]
-    pub const fn underlined(&self) -> Self {
-        Self(Underlined.set(Mask::Underlined.clear(self.0)))
+    pub const fn len(&self) -> usize {
+        self.0.count_ones() as usize
     }
 
-    /// Create a new format like this one that also is blinking.
+    /// Get an iterator over the non-default text attributes.
     #[inline]
-    pub const fn blinking(&self) -> Self {
-        Self(Blinking.set(Mask::Blinking.clear(self.0)))
-    }
-
-    /// Create a new format like this one that also is reversed.
-    #[inline]
-    pub const fn reversed(&self) -> Self {
-        Self(Reversed.set(Mask::Reversed.clear(self.0)))
-    }
-
-    /// Create a new format like this one that also is hidden.
-    #[inline]
-    pub const fn hidden(&self) -> Self {
-        Self(Hidden.set(Mask::Hidden.clear(self.0)))
-    }
-
-    /// Create a new format like this one that also is stricken.
-    #[inline]
-    pub const fn stricken(&self) -> Self {
-        Self(Stricken.set(Mask::Stricken.clear(self.0)))
-    }
-
-    /// Determine whether this format includes the given text attribute.
-    #[inline]
-    pub const fn has(&self, attr: Attribute) -> bool {
-        attr.test(self.0)
-    }
-
-    /// Get the number of attributes in this format, which is at most seven.
-    #[inline]
-    pub const fn attribute_count(&self) -> u8 {
-        self.0.count_ones() as u8
-    }
-
-    /// Get an iterator over the constituent text attributes.
-    ///
-    /// [`Format::attribute_count`] returns the number of attributes yielded by
-    /// this iterator, which is between 0 and seven (inclusive).
-    pub fn attributes(&self) -> AttributeIterator {
-        AttributeIterator {
+    pub const fn attributes(&self) -> AttributeIter {
+        AttributeIter {
             format: *self,
-            remaining: self.attribute_count(),
-            all_attributes: Attribute::all(),
+            cursor: None,
+            remaining: self.len(),
         }
     }
 
-    /// Cap this format by the given terminal fidelity.
-    ///
-    /// If the terminal supports ANSI escape codes, i.e., has a fidelity other
-    /// than [`Fidelity::Plain`], this method returns the format wrapped in
-    /// `Some`. Otherwise, it returns `None`.
-    pub const fn cap(&self, fidelity: Fidelity) -> Option<Self> {
-        match fidelity {
-            Fidelity::Plain => None,
-            _ => Some(*self),
-        }
-    }
-
-    /// Get the SGR parameters for this format.
-    ///
-    /// Note that the [`Format::attribute_count`] also is the number of SGR
-    /// parameters required for this format.
-    pub fn sgr_parameters(&self) -> Vec<u8> {
-        self.attributes().map(|a| a.sgr_parameter()).collect()
-    }
-
-    /// Negate this format. <i class=python-only>Python only!</i>
-    ///
-    /// If a terminal uses this format, the negated format restores the
-    /// terminal's default appearance again.
+    /// Add this formatting to the other value. <i class=python-only>Python
+    /// only!</i>
     #[cfg(feature = "pyffi")]
-    pub fn __neg__(&self) -> Self {
-        -*self
+    pub fn __add__(&self, other: &Bound<'_, PyAny>) -> Result<FormatUpdate, PyErr> {
+        other
+            .extract::<Attribute>()
+            .map(|o| (*self + o).into())
+            .or_else(|_| other.extract::<Format>().map(|o| (*self + o).into()))
+            .or_else(|_| other.extract::<FormatUpdate>().map(|o| *self + o))
     }
 
-    /// Determine the difference between this and another format. <i
+    /// Subtract the other value from this formatting. <i
     /// class=python-only>Python only!</i>
-    ///
-    /// If a terminal uses the other format, the returned difference changes the
-    /// terminal's format to this one. The returned difference is minimal.
     #[cfg(feature = "pyffi")]
-    pub fn __sub__(&self, other: &Self) -> Self {
-        *self - *other
+    pub fn __sub__(&self, other: &Bound<'_, PyAny>) -> Result<FormatUpdate, PyErr> {
+        other
+            .extract::<Attribute>()
+            .map(|o| *self - o)
+            .or_else(|_| other.extract::<Format>().map(|o| *self - o))
+            .or_else(|_| other.extract::<FormatUpdate>().map(|o| *self - o))
     }
 
-    /// Convert this format to its debug representation. <i
-    /// class=python-only>Python only!</i>
+    /// Negate this formatting. <i class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __neg__(&self) -> FormatUpdate {
+        -(*self)
+    }
+
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
     }
 }
 
-impl std::ops::Neg for Format {
-    type Output = Self;
-
-    /// Negate this format.
-    ///
-    /// If a terminal uses this format, the negated format restores the
-    /// terminal's default appearance.
-    #[inline]
-    fn neg(self) -> Self::Output {
-        Self(negate_bits(self.0))
+impl std::fmt::Debug for Format {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_set().entries(self.attributes()).finish()
     }
 }
 
-impl std::ops::Sub for Format {
-    type Output = Self;
+// ----------------------------------------------------------------------------------------------------------
 
-    /// Determine the difference between this and another format.
-    ///
-    /// When a terminal is using the right-hand-side's format, applying the
-    /// difference between the left-hand-side and right-hand-side results in the
-    /// terminal using the left-hand-side's format, i.e.:
-    /// ```ignore
-    /// rhs + (lhs - rhs) = lhs
-    /// ```
-    /// The returned difference is minimal.
-    fn sub(self, rhs: Self) -> Self::Output {
-        let enable = Mask::EnabledFormats.apply(self.0 & !rhs.0);
-        let mut disable = negate_bits(rhs.0 & !self.0);
-        if Mask::Weight.apply(enable) != 0 {
-            disable = NotBoldOrThin.clear(disable);
-        }
-        Self(enable | disable)
-    }
-}
-
-impl std::ops::SubAssign for Format {
-    fn sub_assign(&mut self, rhs: Self) {
-        *self = *self - rhs;
-    }
-}
-
-// -------------------------------------------------------------------------------------
-
-/// An iterator over the attributes contributing to a format.
+/// An iterator over text attributes.
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.style"))]
 #[derive(Debug)]
-pub struct AttributeIterator {
+pub struct AttributeIter {
     format: Format,
-    remaining: u8,
-    all_attributes: AllAttributes,
+    cursor: Option<Attribute>,
+    remaining: usize,
 }
+
+impl std::iter::Iterator for AttributeIter {
+    type Item = Attribute;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let format = match self.cursor {
+                None => Attribute::Bold,
+                Some(Attribute::Stricken) => return None,
+                Some(format) => format.successor().unwrap(),
+            };
+            self.cursor = Some(format);
+
+            if self.format.bits() & format.bits() != 0 {
+                self.remaining -= 1;
+                return Some(format);
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+
+impl ExactSizeIterator for AttributeIter {
+    fn len(&self) -> usize {
+        self.remaining
+    }
+}
+
+impl std::iter::FusedIterator for AttributeIter {}
 
 #[cfg(feature = "pyffi")]
 #[pymethods]
-impl AttributeIterator {
-    /// Get the number of remaining attributes. <i class=python-only>Python
+impl AttributeIter {
+    /// Get the number of outstanding formats. <i class=python-only>Python
     /// only!</i>
     pub fn __len__(&self) -> usize {
         self.len()
@@ -515,107 +314,377 @@ impl AttributeIterator {
         slf
     }
 
-    /// Get the next attribute. <i class=python-only>Python only!</i>
-    #[cfg(feature = "pyffi")]
+    /// Get the next format. <i class=python-only>Python only!</i>
     pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<Attribute> {
         slf.next()
     }
 }
 
-impl Iterator for AttributeIterator {
-    type Item = Attribute;
+// ----------------------------------------------------------------------------------------------------------
 
-    fn next(&mut self) -> Option<Self::Item> {
-        // Keep iterating until we hit an attribute that is part of the format
-        // or we run out of attributes.
-        loop {
-            match self.all_attributes.next() {
-                None => return None,
-                Some(attr) => {
-                    if self.format.has(attr) {
-                        self.remaining -= 1;
-                        return Some(attr);
-                    }
-                }
-            }
+/// A format update comprising disabling and enabling formats.
+///
+/// There are two fundamentally different representations of a terminal's text
+/// formatting. The first representation captures the *formatting state*, i.e.,
+/// models only attributes that differ from the terminal's default appearance.
+/// The second representation captures *formatting changes*, i.e., models
+/// instructions for changing a terminal's appearance. This struct implements
+/// the latter representation, i.e., a *formatting change*.
+#[cfg_attr(
+    feature = "pyffi",
+    pyclass(eq, frozen, hash, module = "prettypretty.color.style")
+)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct FormatUpdate {
+    disable: Format,
+    enable: Format,
+}
+
+impl FormatUpdate {
+    /// Create a new empty format update in a const context.
+    const fn empty() -> Self {
+        Self {
+            disable: Format::empty(),
+            enable: Format::empty(),
         }
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.remaining as usize, Some(self.remaining as usize))
+    const fn new(disable: Format, enable: Format) -> Self {
+        let (disable0, enable0) = (disable, enable);
+        let mut disable = disable0.and_not(enable0);
+        let enable = enable0.and_not(disable0);
+        if enable.bits() & Format::WEIGHT != 0 {
+            disable = Format::new(disable.bits() & !Format::WEIGHT);
+        }
+
+        Self { disable, enable }
     }
 }
 
-impl ExactSizeIterator for AttributeIterator {
-    fn len(&self) -> usize {
-        self.remaining as usize
+#[cfg_attr(feature = "pyffi", pymethods)]
+impl FormatUpdate {
+    /// Create a new empty format update.
+    #[cfg(feature = "pyffi")]
+    #[new]
+    pub fn py_new() -> Self {
+        Self::default()
+    }
+
+    /// Create a new format update from the formatting entity.
+    #[cfg(feature = "pyffi")]
+    #[pyo3(name = "of")]
+    #[staticmethod]
+    pub fn py_of(formatting: &Bound<'_, PyAny>) -> Result<FormatUpdate, PyErr> {
+        formatting
+            .extract::<Attribute>()
+            .map(|f| f.into())
+            .or_else(|_| formatting.extract::<Format>().map(|f| f.into()))
+            .or_else(|_| formatting.extract::<FormatUpdate>())
+    }
+
+    /// Determine whether this format update is empty, i.e., changes nothing.
+    pub const fn is_empty(&self) -> bool {
+        self.disable.is_empty() && self.enable.is_empty()
+    }
+
+    /// Get the formatting to be disabled.
+    pub const fn disable(&self) -> Format {
+        self.disable
+    }
+
+    /// Get the formatting to be enabled.
+    pub const fn enable(&self) -> Format {
+        self.enable
+    }
+
+    /// Cap this format by the given fidelity.
+    ///
+    /// This method returns this format, unless the fidelity is plain, in which
+    /// case it returns an empty format.
+    pub const fn cap(&self, fidelity: Fidelity) -> Self {
+        match fidelity {
+            Fidelity::Plain => Self::empty(),
+            _ => *self,
+        }
+    }
+
+    /// Add this format to the other value. <i class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __add__(&self, other: &Bound<'_, PyAny>) -> Result<FormatUpdate, PyErr> {
+        other
+            .extract::<Attribute>()
+            .map(|o| *self + o)
+            .or_else(|_| other.extract::<Format>().map(|o| *self + o))
+            .or_else(|_| other.extract::<FormatUpdate>().map(|o| *self + o))
+    }
+
+    /// Subtract the other value from this format update. <i
+    /// class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __sub__(&self, other: &Bound<'_, PyAny>) -> Result<FormatUpdate, PyErr> {
+        other
+            .extract::<Attribute>()
+            .map(|o| *self - o)
+            .or_else(|_| other.extract::<Format>().map(|o| *self - o))
+            .or_else(|_| other.extract::<FormatUpdate>().map(|o| *self - o))
+    }
+
+    /// Negate this format. <i class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __neg__(&self) -> FormatUpdate {
+        -(*self)
+    }
+
+    /// Get a debug representation.  <i class=python-only>Python only!</i>
+    #[cfg(feature = "pyffi")]
+    pub fn __repr__(&self) -> String {
+        format!("{:?}", self)
     }
 }
 
-impl std::iter::FusedIterator for AttributeIterator {}
+// ----------------------------------------------------------------------------------------------------------
+// From
 
-// =====================================================================================
+impl From<Attribute> for Format {
+    fn from(value: Attribute) -> Self {
+        Self(value.bits())
+    }
+}
+
+impl From<Attribute> for FormatUpdate {
+    fn from(value: Attribute) -> Self {
+        Self {
+            disable: Format::default(),
+            enable: value.into(),
+        }
+    }
+}
+
+impl From<Format> for FormatUpdate {
+    fn from(value: Format) -> Self {
+        Self {
+            disable: Format::default(),
+            enable: value,
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// Add
+
+impl std::ops::Add for Attribute {
+    type Output = Format;
+
+    fn add(self, other: Self) -> Self::Output {
+        Format::with_sum(self.bits(), other.bits())
+    }
+}
+
+impl std::ops::Add<Format> for Attribute {
+    type Output = Format;
+
+    fn add(self, other: Format) -> Self::Output {
+        Format::with_sum(self.bits(), other.bits())
+    }
+}
+
+impl std::ops::Add<FormatUpdate> for Attribute {
+    type Output = FormatUpdate;
+
+    fn add(self, other: FormatUpdate) -> Self::Output {
+        FormatUpdate::new(other.disable, self + other.enable)
+    }
+}
+
+impl std::ops::Add<Attribute> for Format {
+    type Output = Format;
+
+    fn add(self, other: Attribute) -> Self::Output {
+        Format::with_sum(self.bits(), other.bits())
+    }
+}
+
+impl std::ops::Add for Format {
+    type Output = Format;
+
+    fn add(self, other: Self) -> Self::Output {
+        Format::with_sum(self.bits(), other.bits())
+    }
+}
+
+impl std::ops::Add<FormatUpdate> for Format {
+    type Output = FormatUpdate;
+
+    fn add(self, other: FormatUpdate) -> Self::Output {
+        FormatUpdate::new(other.disable, self + other.enable)
+    }
+}
+
+impl std::ops::Add<Attribute> for FormatUpdate {
+    type Output = FormatUpdate;
+
+    fn add(self, other: Attribute) -> Self::Output {
+        FormatUpdate::new(self.disable, self.enable + other)
+    }
+}
+
+impl std::ops::Add<Format> for FormatUpdate {
+    type Output = FormatUpdate;
+
+    fn add(self, other: Format) -> Self::Output {
+        FormatUpdate::new(self.disable, self.enable + other)
+    }
+}
+
+impl std::ops::Add for FormatUpdate {
+    type Output = FormatUpdate;
+
+    fn add(self, other: Self) -> Self::Output {
+        FormatUpdate::new(self.disable + other.disable, self.enable + other.enable)
+    }
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// Neg
+
+impl std::ops::Neg for Attribute {
+    type Output = FormatUpdate;
+
+    fn neg(self) -> Self::Output {
+        FormatUpdate::new(self.into(), Format::default())
+    }
+}
+
+impl std::ops::Neg for Format {
+    type Output = FormatUpdate;
+
+    fn neg(self) -> Self::Output {
+        FormatUpdate::new(self, Format::default())
+    }
+}
+
+impl std::ops::Neg for FormatUpdate {
+    type Output = FormatUpdate;
+
+    fn neg(self) -> Self::Output {
+        FormatUpdate::new(self.enable, self.disable)
+    }
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// Sub
+
+impl std::ops::Sub for Attribute {
+    type Output = FormatUpdate;
+
+    fn sub(self, other: Self) -> Self::Output {
+        FormatUpdate::new(other.into(), self.into())
+    }
+}
+
+impl std::ops::Sub<Format> for Attribute {
+    type Output = FormatUpdate;
+
+    fn sub(self, other: Format) -> Self::Output {
+        FormatUpdate::new(other, self.into())
+    }
+}
+
+impl std::ops::Sub<FormatUpdate> for Attribute {
+    type Output = FormatUpdate;
+
+    fn sub(self, other: FormatUpdate) -> Self::Output {
+        self + (-other)
+    }
+}
+
+impl std::ops::Sub<Attribute> for Format {
+    type Output = FormatUpdate;
+
+    fn sub(self, other: Attribute) -> Self::Output {
+        FormatUpdate::new(other.into(), self)
+    }
+}
+
+impl std::ops::Sub for Format {
+    type Output = FormatUpdate;
+
+    fn sub(self, other: Self) -> Self::Output {
+        FormatUpdate::new(other, self)
+    }
+}
+
+impl std::ops::Sub<FormatUpdate> for Format {
+    type Output = FormatUpdate;
+
+    fn sub(self, other: FormatUpdate) -> Self::Output {
+        self + (-other)
+    }
+}
+
+impl std::ops::Sub<Attribute> for FormatUpdate {
+    type Output = FormatUpdate;
+
+    fn sub(self, other: Attribute) -> Self::Output {
+        self + (-other)
+    }
+}
+
+impl std::ops::Sub<Format> for FormatUpdate {
+    type Output = FormatUpdate;
+
+    fn sub(self, other: Format) -> Self::Output {
+        self + (-other)
+    }
+}
+
+impl std::ops::Sub for FormatUpdate {
+    type Output = FormatUpdate;
+
+    fn sub(self, other: Self) -> Self::Output {
+        self + (-other)
+    }
+}
 
 #[cfg(test)]
 mod test {
-    use super::{
-        negate_bits, Blinking, Bold, Format, NotBlinking, NotBoldOrThin, NotUnderlined, Thin,
-        Underlined,
-    };
+    use super::*;
 
     #[test]
-    fn test_attribute() {
-        let mut value: u16 = 0;
+    fn test_format_arithmetic() {
+        use super::Attribute::*;
 
-        assert!(!Underlined.test(value));
-        value = Underlined.set(value);
-        assert!(Underlined.test(value));
-        value = negate_bits(value);
-        assert_eq!(value, NotUnderlined.bits());
-        value = Underlined.clear(0xffff);
-        assert_eq!(value, 0xffff & !Underlined.bits());
-    }
+        let bold_underlined = Bold + Underlined;
+        assert_eq!(bold_underlined.bits(), Bold.bits() | Underlined.bits());
 
-    #[test]
-    fn test_format() {
-        // Format #1: {Bold, Underlined}
-        let format = Format::new().thin().bold().underlined();
-        assert_eq!(format.attribute_count(), 2);
-        assert!(!format.has(Thin));
-        assert!(format.has(Bold));
-        assert!(format.has(Underlined));
+        let thin_italic = Thin + Italic;
+        assert_eq!(thin_italic, Italic + Thin);
+        assert_eq!(thin_italic.bits(), Thin.bits() | Italic.bits());
 
-        let attributes = format.attributes();
-        assert_eq!(attributes.len(), 2);
+        assert_eq!(bold_underlined + thin_italic, Underlined + Italic);
+        assert_eq!(thin_italic + bold_underlined, Italic + Underlined);
+        assert_eq!(Format::new(0), Format::default());
+        assert_eq!(Bold + Thin, Format::default());
+        assert_eq!(Thin + Bold, Format::default());
+        assert_eq!(thin_italic + Bold, Format::from(Italic));
+        assert_eq!(Bold + thin_italic, Format::from(Italic));
 
-        for attr in attributes {
-            assert!(matches!(attr, Bold | Underlined));
-        }
+        let update1 = -Thin;
+        assert_eq!(update1.disable(), Format::from(Thin));
+        assert_eq!(update1.enable(), Format::default());
 
-        // Format 2: Not{Bold, Underlined} + Blinking
-        let format = (-format).blinking();
-        assert_eq!(format.attribute_count(), 3);
-        assert!(format.has(Blinking));
-        assert!(format.has(NotBoldOrThin));
-        assert!(format.has(NotUnderlined));
+        let update2 = update1 + Bold;
+        assert_eq!(update2.disable(), Format::default());
+        assert_eq!(update2.enable(), Format::from(Bold));
 
-        let attributes = format.attributes();
-        assert_eq!(attributes.len(), 3);
+        let update3 = Thin + Italic - update2;
+        assert_eq!(update3.disable(), Format::default());
+        assert_eq!(update3.enable(), Thin + Italic);
 
-        for attr in attributes {
-            assert!(matches!(attr, Blinking | NotBoldOrThin | NotUnderlined));
-        }
-
-        // Format 3: Not{Not{Bold, Underlined} + Blinking}
-        let format = -format;
-        assert_eq!(format.attribute_count(), 1);
-        assert!(format.has(NotBlinking));
-
-        let attributes = format.attributes();
-        assert_eq!(attributes.len(), 1);
-
-        for attr in attributes {
-            assert!(matches!(attr, NotBlinking));
-        }
+        assert_eq!(format!("{:?}", Bold + Underlined), "{Bold, Underlined}");
+        assert_eq!(
+            format!("{:?}", update3),
+            "FormatUpdate { disable: {}, enable: {Thin, Italic} }"
+        )
     }
 }
