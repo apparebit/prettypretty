@@ -1,8 +1,18 @@
+//! The terminal color representations.
+//!
+//! This module offers a choice of [`AnsiColor`], [`EmbeddedRgb`],
+//! [`GrayGradient`], and [`Rgb`] as the primary color representations used bys
+//! terminals.
+//!
+//! Taken together, the first three types are the 8-bit colors and can be
+//! wrapped as [`EightBitColor`]s. All color representations including
+//! high-resolution [`Color`]s can be wrapped as [`Colorant`]s. That type also
+//! includes a variant for the [`Colorant::Default`].
 #[cfg(feature = "pyffi")]
 use pyo3::{prelude::*, types::PyInt};
 
-use super::Layer;
-use crate::error::OutOfBoundsError;
+use crate::error::{HiResColorantError, OutOfBoundsError};
+use crate::style::Layer;
 use crate::{Color, ColorSpace};
 
 // ====================================================================================================================
@@ -29,7 +39,7 @@ use crate::{Color, ColorSpace};
 /// indexed colors.
 #[cfg_attr(
     feature = "pyffi",
-    pyclass(eq, eq_int, frozen, hash, ord, module = "prettypretty.color.style")
+    pyclass(eq, eq_int, frozen, hash, ord, module = "prettypretty.color.termco")
 )]
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum AnsiColor {
@@ -227,7 +237,7 @@ impl From<AnsiColor> for u8 {
 /// This iterator is fused, i.e., after returning `None` once, it will keep
 /// returning `None`. This iterator also is exact, i.e., its `size_hint()`
 /// returns the exact number of remaining items.
-#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.style"))]
+#[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.termco"))]
 #[derive(Debug)]
 pub struct AnsiColorIterator {
     index: usize,
@@ -305,7 +315,7 @@ impl AnsiColorIterator {
 /// TryFrom<u8>`](struct.EmbeddedRgb.html#impl-TryFrom%3Cu8%3E-for-EmbeddedRgb).
 ///
 /// ```
-/// # use prettypretty::style::EmbeddedRgb;
+/// # use prettypretty::termco::EmbeddedRgb;
 /// # use prettypretty::error::OutOfBoundsError;
 /// let orange = EmbeddedRgb::new(5, 2, 0)?;
 /// let orange_too = EmbeddedRgb::try_from(208)?;
@@ -322,7 +332,7 @@ impl AnsiColorIterator {
 /// or with [`EmbeddedRgb as
 /// Index<usize>`](struct.EmbeddedRgb.html#impl-Index%3Cusize%3E-for-EmbeddedRgb).
 /// ```
-/// # use prettypretty::style::EmbeddedRgb;
+/// # use prettypretty::termco::EmbeddedRgb;
 /// # use prettypretty::error::OutOfBoundsError;
 /// let blue = EmbeddedRgb::try_from(75)?;
 /// assert_eq!(blue.as_ref(), &[1_u8, 3, 5]);
@@ -336,18 +346,18 @@ impl AnsiColorIterator {
 ///
 /// Finally, it can convert an embedded RGB color to `u8` with [`u8 as
 /// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-u8),
-/// to a true color with [`TrueColor as
-/// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-TrueColor),
+/// to a true color with [`Rgb as
+/// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Rgb),
 /// or to a high-resolution color with [`Color as
 /// From<EmbeddedRgb>`](struct.EmbeddedRgb.html#impl-From%3CEmbeddedRgb%3E-for-Color).
 /// ```
 /// # use prettypretty::Color;
-/// # use prettypretty::style::{EmbeddedRgb, TrueColor};
+/// # use prettypretty::termco::{EmbeddedRgb, Rgb};
 /// # use prettypretty::error::OutOfBoundsError;
 /// let rose = EmbeddedRgb::new(5, 4, 5)?;
 /// assert_eq!(u8::from(rose), 225);
 ///
-/// let also_rose = TrueColor::from(rose);
+/// let also_rose = Rgb::from(rose);
 /// assert_eq!(format!("{}", also_rose), "#ffd7ff");
 ///
 /// let rose_too = Color::from(rose);
@@ -372,7 +382,7 @@ impl AnsiColorIterator {
 )]
 #[cfg_attr(
     feature = "pyffi",
-    pyclass(eq, frozen, hash, sequence, module = "prettypretty.color.style")
+    pyclass(eq, frozen, hash, sequence, module = "prettypretty.color.termco")
 )]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EmbeddedRgb([u8; 3]);
@@ -380,7 +390,8 @@ pub struct EmbeddedRgb([u8; 3]);
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl EmbeddedRgb {
-    /// Create a new embedded RGB value from its coordinates.
+    /// Create a new embedded RGB value from its coordinates. <i
+    /// class=python-only>Python only!</i>
     #[new]
     pub fn new(r: u8, g: u8, b: u8) -> Result<Self, OutOfBoundsError> {
         if 6 <= r {
@@ -550,13 +561,13 @@ impl From<EmbeddedRgb> for [u8; 3] {
 
 impl From<&EmbeddedRgb> for Color {
     fn from(value: &EmbeddedRgb) -> Self {
-        Color::from(TrueColor::from(*value))
+        Color::from(Rgb::from(*value))
     }
 }
 
 impl From<EmbeddedRgb> for Color {
     fn from(value: EmbeddedRgb) -> Self {
-        Color::from(TrueColor::from(value))
+        Color::from(Rgb::from(value))
     }
 }
 
@@ -573,7 +584,7 @@ impl From<EmbeddedRgb> for Color {
 /// TryFrom<u8>`](struct.GrayGradient.html#impl-TryFrom%3Cu8%3E-for-GrayGradient).
 ///
 /// ```
-/// # use prettypretty::style::GrayGradient;
+/// # use prettypretty::termco::GrayGradient;
 /// # use prettypretty::error::OutOfBoundsError;
 /// let almost_black = GrayGradient::new(4)?;
 /// let almost_black_too = GrayGradient::try_from(236)?;
@@ -587,7 +598,7 @@ impl From<EmbeddedRgb> for Color {
 ///
 /// It can access the gray level with [`GrayGradient::level`].
 /// ```
-/// # use prettypretty::style::GrayGradient;
+/// # use prettypretty::termco::GrayGradient;
 /// # use prettypretty::error::OutOfBoundsError;
 /// let midgray = GrayGradient::try_from(243)?;
 /// assert_eq!(midgray.level(), 11);
@@ -600,18 +611,18 @@ impl From<EmbeddedRgb> for Color {
 ///
 /// Finally, it can convert a gray gradient color to `u8` with [`u8 as
 /// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-u8),
-/// to a true color with [`TrueColor as
-/// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-TrueColor),
+/// to a true color with [`Rgb as
+/// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Rgb),
 /// or to a high-resolution color with [`Color as
 /// From<GrayGradient>`](struct.GrayGradient.html#impl-From%3CGrayGradient%3E-for-Color).
 /// ```
 /// # use prettypretty::Color;
-/// # use prettypretty::style::{GrayGradient, TrueColor};
+/// # use prettypretty::termco::{GrayGradient, Rgb};
 /// # use prettypretty::error::OutOfBoundsError;
 /// let light_gray = GrayGradient::new(20)?;
 /// assert_eq!(u8::from(light_gray), 252);
 ///
-/// let also_light_gray = TrueColor::from(light_gray);
+/// let also_light_gray = Rgb::from(light_gray);
 /// assert_eq!(format!("{}", also_light_gray), "#d0d0d0");
 ///
 /// let light_gray_too = Color::from(light_gray);
@@ -635,7 +646,7 @@ impl From<EmbeddedRgb> for Color {
 )]
 #[cfg_attr(
     feature = "pyffi",
-    pyclass(eq, frozen, hash, ord, module = "prettypretty.color.style")
+    pyclass(eq, frozen, hash, ord, module = "prettypretty.color.termco")
 )]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GrayGradient(u8);
@@ -643,7 +654,8 @@ pub struct GrayGradient(u8);
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl GrayGradient {
-    /// Instantiate a new gray gradient from its level `0..=23`.
+    /// Instantiate a new gray gradient from its level `0..=23`. <i
+    /// class=python-only>Python only!</i>
     #[new]
     pub fn new(value: u8) -> Result<Self, OutOfBoundsError> {
         if 24 <= value {
@@ -751,13 +763,13 @@ impl From<GrayGradient> for [u8; 3] {
 
 impl From<&GrayGradient> for Color {
     fn from(value: &GrayGradient) -> Self {
-        Color::from(TrueColor::from(*value))
+        Color::from(Rgb::from(*value))
     }
 }
 
 impl From<GrayGradient> for Color {
     fn from(value: GrayGradient) -> Self {
-        Color::from(TrueColor::from(value))
+        Color::from(Rgb::from(value))
     }
 }
 
@@ -776,7 +788,7 @@ impl From<GrayGradient> for Color {
 )]
 #[cfg_attr(
     feature = "pyffi",
-    pyclass(eq, frozen, hash, module = "prettypretty.color.style")
+    pyclass(eq, frozen, hash, module = "prettypretty.color.termco")
 )]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum EightBitColor {
@@ -788,18 +800,20 @@ pub enum EightBitColor {
 #[cfg(feature = "pyffi")]
 #[pymethods]
 impl EightBitColor {
-    /// Convert the byte into an 8-bit color.
+    /// Convert the byte into an 8-bit color. <i class=python-only>Python
+    /// only!</i>
     #[staticmethod]
     pub fn from_8bit(byte: u8) -> Self {
         Self::from(byte)
     }
 
-    /// Convert the 8-bit color to a byte.
+    /// Convert the 8-bit color to a byte. <i class=python-only>Python only!</i>
     pub fn to_8bit(&self) -> u8 {
         u8::from(*self)
     }
 
-    /// Get a debug representation for this 8-bit color.
+    /// Get a debug representation for this 8-bit color. <i
+    /// class=python-only>Python only!</i>
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
     }
@@ -857,36 +871,36 @@ impl From<EightBitColor> for Colorant {
 }
 
 // ====================================================================================================================
-// True Color
+// Rgb ("True Color")
 // ====================================================================================================================
 
 /// A "true," 24-bit RGB color.
 ///
 /// # Examples
 ///
-/// Rust code can create a new true color with either [`TrueColor::new`] or
-/// [`TrueColor as
-/// From<&Color>`](struct.TrueColor.html#impl-From%3C%26Color%3E-for-TrueColor).
+/// Rust code can create a new true color with either [`Rgb::new`] or
+/// [`Rgb as
+/// From<&Color>`](struct.Rgb.html#impl-From%3C%26Color%3E-for-Rgb).
 ///
 /// ```
 /// # use prettypretty::Color;
-/// # use prettypretty::style::TrueColor;
+/// # use prettypretty::termco::Rgb;
 /// let blue = Color::from_24bit(0xae, 0xe8, 0xfb);
-/// let blue_too = TrueColor::new(0xae, 0xe8, 0xfb);
-/// assert_eq!(TrueColor::from(&blue), blue_too);
+/// let blue_too = Rgb::new(0xae, 0xe8, 0xfb);
+/// assert_eq!(Rgb::from(&blue), blue_too);
 /// ```
 /// <div class=color-swatch>
 /// <div style="background-color: #aee8fb;"></div>
 /// </div>
 /// <br>
 ///
-/// It can access the coordinates with [`TrueColor as AsRef<[u8;
-/// 3]>`](struct.TrueColor.html#impl-AsRef%3C%5Bu8;+3%5D%3E-for-TrueColor) or
-/// with [`TrueColor as
-/// Index<usize>`](struct.TrueColor.html#impl-Index%3Cusize%3E-for-TrueColor).
+/// It can access the coordinates with [`Rgb as AsRef<[u8;
+/// 3]>`](struct.Rgb.html#impl-AsRef%3C%5Bu8;+3%5D%3E-for-Rgb) or
+/// with [`Rgb as
+/// Index<usize>`](struct.Rgb.html#impl-Index%3Cusize%3E-for-Rgb).
 /// ```
-/// # use prettypretty::style::TrueColor;
-/// let sea_foam = TrueColor::new(0xb6, 0xeb, 0xd4);
+/// # use prettypretty::termco::Rgb;
+/// let sea_foam = Rgb::new(0xb6, 0xeb, 0xd4);
 /// assert_eq!(sea_foam.as_ref(), &[182_u8, 235, 212]);
 /// assert_eq!(sea_foam[1], 235);
 /// ```
@@ -897,13 +911,13 @@ impl From<EightBitColor> for Colorant {
 ///
 /// Finally, it can convert a true color to a high-resolution color with [`Color
 /// as
-/// From<TrueColor>`](struct.TrueColor.html#impl-From%3CTrueColor%3E-for-Color)
-/// or format it in hashed hexadecimal notation with [`TrueColor as
-/// Display`](struct.TrueColor.html#impl-Display-for-TrueColor).
+/// From<Rgb>`](struct.Rgb.html#impl-From%3CRgb%3E-for-Color)
+/// or format it in hashed hexadecimal notation with [`Rgb as
+/// Display`](struct.Rgb.html#impl-Display-for-Rgb).
 /// ```
 /// # use prettypretty::Color;
-/// # use prettypretty::style::TrueColor;
-/// let sand = TrueColor::new(0xee, 0xdc, 0xad);
+/// # use prettypretty::termco::Rgb;
+/// let sand = Rgb::new(0xee, 0xdc, 0xad);
 /// assert_eq!(Color::from(sand), Color::from_24bit(0xee, 0xdc, 0xad));
 /// assert_eq!(format!("{}", sand), "#eedcad");
 /// ```
@@ -915,28 +929,29 @@ impl From<EightBitColor> for Colorant {
 #[cfg_attr(
     feature = "pyffi",
     doc = "Since there is no Python feature equivalent to trait implementations in
-    Rust, the Python class for `TrueColor` provides equivalent functionality
-    through [`TrueColor::from_color`], [`True Color::to_8bit`], [`TrueColor::to_color`],
-    [`TrueColor::coordinates`], [`TrueColor::__len__`], and [`TrueColor::__getitem__`].
-    These methods are not available in Rust."
+    Rust, the Python class for `Rgb` provides equivalent functionality
+    through [`Rgb::from_color`], [`Rgb::to_color`], [`Rgb::coordinates`],
+    [`Rgb::__len__`], and [`Rgb::__getitem__`]. These methods are not available
+    in Rust."
 )]
 #[cfg_attr(
     feature = "pyffi",
-    pyclass(eq, frozen, hash, sequence, module = "prettypretty.color.style")
+    pyclass(eq, frozen, hash, sequence, module = "prettypretty.color.termco")
 )]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct TrueColor([u8; 3]);
+pub struct Rgb([u8; 3]);
 
 #[cfg(feature = "pyffi")]
 #[pymethods]
-impl TrueColor {
-    /// Create a new true color from its coordinates.
+impl Rgb {
+    /// Create a new true RGB color from its coordinates. <i
+    /// class=python-only>Python only!</i>
     #[new]
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self([r, g, b])
     }
 
-    /// Create a new true color from the given high-resolution color. <i
+    /// Create a new true RGB color from the given high-resolution color. <i
     /// class=python-only>Python only!</i>
     ///
     /// This method invokes true color's constructor after converting the given
@@ -948,24 +963,24 @@ impl TrueColor {
         Self::new(r, g, b)
     }
 
-    /// Convert this true color to a high-resolution color. <i
+    /// Convert this true RGB color to a high-resolution color. <i
     /// class=python-only>Python only!</i>
     ///
     /// This method offers the same functionality as [`Color as
-    /// From<TrueColor>`](struct.TrueColor.html#impl-From%3CTrueColor%3E-for-Color)
+    /// From<Rgb>`](struct.Rgb.html#impl-From%3CRgb%3E-for-Color)
     /// and is available in Python only.
     pub fn to_color(&self) -> Color {
         Color::from(*self)
     }
 
-    /// Access this true color's coordinates. <i class=python-only>Python
+    /// Access this true RGB color's coordinates. <i class=python-only>Python
     /// only!</i>
     pub fn coordinates(&self) -> [u8; 3] {
         self.0
     }
 
-    /// Get this true color's length, which is 3. <i class=python-only>Python
-    /// only!</i>
+    /// Get this true RGB color's length, which is 3. <i
+    /// class=python-only>Python only!</i>
     ///
     /// This method improves integration with Python's runtime and hence is
     /// available in Python only.
@@ -992,14 +1007,14 @@ impl TrueColor {
     ///
     /// This method reimplements the distance metric used by the [anstyle
     /// crate](https://github.com/rust-cli/anstyle/blob/main/crates/anstyle-lossy/src/lib.rs).
-    pub fn weighted_euclidian_distance(&self, other: &TrueColor) -> u32 {
+    pub fn weighted_euclidian_distance(&self, other: &Rgb) -> u32 {
         self.do_weighted_euclidian_distance(other)
     }
 
     /// Convert this true color to its debug representation. <i
     /// class=python-only>Python only!</i>
     pub fn __repr__(&self) -> String {
-        format!("TrueColor({}, {}, {})", self.0[0], self.0[1], self.0[2])
+        format!("Rgb({}, {}, {})", self.0[0], self.0[1], self.0[2])
     }
 
     /// Convert this true color to hashed hexadecimal notation. <i
@@ -1010,7 +1025,7 @@ impl TrueColor {
 }
 
 #[cfg(not(feature = "pyffi"))]
-impl TrueColor {
+impl Rgb {
     /// Create a new true color from its coordinates.
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self([r, g, b])
@@ -1020,13 +1035,13 @@ impl TrueColor {
     ///
     /// This method reimplements the distance metric used by the [anstyle
     /// crate](https://github.com/rust-cli/anstyle/blob/main/crates/anstyle-lossy/src/lib.rs).
-    pub fn weighted_euclidian_distance(&self, other: &TrueColor) -> u32 {
+    pub fn weighted_euclidian_distance(&self, other: &Rgb) -> u32 {
         self.do_weighted_euclidian_distance(other)
     }
 }
 
-impl TrueColor {
-    fn do_weighted_euclidian_distance(&self, other: &TrueColor) -> u32 {
+impl Rgb {
+    fn do_weighted_euclidian_distance(&self, other: &Rgb) -> u32 {
         let r1 = self.0[0] as i32;
         let g1 = self.0[1] as i32;
         let b1 = self.0[2] as i32;
@@ -1047,13 +1062,13 @@ impl TrueColor {
     }
 }
 
-impl AsRef<[u8; 3]> for TrueColor {
+impl AsRef<[u8; 3]> for Rgb {
     fn as_ref(&self) -> &[u8; 3] {
         &self.0
     }
 }
 
-impl std::ops::Index<usize> for TrueColor {
+impl std::ops::Index<usize> for Rgb {
     type Output = u8;
 
     /// Access the coordinate with the given index.
@@ -1066,27 +1081,27 @@ impl std::ops::Index<usize> for TrueColor {
     }
 }
 
-impl From<EmbeddedRgb> for TrueColor {
+impl From<EmbeddedRgb> for Rgb {
     fn from(value: EmbeddedRgb) -> Self {
         let [r, g, b] = Into::<[u8; 3]>::into(value);
-        TrueColor::new(r, g, b)
+        Rgb::new(r, g, b)
     }
 }
 
-impl From<GrayGradient> for TrueColor {
-    fn from(value: GrayGradient) -> TrueColor {
+impl From<GrayGradient> for Rgb {
+    fn from(value: GrayGradient) -> Rgb {
         let [r, g, b] = Into::<[u8; 3]>::into(value);
-        TrueColor::new(r, g, b)
+        Rgb::new(r, g, b)
     }
 }
 
-impl From<[u8; 3]> for TrueColor {
+impl From<[u8; 3]> for Rgb {
     fn from(value: [u8; 3]) -> Self {
-        TrueColor::new(value[0], value[1], value[2])
+        Rgb::new(value[0], value[1], value[2])
     }
 }
 
-impl From<&Color> for TrueColor {
+impl From<&Color> for Rgb {
     /// Convert the given color to a true color.
     ///
     /// This method first converts the color to gamut-mapped sRGB and then
@@ -1097,25 +1112,25 @@ impl From<&Color> for TrueColor {
     }
 }
 
-impl From<Color> for TrueColor {
+impl From<Color> for Rgb {
     fn from(value: Color) -> Self {
-        TrueColor::from(&value)
+        Rgb::from(&value)
     }
 }
 
-impl From<&TrueColor> for Color {
-    fn from(value: &TrueColor) -> Self {
+impl From<&Rgb> for Color {
+    fn from(value: &Rgb) -> Self {
         Self::from_24bit(value.0[0], value.0[1], value.0[2])
     }
 }
 
-impl From<TrueColor> for Color {
-    fn from(value: TrueColor) -> Self {
+impl From<Rgb> for Color {
+    fn from(value: Rgb) -> Self {
         Self::from_24bit(value.0[0], value.0[1], value.0[2])
     }
 }
 
-impl core::fmt::Display for TrueColor {
+impl core::fmt::Display for Rgb {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let [r, g, b] = *self.as_ref();
         f.write_fmt(format_args!("#{:02x}{:02x}{:02x}", r, g, b))
@@ -1129,7 +1144,7 @@ impl core::fmt::Display for TrueColor {
 /// A colorant combines all of prettypretty's color representations.
 #[cfg_attr(
     feature = "pyffi",
-    pyclass(eq, frozen, hash, module = "prettypretty.color.style")
+    pyclass(eq, frozen, hash, module = "prettypretty.color.termco")
 )]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Colorant {
@@ -1137,7 +1152,7 @@ pub enum Colorant {
     Ansi(AnsiColor),
     Embedded(EmbeddedRgb),
     Gray(GrayGradient),
-    Rgb(TrueColor),
+    Rgb(Rgb),
     HiRes(Color),
 }
 
@@ -1146,28 +1161,13 @@ impl Colorant {
     /// Wrap any color as colorant. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[staticmethod]
-    pub fn of(#[pyo3(from_py_with = "crate::style::into_colorant")] colorant: Colorant) -> Self {
+    pub fn of(#[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant) -> Self {
         colorant
     }
 
     /// Determine whether this colorant is the default.
     pub fn is_default(&self) -> bool {
         matches!(self, Colorant::Default())
-    }
-
-    /// Get the number of SGR parameters required for this colorant.
-    ///
-    /// If this colorant is a high-resolution color, this method returns `None`.
-    /// Otherwise, it returns some 1, 3, or 5.
-    pub fn sgr_parameter_count(&self) -> Option<usize> {
-        match self {
-            Self::Default() => Some(1),
-            Self::Ansi(_) => Some(1),
-            Self::Embedded(_) => Some(3),
-            Self::Gray(_) => Some(3),
-            Self::Rgb(_) => Some(5),
-            Self::HiRes(_) => None,
-        }
     }
 
     /// Get the SGR parameters for this colorant.
@@ -1240,6 +1240,56 @@ impl Colorant {
             Self::HiRes(c) => format!("Colorant({})", c.__repr__()),
         }
     }
+
+    /// Display the colorant for the given layer.
+    #[cfg(feature = "pyffi")]
+    #[pyo3(name = "display")]
+    pub fn py_display(&self, layer: Layer) -> PyResult<String> {
+        Ok(format!("{}", self.display(layer)?))
+    }
+}
+
+impl Colorant {
+    /// Write the colorant's SGR parameters for the given layer with the given
+    /// formatter. <i class=rust-only>Rust only!</i>
+    pub fn write_sgr_params(
+        &self,
+        layer: Layer,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        match self {
+            Self::Default() => write!(f, "{}", 39 + layer.offset()),
+            Self::Ansi(c) => {
+                let base = if c.is_bright() { 90 } else { 30 } + layer.offset();
+                write!(f, "{}", base + c.to_base() as u8)
+            }
+            Self::Embedded(c) => write!(f, "{};5;{}", 38 + layer.offset(), u8::from(*c)),
+            Self::Gray(c) => write!(f, "{};5;{}", 38 + layer.offset(), u8::from(*c)),
+            Self::Rgb(c) => write!(f, "{};2;{};{};{}", 38 + layer.offset(), c[0], c[1], c[2]),
+            Self::HiRes(_) => Ok(()),
+        }
+    }
+
+    /// Provide a layer to make this colorant displayable.
+    ///
+    /// For most colorants, this method returns an implementation of the
+    /// standard library's [`std::fmt::Display`] trait that produces the
+    /// corresponding ANSI escape sequence. However, for colorants wrapping
+    /// high-resolution colors, this method returns an error. Such a colorant
+    /// needs to be [`Translator::cap`](crate::Translator::cap)ped first.
+    pub fn display(
+        &self,
+        layer: Layer,
+    ) -> Result<impl std::fmt::Display + use<'_>, HiResColorantError> {
+        if matches!(self, Self::HiRes(_)) {
+            Err(HiResColorantError)
+        } else {
+            Ok(LayeredColorant {
+                layer,
+                colorant: self,
+            })
+        }
+    }
 }
 
 impl std::ops::Neg for &Colorant {
@@ -1270,7 +1320,7 @@ pub(crate) fn into_colorant(obj: &Bound<'_, PyAny>) -> PyResult<Colorant> {
         .or_else(|_| obj.extract::<EmbeddedRgb>().map(|c| c.into()))
         .or_else(|_| obj.extract::<GrayGradient>().map(|c| c.into()))
         .or_else(|_| obj.extract::<EightBitColor>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<crate::style::TrueColor>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<Rgb>().map(|c| c.into()))
         .or_else(|_| obj.extract::<Color>().map(|c| c.into()))
 }
 
@@ -1306,12 +1356,12 @@ impl From<u8> for Colorant {
 
 impl From<[u8; 3]> for Colorant {
     fn from(value: [u8; 3]) -> Self {
-        Self::Rgb(TrueColor(value))
+        Self::Rgb(Rgb(value))
     }
 }
 
-impl From<TrueColor> for Colorant {
-    fn from(value: TrueColor) -> Self {
+impl From<Rgb> for Colorant {
+    fn from(value: Rgb) -> Self {
         Self::Rgb(value)
     }
 }
@@ -1391,9 +1441,22 @@ impl TryFrom<Colorant> for Color {
     }
 }
 
+struct LayeredColorant<'a> {
+    layer: Layer,
+    colorant: &'a Colorant,
+}
+
+impl std::fmt::Display for LayeredColorant<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("\x1b[")?;
+        self.colorant.write_sgr_params(self.layer, f)?;
+        f.write_str("m")
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use super::{AnsiColor, Colorant, EmbeddedRgb, GrayGradient, OutOfBoundsError, TrueColor};
+    use super::{AnsiColor, Colorant, EmbeddedRgb, GrayGradient, OutOfBoundsError, Rgb};
 
     #[test]
     fn test_conversion() -> Result<(), OutOfBoundsError> {
@@ -1402,11 +1465,11 @@ mod test {
 
         let green = EmbeddedRgb::new(0, 4, 0)?;
         assert_eq!(green.as_ref(), &[0, 4, 0]);
-        assert_eq!(TrueColor::from(green), TrueColor::new(0, 215, 0));
+        assert_eq!(Rgb::from(green), Rgb::new(0, 215, 0));
 
         let gray = GrayGradient::new(12)?;
         assert_eq!(gray.level(), 12);
-        assert_eq!(TrueColor::from(gray), TrueColor::new(128, 128, 128));
+        assert_eq!(Rgb::from(gray), Rgb::new(128, 128, 128));
 
         let also_magenta = Colorant::Ansi(AnsiColor::Magenta);
         let also_green = Colorant::Embedded(green);

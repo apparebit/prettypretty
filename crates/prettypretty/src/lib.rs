@@ -38,14 +38,18 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     of prettypretty's functionality, including conversion between color
 //!     spaces, interpolation between colors, calculation of perceptual
 //!     contrast, as well as gamut testing, clipping, and mapping.
+//!   * The [`termco`] module offers a choice of **terminal-specific color
+//!     formats** [`AnsiColor`](termco::AnsiColor),
+//!     [`EmbeddedRgb`](termco::EmbeddedRgb),
+//!     [`GrayGradient`](termco::GrayGradient),
+//!     [`EightBitColor`](termco::EightBitColor), [`Rgb`](termco::Rgb), as well
+//!     as the wrapper [`Colorant`](termco::Colorant).
 //!   * The [`style`] module defines **terminal [`Style`](style::Style)s** as a
-//!     text [`Format`](style::format::Format) and foreground/background
-//!     [`Colorant`](style::Colorant)s. The latter offers a choice of
-//!     terminal-specific color formats [`AnsiColor`](style::AnsiColor),
-//!     [`EmbeddedRgb`](style::EmbeddedRgb),
-//!     [`GrayGradient`](style::GrayGradient),
-//!     [`EightBitColor`](style::EightBitColor), and
-//!     [`TrueColor`](style::TrueColor) as well as high-resolution [`Color`].
+//!     text [`FormatUpdate`](style::FormatUpdate) combined with foreground and
+//!     background [`Colorant`](termco::Colorant)s. It also defines
+//!     [`Layer`](style::Layer) to distinguish between the two colors and
+//!     [`Fidelity`](style::Fidelity) to represent a terminal's styling
+//!     capabilities.
 //!   * [`Translator`] implements **translation between color formats**. To
 //!     ensure high quality results, its preferred algorithms leverage the
 //!     perceptually uniform Oklab/Oklch color space. For conversion to the 16
@@ -76,36 +80,30 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!
 //! ### 1. Assemble Your Styles
 //!
-//! First, assemble your application's styles with a
-//! [`Style::builder()`](style::Style::builder) ending in
-//! [`build()`](style::Stylist::build) or, equivalently, the sassier
-//! [`stylist()`](style::stylist()) ending in
-//! [`et_voila()`](style::Stylist::et_voila).
+//! First, assemble your application's styles by modifying the empty
+//! [`Style::default()`](style::Style::default).
 //!
 //! ```
 //! # use std::io::Result;
-//! # use prettypretty::style::stylist;
+//! # use prettypretty::style::Style;
+//! # use prettypretty::termco::Rgb;
 //! # fn main() -> Result<()> {
 //! // 1. Assemble application styles
-//! let chic = stylist()
+//! let chic = Style::default()
 //!     .bold()
 //!     .underlined()
-//!     .rgb(215, 40, 39)
-//!     .fg()
-//!     .et_voila();
+//!     .with_foreground(Rgb::new(215, 40, 39));
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! You can specify colors with
-//! [`Stylist::embedded_rgb`](style::Stylist::embedded_rgb),
-//! [`Stylist::gray`](style::Stylist::gray), or
-//! [`Stylist::rgb`](style::Stylist::rgb) for the color value followed by
-//! [`Colorist::fg`](style::Colorist::fg) or
-//! [`Colorist::bg`](style::Colorist::bg) for the layer. You can also specify
-//! them with [`Stylist::foreground`](style::Stylist::foreground) or
-//! [`Stylist::background`](style::Stylist::background), which accept any of
-//! prettypretty's colors.
+//! [`Style::with_foreground`](style::Style::with_foreground) and
+//! [`Style::with_background`](style::Style::with_background) accept any of
+//! prettypretty's color representations, i.e.,
+//! [`AnsiColor`](termco::AnsiColor), [`EmbeddedRgb`](termco::EmbeddedRgb),
+//! [`GrayGradient`](termco::GrayGradient),
+//! [`EightBitColor`](termco::EightBitColor), [`Rgb`](termco::Rgb) or
+//! high-resolution [`Color`].
 //!
 //!
 //! ### 2. Adjust Your Styles
@@ -116,16 +114,17 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!
 //! ```
 //! # use std::io::Result;
-//! # use prettypretty::style::{stylist, Fidelity};
+//! # use prettypretty::style::{Fidelity, Style};
+//! # use prettypretty::termco::Rgb;
 //! # use prettypretty::theme::{Theme, VGA_COLORS};
 //! # use prettytty::Connection;
 //! # use prettytty::opt::Options;
 //! # fn main() -> Result<()> {
 //! # #[cfg(not(target_family = "windows"))]
 //! # {
-//! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
+//! # let chic = Style::default().bold().underlined().with_foreground(Rgb::new(215, 40, 39));
 //! // 2a. Determine terminal's color support and theme
-//! let options = Options::builder().timeout(50).build();
+//! let options = Options::builder().timeout(100).build();
 //! let (has_tty, theme) = match Connection::with_options(options) {
 //!     Ok(tty) => (true, Theme::query(&tty)?),
 //!     Err(_) => (false, VGA_COLORS),
@@ -140,20 +139,21 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! specializes in complex color conversions and then adjust your application's
 //! styles to the current color theme and fidelity.
 //! [`Style::cap`](style::Style::cap) puts a cap on styles with the help of
-//! [`Translator::cap`](trans::Translator::cap), which takes care of colors.
+//! [`Translator::cap`](Translator::cap), which takes care of colors.
 //!
 //! ```
 //! # use std::io::Result;
 //! # use prettypretty::{OkVersion, Translator};
-//! # use prettypretty::style::{stylist, Fidelity};
+//! # use prettypretty::style::{Fidelity, Style};
+//! # use prettypretty::termco::Rgb;
 //! # use prettypretty::theme::{Theme, VGA_COLORS};
 //! # use prettytty::Connection;
 //! # use prettytty::opt::Options;
 //! # fn main() -> Result<()> {
 //! # #[cfg(not(target_family = "windows"))]
 //! # {
-//! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
-//! # let options = Options::builder().timeout(50).build();
+//! # let chic = Style::default().bold().underlined().with_foreground(Rgb::new(215, 40, 39));
+//! # let options = Options::builder().timeout(100).build();
 //! # let (has_tty, theme) = match Connection::with_options(options) {
 //! #     Ok(tty) => (true, Theme::query(&tty)?),
 //! #     Err(_) => (false, VGA_COLORS),
@@ -175,15 +175,16 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! ```
 //! # use std::io::Result;
 //! # use prettypretty::{OkVersion, Translator};
-//! # use prettypretty::style::{stylist, Fidelity};
+//! # use prettypretty::style::{Fidelity, Style};
+//! # use prettypretty::termco::Rgb;
 //! # use prettypretty::theme::{Theme, VGA_COLORS};
 //! # use prettytty::Connection;
 //! # use prettytty::opt::Options;
 //! # fn main() -> Result<()> {
 //! # #[cfg(not(target_family = "windows"))]
 //! # {
-//! # let chic = stylist().bold().underlined().rgb(215, 40, 39).fg().et_voila();
-//! # let options = Options::builder().timeout(50).build();
+//! # let chic = Style::default().bold().underlined().with_foreground(Rgb::new(215, 40, 39));
+//! # let options = Options::builder().timeout(100).build();
 //! # let (has_tty, theme) = match Connection::with_options(options) {
 //! #     Ok(tty) => (true, Theme::query(&tty)?),
 //! #     Err(_) => (false, VGA_COLORS),
@@ -234,8 +235,8 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
     class=python-only>Python only!</i>."
 )]
 //! Similarly, items only available with the `tty` feature are decorated with <i
-//! class=tty-only>TTY only!</i> and the `gamut` feature are decorated with <i
-//! class=gamut-only>Gamut only!</i>.
+//! class=tty-only>TTY only!</i> and items only available with the `gamut`
+//! feature are decorated with <i class=gamut-only>Gamut only!</i>.
 //!
 //!
 //! ## Acknowledgements
@@ -269,6 +270,7 @@ mod core;
 pub mod error;
 mod object;
 pub mod style;
+pub mod termco;
 pub mod theme;
 mod trans;
 mod util;
@@ -305,8 +307,8 @@ use pyo3::types::PyDict;
 pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let modcolor_name = m.name()?;
     let modcolor_name = modcolor_name.to_str()?;
-    let modformat_name = format!("{}.style.format", modcolor_name);
     let modstyle_name = format!("{}.style", modcolor_name);
+    let modtermco_name = format!("{}.termco", modcolor_name);
     let modtheme_name = format!("{}.theme", modcolor_name);
 
     // -------------------------------------------------------------------------- color
@@ -322,33 +324,32 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // -------------------------------------------------------------------- color.style
     let modstyle = PyModule::new(m.py(), "style")?;
     modstyle.add("__package__", modcolor_name)?;
-    modstyle.add_class::<style::AnsiColor>()?;
-    modstyle.add_class::<style::AnsiColorIterator>()?;
-    modstyle.add_class::<style::Colorant>()?;
-    modstyle.add_class::<style::Colorist>()?;
-    modstyle.add_class::<style::EmbeddedRgb>()?;
+    modstyle.add_class::<style::Attribute>()?;
+    modstyle.add_class::<style::AttributeIter>()?;
     modstyle.add_class::<style::Fidelity>()?;
-    modstyle.add_class::<style::GrayGradient>()?;
+    modstyle.add_class::<style::Format>()?;
+    modstyle.add_class::<style::FormatUpdate>()?;
     modstyle.add_class::<style::Layer>()?;
-    modstyle.add_function(wrap_pyfunction!(style::stylist, m)?)?;
     modstyle.add_class::<style::Style>()?;
-    modstyle.add_class::<style::Stylist>()?;
-    modstyle.add_class::<style::TrueColor>()?;
     m.add_submodule(&modstyle)?;
 
     // Only change __name__ attribute after submodule has been added.
     modstyle.setattr("__name__", &modstyle_name)?;
 
-    // ------------------------------------------------------------- color.style.format
-    let modformat = PyModule::new(m.py(), "format")?;
-    modformat.add("__package__", &modstyle_name)?;
-    modformat.add_class::<style::format::AllAttributes>()?;
-    modformat.add_class::<style::format::Attribute>()?;
-    modformat.add_class::<style::format::AttributeIterator>()?;
-    modformat.add_class::<style::format::Format>()?;
-    modstyle.add_submodule(&modformat)?;
+    // ------------------------------------------------------------------- color.termco
+    let modtermco = PyModule::new(m.py(), "termco")?;
+    modtermco.add("__package__", modcolor_name)?;
+    modtermco.add_class::<termco::AnsiColor>()?;
+    modtermco.add_class::<termco::AnsiColorIterator>()?;
+    modtermco.add_class::<termco::Colorant>()?;
+    modtermco.add_class::<termco::EightBitColor>()?;
+    modtermco.add_class::<termco::EmbeddedRgb>()?;
+    modtermco.add_class::<termco::GrayGradient>()?;
+    modtermco.add_class::<termco::Rgb>()?;
+    m.add_submodule(&modtermco)?;
 
-    modformat.setattr("__name__", &modformat_name)?;
+    // Only change __name__ attribute after submodule has been added.
+    modtermco.setattr("__name__", &modtermco_name)?;
 
     // -------------------------------------------------------------------- color.theme
     let modtheme = PyModule::new(m.py(), "theme")?;
@@ -369,7 +370,7 @@ pub fn color(m: &Bound<'_, PyModule>) -> PyResult<()> {
         .getattr("modules")?
         .downcast_into()?;
     py_modules.set_item(&modstyle_name, modstyle)?;
-    py_modules.set_item(&modformat_name, modformat)?;
+    py_modules.set_item(&modtermco_name, modtermco)?;
     py_modules.set_item(&modtheme_name, modtheme)?;
 
     #[cfg(feature = "gamut")]
