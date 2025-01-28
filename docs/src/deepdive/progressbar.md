@@ -91,22 +91,18 @@ that's a grand total of two styles. You'll find their definitions inside the
 `ProgressBar` class:
 
 ```python,ignore
-LIGHT_MODE_BAR = stylist().foreground(Color.p3(0.0, 1.0, 0.0)).et_voila()
-DARK_MODE_BAR = stylist().rgb(3, 151, 49).fg().et_voila()
+LIGHT_MODE_BAR = Style().with_foreground(Color.p3(0.0, 1.0, 0.0))
+DARK_MODE_BAR = Style().with_foreground(Rgb(3, 151, 49))
 ```
 <div class=color-swatch>
 <div style="background-color: color(display-p3 0 1 0);"></div>
 <div style="background-color: rgb(3 151 49);"></div>
 </div>
 
-First, if `stylist()` and `et_voila()` are too sassy for you, then
-`Style.builder()` and `build()` will work just as well. Second, notice that
-there are two different ways of specifying colors. `foreground()` and
-`background()` expect fully built color objects, which are internally converted
-to colorants. By contrast, `embedded_rgb()`, `gray()`, and `rgb()` take RGB
-component or gray level arguments and must be followed by `fg()`, `on()`, or
-`bg()` to select foreground or background. `on()` is an alias to `fg()`, as it
-enables method chains like `rgb(3, 151, 49).on().rgb(15, 17, 19).bg()`.
+It's a little verbose, what with the `with`s and nested color expressions. But
+
+experiments with alternative constructs weren't that much shorter and definitely
+lost clarity.
 
 When declaring styles, only include attributes that you want set and nothing
 else. Don't bother with defining styles that undo other styles. You can easily
@@ -326,13 +322,14 @@ applies to 🦟 bugs 🕷️ as well.
 
 ## Rust Progress
 
-Since prettypretty's Python version builds on the underlying Rust library,
-adjusting colors in Rust largely uses the same types and methods as the Python
-code above. However, the `prettytty` terminal library exposes a substantially
-different interface than Python's `Terminal`. The
+Unlike prettypretty's Python package, the underlying Rust library does not
+include a terminal abstraction. Instead it relies on the
+[prettytty](https://crates.io/crates/prettytty) crate, which exposes a
+completely different interface. That crate's
 [`progress.rs`](https://github.com/apparebit/prettypretty/blob/main/crates/prettytty/examples/progress.rs)
-example illustrates how to use that crate's interface for animating a progress
-bar with the same appearance. Though it does not adjust any colors.
+example illustrates how to display that same progress bar in Rust. Notably, it
+requires a bit more code to implement the progress iterator and abstracts only
+over rendering through the display trait of a newtype.
 
 
 <div class=warning>

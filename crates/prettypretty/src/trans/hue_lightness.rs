@@ -1,5 +1,5 @@
 use crate::core::is_achromatic_chroma_hue;
-use crate::style::AnsiColor;
+use crate::termco::AnsiColor;
 use crate::theme::Theme;
 use crate::{Bits, Color, ColorSpace, Float};
 

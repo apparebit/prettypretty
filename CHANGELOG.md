@@ -8,30 +8,37 @@
 To reduce the cognitive overhead of using prettypretty, its functionality has
 been reorganized into modules. The primary modules and abstractions now are:
 
-  - `prettypretty` provides high-resolution colors through
+  * `prettypretty` provides high-resolution colors through
     [`ColorSpace`](https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html)
     and
     [`Color`](https://apparebit.github.io/prettypretty/prettypretty/struct.Color.html).
     It also defines
     [`Translator`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html)
     for translating between color representations.
-  - `prettypretty::style` abstracts over terminal styles with
-    [`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)
-    and terminal color representations with
-    [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html).
-  - `prettypretty::theme` defines
-    [`Theme`](https://apparebit.github.io/prettypretty/prettypretty/theme/struct.Theme.html)
-    to represent a terminal's current color theme. The `tty` feature enables
-    integration with [prettytty](https://crates.io/crates/prettytty), adding the
+  * `prettypretty::termco` offers a choice of terminal color representations as
+    well as
+    [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/termco/enum.Colorant.html)
+    as wrapper that accommodates all of them including high-resolution colors.
+  * `prettypretty::style` implements terminal
+    [`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)s
+    as a
+    [`FormatUpdate`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.FormatUpdate.html),
+    a foreground
+    [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/termco/enum.Colorant.html),
+    and a background
+    [`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/termco/enum.Colorant.html).
+  * `prettypretty::theme` represents a terminal's color
+    [`Theme`](https://apparebit.github.io/prettypretty/prettypretty/theme/struct.Theme.html).
+    The `tty` feature enables prettypretty's integration with the
+    [prettytty](https://crates.io/crates/prettytty) crate, which adds the
     ability to query the terminal for its theme.
+  * `prettypretty::error` defines the crate's error types.
 
-Prettypretty also includes one utility module, `prettypretty::error`, with its
-errors. Prettypretty includes two more optional modules. By default, they are
-disabled in Rust, whereas they are always available in Python, consistent with
-the latter language's "batteries included" motto.
+Prettypretty always includes the above modules. The `gamut` feature enables two
+more:
 
   - `prettypretty::gamut` is a utility module defining an iterator for
-    traversing color space gamuts. It is enabled with the `gamut` feature.
+    traversing color space gamuts.
   - `prettypretty::spectrum` adds support for spectral distributions and their
     iterators, notably the CIE
     [D50](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_ILLUMINANT_D50.html),
@@ -42,16 +49,18 @@ the latter language's "batteries included" motto.
     (1931)](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_OBSERVER_2DEG_1931.html)
     and [10º
     (1964)](https://apparebit.github.io/prettypretty/prettypretty/spectrum/constant.CIE_OBSERVER_10DEG_1964.html)
-    observers. It too is enabled with the `gamut` feature.
+    observers.
+
+Since Python packages usually ship with "batteries included," prettypretty's
+Python package always includes these two optional modules.
 
 
 ### New Functionality
 
-In addition to the already mentioned
-[`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html)
-and
-[`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/style/enum.Colorant.html),
-notable new features are:
+Notable new features, beyond the already mentioned
+[`Colorant`](https://apparebit.github.io/prettypretty/prettypretty/termco/enum.Colorant.html),
+[`Style`](https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html),
+and integration with [prettytty](https://crates.io/crates/prettytty), include:
 
   * [`ColorSpace::XyzD50`](https://apparebit.github.io/prettypretty/prettypretty/enum.ColorSpace.html#variant.XyzD50)
     adds support for the XYZ color space with a D50 illuminant. Chromatic
@@ -60,14 +69,18 @@ notable new features are:
     and
     [`Color::xy_chromaticity`](https://apparebit.github.io/prettypretty/prettypretty/struct.Color.html#method.xy_chromaticity)
     map a color's three dimensions down to two.
-  * The output of the
+  * The significantly improved
     [`plot.py`](https://github.com/apparebit/prettypretty/blob/main/prettypretty/plot.py)
-    script has been significantly improved; it now visualizes lightness as well,
-    with regular and bright colors grouped together.
+    script adds support for visualizing arbitrary CSS colors read from a file,
+    Oklch's lightness values (with regular and bright theme colors grouped
+    together), as well as chromaticity diagrams.
   * The new
     [`viz3d.py`](https://github.com/apparebit/prettypretty/blob/main/prettypretty/viz3d.py)
     script uses the `spectrum` module to generate a 3D mesh of the human visual
-    gamut.
+    gamut. The mesh forms a closed volume using only triangles, though most of
+    them are generated in pairs representing quadrilaterals. A stride of 1
+    results in a smooth mesh, but also generates too many vertexes at the
+    extrema. Hence post-processing of the mesh is recommended.
 
 
 ## Prettypretty v0.10.0 (2024-07-12)

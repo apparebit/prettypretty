@@ -23,8 +23,9 @@ from typing import (
 
 from .ansi import Ansi, RawAnsi
 from .color import Color, theme # pyright: ignore [reportMissingModuleSource]
-from .color.style import ( # pyright: ignore [reportMissingModuleSource]
-    AnsiColor, Colorant, EmbeddedRgb, Fidelity, GrayGradient, Layer, Style, TrueColor
+from .color.style import (Fidelity, Layer, Style) # pyright: ignore [reportMissingModuleSource]
+from .color.termco import ( # pyright: ignore [reportMissingModuleSource]
+    AnsiColor, Colorant, EmbeddedRgb, GrayGradient, Rgb
 )
 from .theme import new_theme, current_translator
 from .ident import identify_terminal, normalize_terminal_name
@@ -1225,13 +1226,13 @@ class Terminal:
     @overload
     def fg(
         self,
-        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        color: int | AnsiColor | EmbeddedRgb | GrayGradient | Rgb | Color | Colorant,
         /
     ) -> Self:
         ...
     def fg(
         self,
-        c1: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        c1: int | AnsiColor | EmbeddedRgb | GrayGradient | Rgb | Color | Colorant,
         c2: None | int = None,
         c3: None | int = None,
     ) -> Self:
@@ -1242,16 +1243,14 @@ class Terminal:
                 c1 = Colorant.of(c1)
             else:
                 assert c3 is not None
-                c1 = Colorant.of(TrueColor(c1, c2, c3))
+                c1 = Colorant.of(Rgb(c1, c2, c3))
         elif isinstance(c1, Color):
             c1 = Colorant.of(c1)
 
         translator = current_translator()
         color = translator.cap(c1, self._fidelity)
         if color is not None:
-            params = color.sgr_parameters(Layer.Foreground)
-            if params is not None:
-                self.write_control(Ansi.CSI, *params, 'm')
+            self.write_control(color.display(Layer.Foreground))
         return self
 
     @overload
@@ -1266,13 +1265,13 @@ class Terminal:
     @overload
     def bg(
         self,
-        color: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        color: int | AnsiColor | EmbeddedRgb | GrayGradient | Rgb | Color | Colorant,
         /
     ) -> Self:
         ...
     def bg(
         self,
-        c1: int | AnsiColor | EmbeddedRgb | GrayGradient | TrueColor | Color | Colorant,
+        c1: int | AnsiColor | EmbeddedRgb | GrayGradient | Rgb | Color | Colorant,
         c2: None | int = None,
         c3: None | int = None,
     ) -> Self:
@@ -1283,16 +1282,14 @@ class Terminal:
                 c1 = Colorant.of(c1)
             else:
                 assert c3 is not None
-                c1 = Colorant.of(TrueColor(c1, c2, c3))
+                c1 = Colorant.of(Rgb(c1, c2, c3))
         elif isinstance(c1, Color):
             c1 = Colorant.of(c1)
 
         translator = current_translator()
         color = translator.cap(c1, self._fidelity)
         if color is not None:
-            params = color.sgr_parameters(Layer.Background)
-            if params is not None:
-                self.write_control(Ansi.CSI, *params, 'm')
+            self.write_control(color.display(Layer.Background))
         return self
 
 

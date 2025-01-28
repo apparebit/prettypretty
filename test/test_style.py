@@ -1,28 +1,38 @@
 import unittest
 
-from prettypretty.color.style.format import ( # pyright: ignore [reportMissingModuleSource]
-    Attribute, Format
+from prettypretty.color.style import ( # pyright: ignore [reportMissingModuleSource]
+    Attribute, Format, FormatUpdate
 )
 
 class TestStyle(unittest.TestCase):
 
     def test_format(self) -> None:
-        format = Format()
-        attributes = [*format.attributes()]
+        format = FormatUpdate.of(Format())
+        attributes = [*format.disable().attributes()]
+        self.assertListEqual(attributes, [])
+        attributes = [*format.enable().attributes()]
         self.assertListEqual(attributes, [])
 
-        format = format.bold()
-        attributes = [*format.attributes()]
+        format = FormatUpdate.of(Attribute.Bold)
+        attributes = [*format.disable().attributes()]
+        self.assertListEqual(attributes, [])
+        attributes = [*format.enable().attributes()]
         self.assertListEqual(attributes, [Attribute.Bold])
 
-        format = format.underlined()
-        attributes = [*format.attributes()]
+        format = format + Attribute.Underlined
+        attributes = [*format.disable().attributes()]
+        self.assertListEqual(attributes, [])
+        attributes = [*format.enable().attributes()]
         self.assertListEqual(attributes, [Attribute.Bold, Attribute.Underlined])
 
         format = -format
-        attributes = [*format.attributes()]
-        self.assertListEqual(attributes, [Attribute.NotBoldOrThin, Attribute.NotUnderlined])
+        attributes = [*format.disable().attributes()]
+        self.assertListEqual(attributes, [Attribute.Bold, Attribute.Underlined])
+        attributes = [*format.enable().attributes()]
+        self.assertListEqual(attributes, [])
 
-        format = format.thin()
-        attributes = [*format.attributes()]
-        self.assertListEqual(attributes, [Attribute.NotUnderlined, Attribute.Thin])
+        format = format + Attribute.Thin
+        attributes = [*format.disable().attributes()]
+        self.assertListEqual(attributes, [Attribute.Underlined])
+        attributes = [*format.enable().attributes()]
+        self.assertListEqual(attributes, [Attribute.Thin])

@@ -8,9 +8,8 @@ import math
 from typing import cast, Literal
 
 from .color import Color
-from .color.style import ( # pyright: ignore [reportMissingModuleSource]
-    AnsiColor, EmbeddedRgb, Fidelity, Layer, TrueColor
-)
+from .color.style import (Fidelity, Layer) # pyright: ignore [reportMissingModuleSource]
+from .color.termco import (AnsiColor, EmbeddedRgb, Rgb) # pyright: ignore [reportMissingModuleSource]
 from .color.theme import VGA_COLORS # pyright: ignore [reportMissingModuleSource]
 from .theme import current_translator
 from .terminal import Terminal
@@ -161,11 +160,11 @@ def write_color_cube(
         )
         return
 
-    theme_colors: list[TrueColor] = [
-        TrueColor.from_color(translator.resolve(i)) for i in range(16)
+    theme_colors: list[Rgb] = [
+        Rgb.from_color(translator.resolve(i)) for i in range(16)
     ]
 
-    def closest_theme_color(color: TrueColor) -> int:
+    def closest_theme_color(color: Rgb) -> int:
         min_distance = math.inf
         min_index = -1
 
@@ -212,7 +211,7 @@ def write_color_cube(
                     elif strategy == AnsiConversion.OklabDistance:
                         eight_bit = translator.to_closest_ansi(source).to_8bit()
                     elif strategy == AnsiConversion.RgbDistance:
-                        eight_bit = closest_theme_color(TrueColor(*embedded.to_24bit()))
+                        eight_bit = closest_theme_color(Rgb(*embedded.to_24bit()))
                     elif strategy == AnsiConversion.RgbRounding:
                         eight_bit = translator.to_ansi_rgb(source).to_8bit()
                     else:

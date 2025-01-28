@@ -16,10 +16,10 @@ dive on the progress bar script](../deepdive/progressbar.md) adds, ahem, depth.
 
 ## 1. Fluently Assembling Styles
 
-The first step is the fluent assembly of [`Style`] objects with [`stylist`]s,
-i.e., style builders. Each such style can optionally reset terminal appearance,
-may include a text [`Format`], a foreground color using any supported color
-format, and a background color using any supported color format.
+The first step is the fluent assembly of [`Style`] objects. Each such style may
+include a text [`Format`] (well, technically a [`FormatUpdate]), a foreground
+color using any supported color format, and a background color using any
+supported color format.
 
 The following example fluently assembles a style for bold black text on yellow
 background:
@@ -27,19 +27,19 @@ background:
 ```rust
 # extern crate prettypretty;
 # use prettypretty::{Color, ColorSpace};
-# use prettypretty::style::{stylist, Colorant, format::Format, TrueColor};
-let style = stylist()
+# use prettypretty::style::{Attribute, FormatUpdate, Style};
+# use prettypretty::termco::{Colorant, Rgb};
+let style = Style::default()
     .bold()
-    .foreground(Color::default())
-    .background(TrueColor::new(0xff, 0xe0, 0x6c))
-    .et_voila();
+    .with_foreground(Color::default())
+    .with_background(Rgb::new(0xff, 0xe0, 0x6c));
 
-assert_eq!(style.format(), Some(Format::new().bold()));
+assert_eq!(style.format(), FormatUpdate::from(Attribute::Bold));
 assert_eq!(style.foreground(),
     Some(Colorant::HiRes(Color::new(
         ColorSpace::Xyz, [0.0, 0.0, 0.0]))).as_ref());
 assert_eq!(style.background(),
-    Some(Colorant::Rgb(TrueColor::new(255, 224, 108))).as_ref());
+    Some(Colorant::Rgb(Rgb::new(255, 224, 108))).as_ref());
 ```
 <div class=color-swatch>
 <div style="background-color: color(xyz 0 0 0);"></div>
@@ -73,13 +73,13 @@ terminal that renders 8-bit colorts only.
 ```rust
 # extern crate prettypretty;
 # use prettypretty::{Color, OkVersion, Translator};
-# use prettypretty::style::{stylist, AnsiColor, Colorant, Fidelity, TrueColor};
+# use prettypretty::style::{Fidelity, Style};
+# use prettypretty::termco::{AnsiColor, Colorant, Rgb};
 # use prettypretty::theme::VGA_COLORS;
-# let style = stylist()
+# let style = Style::default()
 #     .bold()
-#     .foreground(Color::default())
-#     .background(TrueColor::new(0xff, 0xe0, 0x6c))
-#     .et_voila();
+#     .with_foreground(Color::default())
+#     .with_background(Rgb::new(0xff, 0xe0, 0x6c));
 let translator = Translator::new(
     OkVersion::Revised, VGA_COLORS.clone());
 let style = style.cap(Fidelity::Ansi, &translator);
@@ -108,13 +108,13 @@ package's name, `prettypretty`.
 ```rust
 # extern crate prettypretty;
 # use prettypretty::{Color, OkVersion, Translator};
-# use prettypretty::style::{stylist, AnsiColor, Colorant, Fidelity, TrueColor};
+# use prettypretty::style::{Fidelity, Style};
+# use prettypretty::termco::{AnsiColor, Colorant, Rgb};
 # use prettypretty::theme::VGA_COLORS;
-# let style = stylist()
+# let style = Style::default()
 #     .bold()
-#     .foreground(Color::default())
-#     .background(TrueColor::new(0xff, 0xe0, 0x6c))
-#     .et_voila();
+#     .with_foreground(Color::default())
+#     .with_background(Rgb::new(0xff, 0xe0, 0x6c));
 # let translator = Translator::new(
 #     OkVersion::Revised, VGA_COLORS.clone());
 # let style = style.cap(Fidelity::Ansi, &translator);

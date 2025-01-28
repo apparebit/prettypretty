@@ -282,21 +282,6 @@ impl<R: std::io::Read> Scanner<R> {
             }
         }
     }
-
-    /// Read the next token as a control sequence.
-    #[allow(dead_code)]
-    pub fn read_sequence(&mut self, control: Control) -> Result<&[u8], Error> {
-        match self.read_token()? {
-            Token::Sequence(actual, payload) => {
-                if actual == control {
-                    Ok(payload)
-                } else {
-                    Err(ErrorKind::BadControl.into())
-                }
-            }
-            _ => Err(ErrorKind::NotASequence.into()),
-        }
-    }
 }
 
 // ================================================================================================

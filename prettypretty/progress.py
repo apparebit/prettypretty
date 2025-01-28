@@ -4,9 +4,8 @@ import random
 import time
 
 from prettypretty.color import Color
-from prettypretty.color.style import ( # pyright: ignore [reportMissingModuleSource]
-    Colorant, stylist, Style
-)
+from prettypretty.color.style import Style # pyright: ignore [reportMissingModuleSource]
+from prettypretty.color.termco import (Colorant, Rgb) # pyright: ignore [reportMissingModuleSource]
 from prettypretty.terminal import Terminal
 from prettypretty.theme import current_translator
 
@@ -36,8 +35,8 @@ class ProgressBar:
     WIDTH = 100 // STEPS + (1 if 100 % STEPS != 0 else 0)
     assert WIDTH * STEPS >= 100  # Without the adjustment, this wouldn't hold
 
-    LIGHT_MODE_BAR = stylist().foreground(Color.p3(0.0, 1.0, 0.0)).et_voila()
-    DARK_MODE_BAR = stylist().rgb(3, 151, 49).fg().et_voila()
+    LIGHT_MODE_BAR = Style().with_foreground(Color.p3(0.0, 1.0, 0.0))
+    DARK_MODE_BAR = Style().with_foreground(Rgb(3, 151, 49))
 
     def __init__(self, term: Terminal) -> None:
         """Select light/dark mode style and adjust color."""

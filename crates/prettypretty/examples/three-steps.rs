@@ -1,6 +1,7 @@
 use std::io::Result;
 
-use prettypretty::style::{stylist, Fidelity};
+use prettypretty::style::{Fidelity, Style};
+use prettypretty::termco::Rgb;
 use prettypretty::theme::{Theme, VGA_COLORS};
 use prettypretty::{OkVersion, Translator};
 use prettytty::opt::Options;
@@ -8,12 +9,10 @@ use prettytty::Connection;
 
 fn main() -> Result<()> {
     // 1. Assemble your styles
-    let chic = stylist()
+    let chic = Style::default()
         .bold()
         .underlined()
-        .rgb(215, 40, 39)
-        .fg()
-        .et_voila();
+        .with_foreground(Rgb::new(215, 40, 39));
 
     // 2. Adjust your styles
     let options = Options::builder().timeout(10).build();

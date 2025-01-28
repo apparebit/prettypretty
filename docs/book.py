@@ -29,8 +29,7 @@ def test1() -> None:
         file=sys.stderr)
     
     from prettypretty.color import Color
-    from prettypretty.color.style import AnsiColor, Colorant, EmbeddedRgb, GrayGradient
-    from prettypretty.color.style import TrueColor
+    from prettypretty.color.termco import AnsiColor, Colorant, EmbeddedRgb, GrayGradient, Rgb
     red = AnsiColor.BrightRed
     assert red.to_8bit() == 9
     # What's the color value of ANSI red? We don't know!
@@ -39,8 +38,8 @@ def test1() -> None:
     index = 16 + 3 * 36 + 1 * 6 + 4 * 1
     assert index == 134
     assert purple.to_8bit() == index
-    true_purple = TrueColor(*purple.to_24bit())
-    assert true_purple == TrueColor(175, 95, 215)
+    true_purple = Rgb(*purple.to_24bit())
+    assert true_purple == Rgb(175, 95, 215)
     assert purple.to_color() == Color.from_24bit(175, 95, 215)
     
     gray = GrayGradient(18)
@@ -48,8 +47,8 @@ def test1() -> None:
     assert index == 250
     assert gray.level() == 18
     assert gray.to_8bit() == index
-    true_gray = TrueColor(*gray.to_24bit())
-    assert true_gray == TrueColor(188, 188, 188)
+    true_gray = Rgb(*gray.to_24bit())
+    assert true_gray == Rgb(188, 188, 188)
     assert gray.to_color() == Color.from_24bit(188, 188, 188)
     
     green = Colorant.of(71)
@@ -58,18 +57,18 @@ def test1() -> None:
     assert also_green[0] == 1
     assert also_green[1] == 3
     assert also_green[2] == 1
-    true_green = TrueColor(*green.try_to_24bit())
-    assert true_green == TrueColor(95, 175, 95)
+    true_green = Rgb(*green.try_to_24bit())
+    assert true_green == Rgb(95, 175, 95)
     assert also_green.to_color() == Color.from_24bit(95, 175, 95)
 
 
 def test2() -> None:
-    print('Testing file "docs/src/colors/integration.md", line 215, chapter "Accommodating All Colors"',
+    print('Testing file "docs/src/colors/integration.md", line 216, chapter "Accommodating All Colors"',
         file=sys.stderr)
     
     from prettypretty.color import Color, OkVersion, Translator
-    from prettypretty.color.style import AnsiColor, Colorant, EmbeddedRgb
-    from prettypretty.color.style import Fidelity, TrueColor
+    from prettypretty.color.style import Fidelity
+    from prettypretty.color.termco import AnsiColor, Colorant, EmbeddedRgb, Rgb
     from prettypretty.color.theme import ThemeEntry, VGA_COLORS
     red = VGA_COLORS[ThemeEntry.Ansi(AnsiColor.BrightRed)]
     assert red == Color.srgb(1.0, 0.333333333333333, 0.333333333333333)
@@ -81,7 +80,7 @@ def test2() -> None:
     black = translator.to_ansi(Color.srgb(0.15, 0.15, 0.15))
     assert black == AnsiColor.Black
     
-    maroon = translator.cap(TrueColor(148, 23, 81), Fidelity.EightBit)
+    maroon = translator.cap(Rgb(148, 23, 81), Fidelity.EightBit)
     assert maroon == Colorant.Embedded(EmbeddedRgb(2, 0, 1))
 
 

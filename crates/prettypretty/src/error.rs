@@ -8,11 +8,11 @@ use pyo3::{exceptions::PyValueError, prelude::*};
 /// This error indicates an index value that is out of bounds for some range.
 /// The ranges used by this crate include:
 ///
-///   * `0..=5` for coordinates of [`EmbeddedRgb`](crate::style::EmbeddedRgb);
-///   * `0..=15` for index values of [`AnsiColor`](crate::style::AnsiColor);
-///   * `0..=23` for the gay levels of [`GrayGradient`](crate::style::GrayGradient);
-///   * `16..=231` for index values of [`EmbeddedRgb`](crate::style::EmbeddedRgb);
-///   * `232..=255` for index values of [`GrayGradient`](crate::style::GrayGradient).
+///   * `0..=5` for coordinates of [`EmbeddedRgb`](crate::termco::EmbeddedRgb);
+///   * `0..=15` for index values of [`AnsiColor`](crate::termco::AnsiColor);
+///   * `0..=23` for the gay levels of [`GrayGradient`](crate::termco::GrayGradient);
+///   * `16..=231` for index values of [`EmbeddedRgb`](crate::termco::EmbeddedRgb);
+///   * `232..=255` for index values of [`GrayGradient`](crate::termco::GrayGradient).
 ///
 #[derive(Clone, Debug)]
 pub struct OutOfBoundsError {
@@ -157,6 +157,31 @@ impl std::error::Error for ColorFormatError {}
 #[cfg(feature = "pyffi")]
 impl From<ColorFormatError> for PyErr {
     fn from(value: ColorFormatError) -> Self {
+        PyValueError::new_err(value.to_string())
+    }
+}
+
+// ====================================================================================================================
+
+/// An error indicating a colorant wrapping a high-resolution color.
+///
+/// No standard exists for displaying high-resolution colors in terminals. Hence
+/// colorants wrapping high-resolution colors cannot be displayed as ANSI escape
+/// sequences.
+#[derive(Clone, Copy, Debug)]
+pub struct HiResColorantError;
+
+impl std::fmt::Display for HiResColorantError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("unable to format high-resolution colorant as ANSI escape sequence")
+    }
+}
+
+impl std::error::Error for HiResColorantError {}
+
+#[cfg(feature = "pyffi")]
+impl From<HiResColorantError> for PyErr {
+    fn from(value: HiResColorantError) -> Self {
         PyValueError::new_err(value.to_string())
     }
 }

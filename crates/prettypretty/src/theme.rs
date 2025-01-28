@@ -3,7 +3,8 @@
 use pyo3::prelude::*;
 
 use crate::error::OutOfBoundsError;
-use crate::style::{AnsiColor, Layer};
+use crate::style::Layer;
+use crate::termco::AnsiColor;
 use crate::{rgb, Color};
 
 #[cfg(feature = "tty")]
@@ -509,7 +510,7 @@ pub const VGA_COLORS: Theme = Theme::with_array([
 #[cfg(test)]
 mod test {
     use super::ThemeEntry;
-    use crate::style::AnsiColor;
+    use crate::termco::AnsiColor;
 
     #[test]
     fn test_theme_entry() {

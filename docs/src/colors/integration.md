@@ -21,14 +21,14 @@ Despite these substantial differences, many terminal color representations can
 at least be partially and losslessly converted into a few other color
 representations. For example, with exception of the ANSI colors, 8-bit colors,
 as represented by [`EmbeddedRgb`] and [`GrayGradient`], have well-defined
-formulas for converting to index values, i.e., `u8`, as well as 24-bit color,
-i.e., [`TrueColor`]. True colors, in turn, are easily convertible to
-high-resolution [`Color`]. Meanwhile, [`AnsiColor`], [`Color`], [`EmbeddedRgb`],
-[`GrayGradient`], and [`TrueColor`] are all trivially convertible to
-[`Colorant`]. But that's also `Colorant`'s very purpose as unifying wrapper
-type. Prettypretty accommodates these conversions with `From<T>` and
-`TryFrom<T>` traits in Rust and static methods in Python. Alas, those can't help
-translate default and ANSI colors.
+formulas for converting to index values, i.e., `u8`, as well as to 24-bit RGB
+colors, i.e., [`Rgb`]. The latter, also called "true" colors, are easily
+convertible to high-resolution [`Color`]. Meanwhile, [`AnsiColor`], [`Color`],
+[`EmbeddedRgb`], [`GrayGradient`], and [`Rgb`] are all trivially
+convertible to [`Colorant`]. But that's also `Colorant`'s very purpose as
+unifying wrapper type. Prettypretty accommodates these conversions with
+`From<T>` and `TryFrom<T>` traits in Rust and static methods in Python. Alas,
+those can't help translate default and ANSI colors.
 
 
 ## Translation Is Necessarily Stateful
@@ -97,7 +97,7 @@ time*. But because there are so few candidates, the closest matching color may
 just violate basic human expectations about what is a match, e.g., that warm
 tones remain warm, cold tones remain cold, light tones remain light, dark tones
 remain dark, and last but not least color remains color.
-[`Translator::to_closest_ansi`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.to_closest_ansi)'s
+[`Translator::to_closest_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_closest_ansi)'s
 documentation provides an example that violates the latter expectation, with a
 light orange tone turning into a light gray. That is jarring, especially in
 context of other colors that are *not* mapped to gray.
@@ -107,13 +107,13 @@ leverages not only uses color pragmatics, i.e., the coordinates of theme colors,
 but also color semantics, i.e., their intended appearance. In other words, the
 algorithm leverages the very fact that ANSI colors are abstract colors to
 improve the quality of matches. As implemented by
-[`Translator::to_ansi_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.to_ansi_hue_lightness),
+[`Translator::to_ansi_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_ansi_hue_lightness),
 the algorithm first uses hue in Oklrch to find a pair of regular and bright
 colors and second uses lightness to pick the closer one. In my evaluation so
 far, it is indeed more robust than brute force search. But it also won't work if
 the theme colors themselves are inconsistent with theme semantics. Since that
 can be automatically checked,
-[`Translator::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.to_ansi)
+[`Translator::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_ansi)
 transparently picks the best possible method.
 
 
@@ -122,49 +122,49 @@ transparently picks the best possible method.
 Now that we understand the challenges and the algorithms for overcoming them, we
 turn to [`Translator`]'s interface. We group its method by task:
 
- 1. [`Translator::resolve`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.resolve)
+ 1. [`Translator::resolve`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.resolve)
     and
-    [`Translator::resolve_all`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.resolve_all)
+    [`Translator::resolve_all`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.resolve_all)
     translate any color to a high-resolution color. Thanks to the
     `Into<Colorant>` trait and a custom PyO3 conversion function, both Rust and
     Python can invoke either method with an instance of `u8`/`int`,
     [`AnsiColor`], [`Color`], [`Colorant`], [`EmbeddedRgb`], [`GrayGradient`],
-    or [`TrueColor`]. The difference between the two methods is that `resolve`
+    or [`Rgb`]. The difference between the two methods is that `resolve`
     panics when invoked on a `Colorant::Default`, whereas `resolve_all` does not
     but also requires a second [`Layer`] argument.
- 2. [`Translator::to_closest_8bit`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.to_closest_8bit)
+ 2. [`Translator::to_closest_8bit`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_closest_8bit)
     and
-    [`Translator::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.to_ansi)
+    [`Translator::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_ansi)
     translate high-resolution colors to low-resolution terminal colors.
     Prettypretty does not support conversion to the default colors and
     high-resolution colors can be directly converted to true colors, without
     requiring mediation through [`Translator`].
 
     The
-    [`Translator::supports_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.supports_hue_lightness),
-    [`Translator::to_ansi_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.to_ansi_hue_lightness),
-    [`Translator::to_closest_ansi`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.to_closest_ansi),
+    [`Translator::supports_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.supports_hue_lightness),
+    [`Translator::to_ansi_hue_lightness`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_ansi_hue_lightness),
+    [`Translator::to_closest_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_closest_ansi),
     and
-    [`Translator::to_ansi_rgb`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.to_ansi_rgb)
+    [`Translator::to_ansi_rgb`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_ansi_rgb)
     methods provide direct access to individual algorithms for converting to
     ANSI colors. For instance, I use these methods for comparing the
     effectiveness of different approaches. But your code is probably better off
     using
-    [`Translator::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.to_ansi),
+    [`Translator::to_ansi`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.to_ansi),
     which automatically picks `to_ansi_hue_lightness` or `to_closest_ansi`. In
     any case, I strongly recommend avoiding `to_ansi_rgb`. It only exists to
     evaluate the approach taken by the popular JavaScript library
     [Chalk](https://github.com/chalk/chalk) and reliably produces subpar
     results. Ironically, Chalk's tagline is "Terminal string styling done
     right."
- 3. [`Translator::cap`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.cap)
+ 3. [`Translator::cap`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.cap)
     tanslates reduces the resolution of colors. Like `resolve` and
     `resolve_all`, this method can be invoked on arbitrary colors. Under the
     hood, it may very well translate terminal colors to high-resolution colors
     only to translate them to terminal colors again. Use this method to adjust
     terminal colors to the runtime environment and user preferences, which can
     be concisely expressed by a [`Fidelity`] level.
- 4. [`Translator::is_dark_theme`](https://apparebit.github.io/prettypretty/prettypretty/trans/struct.Translator.html#method.is_dark_theme) determines whether the color theme used by this
+ 4. [`Translator::is_dark_theme`](https://apparebit.github.io/prettypretty/prettypretty/struct.Translator.html#method.is_dark_theme) determines whether the color theme used by this
     translator instance is a dark theme.
 
 
@@ -184,7 +184,8 @@ The example code below illustrates the use of each major entry point besides
 ```rust
 # extern crate prettypretty;
 # use prettypretty::{Color, OkVersion, Translator};
-# use prettypretty::style::{AnsiColor, EmbeddedRgb, Fidelity, TrueColor};
+# use prettypretty::style::Fidelity;
+# use prettypretty::termco::{AnsiColor, EmbeddedRgb, Rgb};
 # use prettypretty::theme::VGA_COLORS;
 # use prettypretty::error::ColorFormatError;
 # use std::str::FromStr;
@@ -198,7 +199,7 @@ assert_eq!(red, also_red);
 let black = translator.to_ansi(&Color::srgb(0.15, 0.15, 0.15));
 assert_eq!(black, AnsiColor::Black);
 
-let maroon = translator.cap(TrueColor::new(148, 23, 81), Fidelity::EightBit);
+let maroon = translator.cap(Rgb::new(148, 23, 81), Fidelity::EightBit);
 assert_eq!(maroon, Some(EmbeddedRgb::new(2,0,1).unwrap().into()));
 # Ok::<(), ColorFormatError>(())
 ```
@@ -214,8 +215,8 @@ The Python version is a close match:
 
 ```python
 ~from prettypretty.color import Color, OkVersion, Translator
-~from prettypretty.color.style import AnsiColor, Colorant, EmbeddedRgb
-~from prettypretty.color.style import Fidelity, TrueColor
+~from prettypretty.color.style import Fidelity
+~from prettypretty.color.termco import AnsiColor, Colorant, EmbeddedRgb, Rgb
 ~from prettypretty.color.theme import ThemeEntry, VGA_COLORS
 red = VGA_COLORS[ThemeEntry.Ansi(AnsiColor.BrightRed)]
 assert red == Color.srgb(1.0, 0.333333333333333, 0.333333333333333)
@@ -227,7 +228,7 @@ assert red == also_red
 black = translator.to_ansi(Color.srgb(0.15, 0.15, 0.15))
 assert black == AnsiColor.Black
 
-maroon = translator.cap(TrueColor(148, 23, 81), Fidelity.EightBit)
+maroon = translator.cap(Rgb(148, 23, 81), Fidelity.EightBit)
 assert maroon == Colorant.Embedded(EmbeddedRgb(2, 0, 1))
 ```
 <div class=color-swatch>
