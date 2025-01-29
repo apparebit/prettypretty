@@ -1,31 +1,50 @@
 //! Terminal-specific text fromatting and styles.
 //!
-//! This module supports styling terminal appearance with ANSI SGR escape
-//! sequences through [`Style`]s, which combine an optional [`FormatUpdate`]
-//! with an optional foreground [`Colorant`](crate::termco::Colorant) and an
-//! optional background [`Colorant`](crate::termco::Colorant).
 //!
-//! It also defines [`Layer`] to distinguish between foreground and background
-//! colors as well as [`Fidelity`] to capture a terminal's level of color
-//! support.
+//! # I. Overview
+//!
+//! **`Style`**: This module supports styling terminal appearance with ANSI SGR
+//! escape sequences through [`Style`], which combine an optional
+//! [`FormatUpdate`] with an optional foreground
+//! [`Colorant`](crate::termco::Colorant) and an optional background
+//! [`Colorant`](crate::termco::Colorant).
+//!
+//! **`Fidelity`** and **`Layer`**: It also defines [`Layer`] to distinguish between
+//! foreground and background colors as well as [`Fidelity`] to capture a
+//! terminal's level of color support.
+//!
+//! **`Attribute`**, **`Format`**, and **`FormatUpdate`**: A [`FormatUpdate`]
+//! comprises a disabling [`Format`] and an enabling [`Format`]. Each
+//! [`Format`], in turn, comprises zero or more text [`Attribute`]s representing
+//! formatting other than the default. All three types support addition,
+//! negation, and subtraction:
+//!
+//!   * Addition combines text attributes.
+//!   * Negation restores the default appearance again.
+//!   * Subtraction determines minimal differences.
+//!
+//! Modelling format updates as disabling and enabling formats eliminates the
+//! need for defining additional attributes that undo formatting and simplifies
+//! the implementation of negation and subtraction.
 //!
 //!
-//! # The One-Two-Three of Styles
+//! # II. The One-Two-Three of Styles
 //!
-//! The three steps for using styles are:
+//! Using prettypretty's styles requires three steps:
 //!
-//!  1. Fluently assemble a style by modifying the empty [`Style::default`].
-//!  2. Adjust the style to the terminal's fidelity level with [`Style::cap`],
-//!     which can translate even high-resolution colors to ANSI colors.
-//!  3. Apply the style by writing it to the terminal and restore default
+//!  1. **Assemble a style** by modifying the empty [`Style::default`].
+//!  2. **Adjust the style** to the terminal's fidelity level with
+//!     [`Style::cap`], which can translate even high-resolution colors to ANSI
+//!     colors.
+//!  3. **Apply the style** by writing it to the terminal and restore default
 //!     appearance again by writing its negation.
 //!
 //! The examples cover the same three steps.
 //!
 //!
-//! # Examples
+//! # III. Examples
 //!
-//! ## Fluently Assemble Style
+//! ## 1. Fluently Assemble Style
 //!
 //! Fluently assemble a style for bold, underlined red text:
 //! ```
@@ -56,7 +75,7 @@
 //! invocation wins.
 //!
 //!
-//! ## Adjust Style to Terminal
+//! ## 2. Adjust Style to Terminal and User Preferences
 //!
 //! Prepare the style from the previous example for use in a terminal that
 //! supports only ANSI colors:
@@ -85,7 +104,7 @@
 //! <br>
 //!
 //!
-//! ## Apply Style to Text
+//! ## 3. Apply Style to Text
 //!
 //! Apply the adjusted style from the previous example to `Wow!`, while also
 //! restoring terminal appearance again:
@@ -105,8 +124,12 @@
 //!
 //! assert_eq!(s, "\x1b[1;4;31mWow!\x1b[22;24;39m");
 //! ```
-//! <img src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
-//!      alt="wow!" width="77">
+//! The terminal is impressed and exclaims:
+//! <img style="display: inline-block; vertical-align: top"
+//!     src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
+//!     alt="wow!" width="44">
+//!
+//! <hr>
 
 mod context;
 mod format;

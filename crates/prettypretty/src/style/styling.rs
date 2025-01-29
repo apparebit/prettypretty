@@ -24,7 +24,7 @@ pub struct Style {
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl Style {
-    /// Credate a new empty style.
+    /// Credate a new empty style. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[new]
     pub fn py_new() -> Self {
@@ -176,19 +176,21 @@ impl Style {
         self.background().cloned()
     }
 
-    /// Negate this style.
+    /// Negate this style. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __neg__(&self) -> Self {
         -self
     }
 
-    /// Get this style's debug representation.
+    /// Get this style's debug representation. <i class=python-only>Python
+    /// only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
     }
 
-    /// Get this style's string representation.
+    /// Get this style's string representation. <i class=python-only>Python
+    /// only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __str__(&self) -> String {
         format!("{}", self)

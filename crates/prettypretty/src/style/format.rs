@@ -118,7 +118,7 @@ impl Attribute {
 
 // ----------------------------------------------------------------------------------------------------------
 
-/// A text format combining zero or more format attributes.
+/// A text format combining zero or more text attributes.
 ///
 /// There are two fundamentally different representations of a terminal's text
 /// formatting. The first representation captures the *formatting state*, i.e.,
@@ -169,14 +169,15 @@ impl Format {
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl Format {
-    /// Get the empty, default format.
+    /// Get the empty, default format. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[new]
     pub fn py_new() -> Self {
         Self::default()
     }
 
-    /// Create a new format from the formatting entity.
+    /// Create a new format from the formatting entity. <i
+    /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[pyo3(name = "of")]
     #[staticmethod]
@@ -245,6 +246,8 @@ impl Format {
         -(*self)
     }
 
+    /// Generate a debug representation for this text format. <i
+    /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
         format!("{:?}", self)
@@ -363,14 +366,15 @@ impl FormatUpdate {
 
 #[cfg_attr(feature = "pyffi", pymethods)]
 impl FormatUpdate {
-    /// Create a new empty format update.
+    /// Create a new empty format update. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[new]
     pub fn py_new() -> Self {
         Self::default()
     }
 
-    /// Create a new format update from the formatting entity.
+    /// Create a new format update from the formatting entity. <i
+    /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[pyo3(name = "of")]
     #[staticmethod]

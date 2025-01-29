@@ -29,7 +29,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! package](https://pypi.org/project/prettypretty/).
 //!
 //!
-//! ## Overview
+//! ## 1. Overview
 //!
 //! Prettypretty's main abstractions are:
 //!
@@ -73,12 +73,12 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //!     color visualizations.
 //!
 //!
-//! ## One-Two-Three: Styles!
+//! ## 2. One-Two-Three: Styles!
 //!
 //! Prettypretty's three-step workflow for awesome terminal styles works like
 //! this.
 //!
-//! ### 1. Assemble Your Styles
+//! ### i. Assemble Your Styles
 //!
 //! First, assemble your application's styles by modifying the empty
 //! [`Style::default()`](style::Style::default).
@@ -106,7 +106,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! high-resolution [`Color`].
 //!
 //!
-//! ### 2. Adjust Your Styles
+//! ### ii. Adjust Your Styles
 //!
 //! Second, determine the terminal's current color theme with
 //! [`Theme::query`](theme::Theme::query) and its color support with
@@ -167,7 +167,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # }
 //! ```
 //!
-//! ### 3. Apply Your Styles
+//! ### iii. Apply Your Styles
 //!
 //! Third, to apply a style, just write its display. To undo the style again,
 //! just write the negation's display.
@@ -198,34 +198,34 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # Ok(())
 //! # }
 //! ```
-//! And the terminal exclaims:<br>
-//! <img style="margin-left: 2em;"
+//! And the terminal exclaims:
+//! <img style="display: inline-block; vertical-align: top"
 //! src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
-//!      alt="wow!" width="77">
+//!      alt="wow!" width="44"> 🎉
 //!
 //!
-//! ## Feature Flags
+//! ## 3. Optional Features
 //!
-//! Prettypretty has four feature flags:
+//! Prettypretty supports four feature flags:
 //!
-//!   - `f64` selects the eponymous type as floating point type [`Float`] and
-//!     `u64` as [`Bits`] instead of `f32` as [`Float`] and `u32` as [`Bits`].
-//!     This feature is enabled by default.
-//!   - `tty` controls [`Theme::query`](theme::Theme::query) and its
+//!   - **`f64`** selects the eponymous type as floating point type [`Float`]
+//!     and `u64` as [`Bits`] instead of `f32` as [`Float`] and `u32` as
+//!     [`Bits`]. This feature is enabled by default.
+//!   - **`tty`** controls [`Theme::query`](theme::Theme::query) and its
 //!     implementation with the [prettytty](https://crates.io/crates/prettytty)
-//!     terminal library. This feature is enabled by default.
-//!   - `gamut` controls support for tracing the boundaries of color spaces
+//!     terminal crate. This feature is enabled by default.
+//!   - **`gamut`** controls support for tracing the boundaries of color spaces
 //!     (`mod gamut`, `ColorSpace::gamut`) and the human visual gamut (`mod
 //!     spectrum`). This feature is disabled by default.
-//!   - `pyffi` controls prettypretty's Python integration through
+//!   - **`pyffi`** controls prettypretty's Python integration through
 //!     [PyO3](https://pyo3.rs/). This feature is disabled by default.
 //!
-//! Prettypretty's Python extension module is best built with
-//! [Maturin](https://www.maturin.rs), PyO3's dedicated build tool. It requires
-//! the `pyffi` feature. Since Python packages typically come with "batteries
-//! included," the `gamut` feature is also enabled when building the Python
-//! extension module. However, the `tty` feature is disabled, and prettypretty's
-//! Python package includes its own terminal abstraction.
+//! Prettypretty's Python extension module is built with
+//! [Maturin](https://www.maturin.rs), PyO3's dedicated build tool. Since Python
+//! packages typically come with "batteries included," the `gamut` feature is
+//! also enabled when building the Python extension module. However, the `tty`
+//! feature is disabled, and prettypretty's Python package includes its own
+//! terminal abstraction.
 //!
 //! Throughout the API documentation, items that are only available in Rust are
 //! decorated with <i class=rust-only>Rust only!</i>.
@@ -239,7 +239,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! feature are decorated with <i class=gamut-only>Gamut only!</i>.
 //!
 //!
-//! ## Acknowledgements
+//! ## 4. Acknowledgements
 //!
 //! Implementing prettypretty's color support was a breeze. In part, that was
 //! because I had been toying with different approaches to terminal styling for
