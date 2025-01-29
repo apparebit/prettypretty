@@ -2,7 +2,8 @@ use std::io::{Result, Write};
 use std::thread;
 use std::time::Duration;
 
-use rand::{rngs::ThreadRng, thread_rng};
+use rand;
+use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, Normal, Uniform};
 
 use prettytty::cmd::{
@@ -32,7 +33,7 @@ impl ProgressReporter {
     pub fn new() -> Self {
         Self {
             normal: Normal::new(1.0, 2.0 / 3.0).unwrap(),
-            rng: thread_rng(),
+            rng: rand::rng(),
             status: 0.0,
             done: false,
         }
@@ -106,8 +107,9 @@ impl std::fmt::Display for Renderer {
 /// Animate a progress bar's progress from 0 to 100 percent.
 pub fn animate(tty: &Connection) -> Result<()> {
     // Nap time is between 1/60 and 1/10 seconds
-    let uniform = Uniform::new_inclusive(16, 100);
-    let mut rng = thread_rng();
+    let uniform = Uniform::new_inclusive(16, 100)
+        .map_err(|e| std::io::Error::other(e))?;
+    let mut rng = rand::rng();
 
     let mut output = tty.output();
     for progress in ProgressReporter::new() {
