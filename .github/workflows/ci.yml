@@ -143,7 +143,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --manifest-path crates/prettypretty/Cargo.toml
+          args: --release --out dist
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -178,7 +178,6 @@ jobs:
           args: >
             --release --out dist
             --no-default-features --features f64,gamut,pyffi
-            --manifest-path crates/prettypretty/Cargo.toml
           sccache: 'true'
           manylinux: musllinux_1_2
       - name: Upload wheels
@@ -210,7 +209,6 @@ jobs:
           args: >
             --release --out dist
             --no-default-features --features f64,gamut,pyffi
-            --manifest-path crates/prettypretty/Cargo.toml
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -240,7 +238,6 @@ jobs:
           args: >
             --release --out dist
             --no-default-features --features f64,gamut,pyffi
-            --manifest-path crates/prettypretty/Cargo.toml
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -257,7 +254,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out dist --manifest-path crates/prettypretty/Cargo.toml
+          args: --out dist
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
