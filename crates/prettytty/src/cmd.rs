@@ -107,16 +107,16 @@ macro_rules! declare_n_struct {
 
 macro_rules! implement_sgr_expr {
     ($name:ident { $repr:expr }) => {
-        impl crate::cmd::Command for $name {}
+        impl $crate::Command for $name {}
 
-        impl crate::cmd::Sgr for $name {
+        impl $crate::Sgr for $name {
             #[inline]
             fn write_param(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.write_str($repr)
             }
         }
 
-        impl std::fmt::Display for $name {
+        impl ::std::fmt::Display for $name {
             #[inline]
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.write_str(concat!("\x1b[", $repr, "m"))
@@ -127,18 +127,18 @@ macro_rules! implement_sgr_expr {
 
 macro_rules! implement_sgr {
     ($name:ident $(< $( $arg:ident : $typ:ty ),+ >)? : $selfish:ident ; $output:ident $body:block) => {
-        impl $(< $(const $arg: $typ),+ >)? crate::cmd::Command for $name $(< $($arg),+ >)? {}
+        impl $(< $(const $arg: $typ),+ >)? $crate::Command for $name $(< $($arg),+ >)? {}
 
-        impl $(< $(const $arg: $typ),+ >)? crate::cmd::Sgr for $name $(< $($arg),+ >)? {
+        impl $(< $(const $arg: $typ),+ >)? $crate::Sgr for $name $(< $($arg),+ >)? {
             #[inline]
-            fn write_param(&$selfish, $output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn write_param(&$selfish, $output: &mut ::std::fmt::Formatter<'_>) -> std::fmt::Result {
                 $body
             }
         }
 
-        impl $(< $(const $arg: $typ),+ >)?  std::fmt::Display for $name $(< $($arg),+ >)? {
+        impl $(< $(const $arg: $typ),+ >)?  ::std::fmt::Display for $name $(< $($arg),+ >)? {
             #[inline]
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                 f.write_str("\x1b[")?;
                 self.write_param(f)?;
                 f.write_str("m")
@@ -149,11 +149,11 @@ macro_rules! implement_sgr {
 
 macro_rules! implement_command {
     ($name:ident $(< $( $arg:ident : $typ:ty ),+ >)? : $selfish:ident ; $output:ident $body:block) => {
-        impl $(< $(const $arg: $typ),+ >)? crate::cmd::Command for $name $(< $($arg),+ >)? {}
+        impl $(< $(const $arg: $typ),+ >)? $crate::Command for $name $(< $($arg),+ >)? {}
 
-        impl $(< $(const $arg: $typ),+ >)? std::fmt::Display for $name $(< $($arg),+ >)? {
+        impl $(< $(const $arg: $typ),+ >)? ::std::fmt::Display for $name $(< $($arg),+ >)? {
             #[inline]
-            fn fmt(&$selfish, $output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&$selfish, $output: &mut ::std::fmt::Formatter<'_>) -> std::fmt::Result {
                 $body
             }
         }
@@ -179,13 +179,13 @@ macro_rules! define_8bit_color {
         declare_n_struct!($name<COLOR: u8>);
         implement_sgr!($name<COLOR: u8>: self; f {
             f.write_str($prefix)?;
-            <_ as std::fmt::Display>::fmt(&COLOR, f)
+            <_ as ::std::fmt::Display>::fmt(&COLOR, f)
         });
 
         declare_n_struct!($dyn_name(COLOR: u8));
         implement_sgr!($dyn_name: self; f {
             f.write_str($prefix)?;
-            <_ as std::fmt::Display>::fmt(&self.0, f)
+            <_ as ::std::fmt::Display>::fmt(&self.0, f)
         });
     }
 }
@@ -195,21 +195,21 @@ macro_rules! define_24bit_color {
         declare_n_struct!($name<R: u8, G: u8, B: u8>);
         implement_sgr!($name<R: u8, G: u8, B: u8>: self; f {
             f.write_str($prefix)?;
-            <_ as std::fmt::Display>::fmt(&R, f)?;
+            <_ as ::std::fmt::Display>::fmt(&R, f)?;
             f.write_str(";")?;
-            <_ as std::fmt::Display>::fmt(&G, f)?;
+            <_ as ::std::fmt::Display>::fmt(&G, f)?;
             f.write_str(";")?;
-            <_ as std::fmt::Display>::fmt(&B, f)
+            <_ as ::std::fmt::Display>::fmt(&B, f)
         });
 
         declare_n_struct!($dyn_name(R: u8, G: u8, B: u8));
         implement_sgr!($dyn_name: self; f {
             f.write_str($prefix)?;
-            <_ as std::fmt::Display>::fmt(&self.0, f)?;
+            <_ as ::std::fmt::Display>::fmt(&self.0, f)?;
             f.write_str(";")?;
-            <_ as std::fmt::Display>::fmt(&self.1, f)?;
+            <_ as ::std::fmt::Display>::fmt(&self.1, f)?;
             f.write_str(";")?;
-            <_ as std::fmt::Display>::fmt(&self.2, f)
+            <_ as ::std::fmt::Display>::fmt(&self.2, f)
         });
     }
 }
@@ -219,14 +219,14 @@ macro_rules! define_cmd_1 {
         declare_n_struct!($name<$arg : $typ>);
         implement_command!($name<$arg : $typ>: self; f {
             f.write_str($prefix)?;
-            <_ as std::fmt::Display>::fmt(&$arg, f)?;
+            <_ as ::std::fmt::Display>::fmt(&$arg, f)?;
             f.write_str($suffix)
         });
 
         declare_n_struct!($dyn_name($arg : $typ));
         implement_command!($dyn_name: self; f {
             f.write_str($prefix)?;
-            <_ as std::fmt::Display>::fmt(&self.0, f)?;
+            <_ as ::std::fmt::Display>::fmt(&self.0, f)?;
             f.write_str($suffix)
         });
     }
@@ -338,16 +338,14 @@ define_cmd_1!(MoveLeft<COLUMNS: u16>, DynMoveLeft, "\x1b[", "C");
 define_cmd_1!(MoveRight<COLUMNS: u16>, DynMoveRight, "\x1b[", "D");
 
 declare_n_struct!(MoveTo<ROW: u16, COLUMN: u16>);
-
 impl<const ROW: u16, const COLUMN: u16> Command for MoveTo<ROW, COLUMN> {}
-
 impl<const ROW: u16, const COLUMN: u16> std::fmt::Display for MoveTo<ROW, COLUMN> {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         f.write_str("\x1b[")?;
-        <_ as std::fmt::Display>::fmt(&ROW, f)?;
+        <_ as ::std::fmt::Display>::fmt(&ROW, f)?;
         f.write_str(";")?;
-        <_ as std::fmt::Display>::fmt(&COLUMN, f)?;
+        <_ as ::std::fmt::Display>::fmt(&COLUMN, f)?;
         f.write_str("H")
     }
 }
@@ -356,9 +354,9 @@ declare_n_struct!(DynMoveTo(ROW: u16, COLUMN: u16));
 
 implement_command!(DynMoveTo: self; f {
     f.write_str("\x1b[")?;
-    <_ as std::fmt::Display>::fmt(&self.0, f)?;
+    <_ as ::std::fmt::Display>::fmt(&self.0, f)?;
     f.write_str(";")?;
-    <_ as std::fmt::Display>::fmt(&self.1, f)?;
+    <_ as ::std::fmt::Display>::fmt(&self.1, f)?;
     f.write_str("H")
 });
 

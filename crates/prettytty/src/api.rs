@@ -29,7 +29,7 @@ macro_rules! fuse {
 
         impl $crate::Command for Fused {}
         impl ::std::fmt::Display for Fused {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 $($command.fmt(f)?;)*
             }
         }

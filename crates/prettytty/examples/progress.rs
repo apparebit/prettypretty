@@ -107,8 +107,7 @@ impl std::fmt::Display for Renderer {
 /// Animate a progress bar's progress from 0 to 100 percent.
 pub fn animate(tty: &Connection) -> Result<()> {
     // Nap time is between 1/60 and 1/10 seconds
-    let uniform = Uniform::new_inclusive(16, 100)
-        .map_err(|e| std::io::Error::other(e))?;
+    let uniform = Uniform::new_inclusive(16, 100).map_err(|e| std::io::Error::other(e))?;
     let mut rng = rand::rng();
 
     let mut output = tty.output();
