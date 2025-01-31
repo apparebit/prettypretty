@@ -105,8 +105,8 @@ impl RawConnection {
 
 // ----------------------------------------------------------------------------------------------------------
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ModeGroup {
+/// A grouping of configuration flags.
+enum ModeGroup {
     Input,
     Output,
     Control,
@@ -188,7 +188,7 @@ impl RawConfig {
     }
 
     /// Get labels for active modes in given group.
-    pub fn labels(&self, group: ModeGroup) -> Vec<&'static str> {
+    fn labels(&self, group: ModeGroup) -> Vec<&'static str> {
         let mut labels = Vec::new();
 
         macro_rules! maybe_add {
