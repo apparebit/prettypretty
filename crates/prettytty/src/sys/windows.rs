@@ -236,7 +236,7 @@ impl std::fmt::Debug for RawConfig {
             match group {
                 ModeGroup::Input => debugger.field("input_encoding", &self.input_encoding),
                 ModeGroup::Output => debugger.field("output_encoding", &self.output_encoding),
-            }
+            };
         }
         debugger.finish()
     }
