@@ -11,6 +11,7 @@ homepage = "https://crates.io/crates/prettypretty"
 rust-version = "1.79"
 edition = "2021"
 license = "Apache-2.0"
+include = ["../../CHANGELOG.md", "../../LICENSE"]
 
 
 [dependencies]
