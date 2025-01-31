@@ -13,6 +13,6 @@ mod unix;
 mod windows;
 
 #[cfg(target_family = "unix")]
-pub(crate) use self::unix::{RawConfig, RawConnection, RawInput, RawOutput};
+pub(crate) use self::unix::{RawConfig, RawConnection, RawOutput};
 #[cfg(target_family = "windows")]
-pub(crate) use windows::{RawConfig, RawConnection, RawInput, RawOutput};
+pub(crate) use windows::{RawConfig, RawConnection, RawOutput};

@@ -4,7 +4,7 @@ use std::sync::{Mutex, MutexGuard};
 use crate::opt::{Options, Volume};
 use crate::read::{DoggedReader, VerboseReader};
 use crate::scan::Scanner;
-use crate::sys::{RawConfig, RawConnection, RawInput, RawOutput};
+use crate::sys::{RawConfig, RawConnection, RawOutput};
 use crate::{Command, Scan};
 
 /// A terminal connection providing [`Input`] and [`Output`].
@@ -21,7 +21,7 @@ pub struct Connection {
     options: Options,
     stamp: u32,
     config: Option<RawConfig>,
-    scanner: Mutex<Scanner<RawInput>>,
+    scanner: Mutex<Scanner<Box<dyn Read + Send>>>,
     writer: Mutex<BufWriter<RawOutput>>,
     connection: RawConnection,
 }
@@ -66,7 +66,12 @@ impl Connection {
             },
         )?;
 
-        let scanner = Mutex::new(Scanner::with_options(&options, connection.input()));
+        let reader: Box<dyn Read + Send> = if matches!(options.volume(), Volume::Detailed) {
+            Box::new(VerboseReader::new(connection.input(), options.timeout()))
+        } else {
+            Box::new(DoggedReader::new(connection.input()))
+        };
+        let scanner = Mutex::new(Scanner::with_options(&options, reader));
         let writer = Mutex::new(BufWriter::with_capacity(
             options.write_buffer_size(),
             connection.output(),
@@ -236,7 +241,7 @@ impl Drop for Connection {
 /// since a denial-of-service attack appears to be under way.
 #[derive(Debug)]
 pub struct Input<'a> {
-    scanner: MutexGuard<'a, Scanner<RawInput>>,
+    scanner: MutexGuard<'a, Scanner<Box<dyn Read + Send>>>,
 }
 
 impl Scan for Input<'_> {

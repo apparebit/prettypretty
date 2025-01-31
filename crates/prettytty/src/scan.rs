@@ -14,13 +14,15 @@ use super::{Control, Token};
 
 /// A scanner for text and control tokens.
 ///
-/// This struct implements the state machine for recognizing UTF-8 characters
-/// and ANSI control sequences, with [`Scanner::read_token`] producing the
-/// corresponding [`Token`]. To minimize overheads, the implementation turns
-/// subsequent UTF-8 characters into text tokens and remains zero-copy as long
-/// as there are no control characters in the middle of control sequences. As a
-/// result, tokens have the same lifetime as the scanner itself, and each token
-/// must be processed before the next invocation of `read_token`.
+/// This struct builds Paul Flo Williams' [parser for DEC's ANSI-compatible
+/// terminals](https://vt100.net/emu/dec_ansi_parser) to implement a state
+/// machine for recognizing UTF-8 characters and ANSI control sequences alike.
+/// Notably, [`Scanner::read_token`] produces the corresponding [`Token`]s. To
+/// minimize[] overhead, the implementation turns subsequent UTF-8 characters
+/// into text tokens. It is zero-copy as long as no control characters appear in
+/// the middle of control sequences. As a result, tokens have the same lifetime
+/// as the scanner itself, and each token must be processed before the next
+/// invocation of `read_token`.
 ///
 /// The implementation of the state machine has been carefully engineered to
 /// return to the well-known start state if at all possible, including for
@@ -29,21 +31,24 @@ use super::{Control, Token};
 /// processing a control sequence. Unless the underlying input keeps rejecting
 /// read requests, reading more tokens is a viable strategy for eventually
 /// returning to the start state.
-#[derive(Debug)]
 pub struct Scanner<R> {
-    // The underlying reader.
+    /// The underlying reader.
     reader: R,
-    // The state machine state while scanning tokens.
+    /// The state machine state for the escape sequence being recognized.
     state: State,
+    /// The control for the escape sequence being recognized.
     control: Option<Control>,
-    // The actual data buffer and a flag for it having overflowed.
+    // The byte data being scanned.
     buffer: Buffer,
+    /// The flag for the current escape sequence being too long.
     did_overflow: bool,
-    // The actual and maximum lengths for sequences. The limit must be at least
-    // the buffer size but usually is larger.
+    /// The actual length of the current escape sequence.
     sequence_length: usize,
-    sequence_limit: usize,
-    // A single byte buffer for control characters while sequence is being read.
+    /// The maximum length for any escape sequence, which must be at least as
+    /// large as the buffer size.
+    max_sequence_length: usize,
+    /// A single byte buffer for control characters in the middle of an escape
+    /// sequence.
     extra: [u8; 1],
 }
 
@@ -54,10 +59,10 @@ impl<R: std::io::Read> Scanner<R> {
             reader,
             state: State::Ground,
             control: None,
-            buffer: Buffer::with_capacity(options.read_buffer_size()),
+            buffer: Buffer::with_options(options),
             did_overflow: false,
             sequence_length: 0,
-            sequence_limit: options.pathological_size(),
+            max_sequence_length: options.pathological_size(),
             extra: [0; 1],
         }
     }
@@ -185,51 +190,46 @@ impl<R: std::io::Read> Scanner<R> {
         let (action, control);
         (self.state, action, control) = transition(self.state, byte);
 
-        match action {
-            Print => unreachable!("printable characters are processed before control sequences"),
-            AbortThenHandleControl | AbortThenStart => {
-                // Since we don't consume the byte and restore the ground state,
-                // the next invocation of read_token handles the control or
-                // starts the sequence. That works only because, whereas
-                // AbortThenDoSomething transitions out of arbitrary states,
-                // DoSomething always transitions out of ground.
-                self.state = State::Ground;
-                return Err(ErrorKind::MalformedSequence.into());
-            }
-            StartSequence => {
-                self.buffer.start_token();
-                self.did_overflow = false;
-                self.sequence_length = 1;
-            }
-            IgnoreByte | RetainByte => {
-                if self.sequence_limit <= self.sequence_length {
-                    // Hard reset scanner upon pathological control sequence.
-                    // That includes discarding buffered bytes.
-                    self.state = State::Ground;
-                    self.buffer.reset();
-                    return Err(ErrorKind::PathologicalSequence.into());
-                }
-                self.sequence_length += 1;
-            }
-            _ => {}
-        }
-
-        self.buffer.consume();
+        // Handle control. Handle sequence start and length.
         if control.is_some() {
             self.control = control;
+
+            // Setting the control implies the start of a sequence.
+            self.buffer.start_token();
+            self.did_overflow = false;
+            self.sequence_length = 1;
+        } else if !matches!(self.state, State::Ground) {
+            self.sequence_length += 1;
+
+            if self.max_sequence_length <= self.sequence_length {
+                // Hard reset scanner upon pathological control sequence.
+                // That includes discarding buffered bytes.
+                self.state = State::Ground;
+                self.buffer.reset();
+                return Err(ErrorKind::PathologicalSequence.into());
+            }
         }
+
+        // Handle bug and early return.
+        if matches!(action, Print) {
+            panic!("printable characters should not appear within control sequence");
+        } else if matches!(action, AbortThenRetry) {
+            return Err(ErrorKind::MalformedSequence.into());
+        }
+
+        // Handle buffer.
+        self.buffer.consume();
 
         match action {
             AbortSequence => return Err(ErrorKind::MalformedSequence.into()),
             RetainByte => self.buffer.retain(),
-            Dispatch
-                if matches!(
-                    self.control
-                        .expect("dispatching a control sequence requires a control"),
-                    CSI | ESC | SS2 | SS3
-                ) =>
-            {
-                self.buffer.retain()
+            Dispatch => {
+                let control = self
+                    .control
+                    .expect("dispatching a control sequence requires a control");
+                if matches!(control, CSI | ESC | SS2 | SS3) {
+                    self.buffer.retain()
+                }
             }
             _ => {}
         }
@@ -281,6 +281,19 @@ impl<R: std::io::Read> Scanner<R> {
                 }
             }
         }
+    }
+}
+
+impl<R> std::fmt::Debug for Scanner<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Scanner")
+            .field("state", &self.state)
+            .field("control", &self.control)
+            .field("buffer", &self.buffer)
+            .field("did_overflow", &self.did_overflow)
+            .field("sequence_length", &self.sequence_length)
+            .field("max_sequence_length", &self.max_sequence_length)
+            .finish_non_exhaustive()
     }
 }
 
@@ -358,5 +371,17 @@ mod test {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_bad_osc() {
+        let input = b"\x1b]junk\x1b]text\x1b\\".as_slice();
+        let mut scanner = Scanner::with_options(&Options::default(), input);
+        let t = scanner.read_token();
+        assert!(t.is_err());
+        assert_eq!(t.unwrap_err().kind(), ErrorKind::MalformedSequence);
+        let t = scanner.read_token();
+        assert!(t.is_ok());
+        assert_eq!(t.unwrap(), Token::Sequence(Control::OSC, b"text"));
     }
 }

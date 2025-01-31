@@ -26,14 +26,30 @@ pub(super) enum State {
 /// The next action to take.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Action {
+    /// Print the text character.
     Print,
+    /// Start a new escape sequence. Unfortunately, a new sequence may also
+    /// start with an AbortThenRetry action. Either way, the transition returns
+    /// a control.
     StartSequence,
+    /// Ignore the current byte, even though we are scanning an escape sequence.
     IgnoreByte,
+    /// Retain the current byte as part of an escape sequence. For CSI, ESC, SS2,
+    /// and SS3 escape sequences, the Dispatch action also requires retaining the
+    /// current byte.
     RetainByte,
+    /// Abort the current escape sequence. Also consume the current byte.
     AbortSequence,
-    AbortThenHandleControl,
-    AbortThenStart,
+    /// Abort the current escape sequence. Then try transitioning the current
+    /// byte again. This can only work if the new state for AbortThenRetry is
+    /// the same state as that for the intended retry action, i.e., typically
+    /// ground. If it isn't ground, then special care must be taken so that the
+    /// rest of the scanner's state is correctly maintained.
+    AbortThenRetry,
+    /// Dispatch the escape sequence.
     Dispatch,
+    /// Handle the current byte as a control character (which may appear in the
+    /// middle of an escape sequence).
     HandleControl,
 }
 
@@ -45,21 +61,13 @@ const fn otherwise(byte: u8, state: State) -> (State, Action, Option<Control>) {
 
     match byte {
         0x00..=0x17 | 0x19 | 0x1c..=0x1f => (state, HandleControl, None),
-        0x18 => (Ground, AbortThenHandleControl, None),
-        0x1a => (Ground, AbortThenHandleControl, None),
-        0x1b => (Escape, AbortThenStart, Some(Control::ESC)),
+        0x18 => (Ground, AbortThenRetry, None),
+        0x1a => (Ground, AbortThenRetry, None),
+        0x1b => (Ground, AbortThenRetry, None),
         0x20..=0x7e => (state, IgnoreByte, None),
         0x7f => (state, IgnoreByte, None),
-        0x80..=0x8d | 0x91..=0x97 | 0x99 | 0x9a => (Ground, AbortThenHandleControl, None),
-        0x8e => (SingleShift, AbortThenStart, Some(Control::SS2)),
-        0x8f => (SingleShift, AbortThenStart, Some(Control::SS3)),
-        0x90 => (DcsEntry, AbortThenStart, Some(Control::DCS)),
-        0x98 => (StringBody, AbortThenStart, Some(Control::SOS)),
-        0x9b => (CsiEntry, AbortThenStart, Some(Control::CSI)),
         0x9c => (Ground, AbortSequence, None),
-        0x9d => (StringBody, AbortThenStart, Some(Control::OSC)),
-        0x9e => (StringBody, AbortThenStart, Some(Control::PM)),
-        0x9f => (StringBody, AbortThenStart, Some(Control::APC)),
+        0x80..0xa0 => (Ground, AbortThenRetry, None),
         _ => (state, IgnoreByte, None),
     }
 }
@@ -160,7 +168,7 @@ const fn string_end(byte: u8) -> (State, Action, Option<Control>) {
 
     match byte {
         0x5c => (Ground, Dispatch, None),
-        _ => otherwise(byte, Ground),
+        _ => (Escape, AbortThenRetry, Some(Control::ESC)),
     }
 }
 
@@ -280,7 +288,7 @@ const fn dcs_passthrough_end(byte: u8) -> (State, Action, Option<Control>) {
 
     match byte {
         0x5c => (Ground, Dispatch, None),
-        _ => otherwise(byte, Ground),
+        _ => (Escape, AbortThenRetry, Some(Control::ESC)),
     }
 }
 

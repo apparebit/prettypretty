@@ -1,6 +1,8 @@
 use std::cmp::min;
 use std::io::Read;
 
+use crate::opt::Options;
+
 /// A scanner's buffer.
 pub(super) struct Buffer {
     // Invariant: token_start <= token_end <= cursor <= filled <= N
@@ -12,10 +14,10 @@ pub(super) struct Buffer {
 }
 
 impl Buffer {
-    /// Create a new buffer with the given capacity.
-    pub fn with_capacity(capacity: usize) -> Self {
+    /// Create a new buffer with the given options.
+    pub fn with_options(options: &Options) -> Self {
         Self {
-            data: vec![0; capacity],
+            data: vec![0; options.read_buffer_size()],
             token_start: 0,
             token_end: 0,
             cursor: 0,
@@ -113,7 +115,7 @@ impl Buffer {
     /// [`Buffer::peek_many`] and [`Buffer::consume_many`] for a slice with at
     /// least `count` bytes.
     pub fn retain_many(&mut self, count: usize) {
-        assert!(self.token_end + count <= self.cursor);
+        assert!(count <= self.cursor - self.token_end);
         let many_start = self.cursor - count;
         if self.token_start == self.token_end {
             self.token_start = many_start;

@@ -98,6 +98,7 @@ pub mod cmd;
 mod conn;
 pub mod err;
 pub mod opt;
+mod read;
 mod scan;
 mod sys;
 pub mod util;
