@@ -15,6 +15,14 @@
 //! assert_eq!(options.timeout(), 50);
 //! ```
 
+/// The diagnostic logging volume.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Volume {
+    Silent,
+    Regular,
+    Detailed,
+}
+
 /// A terminal mode.
 ///
 /// Currently four terminal modes are supported:
@@ -59,7 +67,7 @@ pub enum Mode {
 
 #[derive(Clone, Debug)]
 struct OptionData {
-    verbose: bool,
+    volume: Volume,
     mode: Mode,
     timeout: u8,
     pathological_size: usize,
@@ -70,9 +78,9 @@ struct OptionData {
 impl OptionData {
     pub const fn new() -> Self {
         Self {
-            verbose: false,
+            volume: Volume::Silent,
             mode: Mode::Rare,
-            timeout: 1,
+            timeout: 50,
             pathological_size: 512,
             read_buffer_size: 256,
             write_buffer_size: 1_024,
@@ -85,9 +93,9 @@ impl OptionData {
 pub struct OptionBuilder(OptionData);
 
 impl OptionBuilder {
-    /// Set verbose mode.
-    pub fn verbose(&mut self, verbose: bool) -> &mut Self {
-        self.0.verbose = verbose;
+    /// Set the volume.
+    pub fn volume(&mut self, volume: Volume) -> &mut Self {
+        self.0.volume = volume;
         self
     }
 
@@ -104,8 +112,15 @@ impl OptionBuilder {
     }
 
     /// Set the minimum length for pathological ANSI escape sequences.
+    ///
+    /// This method ensures that the given size is at least double the read
+    /// buffer size, updating it if necessary.
     pub fn pathological_size(&mut self, size: usize) -> &mut Self {
-        self.0.pathological_size = size;
+        self.0.pathological_size = size.max(
+            self.0
+                .read_buffer_size
+                .saturating_add(self.0.read_buffer_size),
+        );
         self
     }
 
@@ -113,16 +128,19 @@ impl OptionBuilder {
     ///
     /// This method also updates the pathological size to twice the given size.
     ///
-    /// At a minimum, the this number should be large enough to hold possible
-    /// responses to queries. When querying colors, that length is 27 bytes. For
-    /// example, a response for the color of the 16th ANSI color *bright white*
-    /// starts with `‹OSC›4;15;rgb:` and is followed by three hexadecimal
-    /// numbers that usually are four digits wide, e.g., `ffff/ffff/ffff`, and
-    /// then `‹ST›`. Both OSC and ST require at most two bytes, resulting in a
-    /// sequence that is at most 27 bytes long.
+    /// The read buffer must be large enough to hold the entire escape sequence
+    /// being recognized. When querying colors, that is 27 bytes: A response for
+    /// the 16th ANSI color *bright white* starts with `‹OSC›4;15;rgb:` followed
+    /// by three four-digit hexadecimal numbers separated by forward slashes,
+    /// such as `ffff/ffff/ffff`, and then the terminating `‹ST›`. Both OSC and
+    /// ST require at most two bytes, resulting in a maximum sequence length of
+    /// 27 bytes.
+    ///
+    /// This method ensures that the pathological size is at least double the
+    /// given size, updating it if necessary.
     pub fn read_buffer_size(&mut self, size: usize) -> &mut Self {
         self.0.read_buffer_size = size;
-        self.0.pathological_size = size.saturating_add(size);
+        self.0.pathological_size = self.0.pathological_size.max(size.saturating_add(size));
         self
     }
 
@@ -154,14 +172,21 @@ impl Options {
         OptionBuilder(OptionData::new())
     }
 
-    /// Instantiate the default options but with verbose output enabled.
-    pub fn verbose_default() -> Options {
-        Self::builder().verbose(true).build()
+    /// Instantiate the default options but with regular debugging output
+    /// enabled.
+    pub fn with_log() -> Options {
+        Self::builder().volume(Volume::Regular).build()
     }
 
-    /// Get the verbose flag.
-    pub fn verbose(&self) -> bool {
-        self.0.verbose
+    /// Instantiate the default options but with detailed debugging output
+    /// enabled.
+    pub fn with_detailed_log() -> Options {
+        Self::builder().volume(Volume::Detailed).build()
+    }
+
+    /// Get the volume.
+    pub fn volume(&self) -> Volume {
+        self.0.volume
     }
 
     /// Get the terminal mode.

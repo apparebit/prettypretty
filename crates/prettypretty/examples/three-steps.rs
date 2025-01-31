@@ -15,7 +15,7 @@ fn main() -> Result<()> {
         .with_foreground(Rgb::new(215, 40, 39));
 
     // 2. Adjust your styles
-    let options = Options::builder().timeout(10).build();
+    let options = Options::default();
     let (has_tty, theme) = match Connection::with_options(options) {
         Ok(tty) => (true, Theme::query(&tty)?),
         Err(_) => (false, VGA_COLORS),

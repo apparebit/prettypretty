@@ -4,7 +4,7 @@ use prettytty::opt::Options;
 use prettytty::Connection;
 
 pub fn run_benchmarks(c: &mut Criterion) {
-    let options = Options::builder().timeout(50).verbose(false).build();
+    let options = Options::with_log();
     let tty =
         Connection::with_options(options).expect("need terminal connection to run benchmarks");
 

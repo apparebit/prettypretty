@@ -1,7 +1,8 @@
 use std::io::{BufRead, BufWriter, Error, ErrorKind, Read, Result, Write};
 use std::sync::{Mutex, MutexGuard};
 
-use crate::opt::Options;
+use crate::opt::{Options, Volume};
+use crate::read::{DoggedReader, VerboseReader};
 use crate::scan::Scanner;
 use crate::sys::{RawConfig, RawConnection, RawInput, RawOutput};
 use crate::{Command, Scan};
@@ -45,7 +46,7 @@ impl Connection {
             .map_err(|e| Error::new(ErrorKind::ConnectionRefused, e))?;
 
         let config = RawConfig::read(&connection)?;
-        let verbose = options.verbose();
+        let verbose = !matches!(options.volume(), Volume::Silent);
         if verbose {
             println!("terminal::config {:?}", &config);
         }
@@ -70,7 +71,7 @@ impl Connection {
             options.write_buffer_size(),
             connection.output(),
         ));
-        let stamp = if options.verbose() {
+        let stamp = if verbose {
             // macOS duration has microsecond resolution only, so that's our
             // least common denominator. If duration_since() fails, we use an
             // obviously wrong value as stamp.
@@ -134,7 +135,7 @@ impl Connection {
     }
 
     fn log(&self, message: impl AsRef<str>) -> Result<()> {
-        if self.options.verbose() {
+        if !matches!(self.options.volume(), Volume::Silent) {
             // Don't wait for output.
             let mut writer = self
                 .writer

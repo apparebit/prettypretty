@@ -173,7 +173,7 @@ impl std::fmt::Display for Control {
 /// # use prettytty::cmd::{MoveToColumn, RequestCursorPosition};
 /// # use prettytty::err::ErrorKind;
 /// # use prettytty::opt::Options;
-/// # let options = Options::builder().timeout(100).build();
+/// # let options = Options::default();
 /// # let tty = match Connection::with_options(options) {
 /// #     Ok(tty) => tty,
 /// #     Err(err) if err.kind() == std::io::ErrorKind::ConnectionRefused => return Ok(()),

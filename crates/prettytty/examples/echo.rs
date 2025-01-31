@@ -18,7 +18,7 @@ const GRAY: SetForeground8<244> = SetForeground8::<244>;
 fn run() -> std::io::Result<()> {
     // Access the terminal
     println!("\n");
-    let options = Options::verbose_default();
+    let options = Options::with_log();
     let tty = Connection::with_options(options)?;
     let mut input = tty.input();
     let mut output = tty.output();

@@ -54,9 +54,8 @@
 //! # use prettytty::cmd::{MoveToColumn, RequestCursorPosition};
 //! # use prettytty::opt::Options;
 //! # fn run() -> Result<()> {
-//! // Open a terminal connection with 1s timeout.
-//! let tty = Connection::with_options(
-//!     Options::builder().timeout(10).build())?;
+//! // Open a terminal connection.
+//! let tty = Connection::with_options(Options::default())?;
 //!
 //! let pos = {
 //!     let (mut input, mut output) = tty.io();

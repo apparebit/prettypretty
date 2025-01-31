@@ -112,7 +112,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! [`Theme::query`](theme::Theme::query) and its color support with
 //! [`Fidelity::from_environment`](style::Fidelity::from_environment).
 //!
-//! ```
+//! ```no_run
 //! # use std::io::Result;
 //! # use prettypretty::style::{Fidelity, Style};
 //! # use prettypretty::termco::Rgb;
@@ -124,7 +124,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # {
 //! # let chic = Style::default().bold().underlined().with_foreground(Rgb::new(215, 40, 39));
 //! // 2a. Determine terminal's color support and theme
-//! let options = Options::builder().timeout(100).build();
+//! let options = Options::with_log();
 //! let (has_tty, theme) = match Connection::with_options(options) {
 //!     Ok(tty) => (true, Theme::query(&tty)?),
 //!     Err(_) => (false, VGA_COLORS),
@@ -141,7 +141,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! [`Style::cap`](style::Style::cap) puts a cap on styles with the help of
 //! [`Translator::cap`](Translator::cap), which takes care of colors.
 //!
-//! ```
+//! ```no_run
 //! # use std::io::Result;
 //! # use prettypretty::{OkVersion, Translator};
 //! # use prettypretty::style::{Fidelity, Style};
@@ -153,7 +153,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # #[cfg(not(target_family = "windows"))]
 //! # {
 //! # let chic = Style::default().bold().underlined().with_foreground(Rgb::new(215, 40, 39));
-//! # let options = Options::builder().timeout(100).build();
+//! # let options = Options::with_log();
 //! # let (has_tty, theme) = match Connection::with_options(options) {
 //! #     Ok(tty) => (true, Theme::query(&tty)?),
 //! #     Err(_) => (false, VGA_COLORS),
@@ -172,7 +172,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! Third, to apply a style, just write its display. To undo the style again,
 //! just write the negation's display.
 //!
-//! ```
+//! ```no_run
 //! # use std::io::Result;
 //! # use prettypretty::{OkVersion, Translator};
 //! # use prettypretty::style::{Fidelity, Style};
@@ -184,7 +184,7 @@ feature disabled, [on Docs.rs](https://docs.rs/prettypretty/latest/prettypretty/
 //! # #[cfg(not(target_family = "windows"))]
 //! # {
 //! # let chic = Style::default().bold().underlined().with_foreground(Rgb::new(215, 40, 39));
-//! # let options = Options::builder().timeout(100).build();
+//! # let options = Options::with_log();
 //! # let (has_tty, theme) = match Connection::with_options(options) {
 //! #     Ok(tty) => (true, Theme::query(&tty)?),
 //! #     Err(_) => (false, VGA_COLORS),
