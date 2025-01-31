@@ -16,11 +16,13 @@
 [`Control`]: https://apparebit.github.io/prettypretty/prettytty/term/enum.Control.html
 [`EightBitColor`]: https://apparebit.github.io/prettypretty/prettypretty/termco/enum.EightBitColor.html
 [`EmbeddedRgb`]: https://apparebit.github.io/prettypretty/prettypretty/termco/struct.EmbeddedRgb.html
+[`error`]: https://apparebit.github.io/prettypretty/prettypretty/error/
 [`Fidelity`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Fidelity.html
 [`Fidelity::from_environment`]: https://apparebit.github.io/prettypretty/prettypretty/style/enum.Fidelity.html#method.from_environment
 [`Float`]: https://apparebit.github.io/prettypretty/prettypretty/type.Float.html
 [`Format`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.Format.html
 [`FormatUpdate`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.FormatUpdate.html
+[`gamut`]: https://apparebit.github.io/prettypretty/prettypretty/gamut/
 [`GrayGradient`]: https://apparebit.github.io/prettypretty/prettypretty/termco/struct.GrayGradient.html
 [`HueInterpolation`]: https://apparebit.github.io/prettypretty/prettypretty/enum.HueInterpolation.html
 [`Input`]: https://apparebit.github.io/prettypretty/prettytty/struct.Input.html
@@ -35,8 +37,12 @@
 [`Scan`]: https://apparebit.github.io/prettypretty/prettytty/trait.Scan.html
 [`Scanner`]: https://apparebit.github.io/prettypretty/prettypretty/term/struct.Scanner.html
 [`Sgr`]: https://apparebit.github.io/prettypretty/prettytty/trait.Sgr.html
+[`spectrum`]: https://apparebit.github.io/prettypretty/prettypretty/spectrum/
+[`style`]: https://apparebit.github.io/prettypretty/prettypretty/style/
 [`Style`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html
 [`Style::cap`]: https://apparebit.github.io/prettypretty/prettypretty/style/struct.Style.html#method.cap
+[`termco`]: https://apparebit.github.io/prettypretty/prettypretty/termco/
+[`theme`]: https://apparebit.github.io/prettypretty/prettypretty/theme/
 [`Theme`]: https://apparebit.github.io/prettypretty/prettypretty/theme/struct.Theme.html
 [`ThemeEntry`]: https://apparebit.github.io/prettypretty/prettypretty/theme/enum.ThemeEntry.html
 [`ThemeEntryIterator`]: https://apparebit.github.io/prettypretty/prettypretty/theme/struct.ThemeEntryIterator.html
