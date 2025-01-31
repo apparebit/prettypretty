@@ -170,7 +170,7 @@ impl RawConfig {
         Ok(())
     }
 
-    fn labels(&self, group: ModeGroup) -> Vec<&'static str> {
+    fn labels(&self, group: &ModeGroup) -> Vec<&'static str> {
         let mut labels = Vec::new();
 
         macro_rules! maybe_add {
@@ -232,7 +232,7 @@ impl std::fmt::Debug for RawConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut debugger = f.debug_struct("RawConfig");
         for group in ModeGroup::all() {
-            debugger.field(group.name(), &IdentList::new(self.labels(group)));
+            debugger.field(group.name(), &IdentList::new(self.labels(&group)));
             match group {
                 ModeGroup::Input => debugger.field("input_encoding", &self.input_encoding),
                 ModeGroup::Output => debugger.field("output_encoding", &self.output_encoding),
