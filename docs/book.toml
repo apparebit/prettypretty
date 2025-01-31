@@ -7,7 +7,7 @@ description = "2020s color science for 1970s terminals"
 build-dir = "../target/doc"
 
 [output.html]
-additional-css = ["pretty.css"]
+additional-css = ["../crates/prettypretty/docs/pretty.css"]
 smart-punctuation = true
 no-section-label = false
 git-repository-url = "https://github.com/apparebit/prettypretty"

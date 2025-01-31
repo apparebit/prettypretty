@@ -1,5 +1,11 @@
 # Changelog
 
+## Prettypretty v0.11.1 (2025-01-31)
+
+Move `pretty.css` styles back into prettypretty and fix all plumbing so that it
+continues to find them. Docs.rs [surfaced this
+bug](https://docs.rs/crate/prettypretty/0.11.0/builds/1693391).
+
 
 ## Prettypretty v0.11.0 (2025-01-31)
 
