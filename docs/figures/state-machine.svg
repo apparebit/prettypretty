@@ -1,0 +1,295 @@
+<svg xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" id="svg1" version="1.1" viewBox="60 0 1400 1030" font-family="Helvetica" sodipodi:docname="20230121_extracted_ansi_diagram_resaved.svg" inkscape:version="1.2.1 (9c6d41e410, 2022-07-14)">
+  <title id="title2">VT500-Series Parser</title>
+  <metadata id="metadata4">
+    <rdf:RDF>
+      <cc:Work rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+        <dc:title>VT500-Series Parser</dc:title>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>Paul Flo Williams &lt;paul@frixxon.co.uk&gt;</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:rights>
+          <cc:Agent>
+            <dc:title/>
+          </cc:Agent>
+        </dc:rights>
+        <dc:source>http://vt100.net/emu/dec_ansi_parser</dc:source>
+        <dc:language>en</dc:language>
+        <cc:license rdf:resource="http://creativecommons.org/licenses/by-nc-sa/3.0/"/>
+      </cc:Work>
+      <cc:License rdf:about="http://creativecommons.org/licenses/by-nc-sa/3.0/">
+        <cc:permits rdf:resource="http://creativecommons.org/ns#Reproduction"/>
+        <cc:permits rdf:resource="http://creativecommons.org/ns#Distribution"/>
+        <cc:requires rdf:resource="http://creativecommons.org/ns#Notice"/>
+        <cc:requires rdf:resource="http://creativecommons.org/ns#Attribution"/>
+        <cc:prohibits rdf:resource="http://creativecommons.org/ns#CommercialUse"/>
+        <cc:permits rdf:resource="http://creativecommons.org/ns#DerivativeWorks"/>
+        <cc:requires rdf:resource="http://creativecommons.org/ns#ShareAlike"/>
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+  <defs id="defs12">
+    <marker style="overflow:visible;" id="Dot_l" refX="0.0" refY="0.0" orient="auto" inkscape:stockid="Dot_l">
+      <path transform="scale(0.8) translate(7.125493, 1)" style="fill-rule:evenodd;marker-start:none;marker-end:none;stroke:none" d="M -2.5,-1.0 C -2.5,1.7600000 -4.7400000,4.0 -7.5,4.0 C -10.260000,4.0 -12.5,1.7600000 -12.5,-1.0 C -12.5,-3.7600000 -10.260000,-6.0 -7.5,-6.0 C -4.7400000,-6.0 -2.5,-3.7600000 -2.5,-1.0 z " id="path41"/>
+    </marker>
+    <marker style="overflow:visible;" id="Arrow2L" refX="0.0" refY="0.0" orient="auto" inkscape:stockid="Arrow2L">
+      <path transform="scale(1.1) translate(-5,0)" d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z " style="font-size:12.0;fill-rule:evenodd;stroke:none;stroke-width:0.62500000;stroke-linejoin:round;" id="path2097" sodipodi:nodetypes="cccc"/>
+    </marker>
+    <marker inkscape:stockid="Arrow2Lend" orient="auto" refY="0.0" refX="0.0" id="Arrow2Lend" style="overflow:visible;" inkscape:isstock="true">
+      <path id="path4163" fill="#000000" d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z " transform="scale(1.1) rotate(180) translate(1,0)"/>
+    </marker>
+  </defs>
+  <sodipodi:namedview id="base" snaptoguides="true" guidetolerance="5mm" showgrid="true" inkscape:zoom="0.8623457" inkscape:cx="625.03935" inkscape:cy="418.0458" inkscape:window-width="2560" inkscape:window-height="1389" inkscape:window-x="0" inkscape:window-y="27" pagecolor="#ffffff" bordercolor="#666666" borderopacity="1.0" inkscape:showpageshadow="2" inkscape:pageopacity="0.0" inkscape:pagecheckerboard="0" inkscape:deskcolor="#d1d1d1" inkscape:window-maximized="1" inkscape:current-layer="svg1"/>
+  <style>
+  .diagbox { fill: white }
+  .interstate { stroke: black; stroke-width: 1pt }
+  .stateboxdup { stroke: black; fill: #ccc; stroke-dasharray: 5,5 }
+    /* markers */
+    #Arrow2L path { fill: black }
+    #Arrow2Lend path { fill: black }
+    #Dot_l path { fill: black }
+    /* end of markers */
+  text { fill: black }
+  .statesep { stroke: black; stroke-width: 1pt }
+  .state rect { fill: #eeee9f; stroke: black; stroke-width: 1pt }
+
+  @media (prefers-color-scheme: dark) {
+    .diagbox { fill: black }
+    .interstate { stroke: white; stroke-width: 1pt }
+    .stateboxdup { stroke: white; fill: #666; stroke-dasharray: 5,5 } /* light: fill=#ccc */
+    /* markers */
+    #Arrow2L path { fill: white }
+    #Arrow2Lend path { fill: white }
+    #Dot_l path { fill: white }
+    /* end of markers */
+    text { fill: white }
+    .statesep { stroke-width: 1pt; stroke: white }
+    .state rect { fill: #066; stroke: white; stroke-width: 1pt } /* light: #eeee9f */
+  }
+  </style>
+  <rect class="diagbox" x="0" y="0" width="1489" height="1150" id="rect15"/>
+  <text id="legend-dcs-entry-to-dcs-inter" font-size="12px" x="1175.797859" y="411.404413"><tspan id="tspan17">20-2F / collect</tspan></text>
+  <text id="legend-dcs-entry-to-dcs-ignore" font-size="12px" x="1127.071297" y="519.615350"><tspan id="tspan20">3A</tspan></text>
+  <text id="legend-dcs-inter-to-dcs-ignore" font-size="12px" x="1302.993172" y="499.365350"><tspan id="tspan23">30-3F</tspan></text>
+  <text id="legend-dcs-param-to-dcs-inter" font-size="12px" x="1259.961922" y="747.427850"><tspan id="tspan26">20-2F / collect</tspan></text>
+  <text id="legend-dcs-param-to-dcs-ignore" font-size="12px" x="1140" y="725"><tspan id="tspan29">3A,3C-3F</tspan></text>
+  <text id="legend-dcs-entry-to-dcs-param" font-size="12px" x="1066.5887" y="642.77313"><tspan id="tspan32">30-39,3B / param</tspan><tspan x="1066.5887" dy="15" id="tspan34">3C-3F / collect</tspan></text>
+  <text id="legend-dcs-entry-to-dcs-pass" font-size="12px" x="972.032234" y="658.201288"><tspan id="tspan37">40-7E</tspan></text>
+  <text id="legend-dcs-param-to-dcs-pass" font-size="12px" x="1208.071297" y="812.607538"><tspan id="tspan40">40-7E</tspan></text>
+  <text id="legend-dcs-inter-to-dcs-pass" font-size="12px" x="1389.055672" y="673.388788"><tspan id="tspan43">40-7E</tspan></text>
+  <text id="legend-escape-to-sos" font-size="12px" x="865.086922" y="307.623163"><tspan id="tspan46">58,5E,5F</tspan></text>
+  <text id="legend-escape-to-escape-inter" font-size="12px" x="632.844734" y="218.396600"><tspan id="tspan49">20-2F / collect</tspan></text>
+  <text id="legend-escape-inter-to-ground" font-size="12px" x="412.625984" y="144.357538"><tspan id="tspan52">30-7E / esc_dispatch</tspan></text>
+  <text id="legend-escape-to-ground" font-size="12px" x="475" y="235"><tspan id="tspan55">30-4F,51-57,59,5A,</tspan><tspan x="475" dy="15" id="tspan57">5C,60-7E / esc_dispatch</tspan></text>
+  <text id="legend-escape-to-csi-entry" font-size="12px" x="691.063484" y="622.763788"><tspan id="tspan60">5B</tspan></text>
+  <text id="legend-csi-entry-to-csi-param" font-size="12px" x="458" y="540"><tspan id="tspan63">30-39,3B / param</tspan><tspan x="458.18848" dy="15" id="tspan65">3C-3F / collect</tspan></text>
+  <text id="legend-csi-entry-to-csi-ignore" font-size="12px" x="514.508797" y="765.779413"><tspan id="tspan68">3A</tspan></text>
+  <text id="legend-cgi-inter-to-csi-ignore" font-size="12px" x="243.665047" y="767.045038"><tspan id="tspan71">30-3F</tspan></text>
+  <text id="legend-csi-entry-to-csi-inter" font-size="12px" x="381.43427" y="887.65723"><tspan id="tspan74">20-2F / collect</tspan></text>
+  <text id="legend-csi-inter-to-ground" font-size="12px" x="75.087791" y="494.86545"><tspan id="tspan77">40-7E / csi_dispatch</tspan></text>
+  <text id="legend-escape-to-osc" font-size="12px" x="795" y="500"><tspan id="tspan80">5D</tspan></text>
+  <text id="legend-escape-to-dcs-entry" font-size="12px" x="898" y="419"><tspan id="tspan83">50</tspan></text>
+  <text id="diagram-title" style="font-weight:bold;font-size:22px" x="600" y="45"><tspan id="tspan86">VT500-Series Parser</tspan></text>
+  <text id="diagram-credits" style="font-size:12px" x="600" y="65"><tspan id="tspan89">Copyright 2002‒2017 Paul Flo Williams</tspan></text>
+  <g id="explain-gr" transform="translate(750,910)">
+    <rect x="0" y="0" width="225" height="110" fill="#eeeeee" opacity="0.5" stroke="black" stroke-width="1pt" id="rect92"/>
+    <text x="5" y="17" font-size="12px" id="text106"><tspan font-weight="bold" id="tspan94">Treatment of codes A0‒FF</tspan><tspan x="5" dy="15" id="tspan96">In all cases shown here, codes</tspan><tspan x="5" dy="15" id="tspan98">A0‒FF (GR area) are treated identically</tspan><tspan x="5" dy="15" id="tspan100">to codes 20‒7F (GL area). This</tspan><tspan x="5" dy="15" id="tspan102">symmetry does not extend to the C0</tspan><tspan x="5" dy="15" id="tspan104">and C1 areas.</tspan></text>
+  </g>
+  <path id="path-start-to-ground" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);marker-end:url(#Dot_l);" d="M 159.44882,114.51324 L 120.31138,76.100571"/>
+  <path id="path-esc-inter-to-ground" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 312.37472,148.57730 L 566.76806,152.20114"/>
+  <path id="path-escape-to-sos" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 911.75732,201.48532 L 805.21652,379.77809"/>
+  <path id="path-escape-to-escape-inter" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 603.73119,194.96242 L 705.92339,380.50285"/>
+  <path id="path-escape-to-dcs-entry" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 970.46347,427.61273 L 828.40907,418.91552"/>
+  <path id="path-dcs-entry-to-dcs-inter" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1283.5630,427.61273 L 1122.6646,425.43843"/>
+  <path id="path-dcs-inter-to-dcs-ignore" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1305.3059,553.72225 L 1355.3149,464.57587"/>
+  <path id="path-dcs-entry-to-dcs-ignore" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1174.1231,550.09842 L 1116.1417,463.12634"/>
+  <path id="path-dcs-entry-to-dcs-param" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1063.5961,724.76735 L 1063.2337,464.57586"/>
+  <path id="path-dcs-param-to-dcs-ignore" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1196.5909,638.52003 L 1122.6646,732.73978"/>
+  <path id="path-escape-to-osc" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 803.04222,623.29992 L 775.50106,452.97959"/>
+  <path id="path-csi-inter-to-csi-ignore" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 337.74159,716.79491 L 240.62276,817.53756"/>
+  <path id="path-csi-entry-to-csi-ignore" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 454.42912,714.62060 L 573.89138,835.23219"/>
+  <path id="path-csi-entry-to-csi-param" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 431.23657,526.18110 L 605.48095,832.33312"/>
+  <path id="path-csi-entry-to-csi-inter" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 261.64101,863.92267 L 568.21760,873.34465"/>
+  <path id="path-csi-inter-to-ground" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 222.41975,196.50738 L 152.72140,817.64272"/>
+  <path id="path-escape-to-csi-entry" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 685.70881,824.81756 L 734.90765,452.75134"/>
+  <path id="path-dcs-param-to-dcs-inter" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1367.3177,472.22587 C 1364.2428,704.89539 1232.0210,768.44388 1166.4225,768.44388"/>
+  <path id="path-dcs-inter-to-dcs-pass" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1382.6923,853.51687 L 1381.6674,464.02607"/>
+  <path id="path-dcs-param-to-dcs-pass" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1293.5195,863.76664 L 1156.1727,805.34301"/>
+  <path id="path-dcs-entry-to-dcs-pass" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);marker-end:none;" d="M 1291.4695,907.84059 C 1168.4724,964.21426 1043.4254,940.63986 989.10166,864.79161 C 908.12857,737.69461 1027.0258,465.05104 1027.0258,465.05104"/>
+  <path id="path-escape-to-ground" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 313.64260,172.93294 C 441.42291,173.61626 568.17826,392.61942 685.70881,393.30274"/>
+  <!-- ground -->
+  <g id="anywhere-to-ground" transform="translate(197,18)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" rx="7" ry="7" id="rect131"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text133">anywhere</text>
+  </g>
+  <line class="interstate" x1="232" y1="53" x2="232" y2="118" marker-end="url(#Arrow2Lend)" id="line136"/>
+  <text x="236" y="68" font-size="12px" id="text144"><tspan x="236" dy="0" id="tspan138">18,1A / execute</tspan><tspan x="236" dy="15" id="tspan140">80-8F,91-97,99,9A / execute</tspan><tspan x="236" dy="15" id="tspan142">9C / (no action)</tspan></text>
+  <g id="state-ground" class="state" transform="translate(162,118)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect146"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text148">ground</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line150"/>
+    <text x="10" y="35" font-size="8px" id="text156"><tspan x="10" dy="0" id="tspan152">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan154">event 20-7F / print</tspan></text>
+  </g>
+  <!-- escape -->
+  <g id="anywhere-to-escape" transform="translate(723,300)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect159"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text161">anywhere</text>
+  </g>
+  <line class="interstate" x1="758" y1="335" x2="758" y2="380" marker-end="url(#Arrow2Lend)" id="line164"/>
+  <text x="762" y="350" font-size="12px" id="text168"><tspan id="tspan166">1B</tspan></text>
+  <g id="state-escape" class="state" transform="translate(688,380)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect170"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text172">escape</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line174"/>
+    <text x="10" y="35" font-size="8px" id="text182"><tspan x="10" dy="0" id="tspan176">entry / clear</tspan><tspan x="10" dy="9" id="tspan178">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan180">event 7F / ignore</tspan></text>
+  </g>
+  <!-- escape intermediate -->
+  <g id="state-escape-intermediate" class="state" transform="translate(568,115)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect185"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text187">escape intermediate</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line189"/>
+    <text x="10" y="35" font-size="8px" id="text197"><tspan x="10" dy="0" id="tspan191">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan193">event 20-2F / collect</tspan><tspan x="10" dy="9" id="tspan195">event 7F / ignore</tspan></text>
+  </g>
+  <!-- csi entry -->
+  <g id="anywhere-to-csi-entry" transform="translate(605,753)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect200"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text202">anywhere</text>
+  </g>
+  <line class="interstate" x1="640" y1="788" x2="640" y2="833" marker-end="url(#Arrow2Lend)" id="line205"/>
+  <text x="644" y="803" font-size="12px" id="text209"><tspan id="tspan207">9B</tspan></text>
+  <g id="state-csi-entry" class="state" transform="translate(570,833)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect211"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text213">csi entry</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line215"/>
+    <text x="10" y="35" font-size="8px" id="text223"><tspan x="10" dy="0" id="tspan217">entry / clear</tspan><tspan x="10" dy="9" id="tspan219">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan221">event 7F / ignore</tspan></text>
+  </g>
+  <path class="interstate" d="M 640,903 L 640,933 C 640,943 630,953 620,953 L 90,953 C 80,953 70,943 70,933 L 70 180 C 70,170 80,160 90,160 L 162,160" fill="none" marker-end="url(#Arrow2Lend)" id="path226"/>
+  <text id="legend-csi-entry-to-ground" x="507" y="943" font-size="12px"><tspan id="tspan228">40-7E / csi_dispatch</tspan></text>
+  <!-- csi param -->
+  <g id="state-csi-param" class="state" transform="translate(308,446)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect231"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text233">csi param</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line235"/>
+    <text x="10" y="35" font-size="8px" id="text243"><tspan x="10" dy="0" id="tspan237">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan239">event 30-39,3B / param</tspan><tspan x="10" dy="9" id="tspan241">event 7F / ignore</tspan></text>
+  </g>
+  <line class="interstate" x1="321" y1="446" x2="249" y2="188" marker-end="url(#Arrow2Lend)" id="line246"/>
+  <text id="legend-csi-param-to-ground" style="font-size:12px" x="309.69904" y="375.69104"><tspan id="tspan248">40-7E / csi_dispatch</tspan></text>
+  <line class="interstate" x1="337" y1="518" x2="200" y2="809" marker-end="url(#Arrow2Lend)" id="line251"/>
+  <text id="legend-csi-param-to-csi-inter" style="font-size:12px" x="218.985359" y="589.857538"><tspan id="tspan253">20-2F / collect</tspan></text>
+  <path id="path-csi-param-to-csi-ignore" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 372,629 L 372,516"/>
+  <text id="legend-csi-param-to-csi-ignore" style="font-size:12px" x="381.618172" y="590.490350"><tspan id="tspan257">3A,3C-3F</tspan></text>
+  <!-- csi intermediate -->
+  <g id="state-csi-intermediate" class="state" transform="translate(109,819)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect260"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text262">csi intermediate</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line264"/>
+    <text x="10" y="35" font-size="8px" id="text272"><tspan x="10" dy="0" id="tspan266">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan268">event 20-2F / collect</tspan><tspan x="10" dy="9" id="tspan270">event 7F / ignore</tspan></text>
+  </g>
+  <!-- csi ignore -->
+  <g id="state-csi-ignore" class="state" transform="translate(310,639)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect275"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text277">csi ignore</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line279"/>
+    <text x="10" y="35" font-size="8px" id="text285"><tspan x="10" dy="0" id="tspan281">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan283">event 20-3F,7F / ignore</tspan></text>
+  </g>
+  <path id="path-csi-ignore-to-ground" class="interstate" style="marker-start:url(#Arrow2L)" d="M 380,744 L 380,709"/>
+  <text id="legend-csi-ignore-to-ground" font-size="12px" x="384" y="724"><tspan id="tspan289">40-7E</tspan></text>
+  <g id="csi-ignore-to-ground" transform="translate(345,754)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect292"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text294">ground</text>
+  </g>
+  <!-- dcs entry -->
+  <g id="anywhere-to-dcs-entry" transform="translate(1015,314)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect297"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text299">anywhere</text>
+  </g>
+  <line class="interstate" x1="1050" y1="349" x2="1050" y2="394" marker-end="url(#Arrow2Lend)" id="line302"/>
+  <text id="legend-anywhere-to-dcs-entry" style="font-size:12px" x="1054" y="364"><tspan id="tspan304">90</tspan></text>
+  <g id="state-dcs-entry" class="state" transform="translate(980,394)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect307"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text309">dcs entry</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line311"/>
+    <text x="10" y="35" font-size="8px" id="text319"><tspan x="10" dy="0" id="tspan313">entry / clear</tspan><tspan x="10" dy="9" id="tspan315">event 00-17,19,1C-1F / ignore</tspan><tspan x="10" dy="9" id="tspan317">event 7F / ignore</tspan></text>
+  </g>
+  <!-- dcs param -->
+  <g id="state-dcs-param" class="state" transform="translate(1023,734)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect322"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text324">dcs param</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line326"/>
+    <text x="10" y="35" font-size="8px" id="text334"><tspan x="10" dy="0" id="tspan328">event 00-17,19,1C-1F / ignore</tspan><tspan x="10" dy="9" id="tspan330">event 30-39,3B / param</tspan><tspan x="10" dy="9" id="tspan332">event 7F / ignore</tspan></text>
+  </g>
+  <!-- dcs intermediate -->
+  <g id="state-dcs-intermediate" class="state" transform="translate(1293,393)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect337"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text339">dcs intermediate</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line341"/>
+    <text x="10" y="35" font-size="8px" id="text349"><tspan x="10" dy="0" id="tspan343">event 00-17,19,1C-1F / ignore</tspan><tspan x="10" dy="9" id="tspan345">event 20-2F / collect</tspan><tspan x="10" dy="9" id="tspan347">event 7F / ignore</tspan></text>
+  </g>
+  <!-- dcs ignore -->
+  <g id="state-dcs-ignore" class="state" transform="translate(1161,559)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect352"/>
+    <text x="70" y="18" font-size="12px" text-anchor="middle" id="text354">dcs ignore</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line356"/>
+    <text x="10" y="35" font-size="8px" id="text360"><tspan x="10" dy="0" id="tspan358">event 00-17,19,1C-1F,20-7F / ignore</tspan></text>
+  </g>
+  <line class="interstate" x1="1231" y1="629" x2="1231" y2="674" marker-end="url(#Arrow2Lend)" id="line363"/>
+  <text id="legend-dcs-ignore-to-ground" style="font-size:12px" x="1235" y="644"><tspan id="tspan365">9C</tspan></text>
+  <g id="dcs-ignore-to-ground" transform="translate(1196,674)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect368"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text370">ground</text>
+  </g>
+  <!-- dcs passthrough -->
+  <g id="state-dcs-passthrough" class="state" transform="translate(1300,863)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect373"/>
+    <text x="70" y="18" font-size="12px" text-anchor="middle" id="text375">dcs passthrough</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line377"/>
+    <text x="10" y="35" font-size="8px" id="text387"><tspan x="10" dy="0" id="tspan379">entry / hook</tspan><tspan x="10" dy="9" id="tspan381">event 00-17,19,1C-1F,20-7E / put</tspan><tspan x="10" dy="9" id="tspan383">event 7F / ignore</tspan><tspan x="10" dy="9" id="tspan385">exit / unhook</tspan></text>
+  </g>
+  <line class="interstate" x1="1370" y1="933" x2="1370" y2="978" marker-end="url(#Arrow2Lend)" id="line390"/>
+  <text id="legend-dcs-pass-to-ground" style="font-size:12px;" x="1374" y="948"><tspan id="tspan392">9C</tspan></text>
+  <g id="dcs-pass-to-ground" transform="translate(1335,978)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect395"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text397">ground</text>
+  </g>
+  <!-- osc string -->
+  <g id="anywhere-to-osc-string" transform="translate(804,552)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect400"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text402">anywhere</text>
+  </g>
+  <line class="interstate" x1="839" y1="587" x2="839" y2="632" marker-end="url(#Arrow2Lend)" id="line405"/>
+  <text x="843" y="602" font-size="12px" id="text409"><tspan id="tspan407">9D</tspan></text>
+  <g id="state-osc-string" class="state" transform="translate(769,632)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect411"/>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24"/>
+    <text text-anchor="middle" font-size="12px" x="70" y="18" id="text415">osc string</text>
+    <text font-size="8px" text-anchor="start" x="10" y="35" id="text425"><tspan x="10" dy="0" id="tspan417">entry / osc_start</tspan><tspan x="10" dy="9" id="tspan419">event 00-17,19,1C-1F / ignore</tspan><tspan x="10" dy="9" id="tspan421">event 20-7F / osc_put</tspan><tspan x="10" dy="9" id="tspan423">exit / osc_end</tspan></text>
+  </g>
+  <line class="interstate" x1="839" y1="702" x2="839" y2="747" marker-end="url(#Arrow2Lend)" id="line428"/>
+  <text x="843" y="717" font-size="12px" id="text432"><tspan id="tspan430">9C</tspan></text>
+  <g id="osc-to-ground" transform="translate(804,747)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect434"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text436">ground</text>
+  </g>
+  <!-- sos/pm/apc string -->
+  <g id="anywhere-to-sos" transform="translate(944,42)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect439"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text441">anywhere</text>
+  </g>
+  <line class="interstate" x1="979" y1="77" x2="979" y2="122" marker-end="url(#Arrow2Lend)" id="line444"/>
+  <text id="legend-anywhere-to-sos" style="font-size:12px;" x="983" y="92"><tspan id="tspan446">98,9E,9F</tspan></text>
+  <g id="state-sos" class="state" transform="translate(909,122)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect449"/>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24"/>
+    <text x="70" y="18" font-size="12px" text-anchor="middle" id="text453">sos/pm/apc string</text>
+    <text x="10" y="35" font-size="8px" id="text457"><tspan id="tspan455">event 00-17,19,1C-1F,20-7F / ignore</tspan></text>
+  </g>
+  <line class="interstate" x1="979" y1="192" x2="979" y2="237" marker-end="url(#Arrow2Lend)" id="line460"/>
+  <text x="983" y="207" font-size="12px" id="text464"><tspan id="tspan462">9C</tspan></text>
+  <g id="sos-to-ground" transform="translate(944,237)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect466"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text468">ground</text>
+  </g>
+</svg>

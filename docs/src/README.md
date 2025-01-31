@@ -152,6 +152,6 @@ spaces and implements several CSS Color 4 algorithms.
 
 ---
 
-Copyright 2024 Robert Grimm. The source code for prettypretty has been released
-as open source under the [Apache
+Copyright 2024-2025 Robert Grimm. The source code for prettypretty has been
+released as open source under the [Apache
 2.0](https://github.com/apparebit/prettypretty/blob/main/LICENSE) license.

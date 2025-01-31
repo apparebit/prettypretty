@@ -32,8 +32,7 @@ use prettytty::cmd::{MoveToColumn, RequestCursorPosition};
 use prettytty::opt::Options;
 
 // Open a terminal connection with 1s timeout.
-let tty = Connection::with_options(
-    Options::builder().timeout(10).build())?;
+let tty = Connection::with_options(Options::with_log())?;
 
 let pos = {
     let (mut input, mut output) = tty.io();
@@ -53,7 +52,7 @@ assert_eq!(pos.1, 17);
 
 ## Release History
 
-### v0.2 (1/??/2025)
+### v0.2 (2025-01-31)
 
 Add zero-sized generic versions for commands that set colors or move cursor.
 Keep previous, argument-based versions with `Dyn` prefix. Rename other commands
@@ -69,15 +68,16 @@ of progress bar to illustrate API differences from [Python
 version](https://github.com/apparebit/prettypretty/blob/main/prettypretty/progress.py).
 
 
-### v0.1 (12/23/2024)
+### v0.1 (2024-12-23)
 
 Initial release.
 
 ---
 
-Copyright 2024 Robert Grimm. The code in this repository has been released as
-open source under the [Apache
+Copyright 2024-2025 Robert Grimm. The code in this repository has been released
+as open source under the [Apache
 2.0](https://github.com/apparebit/prettypretty/blob/main/LICENSE) license.
+
 
 [`cmd`]: https://apparebit.github.io/prettypretty/prettytty/cmd/index.html
 [`Command`]: https://apparebit.github.io/prettypretty/prettytty/trait.Command.html

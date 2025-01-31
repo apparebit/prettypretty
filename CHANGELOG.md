@@ -1,7 +1,7 @@
 # Changelog
 
 
-## Prettypretty v0.11.0 (2025-01-??)
+## Prettypretty v0.11.0 (2025-01-31)
 
 ### A Simpler, More Powerful API
 

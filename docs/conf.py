@@ -37,7 +37,7 @@ def debug():
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'Pretty 🌸 Pretty'
-copyright = '2024 Robert Grimm'
+copyright = '2024-2025 Robert Grimm'
 author = 'Robert Grimm'
 
 # Source order is nicer than alphabetizing fields and methods.
