@@ -76,7 +76,7 @@ following resources:
   * [Rust crate](https://crates.io/crates/prettypretty)
   * [Python package](https://pypi.org/project/prettypretty/)
   * [GitHub Repository](https://github.com/apparebit/prettypretty)
-  * [Changelog](https://github.com/apparebit/prettypretty/blob/main/CHANGELOG.md)
+  * [Changelog](https://github.com/apparebit/prettypretty/blob/main/crates/prettypretty/CHANGELOG.md)
 
 
 ## Python Integration
