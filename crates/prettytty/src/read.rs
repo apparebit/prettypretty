@@ -1,7 +1,7 @@
 use std::io::{ErrorKind, Read};
 use std::time::Instant;
 
-use crate::util::nicely_str;
+use crate::util::nicely;
 
 /// A reader that tolerates interruptions.
 pub(crate) struct DoggedReader<R> {
@@ -71,7 +71,7 @@ impl<R: Read> Read for VerboseReader<R> {
                         n,
                         retries,
                         interrupts,
-                        nicely_str(&buf[..n])
+                        nicely(&buf[..n])
                     );
                     return Ok(n);
                 }

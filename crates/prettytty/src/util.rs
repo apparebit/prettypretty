@@ -157,7 +157,7 @@ impl std::fmt::Debug for ByteStringNicely<'_> {
 }
 
 /// Turn the slice into a value that displays nicely.
-pub fn nicely_str(bytes: &[u8]) -> impl std::fmt::Debug + std::fmt::Display + use<'_> {
+pub fn nicely(bytes: &[u8]) -> impl std::fmt::Debug + std::fmt::Display + use<'_> {
     ByteStringNicely(bytes)
 }
 
@@ -223,9 +223,11 @@ pub(crate) fn is_semi_colon(b: &u8) -> bool {
     *b == b';' || *b == b':'
 }
 
+// ------------------------------------------------------------------------------------------------
+
 #[cfg(test)]
 mod test {
-    use super::{is_semi_colon, Radix, WriteNicely};
+    use super::*;
     use std::io::Error;
 
     #[test]
