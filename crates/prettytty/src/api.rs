@@ -1,6 +1,6 @@
 use std::io::Result;
 
-use crate::util::nicely_str;
+use crate::util::nicely;
 
 /// A command for the terminal.
 ///
@@ -20,17 +20,36 @@ impl<C: Command + ?Sized> Command for Box<C> {}
 /// Combine several commands into a single new command.
 ///
 /// The new command preserves the order of its component commands. Upon display,
-/// it emits as many ANSI escape sequence as it has component commands.
+/// it emits as many ANSI escape sequence as it has component commands. Since
+/// commands in the [`cmd`](crate::cmd) module generally implement [`Clone`],
+/// [`Copy`], [`Debug`](std::fmt::Debug), [`PartialEq`], and [`Eq`], fused
+/// commands do so, too. However, since [`DynLink`](crate::cmd::DynLink) and
+/// [`DynSetWindowTitle`](crate::cmd::DynSetWindowTitle) have string-valued
+/// fields and hence cannot implement [`Copy`], these two commands *cannot* be
+/// fused.
+///
+/// When fusing only SGR commands, prefer [`fuse_sgr!`](crate::fuse_sgr), which
+/// generates commands that emit a single ANSI escape sequence only.
+///
+/// # Example
+///
+/// ```
+/// # use prettytty::{cmd::{MoveDown, MoveRight}, fuse};
+/// let move_down_right_twice = fuse!(MoveDown::<2>, MoveRight::<2>);
+/// assert_eq!(format!("{}", move_down_right_twice), "\x1b[2B\x1b[2D");
+/// ```
 #[macro_export]
 macro_rules! fuse {
     ($($command:expr),+ $(,)?) => {{
         /// One or more combined commands.
+        #[derive(Copy, Clone, Debug, PartialEq, Eq)]
         struct Fused;
 
         impl $crate::Command for Fused {}
         impl ::std::fmt::Display for Fused {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 $($command.fmt(f)?;)*
+                Ok(())
             }
         }
 
@@ -73,11 +92,17 @@ impl<S: Sgr + ?Sized> Sgr for Box<S> {
 /// Combine several SGR commands into a single new SGR command.
 ///
 /// The new SGR command preserves the order of its component commands. Upon
-/// display, it emits only one ANSI escape sequence.
+/// display, it emits only one ANSI escape sequence. Since commands in the
+/// [`cmd`](crate::cmd) module generally implement [`Clone`], [`Copy`],
+/// [`Debug`](std::fmt::Debug), [`PartialEq`], and [`Eq`], fused SGR commands do
+/// so, too.
+///
+/// To fuse commands other than SGR commands, use [`fuse!`].
 #[macro_export]
 macro_rules! fuse_sgr {
     ( $sgr:expr, $( $sgr2:expr ),* $(,)? ) => {{
         /// One or more SGR commands fused into one.
+        #[derive(Copy, Clone, Debug, PartialEq, Eq)]
         struct FusedSgr;
 
         impl ::std::fmt::Display for FusedSgr {
@@ -290,7 +315,7 @@ impl std::fmt::Debug for Token<'_> {
         if let Some(control) = self.control() {
             debug.field(&control);
         }
-        debug.field(&nicely_str(self.data())).finish()
+        debug.field(&nicely(self.data())).finish()
     }
 }
 
@@ -375,4 +400,58 @@ fn _assert_traits_are_object_safe<T>() {
     is_object_safe::<dyn Sgr>();
     is_object_safe::<dyn Query<Response = T>>();
     is_object_safe::<dyn Scan>();
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::cmd::{Format, SetBackground8, SetForeground8};
+
+    #[test]
+    fn test_fuse() {
+        let s = format!(
+            "{}",
+            fuse!(Format::Bold, SetForeground8::<0>, SetBackground8::<15>)
+        );
+        assert_eq!(s, "\x1b[1m\x1b[30m\x1b[107m");
+
+        let cmd = fuse!(Format::Blinking, SetBackground8::<219>);
+        assert_eq!(format!("{}", cmd), "\x1b[5m\x1b[48;5;219m");
+
+        let copy = cmd;
+        assert_eq!(
+            format!("{}{}", cmd, copy),
+            "\x1b[5m\x1b[48;5;219m\x1b[5m\x1b[48;5;219m"
+        );
+
+        let clone = cmd.clone();
+        assert_eq!(
+            format!("{}{}", cmd, clone),
+            "\x1b[5m\x1b[48;5;219m\x1b[5m\x1b[48;5;219m"
+        );
+
+        assert_eq!(cmd, copy);
+        assert_eq!(cmd, clone);
+    }
+
+    #[test]
+    fn test_fuse_sgr() {
+        let s = format!(
+            "{}",
+            fuse_sgr!(Format::Bold, SetForeground8::<0>, SetBackground8::<15>)
+        );
+        assert_eq!(s, "\x1b[1;30;107m");
+
+        let cmd = fuse_sgr!(Format::Bold, SetForeground8::<0>, SetBackground8::<15>);
+        assert_eq!(format!("{}", cmd), "\x1b[1;30;107m");
+
+        let copy = cmd;
+        assert_eq!(format!("{}{}", cmd, copy), "\x1b[1;30;107m\x1b[1;30;107m");
+
+        let clone = cmd.clone();
+        assert_eq!(format!("{}{}", cmd, clone), "\x1b[1;30;107m\x1b[1;30;107m");
+
+        assert_eq!(cmd, copy);
+        assert_eq!(cmd, clone);
+    }
 }
