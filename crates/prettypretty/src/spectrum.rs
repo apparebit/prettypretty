@@ -79,6 +79,7 @@
 )]
 //!
 
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 #[cfg(feature = "pyffi")]
@@ -679,7 +680,7 @@ impl IlluminatedObserver {
     /// observer's component distributions. The returned iterator implements the
     /// standard algorithm, shifting and rotating square pulses of unit height
     /// and increasing widths across this distribution's spectrum.
-    pub fn visual_gamut(&self, stride: std::num::NonZeroUsize) -> SpectrumTraversal {
+    pub fn visual_gamut(&self, stride: NonZeroUsize) -> SpectrumTraversal {
         SpectrumTraversal::new(stride, self.luminosity(), self.data.clone())
     }
 
@@ -786,8 +787,7 @@ pub mod std_observer {
 // --------------------------------------------------------------------------------------------------------------------
 
 /// A convenient constant for 1nm.
-pub const ONE_NANOMETER: std::num::NonZeroUsize =
-    unsafe { std::num::NonZeroUsize::new_unchecked(1) };
+pub const ONE_NANOMETER: NonZeroUsize = NonZeroUsize::new(1).expect("one is non-zero");
 
 /// An iterator tracing the visual gamut.
 ///
@@ -818,7 +818,7 @@ impl SpectrumTraversal {
     ///
     /// The given data must be the result of premultiplying an illuminant with
     /// an observer, e.g., an illuminated observer.
-    fn new(stride: std::num::NonZeroUsize, luminosity: Float, data: Arc<Vec<[Float; 3]>>) -> Self {
+    fn new(stride: NonZeroUsize, luminosity: Float, data: Arc<Vec<[Float; 3]>>) -> Self {
         let stride = stride.get();
         let remaining = Self::derive_total_count(data.len(), stride);
 
@@ -1038,7 +1038,7 @@ mod test {
 
             let mut traversal =
                 IlluminatedObserver::new(&CIE_ILLUMINANT_D65, &CIE_OBSERVER_2DEG_1931)
-                    .visual_gamut(std::num::NonZeroUsize::new(stride).unwrap());
+                    .visual_gamut(NonZeroUsize::new(stride).unwrap());
 
             assert_eq!(traversal.line_count(), line_count);
             assert_eq!(traversal.line_length(), line_length);
