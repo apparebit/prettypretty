@@ -80,7 +80,7 @@ impl OptionData {
         Self {
             volume: Volume::Silent,
             mode: Mode::Rare,
-            timeout: 50,
+            timeout: 10,
             pathological_size: 512,
             read_buffer_size: 256,
             write_buffer_size: 1_024,
