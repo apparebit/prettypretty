@@ -3,7 +3,7 @@
 [![Run Tests, Build Wheels, & Publish to PyPI](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/ci.yml)
 [![Publish to GitHub Pages](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/apparebit/prettypretty/actions/workflows/gh-pages.yml)
 
-\[  [**Docs.rs**](https://docs.rs/prettypretty/latest/prettytty/)
+\[  [**Docs.rs**](https://docs.rs/prettytty/latest/prettytty/)
 | [**GitHub Pages**](https://apparebit.github.io/prettypretty/prettytty/)
 | [**Rust Crate**](https://crates.io/crates/prettytty)
 | [**Repository**](https://github.com/apparebit/prettypretty)
@@ -51,6 +51,11 @@ assert_eq!(pos.1, 17);
 ```
 
 ## Release History
+
+### v0.2.2 (2025-02-01)
+
+Fix link to docs.rs.
+
 
 ### v0.2.1 (2025-02-01)
 

@@ -15,7 +15,7 @@ license = "Apache-2.0"
 
 [dependencies]
 pyo3 = { version = "0.23.3", features = ["extension-module", "abi3", "abi3-py311"], optional = true }
-prettytty = { version = "0.2.1", path = "../prettytty", optional = true }
+prettytty = { version = "0.2.2", path = "../prettytty", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

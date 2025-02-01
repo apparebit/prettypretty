@@ -5,7 +5,7 @@
 
 ## Pretty 🌸 Tty
 
-\[  [**Docs.rs**](https://docs.rs/prettypretty/latest/prettytty/)
+\[  [**Docs.rs**](https://docs.rs/prettytty/latest/prettytty/)
 | [**GitHub Pages**](https://apparebit.github.io/prettypretty/prettytty/)
 | [**Rust Crate**](https://crates.io/crates/prettytty)
 | [**Repository**](https://github.com/apparebit/prettypretty)
