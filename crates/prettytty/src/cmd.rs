@@ -1,7 +1,7 @@
 //! A library of useful terminal commands.
 //!
 //! This module provides a number of trivial struct and enum types that
-//! implement the [`Command`] [`Sgr`], and [`Query`] traits (as needed) to
+//! implement the [`Command`], [`Sgr`], and [`Query`] traits (as needed) to
 //! provide common terminal interactions. Organized by topic, supported commands
 //! are:
 //!
@@ -175,17 +175,29 @@ macro_rules! define_unit_command {
 }
 
 macro_rules! define_8bit_color {
-    ($name:ident, $dyn_name:ident, $prefix:literal) => {
+    ($name:ident, $dyn_name:ident, $dark_base:expr, $bright_base:expr, $prefix:literal) => {
         declare_n_struct!($name<COLOR: u8>);
         implement_sgr!($name<COLOR: u8>: self; f {
-            f.write_str($prefix)?;
-            <_ as ::std::fmt::Display>::fmt(&COLOR, f)
+            match COLOR {
+                0..=7 => <_ as ::std::fmt::Display>::fmt(&($dark_base + COLOR), f),
+                8..=15 => <_ as ::std::fmt::Display>::fmt(&($bright_base + COLOR), f),
+                _ => {
+                    f.write_str($prefix)?;
+                    <_ as ::std::fmt::Display>::fmt(&COLOR, f)
+                }
+            }
         });
 
         declare_n_struct!($dyn_name(COLOR: u8));
         implement_sgr!($dyn_name: self; f {
-            f.write_str($prefix)?;
-            <_ as ::std::fmt::Display>::fmt(&self.0, f)
+            match self.0 {
+                0..=7 => <_ as ::std::fmt::Display>::fmt(&($dark_base + self.0), f),
+                8..=15 => <_ as ::std::fmt::Display>::fmt(&($bright_base + self.0), f),
+                _ => {
+                    f.write_str($prefix)?;
+                    <_ as ::std::fmt::Display>::fmt(&self.0, f)
+                }
+            }
         });
     }
 }
@@ -497,13 +509,25 @@ define_unit_command!(ResetStyle, "\x1b[m");
 
 define_unit_sgr!(SetDefaultForeground, "39");
 define_unit_sgr!(SetDefaultBackground, "49");
-define_8bit_color!(SetForeground8, DynSetForeground8, "38;5;");
-define_8bit_color!(SetBackground8, DynSetBackground8, "48;5;");
+define_8bit_color!(
+    SetForeground8,
+    DynSetForeground8,
+    30,
+    (const { 90 - 8 }),
+    "38;5;"
+);
+define_8bit_color!(
+    SetBackground8,
+    DynSetBackground8,
+    40,
+    (const { 100 - 8 }),
+    "48;5;"
+);
 define_24bit_color!(SetForeground24, DynSetForeground24, "38;2;");
 define_24bit_color!(SetBackground24, DynSetBackground24, "48;2;");
 
 /// The enumeration of unit `Format` commands.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Format {
     Bold = 1,
@@ -584,7 +608,7 @@ impl Query for RequestActiveStyle {
 /// foreground, default background, cursor, or selection colors, it is 100 plus
 /// the code used in the query. On Windows, this query is only supported by
 /// Terminal 1.22 or later.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum RequestColor {
     Black = 0,
@@ -734,10 +758,8 @@ impl Query for RequestColor {
 
 #[cfg(test)]
 mod test {
-    use super::{
-        BeginBatch, DynMoveLeft, DynMoveTo, MoveLeft, MoveTo, Query, RequestColor,
-        RequestCursorPosition, RequestTerminalId,
-    };
+    use super::*;
+    use crate::Control;
 
     #[test]
     fn test_size_and_display() {
@@ -746,16 +768,40 @@ mod test {
         assert_eq!(std::mem::size_of::<DynMoveLeft>(), 2);
         assert_eq!(std::mem::size_of::<MoveTo::<5, 7>>(), 0);
         assert_eq!(std::mem::size_of::<DynMoveTo>(), 4);
+        assert_eq!(std::mem::size_of::<SetForeground8::<0>>(), 0);
+        assert_eq!(std::mem::size_of::<SetForeground8::<15>>(), 0);
+        assert_eq!(std::mem::size_of::<SetForeground8::<88>>(), 0);
+        assert_eq!(std::mem::size_of::<SetBackground8::<7>>(), 0);
+        assert_eq!(std::mem::size_of::<SetBackground8::<9>>(), 0);
+        assert_eq!(std::mem::size_of::<SetBackground8::<226>>(), 0);
+        assert_eq!(std::mem::size_of::<SetForeground24::<255, 103, 227>>(), 0);
+        assert_eq!(std::mem::size_of::<SetBackground24::<134, 36, 161>>(), 0);
 
         assert_eq!(format!("{}", BeginBatch), "\x1b[?2026h");
         assert_eq!(format!("{}", MoveLeft::<2>), "\x1b[2C");
         assert_eq!(format!("{}", DynMoveLeft(2)), "\x1b[2C");
         assert_eq!(format!("{}", MoveTo::<5, 7>), "\x1b[5;7H");
         assert_eq!(format!("{}", DynMoveTo(5, 7)), "\x1b[5;7H");
+        assert_eq!(format!("{}", SetForeground8::<0>), "\x1b[30m");
+        assert_eq!(format!("{}", SetForeground8::<15>), "\x1b[97m");
+        assert_eq!(format!("{}", SetForeground8::<88>), "\x1b[38;5;88m");
+        assert_eq!(format!("{}", SetBackground8::<7>), "\x1b[47m");
+        assert_eq!(format!("{}", SetBackground8::<9>), "\x1b[101m");
+        assert_eq!(format!("{}", SetBackground8::<226>), "\x1b[48;5;226m");
+        assert_eq!(
+            format!("{}", SetForeground24::<255, 103, 227>),
+            "\x1b[38;2;255;103;227m"
+        );
+        assert_eq!(
+            format!("{}", SetBackground24::<134, 36, 161>),
+            "\x1b[48;2;134;36;161m"
+        );
     }
 
     #[test]
     fn test_parse_terminal_id() -> std::io::Result<()> {
+        assert_eq!(RequestTerminalId.control(), Control::DCS);
+
         let (term, version) = RequestTerminalId.parse(b">|Terminal\x1b\\")?;
         assert_eq!(&term.unwrap(), b"Terminal".as_slice());
         assert!(version.is_none());
@@ -784,6 +830,8 @@ mod test {
 
     #[test]
     fn test_parse_cursor_position() -> std::io::Result<()> {
+        assert_eq!(RequestCursorPosition.control(), Control::CSI);
+
         let position = RequestCursorPosition.parse(b"6;65R")?;
         assert_eq!(position, (6, 65));
         Ok(())
@@ -791,6 +839,8 @@ mod test {
 
     #[test]
     fn test_parse_theme_color() -> std::io::Result<()> {
+        assert_eq!(RequestColor::Magenta.control(), Control::OSC);
+
         let color = RequestColor::Background.parse(b"11;rgb:a/b/cdef")?;
         assert_eq!(color, [(10, 1), (11, 1), (52_719, 4)]);
         let color = RequestColor::Magenta.parse(b"4;5;rgb:12/345/6789")?;
