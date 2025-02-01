@@ -1,7 +1,7 @@
 //! Terminal color representations.
 //!
 //! This module offers a choice of [`AnsiColor`], [`EmbeddedRgb`],
-//! [`GrayGradient`], and [`Rgb`] as the primary color representations used bys
+//! [`GrayGradient`], and [`Rgb`] as the primary color representations used by
 //! terminals.
 //!
 //! Taken together, the first three types are the 8-bit colors and can be

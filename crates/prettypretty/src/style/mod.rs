@@ -5,7 +5,7 @@
 //!
 //! **`Style`**: This module supports styling terminal appearance with ANSI SGR
 //! escape sequences through [`Style`], which combine an optional
-//! [`FormatUpdate`] with an optional foreground
+//! [`FormatUpdate`] for text formatting with an optional foreground
 //! [`Colorant`](crate::termco::Colorant) and an optional background
 //! [`Colorant`](crate::termco::Colorant).
 //!
@@ -13,19 +13,14 @@
 //! foreground and background colors as well as [`Fidelity`] to capture a
 //! terminal's level of color support.
 //!
-//! **`Attribute`**, **`Format`**, and **`FormatUpdate`**: A [`FormatUpdate`]
-//! comprises a disabling [`Format`] and an enabling [`Format`]. Each
-//! [`Format`], in turn, comprises zero or more text [`Attribute`]s representing
-//! formatting other than the default. All three types support addition,
-//! negation, and subtraction:
-//!
-//!   * Addition combines text attributes.
-//!   * Negation restores the default appearance again.
-//!   * Subtraction determines minimal differences.
-//!
-//! Modelling format updates as disabling and enabling formats eliminates the
-//! need for defining additional attributes that undo formatting and simplifies
-//! the implementation of negation and subtraction.
+//! **Text Formatting**: This module represents a style's text formatting as a
+//! [`FormatUpdate`], which contains a disabling [`Format`] and an enabling
+//! [`Format`], each comprising zero or more [`Attribute`]s. All three types
+//! support addition, negation, and subtraction to compose attributes into
+//! formats and to update the terminal's appearance. However, most applications
+//! won't need to interact with these types, since they can configure styles'
+//! text formatting with [`Style::bold`], [`Style::thin`], [`Style::italic`],
+//! and so on.
 //!
 //!
 //! # II. The One-Two-Three of Styles

@@ -126,6 +126,49 @@ impl Attribute {
 /// The second representation captures *formatting changes*, i.e., models
 /// instructions for changing a terminal's appearance. This struct implements
 /// the former representation, i.e., a *formatting state*.
+///
+///
+/// # Examples
+///
+/// Other than creating the empty default format, the only other way for
+/// directly instantiating a format is converting an attribute to a format.
+/// Otherwise, format instances are formed, as needed, when performing attribute
+/// math.
+///
+/// ```
+/// # use prettypretty::style::{Attribute, Format};
+/// // We can instantiate the empty default format
+/// let empty = Format::default();
+/// assert!(empty.is_empty());
+///
+/// // Or convert attributes into formats
+/// let bold = Format::from(Attribute::Bold);
+/// assert_eq!(bold.len(), 1);
+/// assert_eq!(
+///     bold.attributes().next(),
+///     Some(Attribute::Bold)
+/// );
+///
+/// // Attributes also add up as formats
+/// let f1 = bold + Attribute::Blinking;
+/// let f1_too = Attribute::Bold + Attribute::Blinking;
+/// assert_eq!(f1, f1_too);
+/// assert_eq!(f1.len(), 2);
+/// let mut iter = f1.attributes();
+/// assert_eq!(iter.next(), Some(Attribute::Bold));
+/// assert_eq!(iter.next(), Some(Attribute::Blinking));
+/// assert_eq!(iter.next(), None);
+///
+/// // Negation yields format update that restores default
+/// let f0 = -f1;
+/// assert_eq!(f0.disable(), f1);
+/// assert_eq!(f0.enable(), empty);
+///
+/// // Proof that text formatting is a zero sum game
+/// let zerosum = f0 + f1;
+/// assert_eq!(zerosum.disable(), empty);
+/// assert_eq!(zerosum.enable(), empty);
+/// ```
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, module = "prettypretty.color.style")
@@ -333,6 +376,45 @@ impl AttributeIter {
 /// The second representation captures *formatting changes*, i.e., models
 /// instructions for changing a terminal's appearance. This struct implements
 /// the latter representation, i.e., a *formatting change*.
+///
+///
+/// # Example
+///
+/// Other than creating the empty default format update, the only other way for
+/// directly instantiating a format update is converting an attribute or format
+/// to a format update. Otherwise, format update instances are formed, as
+/// needed, when performing attribute math.
+///
+/// ```
+/// # use prettypretty::style::{Attribute, Format, FormatUpdate};
+/// // Create the empty default FormatUpdate
+/// let empty = FormatUpdate::default();
+/// assert!(empty.is_empty());
+/// assert!(empty.disable().is_empty());
+/// assert!(empty.enable().is_empty());
+///
+/// // Convert an attribute to a format update.
+/// let bold = FormatUpdate::from(Attribute::Bold);
+/// assert!(bold.disable().is_empty());
+/// assert_eq!(bold.enable(), Format::from(Attribute::Bold));
+///
+/// // Create a format update through negation
+/// let unblink = -Attribute::Blinking;
+/// assert_eq!(unblink.disable(), Format::from(Attribute::Blinking));
+/// assert!(unblink.enable().is_empty());
+///
+/// // Create a format update through subtraction
+/// let flashy = (Attribute::Bold + Attribute::Blinking);
+/// let important = (Attribute::Bold + Attribute::Underlined);
+/// let diff = flashy - important;
+/// assert_eq!(diff.disable(), Format::from(Attribute::Underlined));
+/// assert_eq!(diff.enable(), Format::from(Attribute::Blinking));
+///
+/// // Once a format update, always a format update
+/// let steady = diff + unblink;
+/// assert_eq!(steady.disable(), Format::from(Attribute::Underlined));
+/// assert!(steady.enable().is_empty());
+/// ```
 #[cfg_attr(
     feature = "pyffi",
     pyclass(eq, frozen, hash, module = "prettypretty.color.style")
