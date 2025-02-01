@@ -994,9 +994,9 @@ pub static CIE_ILLUMINANT_E: FixedDistribution =
 
 #[cfg(test)]
 mod test {
-    use std::num::NonZeroUsize;
     use super::*;
     use crate::core::Sum;
+    use std::num::NonZeroUsize;
 
     #[test]
     fn test_checksum() {
