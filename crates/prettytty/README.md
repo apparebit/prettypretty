@@ -52,6 +52,14 @@ assert_eq!(pos.1, 17);
 
 ## Release History
 
+### v0.2.1 (2025-02-01)
+
+Fix the `fuse!` macro. Update both `fuse!` and `fuse_sgr!` to generate commands
+that are consistent with all of prettytty's commands other than `DynLink` and
+`DynSetWindowTitle` and implement the `Copy`, `Clone`, `Debug`, `PartialEq`, and
+`Eq` traits.
+
+
 ### v0.2 (2025-01-31)
 
 Add zero-sized generic versions for commands that set colors or move cursor.
