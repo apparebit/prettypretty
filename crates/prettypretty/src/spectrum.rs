@@ -994,10 +994,8 @@ pub static CIE_ILLUMINANT_E: FixedDistribution =
 
 #[cfg(test)]
 mod test {
-    use super::{
-        GamutTraversalStep, IlluminatedObserver, SpectralDistribution, CIE_ILLUMINANT_D50,
-        CIE_ILLUMINANT_D65, CIE_OBSERVER_10DEG_1964, CIE_OBSERVER_2DEG_1931,
-    };
+    use std::num::NonZeroUsize;
+    use super::*;
     use crate::core::Sum;
 
     #[test]
