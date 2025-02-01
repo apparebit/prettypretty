@@ -54,10 +54,14 @@ assert_eq!(pos.1, 17);
 
 ### v0.2.1 (2025-02-01)
 
-Fix the `fuse!` macro. Update both `fuse!` and `fuse_sgr!` to generate commands
-that are consistent with all of prettytty's commands other than `DynLink` and
-`DynSetWindowTitle` and implement the `Copy`, `Clone`, `Debug`, `PartialEq`, and
-`Eq` traits.
+  * Fix the `fuse!` macro.
+  * Update both `fuse!` and `fuse_sgr!` to generate commands that are consistent
+    with all of prettytty's commands other than `DynLink` and
+    `DynSetWindowTitle` and hence implement the `Copy`, `Clone`, `Debug`,
+    `PartialEq`, and `Eq` traits.
+  * Update `SetForeground8`, `SetBackground8`, and their `Dyn` versions to
+    generate shorter ANSI escape sequences for the first 16 colors, which are
+    the 8 ANSI colors and their bright variants.
 
 
 ### v0.2 (2025-01-31)
