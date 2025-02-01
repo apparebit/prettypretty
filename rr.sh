@@ -353,7 +353,7 @@ doc() {
     fi
 
     run cargo rustdoc --all-features --lib -p prettypretty -- -e "$(realpath crates/prettypretty/docs/pretty.css)"
-    run cargo rustdoc --all-features --lib -p prettytty -- -e "$(realpath crates/prettypretty/docs/pretty.css)"
+    run cargo rustdoc --all-features --lib -p prettytty
 
     if [ -d docs ]; then
         run ./.venv/bin/sphinx-build -a -b html docs target/doc/python
