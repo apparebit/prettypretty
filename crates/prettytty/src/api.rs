@@ -5,11 +5,12 @@ use crate::util::nicely;
 /// A command for the terminal.
 ///
 /// Commands provide instructions to the terminal and are communicated in-band
-/// by writing ANSI escape codes. The actual writing is performed by the display
-/// trait's `fmt` method.
+/// by writing ANSI escape codes. Doing so is the responsibility of the
+/// [`std::fmt::Display`] implementation, whereas the [`std::fmt::Debug`]
+/// implementation should simply identify the command.
 ///
 /// This trait is object-safe.
-pub trait Command: std::fmt::Display {}
+pub trait Command: std::fmt::Debug + std::fmt::Display {}
 
 /// A borrowed command is a command.
 impl<C: Command + ?Sized> Command for &C {}
@@ -20,11 +21,13 @@ impl<C: Command + ?Sized> Command for Box<C> {}
 /// Combine several commands into a single new command.
 ///
 /// The new command preserves the order of its component commands. Upon display,
-/// it emits as many ANSI escape sequence as it has component commands. Since
-/// commands in the [`cmd`](crate::cmd) module generally implement [`Clone`],
-/// [`Copy`], [`Debug`](std::fmt::Debug), [`PartialEq`], and [`Eq`], fused
-/// commands do so, too. However, since [`DynLink`](crate::cmd::DynLink) and
-/// [`DynSetWindowTitle`](crate::cmd::DynSetWindowTitle) have string-valued
+/// it emits as many ANSI escape sequence as it has component commands. Upon
+/// debug, it reveals the macro's source arguments.
+///
+/// Since commands in the [`cmd`](crate::cmd) module generally implement
+/// [`Clone`], [`Copy`], [`Debug`](std::fmt::Debug), [`PartialEq`], and [`Eq`],
+/// fused commands do so, too. However, since [`DynLink`](crate::cmd::DynLink)
+/// and [`DynSetWindowTitle`](crate::cmd::DynSetWindowTitle) have string-valued
 /// fields and hence cannot implement [`Copy`], these two commands *cannot* be
 /// fused.
 ///
@@ -42,10 +45,17 @@ impl<C: Command + ?Sized> Command for Box<C> {}
 macro_rules! fuse {
     ($($command:expr),+ $(,)?) => {{
         /// One or more combined commands.
-        #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+        #[derive(Copy, Clone, PartialEq, Eq)]
         struct Fused;
 
         impl $crate::Command for Fused {}
+
+        impl ::std::fmt::Debug for Fused {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                f.write_str(stringify!(fuse!($($command),+)))
+            }
+        }
+
         impl ::std::fmt::Display for Fused {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 $($command.fmt(f)?;)*
@@ -92,18 +102,26 @@ impl<S: Sgr + ?Sized> Sgr for Box<S> {
 /// Combine several SGR commands into a single new SGR command.
 ///
 /// The new SGR command preserves the order of its component commands. Upon
-/// display, it emits only one ANSI escape sequence. Since commands in the
-/// [`cmd`](crate::cmd) module generally implement [`Clone`], [`Copy`],
-/// [`Debug`](std::fmt::Debug), [`PartialEq`], and [`Eq`], fused SGR commands do
-/// so, too.
+/// display, it emits only one ANSI escape sequence. Upon debug, it reveals the
+/// macro's source arguments.
+///
+/// Since commands in the [`cmd`](crate::cmd) module generally implement
+/// [`Clone`], [`Copy`], [`Debug`](std::fmt::Debug), [`PartialEq`], and [`Eq`],
+/// fused SGR commands do so, too.
 ///
 /// To fuse commands other than SGR commands, use [`fuse!`].
 #[macro_export]
 macro_rules! fuse_sgr {
     ( $sgr:expr, $( $sgr2:expr ),* $(,)? ) => {{
         /// One or more SGR commands fused into one.
-        #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+        #[derive(Copy, Clone, PartialEq, Eq)]
         struct FusedSgr;
+
+        impl ::std::fmt::Debug for FusedSgr {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                f.write_str(stringify!(fuse_sgr!($sgr, $($sgr2),*)))
+            }
+        }
 
         impl ::std::fmt::Display for FusedSgr {
             fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -417,17 +435,25 @@ mod test {
 
         let cmd = fuse!(Format::Blinking, SetBackground8::<219>);
         assert_eq!(format!("{}", cmd), "\x1b[5m\x1b[48;5;219m");
+        assert_eq!(
+            format!("{:?}", cmd),
+            "fuse! (Format::Blinking, SetBackground8::<219>)"
+        );
+
+        let double = format!("{}{}", cmd, cmd);
 
         let copy = cmd;
+        assert_eq!(format!("{}{}", cmd, copy), double);
         assert_eq!(
-            format!("{}{}", cmd, copy),
-            "\x1b[5m\x1b[48;5;219m\x1b[5m\x1b[48;5;219m"
+            format!("{:?}", cmd),
+            "fuse! (Format::Blinking, SetBackground8::<219>)"
         );
 
         let clone = cmd.clone();
+        assert_eq!(format!("{}{}", cmd, clone), double);
         assert_eq!(
-            format!("{}{}", cmd, clone),
-            "\x1b[5m\x1b[48;5;219m\x1b[5m\x1b[48;5;219m"
+            format!("{:?}", cmd),
+            "fuse! (Format::Blinking, SetBackground8::<219>)"
         );
 
         assert_eq!(cmd, copy);
@@ -444,12 +470,26 @@ mod test {
 
         let cmd = fuse_sgr!(Format::Bold, SetForeground8::<0>, SetBackground8::<15>);
         assert_eq!(format!("{}", cmd), "\x1b[1;30;107m");
+        assert_eq!(
+            format!("{:?}", cmd),
+            "fuse_sgr! (Format::Bold, SetForeground8::<0>, SetBackground8::<15>)"
+        );
+
+        let double = format!("{}{}", cmd, cmd);
 
         let copy = cmd;
-        assert_eq!(format!("{}{}", cmd, copy), "\x1b[1;30;107m\x1b[1;30;107m");
+        assert_eq!(format!("{}{}", cmd, copy), double);
+        assert_eq!(
+            format!("{:?}", cmd),
+            "fuse_sgr! (Format::Bold, SetForeground8::<0>, SetBackground8::<15>)"
+        );
 
         let clone = cmd.clone();
-        assert_eq!(format!("{}{}", cmd, clone), "\x1b[1;30;107m\x1b[1;30;107m");
+        assert_eq!(format!("{}{}", cmd, clone), double);
+        assert_eq!(
+            format!("{:?}", cmd),
+            "fuse_sgr! (Format::Bold, SetForeground8::<0>, SetBackground8::<15>)"
+        );
 
         assert_eq!(cmd, copy);
         assert_eq!(cmd, clone);

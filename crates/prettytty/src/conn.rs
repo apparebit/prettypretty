@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::io::{BufRead, BufWriter, Error, ErrorKind, Read, Result, Write};
 use std::sync::{Mutex, MutexGuard};
 
@@ -7,6 +8,50 @@ use crate::scan::Scanner;
 use crate::sys::{RawConfig, RawConnection, RawOutput};
 use crate::{Command, Scan};
 
+// -----------------------------------------------------------------------------------------------
+
+/// A writer with associated deferred commands.
+#[derive(Debug)]
+struct DeferredWriter {
+    writer: BufWriter<RawOutput>,
+    deferred: RefCell<Vec<Box<dyn Command + Send>>>,
+}
+
+impl DeferredWriter {
+    /// Create a new list of deferred commands.
+    pub fn new(writer: RawOutput, options: &Options) -> Self {
+        Self {
+            writer: BufWriter::with_capacity(options.write_buffer_size(), writer),
+            deferred: RefCell::new(Vec::new()),
+        }
+    }
+
+    /// Defer the execution of the given command.
+    pub fn defer<C>(&self, cmd: C)
+    where
+        C: Command + Send + 'static,
+    {
+        self.deferred.borrow_mut().push(Box::new(cmd));
+    }
+
+    /// Take the list of commands and leave empty list behind.
+    pub fn take(&self) -> Vec<Box<dyn Command + Send>> {
+        self.deferred.take()
+    }
+}
+
+impl Write for DeferredWriter {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        self.writer.write(buf)
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        self.writer.flush()
+    }
+}
+
+// -----------------------------------------------------------------------------------------------
+
 /// A terminal connection providing [`Input`] and [`Output`].
 ///
 /// This object owns the connection to the terminal. It provides independent,
@@ -14,15 +59,25 @@ use crate::{Command, Scan};
 /// [`Output`]. On Unix, the I/O types share the same underlying file
 /// descriptor, whereas on Windows each I/O type uses a distinct handle.
 ///
-/// Since a connection temporarily reconfigures the terminal, **an application
+/// To facilitate reading from the terminal, this type reconfigures the
+/// terminal, at a minimum by disabling the terminal's line editing mode. Since
+/// its drop handler restores the original configuration, **an application
 /// should go out of its way to always execute this type's drop handler** before
-/// exit.
+/// exit. Use [`drop`](std::mem::drop) to manually close a connection before it
+/// goes out of scope.
+///
+/// An application may need to make further changes, such as using the alternate
+/// screen or hiding the cursor, that also need to be undone before exit. In
+/// that case, the application can use [`Output::exec_defer`]. The method takes
+/// two [`Command`]s, executes the first command right away, and defers the
+/// second command to just before the terminal connection is closed.
+#[derive(Debug)]
 pub struct Connection {
     options: Options,
     stamp: u32,
     config: Option<RawConfig>,
     scanner: Mutex<Scanner<Box<dyn Read + Send>>>,
-    writer: Mutex<BufWriter<RawOutput>>,
+    writer: Mutex<DeferredWriter>,
     connection: RawConnection,
 }
 
@@ -72,10 +127,7 @@ impl Connection {
             Box::new(DoggedReader::new(connection.input()))
         };
         let scanner = Mutex::new(Scanner::with_options(&options, reader));
-        let writer = Mutex::new(BufWriter::with_capacity(
-            options.write_buffer_size(),
-            connection.output(),
-        ));
+        let writer = Mutex::new(DeferredWriter::new(connection.output(), &options));
         let stamp = if verbose {
             // macOS duration has microsecond resolution only, so that's our
             // least common denominator. If duration_since() fails, we use an
@@ -166,8 +218,11 @@ impl Drop for Connection {
     fn drop(&mut self) {
         let _ = self.log("terminal::disconnect");
 
-        // map() avoids panic for poisoned mutex
+        // Execute deferred commands and flush output.
         let _ = self.writer.lock().map(|mut writer| {
+            for cmd in writer.take().into_iter().rev() {
+                let _ = write!(writer, "{}", cmd);
+            }
             let _ = writer.flush();
         });
 
@@ -177,6 +232,8 @@ impl Drop for Connection {
         }
     }
 }
+
+// -----------------------------------------------------------------------------------------------
 
 /// A terminal [`Connection`]'s input.
 ///
@@ -279,6 +336,8 @@ impl BufRead for Input<'_> {
     }
 }
 
+// -----------------------------------------------------------------------------------------------
+
 /// A terminal [`Connection`]'s output.
 ///
 /// Since terminal output is buffered, actually executing commands requires
@@ -287,12 +346,13 @@ impl BufRead for Input<'_> {
 /// commands, while also flushing the output on every invocation.
 #[derive(Debug)]
 pub struct Output<'a> {
-    writer: MutexGuard<'a, BufWriter<RawOutput>>,
+    writer: MutexGuard<'a, DeferredWriter>,
 }
 
 impl Output<'_> {
     /// Write and flush the text.
     #[inline]
+    #[must_use = "method returns result that may indicate an error"]
     pub fn print(&mut self, text: impl AsRef<str>) -> Result<()> {
         self.writer.write_all(text.as_ref().as_bytes())?;
         self.writer.flush()
@@ -300,16 +360,42 @@ impl Output<'_> {
 
     /// Write and flush the text followed by carriage return and line feed.
     #[inline]
+    #[must_use = "method returns result that may indicate an error"]
     pub fn println(&mut self, text: impl AsRef<str>) -> Result<()> {
         self.writer.write_all(text.as_ref().as_bytes())?;
         self.writer.write_all(b"\r\n")?;
         self.writer.flush()
     }
 
-    /// Write and flush the command.
+    /// Execute the command.
+    ///
+    /// This method writes the display for the given command and then flushes
+    /// the terminal output.
     #[inline]
+    #[must_use = "method returns result that may indicate an error"]
     pub fn exec(&mut self, cmd: impl Command) -> Result<()> {
         write!(self.writer, "{}", cmd)?;
+        self.writer.flush()
+    }
+
+    /// Execute one command and defer the other.
+    ///
+    /// This method tries to write the first command to the terminal's output.
+    /// If that succeeds, it enqueues the second command for execution when the
+    /// connection is being closed.
+    ///
+    ///
+    /// This method tries to write out the first command. If it succeeds at that,
+    /// this method enqueues the second command
+    /// writes out the first command and then flushes the output.
+    #[must_use = "method returns result that may indicate an error"]
+    pub fn exec_defer<C1, C2>(&mut self, cmd1: C1, cmd2: C2) -> Result<()>
+    where
+        C1: Command,
+        C2: Command + Send + 'static,
+    {
+        write!(self.writer, "{}", cmd1)?;
+        self.writer.defer(cmd2);
         self.writer.flush()
     }
 }

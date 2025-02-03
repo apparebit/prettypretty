@@ -124,8 +124,9 @@ pub fn animate(tty: &Connection) -> Result<()> {
 
 fn main() -> Result<()> {
     let tty = Connection::open()?;
-    write!(tty.output(), "{}\n\n{}", HideCursor, MoveUp::<1>)?;
+    tty.output().exec_defer(HideCursor, ShowCursor)?;
+    write!(tty.output(), "\n\n{}", MoveUp::<1>)?;
     let result = animate(&tty);
-    let _ = write!(tty.output(), "{}\n\n", ShowCursor);
+    let _ = tty.output().println("\n");
     result
 }

@@ -52,6 +52,16 @@ assert_eq!(pos.1, 17);
 
 ## Release History
 
+### v0.3.0 (2025-02-xx)
+
+  * The [`Command`] trait now has both [`Debug`] and [`Display`] as supertraits.
+  * Commands synthesized with [`fuse!`] or [`fuse_sgr!`] display the macro name
+    and arguments under the debug trait.
+  * [`Output::exec_defer`] takes two commands as arguments. It immediately
+    executes the first command but defers the second command until just before
+    the [`Connection`] is closed.
+
+
 ### v0.2.2 (2025-02-01)
 
 Fix link to docs.rs.
