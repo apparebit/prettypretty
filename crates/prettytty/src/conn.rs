@@ -382,12 +382,8 @@ impl Output<'_> {
     ///
     /// This method tries to write the first command to the terminal's output.
     /// If that succeeds, it enqueues the second command for execution when the
-    /// connection is being closed.
-    ///
-    ///
-    /// This method tries to write out the first command. If it succeeds at that,
-    /// this method enqueues the second command
-    /// writes out the first command and then flushes the output.
+    /// connection is being closed and then flushes the output.
+
     #[must_use = "method returns result that may indicate an error"]
     pub fn exec_defer<C1, C2>(&mut self, cmd1: C1, cmd2: C2) -> Result<()>
     where
