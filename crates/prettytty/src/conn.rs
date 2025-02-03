@@ -383,7 +383,10 @@ impl Output<'_> {
     /// This method tries to write the first command to the terminal's output.
     /// If that succeeds, it enqueues the second command for execution when the
     /// connection is being closed and then flushes the output.
-
+    ///
+    /// The second command must be `'static`, so that it is alive for the
+    /// lifetime of the connection. It must be `Send`, so that connection
+    /// objects can be moved across threads.
     #[must_use = "method returns result that may indicate an error"]
     pub fn exec_defer<C1, C2>(&mut self, cmd1: C1, cmd2: C2) -> Result<()>
     where
