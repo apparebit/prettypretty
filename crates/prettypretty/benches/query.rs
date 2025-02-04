@@ -5,8 +5,7 @@ use prettytty::Connection;
 
 pub fn run_benchmarks(c: &mut Criterion) {
     let options = Options::with_log();
-    let tty =
-        Connection::with_options(options).expect("need terminal connection to run benchmarks");
+    let tty = Connection::with_options(options).expect("couldn't open terminal connection");
 
     let mut group = c.benchmark_group("theme-query");
     group.sample_size(10);
