@@ -7,9 +7,10 @@ use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, Normal, Uniform};
 
 use prettytty::cmd::{
-    HideCursor, MoveToColumn, MoveUp, SetDefaultForeground, SetForeground8, ShowCursor,
+    DynMoveTo, EnterAlternateScreen, EraseScreen, ExitAlternateScreen, HideCursor,
+    RequestScreenSize, SetDefaultForeground, SetForeground8, ShowCursor,
 };
-use prettytty::Connection;
+use prettytty::{fuse, Connection, Output, Query};
 
 // -------------------------------------------------------------------------------------
 
@@ -69,13 +70,16 @@ impl std::iter::FusedIterator for ProgressReporter {}
 
 /// A progress renderer.
 ///
-/// The renderer's display implementation assumes that the underlying binary
-/// writer is buffered. Otherwise, performance will be terrible.
+/// The renderer displays the progress bar at the current cursor position. It
+/// does not adjust that position.s
 pub struct Renderer(pub Progress);
 
-// The progress bar has a width of 25 fixed-width cells, each of which can
-// display 4 distinct steps, resulting in a resolution of 100 distinct lengths
-const WIDTH: usize = 25;
+// The progress indicator itself has 25 fixed-width cells, each capable of
+// displaying 4 steps, which makes for a resolution of 100 distinct steps total.
+// Add to that nine more cells with the ┫caps┣, a space, and the percentage
+// number, which is 100.0% at most.
+const WIDTH: usize = CELLS + 9;
+const CELLS: usize = 25;
 const STEPS: usize = 4;
 
 impl std::fmt::Display for Renderer {
@@ -83,11 +87,10 @@ impl std::fmt::Display for Renderer {
         let uprog = self.0 as usize;
         let full = uprog / STEPS;
         let partial = uprog % STEPS;
-        let empty = WIDTH - full - (if 0 < partial { 1 } else { 0 });
+        let empty = CELLS - full - (if 0 < partial { 1 } else { 0 });
 
         // The 11th 8-bit color is bright green
-        write!(f, "{}  ┫{}", MoveToColumn::<0>, SetForeground8::<10>)?;
-
+        write!(f, "┫{}", SetForeground8::<10>)?;
         for _ in 0..full {
             f.write_str("█")?;
         }
@@ -104,29 +107,41 @@ impl std::fmt::Display for Renderer {
 
 // -------------------------------------------------------------------------------------
 
-/// Animate a progress bar's progress from 0 to 100 percent.
-pub fn animate(tty: &Connection) -> Result<()> {
+/// Animate the progress bar
+pub fn animate(output: &mut Output, row: u16, column: u16) -> Result<()> {
     // Nap time is between 1/60 and 1/10 seconds
     let uniform = Uniform::new_inclusive(16, 100).map_err(|e| std::io::Error::other(e))?;
     let mut rng = rand::rng();
 
-    let mut output = tty.output();
     for progress in ProgressReporter::new() {
-        write!(output, "{}", Renderer(progress))?;
+        write!(output, "{}{}", DynMoveTo(row, column), Renderer(progress))?;
         output.flush()?;
 
         let nap = Duration::from_millis(uniform.sample(&mut rng));
         thread::sleep(nap);
     }
 
+    thread::sleep(Duration::from_millis(500));
     Ok(())
 }
 
 fn main() -> Result<()> {
     let tty = Connection::open()?;
-    tty.output().exec_defer(HideCursor, ShowCursor)?;
-    write!(tty.output(), "\n\n{}", MoveUp::<1>)?;
-    let result = animate(&tty);
-    let _ = tty.output().println("\n");
-    result
+    let (mut input, mut output) = tty.io();
+
+    // Prepare screen
+    output.exec_defer(
+        fuse!(EnterAlternateScreen, EraseScreen, HideCursor),
+        fuse!(ShowCursor, ExitAlternateScreen),
+    )?;
+
+    // Determine the bar's coordinates
+    let (row, column) = RequestScreenSize.run(&mut input, &mut output)?;
+    let (row, column) = (
+        row.saturating_sub(1) / 2,
+        column.saturating_sub(WIDTH as u16) / 2,
+    );
+
+    // Run the animation
+    animate(&mut output, row, column)
 }

@@ -54,12 +54,17 @@ assert_eq!(pos.1, 17);
 
 ### v0.3.0 (2025-02-xx)
 
-  * The [`Command`] trait now has both [`Debug`] and [`Display`] as supertraits.
+  * The [`Command`] trait now has both `Debug` and `Display` as supertraits.
   * Commands synthesized with [`fuse!`] or [`fuse_sgr!`] display the macro name
     and arguments under the debug trait.
   * [`Output::exec_defer`] takes two commands as arguments. It immediately
     executes the first command but defers the second command until just before
     the [`Connection`] is closed.
+  * The new [`Query::run`] method turns three-line boilerplate for querying the
+    terminal into a two-argument method invocation.
+  * The updated
+    [progress.rs](https://github.com/apparebit/prettypretty/blob/main/crates/prettytty/examples/progress.rs)
+    illustrates the use of `fuse!`, `Output::exec_defer`, and `Query::run`.
 
 
 ### v0.2.2 (2025-02-01)
@@ -69,12 +74,12 @@ Fix link to docs.rs.
 
 ### v0.2.1 (2025-02-01)
 
-  * Fix the `fuse!` macro.
-  * Update both `fuse!` and `fuse_sgr!` to generate commands that are consistent
-    with all of prettytty's commands other than `DynLink` and
-    `DynSetWindowTitle` and hence implement the `Copy`, `Clone`, `Debug`,
+  * Fix the [`fuse!`] macro.
+  * Update both [`fuse!`] and [`fuse_sgr!`] to generate commands that are
+    consistent with all of prettytty's commands other than [`DynLink`] and
+    [`DynSetWindowTitle`] and hence implement the `Copy`, `Clone`, `Debug`,
     `PartialEq`, and `Eq` traits.
-  * Update `SetForeground8`, `SetBackground8`, and their `Dyn` versions to
+  * Update [`SetForeground8`], [`SetBackground8`], and their `Dyn` versions to
     generate shorter ANSI escape sequences for the first 16 colors, which are
     the 8 ANSI colors and their bright variants.
 
@@ -109,12 +114,18 @@ as open source under the [Apache
 [`cmd`]: https://apparebit.github.io/prettypretty/prettytty/cmd/index.html
 [`Command`]: https://apparebit.github.io/prettypretty/prettytty/trait.Command.html
 [`Connection`]: https://apparebit.github.io/prettypretty/prettytty/struct.Connection.html
+[`DynLink`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.DynLink.html
+[`DynSetWindowTitle`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.DynSetWindowTitle.html
 [`fuse!`]: https://apparebit.github.io/prettypretty/prettytty/macro.fuse.html
 [`fuse_sgr!`]: https://apparebit.github.io/prettypretty/prettytty/macro.fuse_sgr.html
 [`Input`]: https://apparebit.github.io/prettypretty/prettytty/struct.Input.html
 [`Output`]: https://apparebit.github.io/prettypretty/prettytty/struct.Output.html
+[`Output::exec_defer`]: https://apparebit.github.io/prettypretty/prettytty/struct.Output.html#method.exec_defer
 [`Query`]: https://apparebit.github.io/prettypretty/prettytty/trait.Query.html
 [`Query::parse`]: https://apparebit.github.io/prettypretty/prettytty/trait.Query.html#method.parse
+[`Query::run`]: https://apparebit.github.io/prettypretty/prettytty/trait.Query.html#method.run
 [`Scan`]: https://apparebit.github.io/prettypretty/prettytty/trait.Scan.html
 [`Scan::read_token`]: https://apparebit.github.io/prettypretty/prettytty/trait.Scan.html#method.read_token
+[`SetBackground8`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.SetBackground8.html
+[`SetForeground8`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.SetForeground8.html
 [`Sgr`]: https://apparebit.github.io/prettypretty/prettytty/trait.Sgr.html
