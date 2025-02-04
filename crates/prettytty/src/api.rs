@@ -1,6 +1,7 @@
 use std::io::Result;
 
 use crate::util::nicely;
+use crate::{Input, Output};
 
 /// A command for the terminal.
 ///
@@ -259,6 +260,41 @@ pub trait Query: Command {
 
     /// Parse the payload into a response object.
     fn parse(&self, payload: &[u8]) -> Result<Self::Response>;
+
+    /// Run this query.
+    ///
+    /// This method writes the request to the given output, reads the response
+    /// from the given input, parses the response payload, returning the result.
+    ///
+    ///
+    /// # Performance Considerations
+    ///
+    /// Since accessing a connection's input and output entails acquiring a
+    /// mutex each, this method takes the input and output objects as arguments.
+    /// That way, the caller controls when to acquire the two objects and incur
+    /// the corresponding overhead. As a result, the caller also incurs the
+    /// notational overhead of passing two arguments prefixed with `&mut`
+    /// instead of passing one argument prefixed with `&` (as the connection
+    /// object uses interior mutability). While not ideal, favoring flexibility
+    /// and performance over concision seems the right trade-off.
+    ///
+    /// This method is well-suited to running the occasional query. However,
+    /// when executing several queries, e.g., when querying a terminal for its
+    /// color theme, this method is not performant. Instead, an application
+    /// should write all requests to the output before flushing (once) and then
+    /// process all responses. Prettypretty's
+    /// [`Theme::query`](https://apparebit.github.io/prettypretty/prettypretty/theme/struct.Theme.html#method.query)
+    /// does just that. If you [check the
+    /// source](https://github.com/apparebit/prettypretty/blob/f25d2215d0747ca86ac8bcb5a48426dd7a496eb4/crates/prettypretty/src/theme.rs#L95),
+    /// it actually implements versions with one, two, and three processing
+    /// loops; the [query
+    /// benchmark](https://github.com/apparebit/prettypretty/blob/main/crates/prettypretty/benches/query.rs)
+    /// compares their performance.
+    fn run(&self, input: &mut Input, output: &mut Output) -> Result<Self::Response> {
+        output.exec(self)?;
+        let payload = input.read_sequence(self.control())?;
+        self.parse(payload)
+    }
 }
 
 /// A borrowed query is a query.
