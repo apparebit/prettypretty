@@ -137,9 +137,9 @@ impl Buffer {
     /// Determine whether this buffer is fragmented.
     ///
     /// The buffer is fragmented if it has space before the token or between
-    /// token and cursor. In that case, [`Buffer::defrag`] can maximize
-    /// continuous free space by shifting token and unread bytes towards the
-    /// buffer start.
+    /// token and cursor. In that case, [`Buffer::defrag`] can make that free
+    /// space available by shifting token and unread bytes towards the buffer's
+    /// start.
     #[inline]
     pub fn is_fragmented(&self) -> bool {
         0 < self.token_start || self.token_end < self.cursor
@@ -147,8 +147,9 @@ impl Buffer {
 
     /// Determine whether this buffer has spare capacity.
     ///
-    /// This method returns `true` if there is space to read in more data
-    /// without defragmenting.
+    /// This method determines whether there is space past between the end of
+    /// buffered bytes and the end of the buffer. In other words, it returns
+    /// `true` if there is space to read in more data without defragmenting.
     #[inline]
     pub fn has_capacity(&self) -> bool {
         self.filled < self.data.capacity()
