@@ -201,12 +201,14 @@ impl std::fmt::Display for Control {
 ///
 /// Queries are request/response interactions with the terminal. For purposes of
 /// this trait, the response consists of a control followed by the payload
-/// optionally followed by another control (usually `BEL` or `ST`). The control
-/// is not represented by a constant but rather returned by a method, so that
-/// the trait remains object-safe.
+/// optionally followed by another control (usually `BEL` or `ST`). The trait
+/// uses a method, and not a constant, for the control, so as to remain
+/// object-safe.
 ///
 ///
 /// # Example
+///
+/// ## The Elaborate Version
 ///
 /// To process a query's response, [`Scan::read_token()`] and ensure that the
 /// [`Token`] is a sequence with a [`Query::control()`]. Then [`Query::parse`]
@@ -223,7 +225,6 @@ impl std::fmt::Display for Control {
 /// #     Err(err) if err.kind() == std::io::ErrorKind::ConnectionRefused => return Ok(()),
 /// #     Err(err) => return Err(err),
 /// # };
-/// # let pos = {
 /// # let (mut input, mut output) = tty.io();
 /// # output.exec(MoveToColumn::<17>)?;
 /// // Write the command
@@ -233,24 +234,78 @@ impl std::fmt::Display for Control {
 /// let token = input.read_token()?;
 ///
 /// // Extract and parse payload
+/// let pos;
 /// if let Token::Sequence(control, payload) = token {
 ///     if control == RequestCursorPosition.control() {
-///         RequestCursorPosition.parse(payload)?
+///         pos = RequestCursorPosition.parse(payload)?
 ///     } else {
 ///         return Err(ErrorKind::BadControl.into());
 ///     }
 /// } else {
 ///     return Err(ErrorKind::NotASequence.into());
 /// }
-/// # };
-/// # drop(tty);
 /// # assert_eq!(pos.1, 17);
 /// # Ok::<(), std::io::Error>(())
 /// ```
 ///
+/// ## Using `Scan::read_sequence`
+///
 /// In the above example, generating precise errors requires about as much code
 /// as extracting and parsing the payload. The [`Scan::read_sequence`] method
-/// abstracts over this boilerplate.
+/// abstracts over this boilerplate. It certainly helps:
+///
+/// ```
+/// # use prettytty::{Connection, Query, Scan, Token};
+/// # use prettytty::cmd::{MoveToColumn, RequestCursorPosition};
+/// # use prettytty::err::ErrorKind;
+/// # use prettytty::opt::Options;
+/// # let options = Options::default();
+/// # let tty = match Connection::with_options(options) {
+/// #     Ok(tty) => tty,
+/// #     Err(err) if err.kind() == std::io::ErrorKind::ConnectionRefused => return Ok(()),
+/// #     Err(err) => return Err(err),
+/// # };
+/// # let (mut input, mut output) = tty.io();
+/// # output.exec(MoveToColumn::<17>)?;
+/// // Write the command
+/// output.exec(RequestCursorPosition)?;
+///
+/// // Read the ANSI escape sequence and extract the payload
+/// let payload = input.read_sequence(RequestCursorPosition.control())?;
+///
+/// // Parse the payload
+/// let pos = RequestCursorPosition.parse(payload)?;
+/// # assert_eq!(pos.1, 17);
+/// # Ok::<(), std::io::Error>(())
+/// ```
+///
+/// ## Using `Query::run`
+///
+/// While much cleaner, the previous example still is boilerplate. After all,
+/// every query needs to write the request, scan the response for the payload,
+/// and parse the payload. [`Query::run`] abstracts over that:
+///
+/// ```
+/// # use prettytty::{Connection, Query, Scan, Token};
+/// # use prettytty::cmd::{MoveToColumn, RequestCursorPosition};
+/// # use prettytty::err::ErrorKind;
+/// # use prettytty::opt::Options;
+/// # let options = Options::default();
+/// # let tty = match Connection::with_options(options) {
+/// #     Ok(tty) => tty,
+/// #     Err(err) if err.kind() == std::io::ErrorKind::ConnectionRefused => return Ok(()),
+/// #     Err(err) => return Err(err),
+/// # };
+/// # let (mut input, mut output) = tty.io();
+/// # output.exec(MoveToColumn::<17>)?;
+/// let pos = RequestCursorPosition.run(&mut input, &mut output)?;
+/// # assert_eq!(pos.1, 17);
+/// # Ok::<(), std::io::Error>(())
+/// ```
+///
+/// Nice, right? Alas, [`Query::run`] may be slower than needs be when
+/// processing a batch of queries. The method's documentation addresses this and
+/// other performance considerations.
 pub trait Query: Command {
     /// The type of the response data.
     type Response;
@@ -279,10 +334,11 @@ pub trait Query: Command {
     /// and performance over concision seems the right trade-off.
     ///
     /// This method is well-suited to running the occasional query. However,
-    /// when executing several queries, e.g., when querying a terminal for its
-    /// color theme, this method is not performant. Instead, an application
-    /// should write all requests to the output before flushing (once) and then
-    /// process all responses. Prettypretty's
+    /// when executing several queries in a row, e.g., when querying a terminal
+    /// for its color theme, this method may not be performant, especially when
+    /// running in a remote shell. Instead, an application should write all
+    /// requests to output before flushing (once) and then process all
+    /// responses. Prettypretty's
     /// [`Theme::query`](https://apparebit.github.io/prettypretty/prettypretty/theme/struct.Theme.html#method.query)
     /// does just that. If you [check the
     /// source](https://github.com/apparebit/prettypretty/blob/f25d2215d0747ca86ac8bcb5a48426dd7a496eb4/crates/prettypretty/src/theme.rs#L95),
@@ -330,9 +386,10 @@ impl<Q: Query + ?Sized> Query for Box<Q> {
 pub enum Token<'t> {
     /// One or more UTF-8 characters excluding C0 and C1 controls.
     Text(&'t [u8]),
-    /// A C0 or C1 control that doesn't start or end a sequence.
+    /// A C0 or C1 control that doesn't start or end a sequence. This token
+    /// always has one byte of character data.
     Control(&'t [u8]),
-    /// A control sequence with its initial control and payload.
+    /// A control sequence with its initial control and subsequent payload.
     Sequence(Control, &'t [u8]),
 }
 
@@ -346,6 +403,9 @@ impl Token<'_> {
     }
 
     /// Get this token's character data.
+    ///
+    /// The length of the returned byte slice varies for text and sequence
+    /// tokens. It always is 1, however, for the control token.
     pub fn data(&self) -> &[u8] {
         use self::Token::*;
 
