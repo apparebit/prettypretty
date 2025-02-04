@@ -1,3 +1,5 @@
+//! The machinery for recognizing UTF-8 and ANSI escape codes.
+
 mod buffer;
 mod machine;
 mod utf8;
@@ -69,6 +71,11 @@ impl<R: std::io::Read> Scanner<R> {
 
     // ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
     // Manage the internal buffer
+
+    /// Determine whether the scanner's buffer has readable content available.
+    pub fn is_readable(&self) -> bool {
+        self.buffer.is_readable()
+    }
 
     /// Ensure that the buffer has readable content.
     ///

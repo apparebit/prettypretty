@@ -301,6 +301,13 @@ pub struct Input<'a> {
     scanner: MutexGuard<'a, Scanner<Box<dyn Read + Send>>>,
 }
 
+impl Input<'_> {
+    /// Determine whether the input has bytes buffered.
+    pub fn is_readable(&self) -> bool {
+        self.scanner.is_readable()
+    }
+}
+
 impl Scan for Input<'_> {
     #[inline]
     fn in_flight(&self) -> bool {
@@ -386,7 +393,8 @@ impl Output<'_> {
     ///
     /// The second command must be `'static`, so that it is alive for the
     /// lifetime of the connection. It must be `Send`, so that connection
-    /// objects can be moved across threads.
+    /// objects can be moved across threads. Since most commands are zero-sized
+    /// types, they trivially fulfill both requirements.
     #[must_use = "method returns result that may indicate an error"]
     pub fn exec_defer<C1, C2>(&mut self, cmd1: C1, cmd2: C2) -> Result<()>
     where
