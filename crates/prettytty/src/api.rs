@@ -53,7 +53,7 @@ macro_rules! fuse {
 
         impl ::std::fmt::Debug for Fused {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                f.write_str(stringify!(fuse!($($command),+)))
+                f.write_str(concat!(stringify!(fuse!), "(", stringify!($($command),+), ")"))
             }
         }
 
@@ -120,7 +120,7 @@ macro_rules! fuse_sgr {
 
         impl ::std::fmt::Debug for FusedSgr {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                f.write_str(stringify!(fuse_sgr!($sgr, $($sgr2),*)))
+                f.write_str(concat!(stringify!(fuse_sgr!), "(", stringify!($sgr, $($sgr2),*), ")"))
             }
         }
 
@@ -533,7 +533,7 @@ mod test {
         assert_eq!(format!("{}", cmd), "\x1b[5m\x1b[48;5;219m");
         assert_eq!(
             format!("{:?}", cmd),
-            "fuse! (Format::Blinking, SetBackground8::<219>)"
+            "fuse!(Format::Blinking, SetBackground8::<219>)"
         );
 
         let double = format!("{}{}", cmd, cmd);
@@ -542,14 +542,14 @@ mod test {
         assert_eq!(format!("{}{}", cmd, copy), double);
         assert_eq!(
             format!("{:?}", cmd),
-            "fuse! (Format::Blinking, SetBackground8::<219>)"
+            "fuse!(Format::Blinking, SetBackground8::<219>)"
         );
 
         let clone = cmd.clone();
         assert_eq!(format!("{}{}", cmd, clone), double);
         assert_eq!(
             format!("{:?}", cmd),
-            "fuse! (Format::Blinking, SetBackground8::<219>)"
+            "fuse!(Format::Blinking, SetBackground8::<219>)"
         );
 
         assert_eq!(cmd, copy);
@@ -568,7 +568,7 @@ mod test {
         assert_eq!(format!("{}", cmd), "\x1b[1;30;107m");
         assert_eq!(
             format!("{:?}", cmd),
-            "fuse_sgr! (Format::Bold, SetForeground8::<0>, SetBackground8::<15>)"
+            "fuse_sgr!(Format::Bold, SetForeground8::<0>, SetBackground8::<15>)"
         );
 
         let double = format!("{}{}", cmd, cmd);
@@ -577,14 +577,14 @@ mod test {
         assert_eq!(format!("{}{}", cmd, copy), double);
         assert_eq!(
             format!("{:?}", cmd),
-            "fuse_sgr! (Format::Bold, SetForeground8::<0>, SetBackground8::<15>)"
+            "fuse_sgr!(Format::Bold, SetForeground8::<0>, SetBackground8::<15>)"
         );
 
         let clone = cmd.clone();
         assert_eq!(format!("{}{}", cmd, clone), double);
         assert_eq!(
             format!("{:?}", cmd),
-            "fuse_sgr! (Format::Bold, SetForeground8::<0>, SetBackground8::<15>)"
+            "fuse_sgr!(Format::Bold, SetForeground8::<0>, SetBackground8::<15>)"
         );
 
         assert_eq!(cmd, copy);
