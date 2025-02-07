@@ -47,8 +47,8 @@ impl RawConnectionHandle {
 // thread-safe. In fact, Rust's standard library [implements `Send` and
 // `Sync`](https://github.com/rust-lang/rust/blob/8e37e151835d96d6a7415e93e6876561485a3354/library/std/src/os/windows/io/handle.rs#L111),
 // for wrapped handles, too. Also, access to raw input is gated by a mutex.
-impl Send for RawConnectionHandle {}
-impl Sync for RawConnectionHandle {}
+unsafe impl Send for RawConnectionHandle {}
+unsafe impl Sync for RawConnectionHandle {}
 
 /// A connection to a terminal device.
 #[derive(Debug)]
@@ -80,7 +80,7 @@ impl RawConnection {
 
     /// Use standard I/O to simulate a dedicated terminal connection.
     #[allow(dead_code)]
-    pub fn with_stdio() -> Option<Self> {
+    pub fn with_stdio(options: &Options) -> Option<Self> {
         if stdin().is_terminal() {
             let output = if stdout().is_terminal() {
                 stdout().as_raw_handle()
@@ -91,6 +91,7 @@ impl RawConnection {
             };
 
             Some(Self {
+                timeout: 100 * (options.timeout() as u32),
                 handle: RawConnectionHandle::StdIo(stdin().as_raw_handle(), output),
             })
         } else {

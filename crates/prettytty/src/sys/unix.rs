@@ -73,7 +73,7 @@ impl RawConnection {
     /// connection is only safe to use as long as the standard library
     /// facilities are only used after the last connection has been dropped.
     #[allow(dead_code)]
-    pub fn with_stdio() -> Option<Self> {
+    pub fn with_stdio(_: &Options) -> Option<Self> {
         if stdin().is_terminal() {
             let output = if stdout().is_terminal() {
                 stdout().as_raw_fd()
