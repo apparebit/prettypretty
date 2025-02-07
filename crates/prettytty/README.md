@@ -55,8 +55,8 @@ assert_eq!(pos.1, 17);
 ### v0.3.0 (2025-02-xx)
 
   * The [`Command`] trait now has both `Debug` and `Display` as supertraits.
-  * Commands synthesized with [`fuse!`] or [`fuse_sgr!`] display the macro name
-    and arguments under the debug trait.
+  * For commands synthesized with [`fuse!`] or [`fuse_sgr!`], the debug trait
+    now displays the macro name and arguments.
   * [`Output::exec_defer`] takes two commands as arguments. It immediately
     executes the first command but defers the second command until just before
     the [`Connection`] is closed.
@@ -65,6 +65,11 @@ assert_eq!(pos.1, 17);
   * The updated
     [progress.rs](https://github.com/apparebit/prettypretty/blob/main/crates/prettytty/examples/progress.rs)
     illustrates the use of `fuse!`, `Output::exec_defer`, and `Query::run`.
+  * [`cmd`] now includes commands for scrolling up and down as well as setting
+    the scroll region.
+  * [`RequestBatchMode::parse`], [`RequestColor::parse`], and
+    [`RequestCursorPosition::parse`] won't panic on invalid payloads anymore
+    instead return an error.
 
 
 ### v0.2.2 (2025-02-01)
@@ -124,6 +129,9 @@ as open source under the [Apache
 [`Query`]: https://apparebit.github.io/prettypretty/prettytty/trait.Query.html
 [`Query::parse`]: https://apparebit.github.io/prettypretty/prettytty/trait.Query.html#method.parse
 [`Query::run`]: https://apparebit.github.io/prettypretty/prettytty/trait.Query.html#method.run
+[`RequestBatchMode::parse`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.RequestBatchMode.html#method.parse
+[`RequestColor::parse`]: https://apparebit.github.io/prettypretty/prettytty/cmd/enum.RequestColor.html#method.parse
+[`RequestCursorPosition::parse`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.RequestCursorPosition.html#method.parse
 [`Scan`]: https://apparebit.github.io/prettypretty/prettytty/trait.Scan.html
 [`Scan::read_token`]: https://apparebit.github.io/prettypretty/prettytty/trait.Scan.html#method.read_token
 [`SetBackground8`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.SetBackground8.html
