@@ -34,6 +34,12 @@ impl RawConnectionHandle {
 }
 
 /// A connection to a terminal device.
+///
+/// While this struct can access the terminal through a dedicated connection,
+/// that connection reflects the same terminal state as the standard streams
+/// (assuming they have not been redirected). In other words, simultaneously
+/// accessing the terminal through this type and some other means is a recipe
+/// for disaster.
 #[derive(Debug)]
 pub(crate) struct RawConnection {
     handle: RawConnectionHandle,

@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 use std::fs::OpenOptions;
-use std::io::{Error, ErrorKind, Read, Result, Write};
+use std::io::{stderr, stdin, stdout, Error, ErrorKind, IsTerminal, Read, Result, Write};
 use std::os::windows::io::{AsRawHandle, OwnedHandle};
 use std::ptr::{from_mut, null};
 
@@ -15,11 +15,39 @@ use crate::opt::{Mode, Options};
 
 // ----------------------------------------------------------------------------------------------------------
 
+/// A raw connection handle.
+///
+/// This enumeration covers dedicated connections with two owned handles as well
+/// as virtual connections based on standard I/O with two raw handles. On drop,
+/// only the former are closed, which is the desired behavior.
+#[derive(Debug)]
+enum RawConnectionHandle {
+    Owned(OwnedHandle, OwnedHandle),
+    #[allow(dead_code)]
+    StdIo(RawHandle, RawHandle),
+}
+
+impl RawConnectionHandle {
+    fn input(&self) -> RawHandle {
+        match self {
+            Self::Owned(input, _) => input.as_raw_handle(),
+            Self::StdIo(input, _) => *input,
+        }
+    }
+
+    fn output(&self) -> RawHandle {
+        match self {
+            Self::Owned(_, output) => output.as_raw_handle(),
+            Self::StdIo(_, output) => *output,
+        }
+    }
+}
+
+/// A connection to a terminal device.
 #[derive(Debug)]
 pub(crate) struct RawConnection {
     timeout: u32,
-    input: OwnedHandle,
-    output: OwnedHandle,
+    handle: RawConnectionHandle,
 }
 
 impl RawConnection {
@@ -39,9 +67,28 @@ impl RawConnection {
 
         Ok(Self {
             timeout,
-            input,
-            output,
+            handle: RawConnectionHandle::Owned(input, output),
         })
+    }
+
+    /// Use standard I/O to simulate a dedicated terminal connection.
+    #[allow(dead_code)]
+    pub fn with_stdio() -> Option<Self> {
+        if stdin().is_terminal() {
+            let output = if stdout().is_terminal() {
+                stdout().as_raw_handle()
+            } else if stderr().is_terminal() {
+                stderr().as_raw_handle()
+            } else {
+                return None;
+            };
+
+            Some(Self {
+                handle: RawConnectionHandle::StdIo(stdin().as_raw_handle(), output),
+            })
+        } else {
+            None
+        }
     }
 
     /// Get the process group ID.
@@ -53,13 +100,13 @@ impl RawConnection {
     /// Get a handle for the terminal's input.
     #[inline]
     pub fn input(&self) -> RawInput {
-        RawInput::new(self.input.as_raw_handle(), self.timeout)
+        RawInput::new(self.handle.input(), self.timeout)
     }
 
     /// Get a handle for the terminal's output.
     #[inline]
     pub fn output(&self) -> RawOutput {
-        RawOutput::new(self.output.as_raw_handle())
+        RawOutput::new(self.handle.output())
     }
 }
 
