@@ -156,6 +156,9 @@ impl RawConfig {
     }
 
     /// Apply the options to create a new configuration.
+    ///
+    /// If the options do not requires changes to the current configuration,
+    /// this method return `None`.
     pub fn apply(&self, options: &Options) -> Option<Self> {
         let mut state = self.state;
 

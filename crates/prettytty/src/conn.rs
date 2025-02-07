@@ -176,7 +176,7 @@ impl Connection {
     #[inline]
     pub fn input(&self) -> Input {
         Input {
-            scanner: self.scanner.lock().expect("mutex is not poisoned"),
+            scanner: self.scanner.lock().expect("can't lock poisoned mutex"),
         }
     }
 
@@ -187,7 +187,7 @@ impl Connection {
     #[inline]
     pub fn output(&self) -> Output {
         Output {
-            writer: self.writer.lock().expect("mutex is not poisoned"),
+            writer: self.writer.lock().expect("can't lock poisoned mutex"),
         }
     }
 
