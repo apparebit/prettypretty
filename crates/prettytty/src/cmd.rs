@@ -5,7 +5,7 @@
 //! provide common terminal interactions. Organized by topic, supported commands
 //! are:
 //!
-//!   * Terminal management:
+//!   * Terminal identification:
 //!       * [`RequestTerminalId`]
 //!   * Window title management:
 //!       * [`SaveWindowTitle`] and [`RestoreWindowTitle`]
@@ -14,6 +14,10 @@
 //!       * [`RequestScreenSize`]
 //!       * [`EnterAlternateScreen`] and [`ExitAlternateScreen`]
 //!       * [`EraseScreen`] and [`EraseLine`]
+//!   * Scrolling:
+//!       * [`ScrollUp`], [`ScrollDown`], [`DynScrollUp`], and [`DynScrollDown`]
+//!       * [`SetScrollRegion`] and [`DynSetScrollRegion`]
+//!       * [`ResetScrollRegion`]
 //!   * Cursor management:
 //!       * [`HideCursor`] and [`ShowCursor`]
 //!       * [`RequestCursorPosition`]
@@ -25,10 +29,12 @@
 //!       * [`SaveCursorPosition`] and [`RestoreCursorPosition`]
 //!   * Managing content:
 //!       * [`RequestBatchMode`]
-//!       * [`BeginBatch`] and [`EndBatch`]
+//!       * [`BeginBatch`] and [`EndBatch`] to [group
+//!         updates](https://gist.github.com/christianparpart/d8a62cc1ab659194337d73e399004036)
 //!       * [`BeginPaste`] and [`EndPaste`] to perform a
 //!         [bracketed paste](https://cirw.in/blog/bracketed-paste) operation
-//!       * [`DynLink`]
+//!       * [`DynLink`] to [add
+//!         hyperlink](https://gist.github.com/christianparpart/180fb3c5f008489c8afcffb3fa46cd8e)
 //!   * Styling content:
 //!       * [`ResetStyle`]
 //!       * [`RequestActiveStyle`]
@@ -79,7 +85,7 @@
 //!      src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
 //!      alt="wow!" width="42">. Wow indeed 😜
 
-use crate::util::{is_semi_colon, Radix};
+use crate::util::{is_semi_colon, parse_dec_u16, parse_dec_u32, parse_hex_u16};
 use crate::{Command, Control, Query, Sgr};
 use std::io::{Error, ErrorKind, Result};
 use std::iter::successors;
@@ -105,24 +111,67 @@ macro_rules! declare_n_struct {
     }
 }
 
-macro_rules! implement_sgr_expr {
-    ($name:ident { $repr:expr }) => {
-        impl $crate::Command for $name {}
+macro_rules! implement_command {
+    ($name:ident $(< $( $arg:ident : $typ:ty ),+ >)? : $selfish:ident ; $output:ident $body:block) => {
+        impl $(< $(const $arg: $typ),+ >)? $crate::Command for $name $(< $($arg),+ >)? {}
 
-        impl $crate::Sgr for $name {
+        impl $(< $(const $arg: $typ),+ >)? ::std::fmt::Display for $name $(< $($arg),+ >)? {
             #[inline]
-            fn write_param(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.write_str($repr)
+            fn fmt(&$selfish, $output: &mut ::std::fmt::Formatter<'_>) -> std::fmt::Result {
+                $body
             }
         }
+    }
+}
 
-        impl ::std::fmt::Display for $name {
-            #[inline]
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.write_str(concat!("\x1b[", $repr, "m"))
-            }
-        }
+macro_rules! define_unit_command {
+    ($name:ident, $ansi:tt) => {
+        declare_unit_struct!($name);
+        implement_command!($name: self; f { f.write_str($ansi) });
     };
+}
+
+macro_rules! define_cmd_1 {
+    ($name:ident <$arg:ident : $typ:ty>, $dyn_name:ident, $prefix:literal, $suffix:literal) => {
+        declare_n_struct!($name<$arg : $typ>);
+        implement_command!($name<$arg : $typ>: self; f {
+            f.write_str($prefix)?;
+            <_ as ::std::fmt::Display>::fmt(&$arg, f)?;
+            f.write_str($suffix)
+        });
+
+        declare_n_struct!($dyn_name($arg : $typ));
+        implement_command!($dyn_name: self; f {
+            f.write_str($prefix)?;
+            <_ as ::std::fmt::Display>::fmt(&self.0, f)?;
+            f.write_str($suffix)
+        });
+    }
+}
+
+macro_rules! define_cmd_2 {
+    (
+        $name:ident <$arg1:ident : $typ1:ty, $arg2:ident : $typ2:ty>,
+            $dyn_name:ident, $prefix:literal, $suffix:literal
+    ) => {
+        declare_n_struct!($name<$arg1 : $typ1, $arg2 : $typ2>);
+        implement_command!($name<$arg1 : $typ1, $arg2 : $typ2>: self; f {
+            f.write_str($prefix)?;
+            <_ as ::std::fmt::Display>::fmt(&$arg1, f)?;
+            f.write_str(";")?;
+            <_ as ::std::fmt::Display>::fmt(&$arg2, f)?;
+            f.write_str($suffix)
+        });
+
+        declare_n_struct!($dyn_name($arg1 : $typ1, $arg2 : $typ2));
+        implement_command!($dyn_name: self; f {
+            f.write_str($prefix)?;
+            <_ as ::std::fmt::Display>::fmt(&self.0, f)?;
+            f.write_str(";")?;
+            <_ as ::std::fmt::Display>::fmt(&self.1, f)?;
+            f.write_str($suffix)
+        });
+    }
 }
 
 macro_rules! implement_sgr {
@@ -147,30 +196,10 @@ macro_rules! implement_sgr {
     };
 }
 
-macro_rules! implement_command {
-    ($name:ident $(< $( $arg:ident : $typ:ty ),+ >)? : $selfish:ident ; $output:ident $body:block) => {
-        impl $(< $(const $arg: $typ),+ >)? $crate::Command for $name $(< $($arg),+ >)? {}
-
-        impl $(< $(const $arg: $typ),+ >)? ::std::fmt::Display for $name $(< $($arg),+ >)? {
-            #[inline]
-            fn fmt(&$selfish, $output: &mut ::std::fmt::Formatter<'_>) -> std::fmt::Result {
-                $body
-            }
-        }
-    }
-}
-
 macro_rules! define_unit_sgr {
     ($name:ident, $ansi:tt) => {
         declare_unit_struct!($name);
-        implement_sgr_expr!($name { $ansi });
-    };
-}
-
-macro_rules! define_unit_command {
-    ($name:ident, $ansi:tt) => {
-        declare_unit_struct!($name);
-        implement_command!($name: self; f { f.write_str($ansi) });
+        implement_sgr!($name: self; f { f.write_str($ansi) });
     };
 }
 
@@ -222,24 +251,6 @@ macro_rules! define_24bit_color {
             <_ as ::std::fmt::Display>::fmt(&self.1, f)?;
             f.write_str(";")?;
             <_ as ::std::fmt::Display>::fmt(&self.2, f)
-        });
-    }
-}
-
-macro_rules! define_cmd_1 {
-    ($name:ident <$arg:ident : $typ:ty>, $dyn_name:ident, $prefix:literal, $suffix:literal) => {
-        declare_n_struct!($name<$arg : $typ>);
-        implement_command!($name<$arg : $typ>: self; f {
-            f.write_str($prefix)?;
-            <_ as ::std::fmt::Display>::fmt(&$arg, f)?;
-            f.write_str($suffix)
-        });
-
-        declare_n_struct!($dyn_name($arg : $typ));
-        implement_command!($dyn_name: self; f {
-            f.write_str($prefix)?;
-            <_ as ::std::fmt::Display>::fmt(&self.0, f)?;
-            f.write_str($suffix)
         });
     }
 }
@@ -339,6 +350,14 @@ impl Query for RequestScreenSize {
     }
 }
 
+// ------------------------------------- Scrolling -------------------------------------
+
+define_cmd_1!(ScrollUp<ROWS: u16>, DynScrollUp, "\x1b[", "S");
+define_cmd_1!(ScrollDown<ROWS: u16>, DynScrollDown, "\x1b[", "S");
+
+define_cmd_2!(SetScrollRegion<TOP: u16, BOTTOM: u16>, DynSetScrollRegion, "\x1b[", "r");
+define_unit_command!(ResetScrollRegion, "\x1b[r");
+
 // --------------------------------- Cursor Management ---------------------------------
 
 define_unit_command!(HideCursor, "\x1b[?25l");
@@ -349,28 +368,7 @@ define_cmd_1!(MoveDown<ROWS: u16>, DynMoveDown, "\x1b[", "B");
 define_cmd_1!(MoveLeft<COLUMNS: u16>, DynMoveLeft, "\x1b[", "C");
 define_cmd_1!(MoveRight<COLUMNS: u16>, DynMoveRight, "\x1b[", "D");
 
-declare_n_struct!(MoveTo<ROW: u16, COLUMN: u16>);
-impl<const ROW: u16, const COLUMN: u16> Command for MoveTo<ROW, COLUMN> {}
-impl<const ROW: u16, const COLUMN: u16> std::fmt::Display for MoveTo<ROW, COLUMN> {
-    #[inline]
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        f.write_str("\x1b[")?;
-        <_ as ::std::fmt::Display>::fmt(&ROW, f)?;
-        f.write_str(";")?;
-        <_ as ::std::fmt::Display>::fmt(&COLUMN, f)?;
-        f.write_str("H")
-    }
-}
-
-declare_n_struct!(DynMoveTo(ROW: u16, COLUMN: u16));
-
-implement_command!(DynMoveTo: self; f {
-    f.write_str("\x1b[")?;
-    <_ as ::std::fmt::Display>::fmt(&self.0, f)?;
-    f.write_str(";")?;
-    <_ as ::std::fmt::Display>::fmt(&self.1, f)?;
-    f.write_str("H")
-});
+define_cmd_2!(MoveTo<ROW: u16, COLUMN: u16>, DynMoveTo, "\x1b[", "H");
 
 define_cmd_1!(MoveToColumn<COLUMN: u16>, DynMoveToColumn, "\x1b[", "G");
 define_cmd_1!(MoveToRow<ROW: u16>, DynMoveToRow, "\x1b[", "d");
@@ -400,9 +398,8 @@ impl Query for RequestCursorPosition {
             if 2 <= index {
                 return Err(ErrorKind::InvalidData.into());
             }
-            params[index] = Radix::Decimal
-                .parse_u16(bytes)
-                .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+            params[index] =
+                parse_dec_u16(bytes).ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
             index += 1;
         }
 
@@ -441,9 +438,7 @@ impl Query for RequestBatchMode {
             .strip_prefix(b"?2026;")
             .and_then(|s| s.strip_suffix(b"$y"))
             .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
-        let response = Radix::Decimal
-            .parse_u32(bytes)
-            .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+        let response = parse_dec_u32(bytes).ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
 
         Ok(match response {
             0 => BatchMode::NotSupported,
@@ -736,9 +731,7 @@ impl Query for RequestColor {
                 return Err(ErrorKind::OversizedCoordinate.into());
             }
 
-            let n = Radix::Hexadecimal
-                .parse_u16(bytes)
-                .ok_or(Error::from(ErrorKind::MalformedCoordinate))?;
+            let n = parse_hex_u16(bytes).ok_or(Error::from(ErrorKind::MalformedCoordinate))?;
             Ok((n, bytes.len() as u16))
         }
 
@@ -768,6 +761,7 @@ mod test {
         assert_eq!(std::mem::size_of::<DynMoveLeft>(), 2);
         assert_eq!(std::mem::size_of::<MoveTo::<5, 7>>(), 0);
         assert_eq!(std::mem::size_of::<DynMoveTo>(), 4);
+        assert_eq!(std::mem::size_of::<SetDefaultForeground>(), 0);
         assert_eq!(std::mem::size_of::<SetForeground8::<0>>(), 0);
         assert_eq!(std::mem::size_of::<SetForeground8::<15>>(), 0);
         assert_eq!(std::mem::size_of::<SetForeground8::<88>>(), 0);
@@ -782,6 +776,7 @@ mod test {
         assert_eq!(format!("{}", DynMoveLeft(2)), "\x1b[2C");
         assert_eq!(format!("{}", MoveTo::<5, 7>), "\x1b[5;7H");
         assert_eq!(format!("{}", DynMoveTo(5, 7)), "\x1b[5;7H");
+        assert_eq!(format!("{}", SetDefaultForeground), "\x1b[39m");
         assert_eq!(format!("{}", SetForeground8::<0>), "\x1b[30m");
         assert_eq!(format!("{}", SetForeground8::<15>), "\x1b[97m");
         assert_eq!(format!("{}", SetForeground8::<88>), "\x1b[38;5;88m");
