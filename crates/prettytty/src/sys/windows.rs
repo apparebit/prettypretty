@@ -43,6 +43,13 @@ impl RawConnectionHandle {
     }
 }
 
+// SAFETY: Windows HANDLE is defined as a *mut c_void but most instances are
+// thread-safe. In fact, Rust's standard library [implements `Send` and
+// `Sync`](https://github.com/rust-lang/rust/blob/8e37e151835d96d6a7415e93e6876561485a3354/library/std/src/os/windows/io/handle.rs#L111),
+// for wrapped handles, too. Also, access to raw input is gated by a mutex.
+impl Send for RawConnectionHandle {}
+impl Sync for RawConnectionHandle {}
+
 /// A connection to a terminal device.
 #[derive(Debug)]
 pub(crate) struct RawConnection {
