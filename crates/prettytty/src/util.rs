@@ -14,83 +14,109 @@ where
     }
 
     let replacement = match byte {
-        // Make sure that letters are math sans-serif Unicode letters and at
-        // least one letter is not a hexadecimal number. In UTF-8, ‹› are 3
-        // bytes each and the math letters are 4 bytes each.
-        0x00 => "‹𝗇𝗎𝗅›",
-        0x07 => "‹𝖻𝖾𝗅›",
-        0x08 => "‹𝖻s›",
-        0x09 => "‹𝗁𝗍›",
-        0x0a => "‹𝗅𝖿›",
-        0x0b => "‹𝗏𝗍›",
-        0x0d => "‹𝖼𝗋›",
+        // Ensure that letters are math sans-serif Unicode letters. In UTF-8, ‹›
+        // are 3 bytes each and the math letters are 4 bytes each.
+        0x00 => "‹NUL›",
+        0x01 => "‹SOH›",
+        0x02 => "‹STX›",
+        0x03 => "‹ETX›",
+        0x04 => "‹EOT›",
+        0x05 => "‹ENQ›",
+        0x06 => "‹ACK›",
+        0x07 => "‹BEL›",
+        0x08 => "‹BS›",
+        0x09 => "‹HT›",
+        0x0a => "‹LF›",
+        0x0b => "‹VT›",
+        0x0c => "‹FF›",
+        0x0d => "‹CR›",
+        0x0e => "‹SO›",
+        0x0f => "‹SI›",
+        0x10 => "‹DLE›",
+        0x11 => "‹DC1›",
+        0x12 => "‹DC2›",
+        0x13 => "‹DC3›",
+        0x14 => "‹DC4›",
+        0x15 => "‹NAK›",
+        0x16 => "‹SYN›",
+        0x17 => "‹ETB›",
+        0x18 => "‹CAN›",
+        0x19 => "‹EM›",
+        0x1a => "‹SUB›",
+        0x1b => "‹ESC›",
+        0x1c => "‹FS›",
+        0x1d => "‹GS›",
+        0x1e => "‹RS›",
+        0x1f => "‹US›",
 
-        0x18 => "‹𝖼𝖺𝗇›",
-        0x1a => "‹𝗌𝗎𝖻›",
-        0x1b => "‹𝖾𝗌𝖼›",
+        0x7f => "‹DEL›",
 
-        0x7f => "‹𝖽𝖾𝗅›",
-
-        0x90 => "‹𝖽𝖼𝗌›",
-        0x98 => "‹𝗌𝗈𝗌›",
-        0x9b => "‹𝖼𝗌𝗂›",
-        0x9c => "‹𝗌𝗍›",
-        0x9d => "‹𝗈𝗌𝖼›",
-        0x9e => "‹𝗉𝗆›",
-        0x9f => "‹𝖺𝗉𝖼›",
+        0x90 => "‹DCS›",
+        0x98 => "‹SOS›",
+        0x9b => "‹CSI›",
+        0x9c => "‹ST›",
+        0x9d => "‹OSC›",
+        0x9e => "‹PM›",
+        0x9f => "‹APC›",
 
         _ => "",
     };
     if !replacement.is_empty() {
         output.write_str(replacement)?;
-        return Ok(2 + (replacement.len() - 6) / 4);
+        return Ok(replacement.len() - 6 + 2);
     }
 
-    output.write_fmt(format_args!("‹{:02x}›", byte))?;
+    output.write_fmt(format_args!("「{:02X}」", byte))?;
     Ok(4)
 }
 
 /// Write bytes nicely.
 ///
-/// Conveniently, this trait's two methods have default implementations, and the
-/// trait has a default implementation for all writers.
+/// This trait adds two methods for formatting bytes. Conveniently, both methods
+/// have default implementations in terms of the [`Write`] supertrait. For that
+/// reason, this trait also is implemented for all writers.
+///
+/// This trait formats each byte as follows:
+///
+///   * All printable ASCII characters as themselves, e.g., writing byte 0x50 as
+///     `P`.
+///   * All C0 and some C1 control characters as their two- or three-letter
+///     mnemonics between single guillemets, e.g., writing 0x1B as
+///     `‹ESC›`.
+///   * All remaining bytes as two-digit hexadecimal numbers between corner
+///     brackets, e.g., writing byte 0xAF as `「AF」`.
+///
 ///
 /// # Example
 ///
 /// Bring the trait into scope and use it to format individual bytes as well as
 /// byte strings:
-///
 /// ```
 /// use prettytty::util::WriteNicely;
-/// let mut buffer = [0; 20];
+/// let mut buffer = [0; 40]; // More than enough space
 /// let mut cursor = buffer.as_mut_slice();
-/// let mut size = 0;
+/// let mut graphemes = 0;
 ///
-/// size += cursor.write_slice_nicely(b"yo")?;
-/// size += cursor.write_nicely(0x07)?;
-/// assert_eq!(size, 7);
+/// graphemes += cursor.write_all_nicely(b"ring")?;
+/// graphemes += cursor.write_nicely(0x07)?;
+/// graphemes += cursor.write_nicely(0xff)?;
+/// assert_eq!(graphemes, 4 + 5 + 4);
 ///
-/// let len = cursor.len();
-/// let len = buffer.len() - len;
-/// assert_eq!(&buffer[..len], "yo‹𝖻𝖾𝗅›".as_bytes());
+/// let unused = cursor.len();
+/// let bytes = buffer.len() - unused;
+/// assert_eq!(bytes, 21);
+/// assert_eq!(&buffer[..bytes], "ring‹BEL›「FF」".as_bytes());
 /// # Ok::<(), std::io::Error>(())
 /// ```
+///
+/// As already indicated by the variable names, there is a difference between
+/// the number of graphemes written and the number of bytes written. The former
+/// counts visual characters, whereas the latter counts bytes in the UTF-8
+/// encoding, with guillemets and corner brackets requiring 3 bytes each.
 pub trait WriteNicely: Write {
-    /// Output a nicely formatted byte with the writer.
+    /// Write the byte nicely.
     ///
-    /// This method formats:
-    ///
-    ///   * Printable ASCII characters as ASCII characters;
-    ///   * Common C0 and C1 controls as two- or three-letter mnemonics, e.g.,
-    ///     `‹𝖻𝖾𝗅›`;
-    ///   * All other bytes as two-digit hexadecimal numbers, e.g., ‹17› for ETM
-    ///     (End of Transmission).
-    ///
-    /// To ensure that mnemonics and hexadecimal codes are clearly
-    /// distinguishable, this function only uses mnemonics that have at least
-    /// one letter that is *not* a hexadecimal digit. It also formats them with
-    /// Unicode sans-serif math characters. As a result, FF (form-feed) is not
-    /// formatted as `‹𝖿𝖿›` but rather as `‹0c›`
+    /// This method returns the number of characters written out.
     fn write_nicely(&mut self, byte: u8) -> std::io::Result<usize> {
         struct Adapter<'a, T: ?Sized + 'a> {
             inner: &'a mut T,
@@ -119,8 +145,10 @@ pub trait WriteNicely: Write {
         })
     }
 
-    /// Write the slice of bytes nicely.
-    fn write_slice_nicely(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    /// Write all of the given bytes nicely.
+    ///
+    /// This method returns the number of characters written out.
+    fn write_all_nicely(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         let mut size = 0;
         for byte in bytes.iter() {
             size += self.write_nicely(*byte)?;
@@ -157,66 +185,67 @@ impl std::fmt::Debug for ByteStringNicely<'_> {
 }
 
 /// Turn the slice into a value that displays nicely.
+///
+/// Also see [`WriteNicely`].
 pub fn nicely(bytes: &[u8]) -> impl std::fmt::Debug + std::fmt::Display + use<'_> {
     ByteStringNicely(bytes)
 }
 
 // ------------------------------------------------------------------------------------------------
 
-/// A choice of radix for converting byte slices to integers.
-#[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
-pub(crate) enum Radix {
-    Decimal = 10,
-    #[allow(dead_code)]
-    Hexadecimal = 16,
+macro_rules! make_parser {
+    (@internal u16) => { u32 };
+    (@internal u32) => { u64 };
+    (@base dec) => { 10 };
+    (@base hex) => { 16 };
+    (@digitize dec: $bytes:ident[$index:ident]) => {
+        match $bytes[$index] {
+            n @ 0x30..=0x39 => n - 0x30,
+            _ => return None,
+        }
+    };
+    (@digitize hex: $bytes:ident[$index:ident]) => {
+        match $bytes[$index] {
+            n @ 0x30..=0x39 => n - 0x30,
+            n @ 0x41..=0x46 => n - 0x41 + 10,
+            n @ 0x61..=0x66 => n - 0x61 + 10,
+            _ => return None,
+        }
+    };
+    ($ident:ident : $radix:ident -> $ty:ident) => {
+        #[allow(dead_code)]
+        pub(crate) const fn $ident(bytes: &[u8]) -> Option<$ty> {
+            type Internal = make_parser!(@internal $ty);
+            const MAX: Internal = <$ty>::MAX as Internal;
+            const BASE: Internal = make_parser!(@base $radix);
+
+            let length = bytes.len();
+            if length == 0 {
+                return None;
+            }
+
+            let mut index = 0;
+            let mut result = 0;
+
+            while index < length {
+                let digit = make_parser!(@digitize $radix: bytes[index]);
+                result = BASE * result + digit as Internal;
+                if MAX < result {
+                    return None;
+                }
+
+                index += 1;
+            }
+
+            Some(result as $ty)
+        }
+    };
 }
 
-impl Radix {
-    pub const fn max_length(&self) -> usize {
-        match self {
-            Radix::Decimal => 10,
-            Radix::Hexadecimal => 16,
-        }
-    }
-
-    pub const fn parse(&self, bytes: &[u8]) -> Option<u64> {
-        let length = bytes.len();
-        if bytes.is_empty() || self.max_length() < length {
-            return None;
-        }
-
-        let mut index = 0;
-        let mut result = 0;
-
-        while index < length {
-            // SAFETY: by construction
-            let digit = (bytes[index] as char).to_digit(*self as u32).unwrap();
-            result = (*self as u64) * result + digit as u64;
-            index += 1;
-        }
-
-        Some(result)
-    }
-
-    pub const fn parse_u32(&self, bytes: &[u8]) -> Option<u32> {
-        if let Some(n) = self.parse(bytes) {
-            if n <= 0xffff_ffff {
-                return Some(n as u32);
-            }
-        }
-        None
-    }
-
-    pub const fn parse_u16(&self, bytes: &[u8]) -> Option<u16> {
-        if let Some(n) = self.parse(bytes) {
-            if n <= 0xffff {
-                return Some(n as u16);
-            }
-        }
-        None
-    }
-}
+make_parser!(parse_dec_u16 : dec -> u16);
+make_parser!(parse_hex_u16 : hex -> u16);
+make_parser!(parse_dec_u32 : dec -> u32);
+make_parser!(parse_hex_u32 : hex -> u32);
 
 /// Determine whether the byte is a semi colon, i.e., semicolon or colon.
 pub(crate) fn is_semi_colon(b: &u8) -> bool {
@@ -231,9 +260,23 @@ mod test {
     use std::io::Error;
 
     #[test]
-    fn test_radix_semi_colon() {
-        assert_eq!(Radix::Decimal.parse(b"665").unwrap(), 665);
-        assert_eq!(Radix::Hexadecimal.parse(b"665").unwrap(), 1_637);
+    fn test_parse_semi_colon() {
+        assert_eq!(parse_dec_u16(b"665"), Some(665));
+        assert_eq!(parse_dec_u16(b"65536"), None);
+        assert_eq!(parse_dec_u16(b"665A"), None);
+        assert_eq!(parse_hex_u16(b"665"), Some(1_637));
+        assert_eq!(parse_hex_u16(b"665A"), Some(26_202));
+        assert_eq!(parse_hex_u16(b"fFfF"), Some(0xffff));
+        assert_eq!(parse_hex_u16(b"10000"), None);
+
+        assert_eq!(parse_dec_u32(b"665"), Some(665));
+        assert_eq!(parse_dec_u32(b"65536"), Some(65_536));
+        assert_eq!(parse_dec_u32(b"665A"), None);
+        assert_eq!(parse_hex_u32(b"665"), Some(1_637));
+        assert_eq!(parse_hex_u32(b"665A"), Some(26_202));
+        assert_eq!(parse_hex_u32(b"fFfFfFfF"), Some(0xffff_ffff));
+        assert_eq!(parse_hex_u32(b"100000000"), None);
+
         assert!(is_semi_colon(&b';'));
         assert!(!is_semi_colon(&b'@'));
     }
@@ -245,14 +288,14 @@ mod test {
 
         assert_eq!(cursor.write_nicely(b'R')?, 1);
         assert_eq!(cursor.write_nicely(0x1b)?, 5);
-        assert_eq!(cursor.write_nicely(b'[')?, 1);
+        assert_eq!(cursor.write_nicely(b'#')?, 1);
         assert_eq!(cursor.write_nicely(0xaf)?, 4);
 
         let cursor_len = cursor.len();
         let len = buffer.len() - cursor_len;
         let data = &buffer[..len];
-        assert_eq!(data, "R‹𝖾𝗌𝖼›[‹af›".as_bytes());
-        assert_eq!(len, 28);
+        assert_eq!(data, "R‹ESC›#「AF」".as_bytes());
+        assert_eq!(len, 19);
         Ok::<(), Error>(())
     }
 }
