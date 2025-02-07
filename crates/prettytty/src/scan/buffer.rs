@@ -92,9 +92,7 @@ impl Buffer {
 
     /// Get a slice with all unread bytes.
     pub fn peek_many(&self) -> &[u8] {
-        self.data
-            .get(self.cursor..self.filled)
-            .expect("buffer's unread bytes should be in-bounds")
+        &self.data[self.cursor..self.filled]
     }
 
     /// Consume up to `count` bytes.
@@ -195,8 +193,7 @@ impl Buffer {
     ///
     /// If the number of bytes read is larger than the size of the read buffer.
     pub fn fill(&mut self, reader: &mut impl Read) -> std::io::Result<usize> {
-        // SAFETY: .filled being in bounds is a critical invariant for this struct.
-        let slice = unsafe { self.data.get_unchecked_mut(self.filled..) };
+        let slice = &mut self.data[self.filled..];
         let count = reader.read(slice)?;
         assert!(count <= slice.len(), "read count is at most buffer size");
         self.filled += count;
