@@ -13,7 +13,7 @@
 //!   * Screen management:
 //!       * [`RequestScreenSize`]
 //!       * [`EnterAlternateScreen`] and [`ExitAlternateScreen`]
-//!       * [`EraseScreen`] and [`EraseLine`]
+//!       * [`EraseScreen`]
 //!   * Scrolling:
 //!       * [`ScrollUp`], [`ScrollDown`], [`DynScrollUp`], and [`DynScrollDown`]
 //!       * [`SetScrollRegion`] and [`DynSetScrollRegion`]
@@ -28,6 +28,7 @@
 //!         [`DynMoveToColumn`], [`DynMoveToRow`], and [`DynMoveTo`]
 //!       * [`SaveCursorPosition`] and [`RestoreCursorPosition`]
 //!   * Managing content:
+//!       * [`EraseLine`] and [`EraseRestOfLine`]
 //!       * [`RequestBatchMode`]
 //!       * [`BeginBatch`] and [`EndBatch`] to [group
 //!         updates](https://gist.github.com/christianparpart/d8a62cc1ab659194337d73e399004036)
@@ -85,7 +86,7 @@
 //!      src="https://raw.githubusercontent.com/apparebit/prettypretty/main/docs/figures/wow.png"
 //!      alt="wow!" width="42">. Wow indeed 😜
 
-use crate::util::{is_semi_colon, parse_dec_u16, parse_dec_u32, parse_hex_u16};
+use crate::util::ByteParser;
 use crate::{Command, Control, Query, Sgr};
 use std::io::{Error, ErrorKind, Result};
 use std::iter::successors;
@@ -325,7 +326,6 @@ define_unit_command!(EnterAlternateScreen, "\x1b[?1049h");
 define_unit_command!(ExitAlternateScreen, "\x1b[?1049l");
 
 define_unit_command!(EraseScreen, "\x1b[2J");
-define_unit_command!(EraseLine, "\x1b[2K");
 
 declare_unit_struct!(RequestScreenSize);
 impl Command for RequestScreenSize {}
@@ -394,12 +394,13 @@ impl Query for RequestCursorPosition {
 
         let mut index = 0;
         let mut params = [0_u16; 2];
-        for bytes in s.split(is_semi_colon) {
+        for bytes in s.split(|b| *b == b';' || *b == b':') {
             if 2 <= index {
                 return Err(ErrorKind::InvalidData.into());
             }
-            params[index] =
-                parse_dec_u16(bytes).ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+            params[index] = ByteParser::Decimal
+                .to_u16(bytes)
+                .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
             index += 1;
         }
 
@@ -412,6 +413,9 @@ impl Query for RequestCursorPosition {
 }
 
 // -------------------------------- Content Management ---------------------------------
+
+define_unit_command!(EraseLine, "\x1b[2K");
+define_unit_command!(EraseRestOfLine, "\x1b[K");
 
 /// The current batch processing mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -438,7 +442,9 @@ impl Query for RequestBatchMode {
             .strip_prefix(b"?2026;")
             .and_then(|s| s.strip_suffix(b"$y"))
             .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
-        let response = parse_dec_u32(bytes).ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+        let response = ByteParser::Decimal
+            .to_u32(bytes)
+            .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
 
         Ok(match response {
             0 => BatchMode::NotSupported,
@@ -731,7 +737,9 @@ impl Query for RequestColor {
                 return Err(ErrorKind::OversizedCoordinate.into());
             }
 
-            let n = parse_hex_u16(bytes).ok_or(Error::from(ErrorKind::MalformedCoordinate))?;
+            let n = ByteParser::Hexadecimal
+                .to_u16(bytes)
+                .ok_or(Error::from(ErrorKind::MalformedCoordinate))?;
             Ok((n, bytes.len() as u16))
         }
 
