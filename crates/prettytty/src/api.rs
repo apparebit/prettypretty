@@ -1,6 +1,6 @@
 use std::io::Result;
 
-use crate::util::nicely;
+use crate::util::ByteFormat;
 use crate::{Input, Output};
 
 /// A command for the terminal.
@@ -429,7 +429,9 @@ impl std::fmt::Debug for Token<'_> {
         if let Some(control) = self.control() {
             debug.field(&control);
         }
-        debug.field(&nicely(self.data())).finish()
+        debug
+            .field(&format!("{}", ByteFormat::Nicely(self.data())))
+            .finish()
     }
 }
 

@@ -9,7 +9,7 @@ use std::io::{Read, Write};
 use prettytty::cmd::{Format, RequestColor, ResetStyle, SetDefaultForeground, SetForeground8};
 use prettytty::err::report;
 use prettytty::opt::Options;
-use prettytty::util::WriteNicely;
+use prettytty::util::{ByteFormat, Rewriter};
 use prettytty::Connection;
 
 const GRAY: SetForeground8<244> = SetForeground8::<244>;
@@ -74,8 +74,10 @@ fn run() -> std::io::Result<()> {
         let mut char_len = 4;
 
         cursor.write("〈".as_bytes())?;
-        for byte in buffer[..count].iter() {
-            char_len += cursor.write_nicely(*byte)?;
+        let mut rewriter = Rewriter::new(&mut cursor);
+        match ByteFormat::Nicely(&buffer[..count]).render(&mut rewriter) {
+            Ok(n) => char_len += n,
+            Err(_) => return Err(rewriter.into_err()),
         }
         cursor.write("〉".as_bytes())?;
 

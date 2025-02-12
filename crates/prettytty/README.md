@@ -57,9 +57,9 @@ assert_eq!(pos.1, 17);
   * The [`Command`] trait now has both `Debug` and `Display` as supertraits.
   * For commands synthesized with [`fuse!`] or [`fuse_sgr!`], the debug trait
     now displays the macro name and arguments.
-  * [`Output::exec_defer`] takes two commands as arguments. It immediately
-    executes the first command but defers the second command until just before
-    the [`Connection`] is closed.
+  * The new [`Output::exec_defer`] method takes two commands as arguments. It
+    immediately executes the first command but defers the second command until
+    just before the [`Connection`] is closed.
   * The new [`Query::run`] method turns three-line boilerplate for querying the
     terminal into a two-argument method invocation.
   * The updated
@@ -67,9 +67,14 @@ assert_eq!(pos.1, 17);
     illustrates the use of `fuse!`, `Output::exec_defer`, and `Query::run`.
   * [`cmd`] now includes commands for scrolling up and down as well as setting
     the scroll region.
-  * [`RequestBatchMode::parse`], [`RequestColor::parse`], and
-    [`RequestCursorPosition::parse`] won't panic on invalid payloads anymore
-    instead return an error.
+  * [`util`]'s support for parsing and pretty-printing byte strings has been
+    completely refactored, with [`ByteParser`] parsing byte strings as unsigned
+    integers and [`ByteFormat`] displaying them in one of three formats.
+    Additionally, the new [`Rewriter`] adapts an `std::io::Write` to
+    a `std::fmt::Write`.
+  * Thanks to more thorough testing, [`RequestBatchMode::parse`],
+    [`RequestColor::parse`], and [`RequestCursorPosition::parse`] won't panic on
+    invalid payloads anymore, instead returning an error.
 
 
 ### v0.2.2 (2025-02-01)
@@ -116,6 +121,8 @@ as open source under the [Apache
 2.0](https://github.com/apparebit/prettypretty/blob/main/LICENSE) license.
 
 
+[`ByteFormat`]: https://apparebit.github.io/prettypretty/prettytty/util/enum.ByteFormat.html
+[`ByteParser`]: https://apparebit.github.io/prettypretty/prettytty/util/enum.ByteParser.html
 [`cmd`]: https://apparebit.github.io/prettypretty/prettytty/cmd/index.html
 [`Command`]: https://apparebit.github.io/prettypretty/prettytty/trait.Command.html
 [`Connection`]: https://apparebit.github.io/prettypretty/prettytty/struct.Connection.html
@@ -132,8 +139,10 @@ as open source under the [Apache
 [`RequestBatchMode::parse`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.RequestBatchMode.html#method.parse
 [`RequestColor::parse`]: https://apparebit.github.io/prettypretty/prettytty/cmd/enum.RequestColor.html#method.parse
 [`RequestCursorPosition::parse`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.RequestCursorPosition.html#method.parse
+[`Rewriter`]: https://apparebit.github.io/prettypretty/prettytty/util/struct.Rewriter.html
 [`Scan`]: https://apparebit.github.io/prettypretty/prettytty/trait.Scan.html
 [`Scan::read_token`]: https://apparebit.github.io/prettypretty/prettytty/trait.Scan.html#method.read_token
 [`SetBackground8`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.SetBackground8.html
 [`SetForeground8`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.SetForeground8.html
 [`Sgr`]: https://apparebit.github.io/prettypretty/prettytty/trait.Sgr.html
+[`util`]: https://apparebit.github.io/prettypretty/prettytty/util/index.html
