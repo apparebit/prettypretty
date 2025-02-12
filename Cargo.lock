@@ -368,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "prettytty"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "libc",
  "rand",
