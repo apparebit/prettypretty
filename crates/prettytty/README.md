@@ -65,13 +65,13 @@ assert_eq!(pos.1, 17);
   * The updated
     [progress.rs](https://github.com/apparebit/prettypretty/blob/main/crates/prettytty/examples/progress.rs)
     illustrates the use of `fuse!`, `Output::exec_defer`, and `Query::run`.
-  * [`cmd`] now includes commands for scrolling up and down as well as setting
-    the scroll region.
+  * [`cmd`] now includes commands for enabling/disabling reverse mode, scrolling
+    up and down, setting the scroll region, and setting the cursor appearance.
   * [`util`]'s support for parsing and pretty-printing byte strings has been
-    completely refactored, with [`ByteParser`] parsing byte strings as unsigned
-    integers and [`ByteFormat`] displaying them in one of three formats.
-    Additionally, the new [`Rewriter`] adapts an `std::io::Write` to
-    a `std::fmt::Write`.
+    completely refactored, with [`ByteParser`] turning byte strings into
+    unsigned integers and [`ByteFormat`] displaying them in one of three
+    formats. Also, the new [`Rewriter`] adapts an `std::io::Write` to a
+    `std::fmt::Write`.
   * Thanks to more thorough testing, [`RequestBatchMode::parse`],
     [`RequestColor::parse`], and [`RequestCursorPosition::parse`] won't panic on
     invalid payloads anymore, instead returning an error.

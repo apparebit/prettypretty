@@ -1,9 +1,9 @@
 //! A library of useful terminal commands.
 //!
-//! This module provides a number of trivial struct and enum types that
-//! implement the [`Command`], [`Sgr`], and [`Query`] traits (as needed) to
-//! provide common terminal interactions. Organized by topic, supported commands
-//! are:
+//! This module provides a number of straight-forward struct and enum types that
+//! implement the [`Command`] trait and, where needed, also the [`Sgr`] and
+//! [`Query`] traits. Organized by topic, this library covers the following 84
+//! commands:
 //!
 //!   * Terminal identification:
 //!       * [`RequestTerminalId`]
@@ -13,12 +13,17 @@
 //!   * Screen management:
 //!       * [`RequestScreenSize`]
 //!       * [`EnterAlternateScreen`] and [`ExitAlternateScreen`]
+//!       * [`EnableReverseMode`] and [`DisableReverseMode`]
 //!       * [`EraseScreen`]
 //!   * Scrolling:
 //!       * [`ScrollUp`], [`ScrollDown`], [`DynScrollUp`], and [`DynScrollDown`]
 //!       * [`SetScrollRegion`] and [`DynSetScrollRegion`]
 //!       * [`ResetScrollRegion`]
 //!   * Cursor management:
+//!       * [`SetCursor::Default`], [`SetCursor::BlinkingBlock`],
+//!         [`SetCursor::SteadyBlock`], [`SetCursor::BlinkingUnderscore`],
+//!         [`SetCursor::SteadyUnderscore`], [`SetCursor::BlinkingBar`], and
+//!         [`SetCursor::SteadyBar`].
 //!       * [`HideCursor`] and [`ShowCursor`]
 //!       * [`RequestCursorPosition`]
 //!       * Relative [`MoveUp`], [`MoveDown`], [`MoveLeft`], [`MoveRight`],
@@ -29,13 +34,13 @@
 //!       * [`SaveCursorPosition`] and [`RestoreCursorPosition`]
 //!   * Managing content:
 //!       * [`EraseLine`] and [`EraseRestOfLine`]
-//!       * [`RequestBatchMode`]
 //!       * [`BeginBatch`] and [`EndBatch`] to [group
 //!         updates](https://gist.github.com/christianparpart/d8a62cc1ab659194337d73e399004036)
-//!       * [`BeginPaste`] and [`EndPaste`] to perform a
-//!         [bracketed paste](https://cirw.in/blog/bracketed-paste) operation
+//!       * [`RequestBatchMode`]
+//!       * [`BeginPaste`] and [`EndPaste`] to perform
+//!         [bracketed paste](https://cirw.in/blog/bracketed-paste) operations
 //!       * [`DynLink`] to [add
-//!         hyperlink](https://gist.github.com/christianparpart/180fb3c5f008489c8afcffb3fa46cd8e)
+//!         hyperlinks](https://gist.github.com/christianparpart/180fb3c5f008489c8afcffb3fa46cd8e)
 //!   * Styling content:
 //!       * [`ResetStyle`]
 //!       * [`RequestActiveStyle`]
@@ -62,7 +67,12 @@
 //! obviously is *not* zero-sized.
 //!
 //! If a command name starts with `Request`, it also implements the [`Query`]
-//! trait and hence knows how to parse the response's payload.
+//! trait and hence knows how to parse the response's payload. When implementing
+//! your own queries, you may find [`util::ByteParser`](crate::util::ByteParser)
+//! useful.
+//!
+//! You can easily combine several commands into a compound command with the
+//! [`fuse!`](crate::fuse) and [`fuse_sgr!`](crate::fuse_sgr) macros.
 //!
 //!
 //! # Example
@@ -325,6 +335,9 @@ implement_command!(DynSetWindowTitle: self; f {
 define_unit_command!(EnterAlternateScreen, "\x1b[?1049h");
 define_unit_command!(ExitAlternateScreen, "\x1b[?1049l");
 
+define_unit_command!(EnableReverseMode, "\x1b[?5h");
+define_unit_command!(DisableReverseMode, "\x1b[?5l");
+
 define_unit_command!(EraseScreen, "\x1b[2J");
 
 declare_unit_struct!(RequestScreenSize);
@@ -359,6 +372,27 @@ define_cmd_2!(SetScrollRegion<TOP: u16, BOTTOM: u16>, DynSetScrollRegion, "\x1b[
 define_unit_command!(ResetScrollRegion, "\x1b[r");
 
 // --------------------------------- Cursor Management ---------------------------------
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SetCursor {
+    Default = 0,
+    BlinkingBlock = 1,
+    SteadyBlock = 2,
+    BlinkingUnderscore = 3,
+    SteadyUnderscore = 4,
+    BlinkingBar = 5,
+    SteadyBar = 6,
+}
+
+impl Command for SetCursor {}
+
+impl std::fmt::Display for SetCursor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("\x1b[")?;
+        <_ as std::fmt::Display>::fmt(&(*self as u8), f)?;
+        f.write_str(" q")
+    }
+}
 
 define_unit_command!(HideCursor, "\x1b[?25l");
 define_unit_command!(ShowCursor, "\x1b[?25h");
