@@ -314,7 +314,7 @@ pub struct AttributeIter {
     remaining: usize,
 }
 
-impl std::iter::Iterator for AttributeIter {
+impl Iterator for AttributeIter {
     type Item = Attribute;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -558,19 +558,11 @@ impl From<Format> for FormatUpdate {
 // ----------------------------------------------------------------------------------------------------------
 // Add
 
-impl std::ops::Add for Attribute {
+impl<F: Into<Format>> std::ops::Add<F> for Attribute {
     type Output = Format;
 
-    fn add(self, other: Self) -> Self::Output {
-        Format::with_sum(self.bits(), other.bits())
-    }
-}
-
-impl std::ops::Add<Format> for Attribute {
-    type Output = Format;
-
-    fn add(self, other: Format) -> Self::Output {
-        Format::with_sum(self.bits(), other.bits())
+    fn add(self, other: F) -> Self::Output {
+        Format::with_sum(self.bits(), other.into().bits())
     }
 }
 
@@ -582,19 +574,11 @@ impl std::ops::Add<FormatUpdate> for Attribute {
     }
 }
 
-impl std::ops::Add<Attribute> for Format {
+impl<F: Into<Format>> std::ops::Add<F> for Format {
     type Output = Format;
 
-    fn add(self, other: Attribute) -> Self::Output {
-        Format::with_sum(self.bits(), other.bits())
-    }
-}
-
-impl std::ops::Add for Format {
-    type Output = Format;
-
-    fn add(self, other: Self) -> Self::Output {
-        Format::with_sum(self.bits(), other.bits())
+    fn add(self, other: F) -> Self::Output {
+        Self::with_sum(self.bits(), other.into().bits())
     }
 }
 
@@ -606,27 +590,12 @@ impl std::ops::Add<FormatUpdate> for Format {
     }
 }
 
-impl std::ops::Add<Attribute> for FormatUpdate {
+impl<F: Into<FormatUpdate>> std::ops::Add<F> for FormatUpdate {
     type Output = FormatUpdate;
 
-    fn add(self, other: Attribute) -> Self::Output {
-        FormatUpdate::new(self.disable, self.enable + other)
-    }
-}
-
-impl std::ops::Add<Format> for FormatUpdate {
-    type Output = FormatUpdate;
-
-    fn add(self, other: Format) -> Self::Output {
-        FormatUpdate::new(self.disable, self.enable + other)
-    }
-}
-
-impl std::ops::Add for FormatUpdate {
-    type Output = FormatUpdate;
-
-    fn add(self, other: Self) -> Self::Output {
-        FormatUpdate::new(self.disable + other.disable, self.enable + other.enable)
+    fn add(self, other: F) -> Self::Output {
+        let other = other.into();
+        Self::new(self.disable + other.disable, self.enable + other.enable)
     }
 }
 
@@ -660,75 +629,27 @@ impl std::ops::Neg for FormatUpdate {
 // ----------------------------------------------------------------------------------------------------------
 // Sub
 
-impl std::ops::Sub for Attribute {
+impl<F: Into<FormatUpdate>> std::ops::Sub<F> for Attribute {
     type Output = FormatUpdate;
 
-    fn sub(self, other: Self) -> Self::Output {
-        FormatUpdate::new(other.into(), self.into())
+    fn sub(self, other: F) -> Self::Output {
+        self + (-other.into())
     }
 }
 
-impl std::ops::Sub<Format> for Attribute {
+impl<F: Into<FormatUpdate>> std::ops::Sub<F> for Format {
     type Output = FormatUpdate;
 
-    fn sub(self, other: Format) -> Self::Output {
-        FormatUpdate::new(other, self.into())
+    fn sub(self, other: F) -> Self::Output {
+        self + (-other.into())
     }
 }
 
-impl std::ops::Sub<FormatUpdate> for Attribute {
+impl<F: Into<FormatUpdate>> std::ops::Sub<F> for FormatUpdate {
     type Output = FormatUpdate;
 
-    fn sub(self, other: FormatUpdate) -> Self::Output {
-        self + (-other)
-    }
-}
-
-impl std::ops::Sub<Attribute> for Format {
-    type Output = FormatUpdate;
-
-    fn sub(self, other: Attribute) -> Self::Output {
-        FormatUpdate::new(other.into(), self)
-    }
-}
-
-impl std::ops::Sub for Format {
-    type Output = FormatUpdate;
-
-    fn sub(self, other: Self) -> Self::Output {
-        FormatUpdate::new(other, self)
-    }
-}
-
-impl std::ops::Sub<FormatUpdate> for Format {
-    type Output = FormatUpdate;
-
-    fn sub(self, other: FormatUpdate) -> Self::Output {
-        self + (-other)
-    }
-}
-
-impl std::ops::Sub<Attribute> for FormatUpdate {
-    type Output = FormatUpdate;
-
-    fn sub(self, other: Attribute) -> Self::Output {
-        self + (-other)
-    }
-}
-
-impl std::ops::Sub<Format> for FormatUpdate {
-    type Output = FormatUpdate;
-
-    fn sub(self, other: Format) -> Self::Output {
-        self + (-other)
-    }
-}
-
-impl std::ops::Sub for FormatUpdate {
-    type Output = FormatUpdate;
-
-    fn sub(self, other: Self) -> Self::Output {
-        self + (-other)
+    fn sub(self, other: F) -> Self::Output {
+        self + (-other.into())
     }
 }
 
