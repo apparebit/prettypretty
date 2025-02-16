@@ -16,14 +16,14 @@ use super::{Control, Token};
 
 /// A scanner for text and control tokens.
 ///
-/// This struct builds Paul Flo Williams' [parser for DEC's ANSI-compatible
+/// This struct builds on Paul Flo Williams' [parser for DEC's ANSI-compatible
 /// terminals](https://vt100.net/emu/dec_ansi_parser) to implement a state
 /// machine for recognizing UTF-8 characters and ANSI control sequences alike.
 /// Notably, [`Scanner::read_token`] produces the corresponding [`Token`]s. To
-/// minimize[] overhead, the implementation turns subsequent UTF-8 characters
-/// into text tokens. It is zero-copy as long as no control characters appear in
-/// the middle of control sequences. As a result, tokens have the same lifetime
-/// as the scanner itself, and each token must be processed before the next
+/// minimize overhead, the implementation turns subsequent UTF-8 characters into
+/// text tokens. It is zero-copy as long as no control characters appear in the
+/// middle of control sequences. As a result, tokens have the same lifetime as
+/// the scanner itself, and each token must be processed before the next
 /// invocation of `read_token`.
 ///
 /// The implementation of the state machine has been carefully engineered to
