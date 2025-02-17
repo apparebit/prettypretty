@@ -150,7 +150,7 @@ impl<R: std::io::Read> Scanner<R> {
     ///
     /// This method returns a wrapped boolean indicating whether to return a
     /// text token. It also handles malformed UTF-8 errors.
-    fn scan_text(&mut self) -> Result<bool, Error> {
+    fn scan_text(&mut self, batch: bool) -> Result<bool, Error> {
         let mut bytes = self.buffer.peek_many();
         let mut index = 0;
 
@@ -186,6 +186,10 @@ impl<R: std::io::Read> Scanner<R> {
                         break;
                     }
                 }
+            }
+
+            if !batch {
+                break;
             }
         }
 
@@ -287,7 +291,7 @@ impl<R: std::io::Read> Scanner<R> {
             }
 
             // Try fast path for text
-            if matches!(self.state, State::Ground) && self.scan_text()? {
+            if matches!(self.state, State::Ground) && self.scan_text(true)? {
                 return Ok(Token::Text(self.buffer.token()));
             }
 
