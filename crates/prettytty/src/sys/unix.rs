@@ -159,10 +159,13 @@ impl RawConfig {
         // pointer to an appropriately sized allocation.
         unsafe { libc::tcgetattr(connection.input().handle(), state.as_mut_ptr()) }
             .into_result()?;
-        Ok(Self {
-            // SAFETY: In this no-error case, tcgetattr() initialized state.
+
+        let this = Self {
+            // SAFETY: tcgetattr() completed without error and initialized state
             state: unsafe { state.assume_init() },
-        })
+        };
+
+        Ok(this)
     }
 
     /// Apply the options to create a new configuration.
