@@ -20,7 +20,7 @@ impl<R: Read> Read for DoggedReader<R> {
         loop {
             match self.inner.read(buf) {
                 Ok(n) => return Ok(n),
-                Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
+                Err(ref e) if e.kind() == ErrorKind::Interrupted => (),
                 Err(e) => return Err(e),
             }
         }
@@ -51,6 +51,7 @@ impl<R: Read> Read for VerboseReader<R> {
         let mut interrupts = 0;
 
         loop {
+            #[allow(clippy::print_stdout)]
             match self.inner.read(buf) {
                 Ok(0) => {
                     let duration = start_time.elapsed().as_secs_f32();
@@ -77,7 +78,6 @@ impl<R: Read> Read for VerboseReader<R> {
                 }
                 Err(ref e) if e.kind() == ErrorKind::Interrupted => {
                     interrupts += 1;
-                    continue;
                 }
                 Err(e) => {
                     print!(

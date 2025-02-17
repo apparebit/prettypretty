@@ -34,7 +34,7 @@ impl Attribute {
     const fn successor(&self) -> Option<Self> {
         use self::Attribute::*;
 
-        Some(match self {
+        Some(match *self {
             Bold => Thin,
             Thin => Italic,
             Italic => Underlined,
@@ -53,7 +53,7 @@ impl Attribute {
     pub const fn enable_sgr(&self) -> u8 {
         use self::Attribute::*;
 
-        match self {
+        match *self {
             Bold => 1,
             Thin => 2,
             Italic => 3,
@@ -69,7 +69,7 @@ impl Attribute {
     pub const fn disable_sgr(&self) -> u8 {
         use self::Attribute::*;
 
-        match self {
+        match *self {
             Bold => 22,
             Thin => 22,
             Italic => 23,
@@ -227,7 +227,7 @@ impl Format {
     pub fn py_of(formatting: &Bound<'_, PyAny>) -> Result<Format, PyErr> {
         formatting
             .extract::<Attribute>()
-            .map(|f| f.into())
+            .map(core::convert::Into::into)
             .or_else(|_| formatting.extract::<Format>())
     }
 
@@ -297,8 +297,8 @@ impl Format {
     }
 }
 
-impl std::fmt::Debug for Format {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for Format {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_set().entries(self.attributes()).finish()
     }
 }
@@ -322,7 +322,9 @@ impl Iterator for AttributeIter {
             let format = match self.cursor {
                 None => Attribute::Bold,
                 Some(Attribute::Stricken) => return None,
-                Some(format) => format.successor().unwrap(),
+                Some(format) => format
+                    .successor()
+                    .expect("variant without successor was just handled"),
             };
             self.cursor = Some(format);
 
@@ -344,7 +346,7 @@ impl ExactSizeIterator for AttributeIter {
     }
 }
 
-impl std::iter::FusedIterator for AttributeIter {}
+impl core::iter::FusedIterator for AttributeIter {}
 
 #[cfg(feature = "pyffi")]
 #[pymethods]
@@ -463,8 +465,12 @@ impl FormatUpdate {
     pub fn py_of(formatting: &Bound<'_, PyAny>) -> Result<FormatUpdate, PyErr> {
         formatting
             .extract::<Attribute>()
-            .map(|f| f.into())
-            .or_else(|_| formatting.extract::<Format>().map(|f| f.into()))
+            .map(core::convert::Into::into)
+            .or_else(|_| {
+                formatting
+                    .extract::<Format>()
+                    .map(core::convert::Into::into)
+            })
             .or_else(|_| formatting.extract::<FormatUpdate>())
     }
 
@@ -487,6 +493,7 @@ impl FormatUpdate {
     ///
     /// This method returns this format, unless the fidelity is plain, in which
     /// case it returns an empty format.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub const fn cap(&self, fidelity: Fidelity) -> Self {
         match fidelity {
             Fidelity::Plain => Self::empty(),
@@ -517,7 +524,8 @@ impl FormatUpdate {
 
     /// Negate this format. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
-    pub fn __neg__(&self) -> FormatUpdate {
+    #[must_use = "the only reason to invoke method is to access the returned value"]
+    pub fn __neg__(&self) -> Self {
         -(*self)
     }
 
@@ -558,7 +566,7 @@ impl From<Format> for FormatUpdate {
 // ----------------------------------------------------------------------------------------------------------
 // Add
 
-impl<F: Into<Format>> std::ops::Add<F> for Attribute {
+impl<F: Into<Format>> core::ops::Add<F> for Attribute {
     type Output = Format;
 
     fn add(self, other: F) -> Self::Output {
@@ -566,7 +574,7 @@ impl<F: Into<Format>> std::ops::Add<F> for Attribute {
     }
 }
 
-impl std::ops::Add<FormatUpdate> for Attribute {
+impl core::ops::Add<FormatUpdate> for Attribute {
     type Output = FormatUpdate;
 
     fn add(self, other: FormatUpdate) -> Self::Output {
@@ -574,7 +582,7 @@ impl std::ops::Add<FormatUpdate> for Attribute {
     }
 }
 
-impl<F: Into<Format>> std::ops::Add<F> for Format {
+impl<F: Into<Format>> core::ops::Add<F> for Format {
     type Output = Format;
 
     fn add(self, other: F) -> Self::Output {
@@ -582,7 +590,7 @@ impl<F: Into<Format>> std::ops::Add<F> for Format {
     }
 }
 
-impl std::ops::Add<FormatUpdate> for Format {
+impl core::ops::Add<FormatUpdate> for Format {
     type Output = FormatUpdate;
 
     fn add(self, other: FormatUpdate) -> Self::Output {
@@ -590,7 +598,7 @@ impl std::ops::Add<FormatUpdate> for Format {
     }
 }
 
-impl<F: Into<FormatUpdate>> std::ops::Add<F> for FormatUpdate {
+impl<F: Into<FormatUpdate>> core::ops::Add<F> for FormatUpdate {
     type Output = FormatUpdate;
 
     fn add(self, other: F) -> Self::Output {
@@ -602,7 +610,7 @@ impl<F: Into<FormatUpdate>> std::ops::Add<F> for FormatUpdate {
 // ----------------------------------------------------------------------------------------------------------
 // Neg
 
-impl std::ops::Neg for Attribute {
+impl core::ops::Neg for Attribute {
     type Output = FormatUpdate;
 
     fn neg(self) -> Self::Output {
@@ -610,7 +618,7 @@ impl std::ops::Neg for Attribute {
     }
 }
 
-impl std::ops::Neg for Format {
+impl core::ops::Neg for Format {
     type Output = FormatUpdate;
 
     fn neg(self) -> Self::Output {
@@ -618,7 +626,7 @@ impl std::ops::Neg for Format {
     }
 }
 
-impl std::ops::Neg for FormatUpdate {
+impl core::ops::Neg for FormatUpdate {
     type Output = FormatUpdate;
 
     fn neg(self) -> Self::Output {
@@ -629,7 +637,7 @@ impl std::ops::Neg for FormatUpdate {
 // ----------------------------------------------------------------------------------------------------------
 // Sub
 
-impl<F: Into<FormatUpdate>> std::ops::Sub<F> for Attribute {
+impl<F: Into<FormatUpdate>> core::ops::Sub<F> for Attribute {
     type Output = FormatUpdate;
 
     fn sub(self, other: F) -> Self::Output {
@@ -637,7 +645,7 @@ impl<F: Into<FormatUpdate>> std::ops::Sub<F> for Attribute {
     }
 }
 
-impl<F: Into<FormatUpdate>> std::ops::Sub<F> for Format {
+impl<F: Into<FormatUpdate>> core::ops::Sub<F> for Format {
     type Output = FormatUpdate;
 
     fn sub(self, other: F) -> Self::Output {
@@ -645,7 +653,7 @@ impl<F: Into<FormatUpdate>> std::ops::Sub<F> for Format {
     }
 }
 
-impl<F: Into<FormatUpdate>> std::ops::Sub<F> for FormatUpdate {
+impl<F: Into<FormatUpdate>> core::ops::Sub<F> for FormatUpdate {
     type Output = FormatUpdate;
 
     fn sub(self, other: F) -> Self::Output {

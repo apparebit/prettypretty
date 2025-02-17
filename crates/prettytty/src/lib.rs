@@ -18,7 +18,7 @@
 //! Using its **connection-oriented interface** is easy:
 //!
 //!   * Open a [`Connection`].
-//!   * Issue [`Command`]s by writing their [`Display`](std::fmt::Display) to
+//!   * Issue [`Command`]s by writing their [`Display`](core::fmt::Display) to
 //!     the connection's [`Output`].
 //!   * [`Scan`] and read [`Query`] responses from its [`Input`].
 //!

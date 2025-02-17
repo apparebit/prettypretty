@@ -76,8 +76,8 @@ impl<'a> Ident<'a> {
     }
 }
 
-impl std::fmt::Debug for Ident<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for Ident<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.0)
     }
 }
@@ -86,13 +86,13 @@ impl std::fmt::Debug for Ident<'_> {
 pub(crate) struct IdentList<'a>(Vec<Ident<'a>>);
 
 impl<'a> IdentList<'a> {
-    pub fn new(names: Vec<&'a str>) -> Self {
+    pub fn new(names: &[&'a str]) -> Self {
         Self(names.iter().map(Ident::new).collect())
     }
 }
 
-impl std::fmt::Debug for IdentList<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for IdentList<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_list().entries(self.0.iter()).finish()
     }
 }

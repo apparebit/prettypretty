@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use core::cell::RefCell;
 use std::io::{BufRead, BufWriter, Error, ErrorKind, Read, Result, Write};
 use std::sync::{Mutex, MutexGuard};
 
@@ -96,6 +96,7 @@ impl Connection {
     ///
     /// If this method cannot establish a connection to the controlling
     /// terminal, it fails with a [`ErrorKind::ConnectionRefused`] error.
+    #[allow(clippy::print_stdout)]
     pub fn with_options(options: Options) -> Result<Self> {
         let connection = RawConnection::open(&options)
             .map_err(|e| Error::new(ErrorKind::ConnectionRefused, e))?;
@@ -173,6 +174,10 @@ impl Connection {
     ///
     /// The returned input object ensures mutually exclusive access to the
     /// terminal's input. Dropping the input object releases access again.
+    ///
+    /// # Panics
+    ///
+    /// If the underlying mutex has been poisoned.
     #[inline]
     pub fn input(&self) -> Input {
         Input {
@@ -184,6 +189,10 @@ impl Connection {
     ///
     /// The returned output object ensures mutually exclusive access to the
     /// terminal's output. Dropping the output object releases access again.
+    ///
+    /// # Panics
+    ///
+    /// If the underlying mutex has been poisoned.
     #[inline]
     pub fn output(&self) -> Output {
         Output {
@@ -227,7 +236,7 @@ impl Drop for Connection {
         });
 
         // Restore terminal configuration
-        if let Some(cfg) = &self.config {
+        if let Some(ref cfg) = self.config {
             let _ = cfg.write(&self.connection);
         }
     }
@@ -298,11 +307,17 @@ impl Drop for Connection {
 /// since a denial-of-service attack appears to be under way.
 #[derive(Debug)]
 pub struct Input<'a> {
-    scanner: MutexGuard<'a, Scanner<Box<dyn Read + Send>>>,
+    pub scanner: MutexGuard<'a, Scanner<Box<dyn Read + Send>>>,
 }
 
-impl Input<'_> {
+impl<'a> Input<'a> {
+    /// Extract inner scanner.
+    pub(crate) fn into_inner(self) -> MutexGuard<'a, Scanner<Box<dyn Read + Send>>> {
+        self.scanner
+    }
+
     /// Determine whether the input has bytes buffered.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn is_readable(&self) -> bool {
         self.scanner.is_readable()
     }
@@ -316,7 +331,7 @@ impl Scan for Input<'_> {
 
     #[inline]
     fn read_token(&mut self) -> Result<crate::Token> {
-        self.scanner.read_token().map_err(|e| e.into())
+        self.scanner.read_token().map_err(core::convert::Into::into)
     }
 }
 
@@ -333,7 +348,7 @@ impl Read for Input<'_> {
 impl BufRead for Input<'_> {
     #[inline]
     fn fill_buf(&mut self) -> Result<&[u8]> {
-        self.scanner.fill_buf().map_err(|e| e.into())
+        self.scanner.fill_buf().map_err(core::convert::Into::into)
     }
 
     #[inline]
@@ -360,7 +375,7 @@ impl Output<'_> {
     /// Write and flush the text.
     #[inline]
     #[must_use = "method returns result that may indicate an error"]
-    pub fn print(&mut self, text: impl AsRef<str>) -> Result<()> {
+    pub fn print<T: AsRef<str>>(&mut self, text: T) -> Result<()> {
         self.writer.write_all(text.as_ref().as_bytes())?;
         self.writer.flush()
     }
@@ -368,7 +383,7 @@ impl Output<'_> {
     /// Write and flush the text followed by carriage return and line feed.
     #[inline]
     #[must_use = "method returns result that may indicate an error"]
-    pub fn println(&mut self, text: impl AsRef<str>) -> Result<()> {
+    pub fn println<T: AsRef<str>>(&mut self, text: T) -> Result<()> {
         self.writer.write_all(text.as_ref().as_bytes())?;
         self.writer.write_all(b"\r\n")?;
         self.writer.flush()
@@ -380,7 +395,7 @@ impl Output<'_> {
     /// the terminal output.
     #[inline]
     #[must_use = "method returns result that may indicate an error"]
-    pub fn exec(&mut self, cmd: impl Command) -> Result<()> {
+    pub fn exec<C: Command>(&mut self, cmd: C) -> Result<()> {
         write!(self.writer, "{}", cmd)?;
         self.writer.flush()
     }

@@ -155,8 +155,22 @@ impl<R: std::io::Read> Scanner<R> {
         let mut index = 0;
 
         loop {
-            if bytes.is_empty() || bytes[0] < 0x20 || (0x80..0xa0).contains(&bytes[0]) {
+            if bytes.is_empty() {
                 break;
+            }
+
+            // Oops: So, aggressive linting with Clippy suggest to use an
+            // assertion that preempts repeated bounds checking. But "0 <
+            // bytes.len()" triggers Clippy because it's not idiomatic and
+            // "!bytes.is_empty()" is not recognized by the assertion lint. Oh
+            // and for good measure, we can only add attributes to items, not
+            // macro invocations. Hence, let's create a nested scope.
+            #[allow(clippy::len_zero)]
+            {
+                assert!(0 < bytes.len(), "a nonempty slice must contain 1 byte");
+                if bytes[0] < 0x20 || (0x80..0xa0).contains(&bytes[0]) {
+                    break;
+                }
             }
 
             match scan_utf8(bytes) {
@@ -284,15 +298,15 @@ impl<R: std::io::Read> Scanner<R> {
                 match self.step_sequence(byte)? {
                     HandleControl => return self.new_control_token(byte),
                     Dispatch => return self.new_sequence_token(),
-                    _ => continue,
+                    _ => (),
                 }
             }
         }
     }
 }
 
-impl<R> std::fmt::Debug for Scanner<R> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<R> core::fmt::Debug for Scanner<R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Scanner")
             .field("state", &self.state)
             .field("control", &self.control)

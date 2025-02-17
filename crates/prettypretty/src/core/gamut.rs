@@ -19,7 +19,7 @@ pub(crate) fn in_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> bool {
 /// Clip the coordinates to the gamut of their color space.
 pub(crate) fn clip(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3] {
     if space.is_rgb() {
-        let [r, g, b] = coordinates;
+        let [ref r, ref g, ref b] = *coordinates;
         [r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)]
     } else {
         *coordinates
@@ -81,6 +81,7 @@ pub(crate) fn to_gamut(space: ColorSpace, coordinates: &[Float; 3]) -> [Float; 3
     let mut max = origin_as_oklch[1];
     let mut min_in_gamut = true;
 
+    #[allow(clippy::while_float)]
     while EPSILON < max - min {
         let chroma = (min + max) / 2.0;
         current_as_oklch = [current_as_oklch[0], chroma, current_as_oklch[2]];
@@ -142,17 +143,17 @@ pub enum GamutTraversalStep {
 impl GamutTraversalStep {
     /// Get this step's color.
     pub fn color(&self) -> Color {
-        match self {
-            Self::MoveTo(color) => color.clone(),
-            Self::LineTo(color) => color.clone(),
-            Self::CloseWith(color) => color.clone(),
+        match *self {
+            Self::MoveTo(ref color) => color.clone(),
+            Self::LineTo(ref color) => color.clone(),
+            Self::CloseWith(ref color) => color.clone(),
         }
     }
 
     /// Get a debug representation. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
-        match self {
+        match *self {
             Self::MoveTo(ref color) => format!("GamutTraversalStep.MoveTo({:?}", color),
             Self::LineTo(ref color) => format!("GamutTraversalStep.LineTo({:?}", color),
             Self::CloseWith(ref color) => format!("GamutTraversalStep.CloseWith({:?}", color),
@@ -448,14 +449,14 @@ impl Iterator for GamutTraversal {
 }
 
 #[cfg(feature = "gamut")]
-impl std::iter::ExactSizeIterator for GamutTraversal {
+impl ExactSizeIterator for GamutTraversal {
     fn len(&self) -> usize {
         self.remaining
     }
 }
 
 #[cfg(feature = "gamut")]
-impl std::iter::FusedIterator for GamutTraversal {}
+impl core::iter::FusedIterator for GamutTraversal {}
 
 #[cfg(all(feature = "gamut", feature = "pyffi"))]
 #[pymethods]

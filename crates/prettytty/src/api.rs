@@ -7,11 +7,11 @@ use crate::{Input, Output};
 ///
 /// Commands provide instructions to the terminal and are communicated in-band
 /// by writing ANSI escape codes. Doing so is the responsibility of the
-/// [`std::fmt::Display`] implementation, whereas the [`std::fmt::Debug`]
+/// [`core::fmt::Display`] implementation, whereas the [`core::fmt::Debug`]
 /// implementation should simply identify the command.
 ///
 /// This trait is object-safe.
-pub trait Command: std::fmt::Debug + std::fmt::Display {}
+pub trait Command: core::fmt::Debug + core::fmt::Display {}
 
 /// A borrowed command is a command.
 impl<C: Command + ?Sized> Command for &C {}
@@ -26,7 +26,7 @@ impl<C: Command + ?Sized> Command for Box<C> {}
 /// debug, it reveals the macro's source arguments.
 ///
 /// Since commands in the [`cmd`](crate::cmd) module generally implement
-/// [`Clone`], [`Copy`], [`Debug`](std::fmt::Debug), [`PartialEq`], and [`Eq`],
+/// [`Clone`], [`Copy`], [`Debug`](core::fmt::Debug), [`PartialEq`], and [`Eq`],
 /// fused commands do so, too. However, since [`DynLink`](crate::cmd::DynLink)
 /// and [`DynSetWindowTitle`](crate::cmd::DynSetWindowTitle) have string-valued
 /// fields and hence cannot implement [`Copy`], these two commands *cannot* be
@@ -51,14 +51,14 @@ macro_rules! fuse {
 
         impl $crate::Command for Fused {}
 
-        impl ::std::fmt::Debug for Fused {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        impl ::core::fmt::Debug for Fused {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                 f.write_str(concat!(stringify!(fuse!), "(", stringify!($($command),+), ")"))
             }
         }
 
-        impl ::std::fmt::Display for Fused {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        impl ::core::fmt::Display for Fused {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                 $($command.fmt(f)?;)*
                 Ok(())
             }
@@ -75,7 +75,7 @@ macro_rules! fuse {
 /// To facilitate composition, SGR commands implement [`Sgr::write_param`],
 /// which writes the parameter(s) with the leading `CSI` and the trailing `m`.
 ///
-/// Technically, an `impl &mut std::fmt::Write` would suffice for `out`, but
+/// Technically, an `impl &mut core::fmt::Write` would suffice for `out`, but
 /// that would make the method generic and hence also prevent the trait from
 /// being object-safe. Declaring `out` to be a formatter instead doesn't
 /// restrict the trait by much, since `write_param()` is most likely invoked
@@ -83,19 +83,19 @@ macro_rules! fuse {
 /// the trait is object-safe.
 pub trait Sgr: Command {
     /// Write the parameter(s) for this SGR command.
-    fn write_param(&self, out: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result;
+    fn write_param(&self, out: &mut core::fmt::Formatter<'_>) -> ::core::fmt::Result;
 }
 
 /// A borrowed SGR is an SGR.
 impl<S: Sgr + ?Sized> Sgr for &S {
-    fn write_param(&self, out: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+    fn write_param(&self, out: &mut core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         (**self).write_param(out)
     }
 }
 
 /// A boxed SGR is an SGR.
 impl<S: Sgr + ?Sized> Sgr for Box<S> {
-    fn write_param(&self, out: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+    fn write_param(&self, out: &mut core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         (**self).write_param(out)
     }
 }
@@ -107,7 +107,7 @@ impl<S: Sgr + ?Sized> Sgr for Box<S> {
 /// macro's source arguments.
 ///
 /// Since commands in the [`cmd`](crate::cmd) module generally implement
-/// [`Clone`], [`Copy`], [`Debug`](std::fmt::Debug), [`PartialEq`], and [`Eq`],
+/// [`Clone`], [`Copy`], [`Debug`](core::fmt::Debug), [`PartialEq`], and [`Eq`],
 /// fused SGR commands do so, too.
 ///
 /// To fuse commands other than SGR commands, use [`fuse!`].
@@ -118,14 +118,14 @@ macro_rules! fuse_sgr {
         #[derive(Copy, Clone, PartialEq, Eq)]
         struct FusedSgr;
 
-        impl ::std::fmt::Debug for FusedSgr {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        impl ::core::fmt::Debug for FusedSgr {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                 f.write_str(concat!(stringify!(fuse_sgr!), "(", stringify!($sgr, $($sgr2),*), ")"))
             }
         }
 
-        impl ::std::fmt::Display for FusedSgr {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        impl ::core::fmt::Display for FusedSgr {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 f.write_str("\x1b[")?;
                 self.write_param(f)?;
                 f.write_str("m")
@@ -134,7 +134,7 @@ macro_rules! fuse_sgr {
 
         impl $crate::Command for FusedSgr {}
         impl $crate::Sgr for FusedSgr {
-            fn write_param(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            fn write_param(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 $sgr.write_param(f)?;
                 $(
                     f.write_str(";")?;
@@ -177,11 +177,11 @@ pub enum Control {
     APC = 0x9f,
 }
 
-impl std::fmt::Display for Control {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Control {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use self::Control::*;
 
-        f.write_str(match self {
+        f.write_str(match *self {
             BEL => "\x07",
             ESC => "\x1b",
             DCS => "\x1bP",
@@ -396,8 +396,8 @@ pub enum Token<'t> {
 impl Token<'_> {
     /// Get this token's control.
     pub fn control(&self) -> Option<Control> {
-        match self {
-            Token::Sequence(control, _) => Some(*control),
+        match *self {
+            Token::Sequence(control, _) => Some(control),
             _ => None,
         }
     }
@@ -409,7 +409,7 @@ impl Token<'_> {
     pub fn data(&self) -> &[u8] {
         use self::Token::*;
 
-        match self {
+        match *self {
             Text(data) => data,
             Control(data) => data,
             Sequence(_, data) => data,
@@ -417,9 +417,9 @@ impl Token<'_> {
     }
 }
 
-impl std::fmt::Debug for Token<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self {
+impl core::fmt::Debug for Token<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let name = match *self {
             Self::Text(_) => "Text",
             Self::Control(_) => "Control",
             Self::Sequence(_, _) => "Sequence",

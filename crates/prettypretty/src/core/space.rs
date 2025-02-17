@@ -127,7 +127,7 @@ impl ColorSpace {
 
     /// Determine whether this color space is XYZ.
     pub const fn is_xyz(&self) -> bool {
-        matches!(self, Self::Xyz)
+        matches!(self, &Self::Xyz)
     }
 
     /// Determine whether this color space is RGB.
@@ -187,11 +187,11 @@ impl ColorSpace {
     }
 }
 
-impl std::fmt::Display for ColorSpace {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for ColorSpace {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use ColorSpace::*;
 
-        let s = match self {
+        let s = match *self {
             Srgb => "sRGB",
             LinearSrgb => "linear sRGB",
             DisplayP3 => "Display P3",

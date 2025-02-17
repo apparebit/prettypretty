@@ -17,12 +17,12 @@ use pyo3::{exceptions::PyValueError, prelude::*};
 #[derive(Clone, Debug)]
 pub struct OutOfBoundsError {
     pub value: usize,
-    pub expected: std::ops::RangeInclusive<usize>,
+    pub expected: core::ops::RangeInclusive<usize>,
 }
 
 impl OutOfBoundsError {
     /// Create a new out-of-bounds error.
-    pub fn new(value: impl Into<usize>, expected: std::ops::RangeInclusive<usize>) -> Self {
+    pub fn new<I: Into<usize>>(value: I, expected: core::ops::RangeInclusive<usize>) -> Self {
         Self {
             value: value.into(),
             expected,
@@ -30,8 +30,8 @@ impl OutOfBoundsError {
     }
 }
 
-impl std::fmt::Display for OutOfBoundsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for OutOfBoundsError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         f.write_fmt(format_args!(
             "{} does not fit into range {}..={}",
             self.value,
@@ -109,11 +109,11 @@ pub enum ColorFormatError {
     MalformedThemeColor,
 }
 
-impl std::fmt::Display for ColorFormatError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for ColorFormatError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         use ColorFormatError::*;
 
-        match self {
+        match *self {
             UnknownFormat => f.write_str(
                 "color format should start with `#`, `color()`, `oklab()`, `oklch()`, or `rgb:`",
             ),
@@ -152,7 +152,7 @@ impl std::fmt::Display for ColorFormatError {
     }
 }
 
-impl std::error::Error for ColorFormatError {}
+impl core::error::Error for ColorFormatError {}
 
 #[cfg(feature = "pyffi")]
 impl From<ColorFormatError> for PyErr {
@@ -171,13 +171,13 @@ impl From<ColorFormatError> for PyErr {
 #[derive(Clone, Copy, Debug)]
 pub struct HiResColorantError;
 
-impl std::fmt::Display for HiResColorantError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for HiResColorantError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("unable to format high-resolution colorant as ANSI escape sequence")
     }
 }
 
-impl std::error::Error for HiResColorantError {}
+impl core::error::Error for HiResColorantError {}
 
 #[cfg(feature = "pyffi")]
 impl From<HiResColorantError> for PyErr {
@@ -203,12 +203,12 @@ pub enum ThemeErrorKind {
 #[derive(Debug)]
 pub struct ThemeError {
     kind: ThemeErrorKind,
-    source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    source: Option<Box<dyn core::error::Error + Send + Sync>>,
 }
 
 impl ThemeError {
     /// Create a new theme error.
-    pub fn new(kind: ThemeErrorKind, source: Box<dyn std::error::Error + Send + Sync>) -> Self {
+    pub fn new(kind: ThemeErrorKind, source: Box<dyn core::error::Error + Send + Sync>) -> Self {
         Self {
             kind,
             source: Some(source),
@@ -222,8 +222,8 @@ impl From<ThemeError> for std::io::Error {
     }
 }
 
-impl std::fmt::Display for ThemeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for ThemeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let entry = match self.kind {
             ThemeErrorKind::AccessDevice => return f.write_str("could not access terminal device"),
             ThemeErrorKind::WriteQuery(entry) => {
@@ -243,8 +243,8 @@ impl std::fmt::Display for ThemeError {
     }
 }
 
-impl std::error::Error for ThemeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for ThemeError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         self.source.as_deref().map(|e| e as _)
     }
 }

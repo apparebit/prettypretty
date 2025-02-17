@@ -32,6 +32,7 @@ impl Style {
     }
 
     /// Create a new style with added bold formatting.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn bold(&self) -> Self {
         Self {
             format: self.format + Attribute::Bold,
@@ -40,6 +41,7 @@ impl Style {
     }
 
     /// Create a new style with added thin formatting.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn thin(&self) -> Self {
         Self {
             format: self.format + Attribute::Thin,
@@ -48,6 +50,7 @@ impl Style {
     }
 
     /// Create a new style with added italic formatting.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn italic(&self) -> Self {
         Self {
             format: self.format + Attribute::Italic,
@@ -56,6 +59,7 @@ impl Style {
     }
 
     /// Create a new style with added underlined formatting.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn underlined(&self) -> Self {
         Self {
             format: self.format + Attribute::Underlined,
@@ -64,6 +68,7 @@ impl Style {
     }
 
     /// Create a new style with added blinking formatting.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn blinking(&self) -> Self {
         Self {
             format: self.format + Attribute::Blinking,
@@ -72,6 +77,7 @@ impl Style {
     }
 
     /// Create a new style with added reversed formatting.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn reversed(&self) -> Self {
         Self {
             format: self.format + Attribute::Reversed,
@@ -80,6 +86,7 @@ impl Style {
     }
 
     /// Create a new style with added hidden formatting.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn hidden(&self) -> Self {
         Self {
             format: self.format + Attribute::Hidden,
@@ -88,6 +95,7 @@ impl Style {
     }
 
     /// Create a new style with added stricken formatting.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn stricken(&self) -> Self {
         Self {
             format: self.format + Attribute::Stricken,
@@ -98,6 +106,7 @@ impl Style {
     // Create a new style with the given foreground color.
     #[cfg(feature = "pyffi")]
     #[pyo3(name = "with_foreground")]
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn py_with_foreground(
         &self,
         #[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant,
@@ -108,6 +117,7 @@ impl Style {
     // Create a new style with the given background color.
     #[cfg(feature = "pyffi")]
     #[pyo3(name = "with_background")]
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn py_with_background(
         &self,
         #[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant,
@@ -123,27 +133,34 @@ impl Style {
         *(!self.format.is_empty())
             .then_some(Fidelity::NoColor)
             .iter()
-            .chain(self.foreground.as_ref().map(|c| c.into()).iter())
-            .chain(self.background.as_ref().map(|c| c.into()).iter())
+            .chain(
+                self.foreground
+                    .as_ref()
+                    .map(core::convert::Into::into)
+                    .iter(),
+            )
+            .chain(
+                self.background
+                    .as_ref()
+                    .map(core::convert::Into::into)
+                    .iter(),
+            )
             .max()
             .unwrap_or(&Fidelity::Plain)
     }
 
     /// Cap this style to the given fidelity.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn cap(&self, fidelity: Fidelity, translator: &Translator) -> Self {
         let format = self.format.cap(fidelity);
-
-        let foreground = if let Some(ref colorant) = self.foreground {
-            translator.cap_colorant(colorant, fidelity)
-        } else {
-            None
-        };
-
-        let background = if let Some(ref colorant) = self.background {
-            translator.cap_colorant(colorant, fidelity)
-        } else {
-            None
-        };
+        let foreground = self
+            .foreground
+            .as_ref()
+            .and_then(|c| translator.cap_colorant(c, fidelity));
+        let background = self
+            .background
+            .as_ref()
+            .and_then(|c| translator.cap_colorant(c, fidelity));
 
         Self {
             format,
@@ -178,6 +195,7 @@ impl Style {
 
     /// Negate this style. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn __neg__(&self) -> Self {
         -self
     }
@@ -199,7 +217,8 @@ impl Style {
 
 impl Style {
     /// Create a new style with the given foreground color.
-    pub fn with_foreground(&self, color: impl Into<Colorant>) -> Self {
+    #[must_use = "the only reason to invoke method is to access the returned value"]
+    pub fn with_foreground<C: Into<Colorant>>(&self, color: C) -> Self {
         Self {
             foreground: Some(color.into()),
             ..self.clone()
@@ -207,7 +226,8 @@ impl Style {
     }
 
     /// Create a new style with the given background color.
-    pub fn with_background(&self, color: impl Into<Colorant>) -> Self {
+    #[must_use = "the only reason to invoke method is to access the returned value"]
+    pub fn with_background<C: Into<Colorant>>(&self, color: C) -> Self {
         Self {
             format: self.format,
             foreground: self.foreground.clone(),
@@ -226,7 +246,7 @@ impl Style {
     }
 }
 
-impl std::ops::Neg for &Style {
+impl core::ops::Neg for &Style {
     type Output = Style;
 
     fn neg(self) -> Self::Output {
@@ -238,7 +258,7 @@ impl std::ops::Neg for &Style {
     }
 }
 
-impl std::ops::Neg for Style {
+impl core::ops::Neg for Style {
     type Output = Style;
 
     fn neg(self) -> Self::Output {
@@ -246,8 +266,8 @@ impl std::ops::Neg for Style {
     }
 }
 
-impl std::fmt::Display for Style {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Style {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if self.is_default() {
             return Ok(());
         }

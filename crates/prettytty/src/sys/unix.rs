@@ -1,8 +1,8 @@
-use std::ffi::c_void;
+use core::ffi::c_void;
+use core::ptr::{from_mut, from_ref};
 use std::fs::OpenOptions;
 use std::io::{stderr, stdin, stdout, IsTerminal, Read, Result, Write};
 use std::os::fd::{AsRawFd, OwnedFd};
-use std::ptr::{from_mut, from_ref};
 
 use super::util::{IdentList, IntoResult};
 use super::RawHandle;
@@ -19,16 +19,16 @@ enum RawConnectionHandle {
 
 impl RawConnectionHandle {
     fn input(&self) -> RawHandle {
-        match self {
-            Self::Owned(handle) => handle.as_raw_fd(),
-            Self::StdIo(handle, _) => *handle,
+        match *self {
+            Self::Owned(ref handle) => handle.as_raw_fd(),
+            Self::StdIo(ref handle, _) => *handle,
         }
     }
 
     fn output(&self) -> RawHandle {
-        match self {
-            Self::Owned(handle) => handle.as_raw_fd(),
-            Self::StdIo(_, handle) => *handle,
+        match *self {
+            Self::Owned(ref handle) => handle.as_raw_fd(),
+            Self::StdIo(_, ref handle) => *handle,
         }
     }
 }
@@ -94,6 +94,7 @@ impl RawConnection {
     /// Get process group ID.
     #[inline]
     pub fn group(&self) -> Result<u32> {
+        // SAFETY: We are passing a file handle, just as expected.
         unsafe { libc::tcgetsid(self.handle.input()) }.into_result()
     }
 
@@ -120,11 +121,11 @@ enum ModeGroup {
 }
 
 impl ModeGroup {
-    pub fn all() -> impl std::iter::Iterator<Item = ModeGroup> {
+    pub fn all() -> impl core::iter::Iterator<Item = Self> {
         use self::ModeGroup::*;
 
-        std::iter::successors(Some(Input), |n| {
-            Some(match n {
+        core::iter::successors(Some(Input), |n| {
+            Some(match *n {
                 Input => Output,
                 Output => Control,
                 Control => Local,
@@ -136,7 +137,7 @@ impl ModeGroup {
     pub fn name(&self) -> &'static str {
         use self::ModeGroup::*;
 
-        match self {
+        match *self {
             Input => "input_modes",
             Output => "output_modes",
             Control => "control_modes",
@@ -153,10 +154,13 @@ pub(crate) struct RawConfig {
 impl RawConfig {
     /// Read the configuration.
     pub fn read(connection: &RawConnection) -> Result<Self> {
-        let mut state = std::mem::MaybeUninit::uninit();
+        let mut state = core::mem::MaybeUninit::uninit();
+        // SAFETY: We are passing the expected arguments, a file handle and a
+        // pointer to an appropriately sized allocation.
         unsafe { libc::tcgetattr(connection.input().handle(), state.as_mut_ptr()) }
             .into_result()?;
         Ok(Self {
+            // SAFETY: In this no-error case, tcgetattr() initialized state.
             state: unsafe { state.assume_init() },
         })
     }
@@ -174,6 +178,7 @@ impl RawConfig {
                 state.c_lflag &= !(libc::ECHO | libc::ICANON);
             }
             Mode::Raw => {
+                // SAFETY: We are passing a termios data structure, just as expected.
                 unsafe { libc::cfmakeraw(from_mut(&mut state)) };
             }
         }
@@ -185,6 +190,7 @@ impl RawConfig {
 
     /// Write the configuration.
     pub fn write(&self, connection: &RawConnection) -> Result<()> {
+        // SAFETY: We are passing the expected arguments in the expected order.
         unsafe {
             libc::tcsetattr(
                 connection.input().handle(),
@@ -208,7 +214,7 @@ impl RawConfig {
             };
         }
 
-        match group {
+        match *group {
             ModeGroup::Input => {
                 for (label, mask) in [
                     ("BRKINT", libc::BRKINT),
@@ -280,11 +286,14 @@ impl RawConfig {
     }
 }
 
-impl std::fmt::Debug for RawConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for RawConfig {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut debugger = f.debug_struct("RawConfig");
         for group in ModeGroup::all() {
-            debugger.field(group.name(), &IdentList::new(self.labels(&group)));
+            debugger.field(
+                group.name(),
+                &IdentList::new(self.labels(&group).as_slice()),
+            );
         }
 
         debugger
@@ -316,10 +325,11 @@ impl RawInput {
 
 impl Read for RawInput {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        // SAFETY: We are passing the expected arguments in the expected order.
         unsafe {
             libc::read(
                 self.handle,
-                buf.as_mut_ptr() as *mut c_void,
+                buf.as_mut_ptr().cast::<c_void>(),
                 buf.len() as libc::size_t,
             )
         }
@@ -350,10 +360,11 @@ impl RawOutput {
 
 impl Write for RawOutput {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        // SAFETY: We are passing the expected arguments in the expected order.
         unsafe {
             libc::write(
                 self.handle,
-                buf.as_ptr() as *const c_void,
+                buf.as_ptr().cast::<c_void>(),
                 buf.len() as libc::size_t,
             )
         }

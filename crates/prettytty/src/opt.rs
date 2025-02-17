@@ -151,6 +151,7 @@ impl OptionBuilder {
     }
 
     /// Instantiate the options.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn build(&self) -> Options {
         Options(self.0.clone())
     }
@@ -162,7 +163,7 @@ pub struct Options(OptionData);
 
 impl Default for Options {
     fn default() -> Self {
-        Options(OptionData::new())
+        Self(OptionData::new())
     }
 }
 
@@ -174,13 +175,13 @@ impl Options {
 
     /// Instantiate the default options but with regular debugging output
     /// enabled.
-    pub fn with_log() -> Options {
+    pub fn with_log() -> Self {
         Self::builder().volume(Volume::Regular).build()
     }
 
     /// Instantiate the default options but with detailed debugging output
     /// enabled.
-    pub fn with_detailed_log() -> Options {
+    pub fn with_detailed_log() -> Self {
         Self::builder().volume(Volume::Detailed).build()
     }
 

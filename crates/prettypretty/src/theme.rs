@@ -170,7 +170,7 @@ impl AsRef<[Color]> for Theme {
     }
 }
 
-impl std::ops::Index<ThemeEntry> for Theme {
+impl core::ops::Index<ThemeEntry> for Theme {
     type Output = Color;
 
     fn index(&self, index: ThemeEntry) -> &Self::Output {
@@ -182,7 +182,7 @@ impl std::ops::Index<ThemeEntry> for Theme {
     }
 }
 
-impl std::ops::IndexMut<ThemeEntry> for Theme {
+impl core::ops::IndexMut<ThemeEntry> for Theme {
     fn index_mut(&mut self, index: ThemeEntry) -> &mut Self::Output {
         match index {
             ThemeEntry::Ansi(color) => &mut self.inner[color as usize],
@@ -192,7 +192,7 @@ impl std::ops::IndexMut<ThemeEntry> for Theme {
     }
 }
 
-impl std::ops::Index<AnsiColor> for Theme {
+impl core::ops::Index<AnsiColor> for Theme {
     type Output = Color;
 
     fn index(&self, index: AnsiColor) -> &Self::Output {
@@ -200,13 +200,13 @@ impl std::ops::Index<AnsiColor> for Theme {
     }
 }
 
-impl std::ops::IndexMut<AnsiColor> for Theme {
+impl core::ops::IndexMut<AnsiColor> for Theme {
     fn index_mut(&mut self, index: AnsiColor) -> &mut Self::Output {
         &mut self.inner[index as usize]
     }
 }
 
-impl std::ops::Index<Layer> for Theme {
+impl core::ops::Index<Layer> for Theme {
     type Output = Color;
 
     fn index(&self, index: Layer) -> &Self::Output {
@@ -217,8 +217,8 @@ impl std::ops::Index<Layer> for Theme {
     }
 }
 
-impl std::fmt::Debug for Theme {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for Theme {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut debugger = f.debug_struct("Theme");
         for entry in ThemeEntry::all() {
             debugger.field(&entry.name().replace(" ", "_"), &self[entry]);
@@ -276,7 +276,7 @@ impl ThemeEntry {
 
     /// Get this theme entry's human-readable name.
     pub fn name(&self) -> &'static str {
-        match self {
+        match *self {
             Self::Ansi(color) => color.name(),
             Self::DefaultForeground() => "default foreground",
             Self::DefaultBackground() => "default background",
@@ -289,7 +289,7 @@ impl ThemeEntry {
     /// [`AnsiColor::abbr`] for a description of the abbreviations for ANSI
     /// colors.
     pub fn abbr(&self) -> &'static str {
-        match self {
+        match *self {
             Self::Ansi(color) => color.abbr(),
             Self::DefaultForeground() => "fg",
             Self::DefaultBackground() => "bg",
@@ -316,7 +316,7 @@ impl ThemeEntry {
     /// Convert the theme entry to a color request. <i class=tty-only>TTY
     /// only!</i>
     pub fn request(&self) -> RequestColor {
-        if let ThemeEntry::Ansi(color) = self {
+        if let ThemeEntry::Ansi(color) = *self {
             match color {
                 AnsiColor::Black => RequestColor::Black,
                 AnsiColor::Red => RequestColor::Red,
@@ -336,7 +336,7 @@ impl ThemeEntry {
                 AnsiColor::BrightWhite => RequestColor::BrightWhite,
             }
         } else {
-            match self {
+            match *self {
                 ThemeEntry::DefaultForeground() => RequestColor::Foreground,
                 ThemeEntry::DefaultBackground() => RequestColor::Background,
                 _ => unreachable!(),
@@ -404,12 +404,12 @@ impl Query for ThemeEntry {
     }
 }
 
-impl std::fmt::Display for ThemeEntry {
+impl core::fmt::Display for ThemeEntry {
     /// Get an ANSI escape sequence to query a terminal for this theme entry's
     /// current color.
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Ansi(color) => f.write_fmt(format_args!("\x1b]4;{};?\x1b\\", *color as u8)),
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match *self {
+            Self::Ansi(color) => f.write_fmt(format_args!("\x1b]4;{};?\x1b\\", color as u8)),
             Self::DefaultForeground() => f.write_str("\x1b]10;?\x1b\\"),
             Self::DefaultBackground() => f.write_str("\x1b]11;?\x1b\\"),
         }
@@ -454,13 +454,13 @@ impl Iterator for ThemeEntryIterator {
     }
 }
 
-impl std::iter::ExactSizeIterator for ThemeEntryIterator {
+impl ExactSizeIterator for ThemeEntryIterator {
     fn len(&self) -> usize {
         ThemeEntry::COUNT - self.index
     }
 }
 
-impl std::iter::FusedIterator for ThemeEntryIterator {}
+impl core::iter::FusedIterator for ThemeEntryIterator {}
 
 #[cfg(feature = "pyffi")]
 #[pymethods]

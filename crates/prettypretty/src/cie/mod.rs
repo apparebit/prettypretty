@@ -21,7 +21,8 @@ mod test {
         for illuminant in [&CIE_ILLUMINANT_D50, &CIE_ILLUMINANT_D65] {
             let mut sum = Sum::new();
             for wavelength in illuminant.range() {
-                sum += illuminant.at(wavelength).unwrap();
+                assert_eq!(*illuminant.at(wavelength), illuminant[wavelength]);
+                sum += illuminant[wavelength];
             }
             assert_eq!(sum.value(), illuminant.checksum());
         }
@@ -29,7 +30,8 @@ mod test {
         for observer in [&CIE_OBSERVER_2DEG_1931, &CIE_OBSERVER_10DEG_1964] {
             let mut sum = ThreeSum::new();
             for wavelength in observer.range() {
-                sum += observer.at(wavelength).unwrap();
+                assert_eq!(*observer.at(wavelength), observer[wavelength]);
+                sum += observer[wavelength];
             }
             assert_eq!(sum.value(), observer.checksum());
         }
@@ -60,11 +62,12 @@ mod test {
             // Check results of range overlap computation
             assert_eq!(table.start(), 360);
             assert_eq!(table.end(), 831);
+            assert_eq!(table.range(), table.start()..table.end());
 
             // Compute sum for tristimulus
             let mut sum = ThreeSum::new();
-            for index in table.start()..table.end() {
-                sum += table.at(index).unwrap();
+            for index in table.range() {
+                sum += table[index];
             }
 
             // Scale to tristimulus and compare to expected value

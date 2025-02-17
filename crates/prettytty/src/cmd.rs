@@ -98,8 +98,8 @@
 
 use crate::util::ByteParser;
 use crate::{Command, Control, Query, Sgr};
+use core::iter::successors;
 use std::io::{Error, ErrorKind, Result};
-use std::iter::successors;
 
 macro_rules! declare_unit_struct {
     ($name:ident) => {
@@ -126,9 +126,9 @@ macro_rules! implement_command {
     ($name:ident $(< $( $arg:ident : $typ:ty ),+ >)? : $selfish:ident ; $output:ident $body:block) => {
         impl $(< $(const $arg: $typ),+ >)? $crate::Command for $name $(< $($arg),+ >)? {}
 
-        impl $(< $(const $arg: $typ),+ >)? ::std::fmt::Display for $name $(< $($arg),+ >)? {
+        impl $(< $(const $arg: $typ),+ >)? ::core::fmt::Display for $name $(< $($arg),+ >)? {
             #[inline]
-            fn fmt(&$selfish, $output: &mut ::std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&$selfish, $output: &mut ::core::fmt::Formatter<'_>) -> core::fmt::Result {
                 $body
             }
         }
@@ -147,14 +147,14 @@ macro_rules! define_cmd_1 {
         declare_n_struct!($name<$arg : $typ>);
         implement_command!($name<$arg : $typ>: self; f {
             f.write_str($prefix)?;
-            <_ as ::std::fmt::Display>::fmt(&$arg, f)?;
+            <_ as ::core::fmt::Display>::fmt(&$arg, f)?;
             f.write_str($suffix)
         });
 
         declare_n_struct!($dyn_name($arg : $typ));
         implement_command!($dyn_name: self; f {
             f.write_str($prefix)?;
-            <_ as ::std::fmt::Display>::fmt(&self.0, f)?;
+            <_ as ::core::fmt::Display>::fmt(&self.0, f)?;
             f.write_str($suffix)
         });
     }
@@ -168,18 +168,18 @@ macro_rules! define_cmd_2 {
         declare_n_struct!($name<$arg1 : $typ1, $arg2 : $typ2>);
         implement_command!($name<$arg1 : $typ1, $arg2 : $typ2>: self; f {
             f.write_str($prefix)?;
-            <_ as ::std::fmt::Display>::fmt(&$arg1, f)?;
+            <_ as ::core::fmt::Display>::fmt(&$arg1, f)?;
             f.write_str(";")?;
-            <_ as ::std::fmt::Display>::fmt(&$arg2, f)?;
+            <_ as ::core::fmt::Display>::fmt(&$arg2, f)?;
             f.write_str($suffix)
         });
 
         declare_n_struct!($dyn_name($arg1 : $typ1, $arg2 : $typ2));
         implement_command!($dyn_name: self; f {
             f.write_str($prefix)?;
-            <_ as ::std::fmt::Display>::fmt(&self.0, f)?;
+            <_ as ::core::fmt::Display>::fmt(&self.0, f)?;
             f.write_str(";")?;
-            <_ as ::std::fmt::Display>::fmt(&self.1, f)?;
+            <_ as ::core::fmt::Display>::fmt(&self.1, f)?;
             f.write_str($suffix)
         });
     }
@@ -191,14 +191,14 @@ macro_rules! implement_sgr {
 
         impl $(< $(const $arg: $typ),+ >)? $crate::Sgr for $name $(< $($arg),+ >)? {
             #[inline]
-            fn write_param(&$selfish, $output: &mut ::std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn write_param(&$selfish, $output: &mut ::core::fmt::Formatter<'_>) -> core::fmt::Result {
                 $body
             }
         }
 
-        impl $(< $(const $arg: $typ),+ >)?  ::std::fmt::Display for $name $(< $($arg),+ >)? {
+        impl $(< $(const $arg: $typ),+ >)?  ::core::fmt::Display for $name $(< $($arg),+ >)? {
             #[inline]
-            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 f.write_str("\x1b[")?;
                 self.write_param(f)?;
                 f.write_str("m")
@@ -219,11 +219,11 @@ macro_rules! define_8bit_color {
         declare_n_struct!($name<COLOR: u8>);
         implement_sgr!($name<COLOR: u8>: self; f {
             match COLOR {
-                0..=7 => <_ as ::std::fmt::Display>::fmt(&($dark_base + COLOR), f),
-                8..=15 => <_ as ::std::fmt::Display>::fmt(&($bright_base + COLOR), f),
+                0..=7 => <_ as ::core::fmt::Display>::fmt(&($dark_base + COLOR), f),
+                8..=15 => <_ as ::core::fmt::Display>::fmt(&($bright_base + COLOR), f),
                 _ => {
                     f.write_str($prefix)?;
-                    <_ as ::std::fmt::Display>::fmt(&COLOR, f)
+                    <_ as ::core::fmt::Display>::fmt(&COLOR, f)
                 }
             }
         });
@@ -231,11 +231,11 @@ macro_rules! define_8bit_color {
         declare_n_struct!($dyn_name(COLOR: u8));
         implement_sgr!($dyn_name: self; f {
             match self.0 {
-                0..=7 => <_ as ::std::fmt::Display>::fmt(&($dark_base + self.0), f),
-                8..=15 => <_ as ::std::fmt::Display>::fmt(&($bright_base + self.0), f),
+                0..=7 => <_ as ::core::fmt::Display>::fmt(&($dark_base + self.0), f),
+                8..=15 => <_ as ::core::fmt::Display>::fmt(&($bright_base + self.0), f),
                 _ => {
                     f.write_str($prefix)?;
-                    <_ as ::std::fmt::Display>::fmt(&self.0, f)
+                    <_ as ::core::fmt::Display>::fmt(&self.0, f)
                 }
             }
         });
@@ -247,21 +247,21 @@ macro_rules! define_24bit_color {
         declare_n_struct!($name<R: u8, G: u8, B: u8>);
         implement_sgr!($name<R: u8, G: u8, B: u8>: self; f {
             f.write_str($prefix)?;
-            <_ as ::std::fmt::Display>::fmt(&R, f)?;
+            <_ as ::core::fmt::Display>::fmt(&R, f)?;
             f.write_str(";")?;
-            <_ as ::std::fmt::Display>::fmt(&G, f)?;
+            <_ as ::core::fmt::Display>::fmt(&G, f)?;
             f.write_str(";")?;
-            <_ as ::std::fmt::Display>::fmt(&B, f)
+            <_ as ::core::fmt::Display>::fmt(&B, f)
         });
 
         declare_n_struct!($dyn_name(R: u8, G: u8, B: u8));
         implement_sgr!($dyn_name: self; f {
             f.write_str($prefix)?;
-            <_ as ::std::fmt::Display>::fmt(&self.0, f)?;
+            <_ as ::core::fmt::Display>::fmt(&self.0, f)?;
             f.write_str(";")?;
-            <_ as ::std::fmt::Display>::fmt(&self.1, f)?;
+            <_ as ::core::fmt::Display>::fmt(&self.1, f)?;
             f.write_str(";")?;
-            <_ as ::std::fmt::Display>::fmt(&self.2, f)
+            <_ as ::core::fmt::Display>::fmt(&self.2, f)
         });
     }
 }
@@ -343,8 +343,8 @@ define_unit_command!(EraseScreen, "\x1b[2J");
 declare_unit_struct!(RequestScreenSize);
 impl Command for RequestScreenSize {}
 
-impl std::fmt::Display for RequestScreenSize {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for RequestScreenSize {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         MoveTo::<{ u16::MAX }, { u16::MAX }>.fmt(f)?;
         RequestCursorPosition.fmt(f)
     }
@@ -386,10 +386,10 @@ pub enum SetCursor {
 
 impl Command for SetCursor {}
 
-impl std::fmt::Display for SetCursor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for SetCursor {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("\x1b[")?;
-        <_ as std::fmt::Display>::fmt(&(*self as u8), f)?;
+        <_ as core::fmt::Display>::fmt(&(*self as u8), f)?;
         f.write_str(" q")
     }
 }
@@ -442,7 +442,7 @@ impl Query for RequestCursorPosition {
             return Err(ErrorKind::InvalidData.into());
         }
 
-        Ok((params[0], params[1]))
+        Ok(params.into())
     }
 }
 
@@ -519,7 +519,7 @@ impl DynLink {
         H: Into<String>,
         T: Into<String>,
     {
-        Self(id.map(|s| s.into()), href.into(), text.into())
+        Self(id.map(core::convert::Into::into), href.into(), text.into())
     }
 }
 
@@ -584,10 +584,11 @@ pub enum Format {
 
 impl Format {
     /// Get the format that restores default appearance.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn undo(&self) -> Self {
         use self::Format::*;
 
-        match self {
+        match *self {
             Bold | Thin => Regular,
             Italic => Upright,
             Underlined => NotUnderlined,
@@ -602,15 +603,15 @@ impl Format {
 
 impl Sgr for Format {
     #[inline]
-    fn write_param(&self, f: &mut std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        <_ as std::fmt::Display>::fmt(&(*self as u8), f)
+    fn write_param(&self, f: &mut core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        <_ as core::fmt::Display>::fmt(&(*self as u8), f)
     }
 }
 
 impl Command for Format {}
 
-impl std::fmt::Display for Format {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Format {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("\x1b[")?;
         self.write_param(f)?;
         f.write_str("m")
@@ -673,10 +674,10 @@ impl RequestColor {
     pub const COUNT: usize = 20;
 
     /// Get the successor.
-    fn successor(&self) -> Option<RequestColor> {
+    fn successor(&self) -> Option<Self> {
         use self::RequestColor::*;
 
-        Some(match self {
+        Some(match *self {
             Black => Red,
             Red => Green,
             Green => Yellow,
@@ -701,23 +702,23 @@ impl RequestColor {
     }
 
     /// Get an iterator over all color requests.
-    pub fn all() -> impl Iterator<Item = RequestColor> {
-        successors(Some(Self::Black), |c| c.successor())
+    pub fn all() -> impl Iterator<Item = Self> {
+        successors(Some(Self::Black), Self::successor)
     }
 }
 
 impl Command for RequestColor {}
 
-impl std::fmt::Display for RequestColor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for RequestColor {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let code = *self as u32;
         if code < 16 {
             f.write_str("\x1b]4;")?;
-            <_ as std::fmt::Display>::fmt(&code, f)?;
+            <_ as core::fmt::Display>::fmt(&code, f)?;
             f.write_str(";?\x1b\\")
         } else {
             f.write_str("\x1b]")?;
-            <_ as std::fmt::Display>::fmt(&(code - 100), f)?;
+            <_ as core::fmt::Display>::fmt(&(code - 100), f)?;
             f.write_str(";?\x1b\\")
         }
     }
@@ -745,14 +746,14 @@ impl Query for RequestColor {
         let bytes = if code < 20 {
             let bytes = payload
                 .strip_prefix(b"4;")
-                .ok_or(Error::from(ErrorKind::BadSequence))?;
+                .ok_or_else(|| Error::from(ErrorKind::BadSequence))?;
             if code < 10 {
                 bytes.strip_prefix(&[b'0' + code])
             } else {
                 bytes.strip_prefix(&[b'1', b'0' + code - 10])
             }
         } else {
-            payload.strip_prefix(match self {
+            payload.strip_prefix(match *self {
                 Self::Foreground => b"10",
                 Self::Background => b"11",
                 Self::Cursor => b"12",
@@ -761,10 +762,10 @@ impl Query for RequestColor {
             })
         }
         .and_then(|bytes| bytes.strip_prefix(b";rgb:"))
-        .ok_or(Error::from(ErrorKind::BadSequence))?;
+        .ok_or_else(|| Error::from(ErrorKind::BadSequence))?;
 
-        fn parse(bytes: Option<&[u8]>) -> std::result::Result<(u16, u16), Error> {
-            let bytes = bytes.ok_or(Error::from(ErrorKind::TooFewCoordinates))?;
+        fn parse(bytes: Option<&[u8]>) -> core::result::Result<(u16, u16), Error> {
+            let bytes = bytes.ok_or_else(|| Error::from(ErrorKind::TooFewCoordinates))?;
             if bytes.is_empty() {
                 return Err(ErrorKind::EmptyCoordinate.into());
             } else if 4 < bytes.len() {
@@ -773,7 +774,7 @@ impl Query for RequestColor {
 
             let n = ByteParser::Hexadecimal
                 .to_u16(bytes)
-                .ok_or(Error::from(ErrorKind::MalformedCoordinate))?;
+                .ok_or_else(|| Error::from(ErrorKind::MalformedCoordinate))?;
             Ok((n, bytes.len() as u16))
         }
 

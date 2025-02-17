@@ -54,15 +54,19 @@ fn eight_bit_coordinates(space: ColorSpace, theme: &Theme) -> [[Float; 3]; 256] 
     }
     for index in 16..=231 {
         // Unwrap is safe b/c we are iterating over EmbeddedRgb's index range.
-        coordinates[index] = *Color::from(EmbeddedRgb::try_from(index as u8).unwrap())
-            .to(space)
-            .as_ref();
+        coordinates[index] = *Color::from(
+            EmbeddedRgb::try_from(index as u8).expect("valid index must yield valid color"),
+        )
+        .to(space)
+        .as_ref();
     }
     for index in 232..=255 {
         // Unwrap is safe b/c we are iterating over GrayGradient's index range.
-        coordinates[index] = *Color::from(GrayGradient::try_from(index as u8).unwrap())
-            .to(space)
-            .as_ref();
+        coordinates[index] = *Color::from(
+            GrayGradient::try_from(index as u8).expect("valid index must yield valid color"),
+        )
+        .to(space)
+        .as_ref();
     }
 
     coordinates
@@ -376,13 +380,14 @@ impl Translator {
     /// as expected. It appears that our hue-based proof-of-concept works.
     /// However, a production-ready version does need to account for lightness,
     /// too. The method to do so is [`Translator::to_ansi_hue_lightness`].
+    #[allow(clippy::missing_panics_doc)]
     pub fn to_closest_ansi(&self, color: &Color) -> AnsiColor {
         use crate::core::{delta_e_ok, find_closest};
 
         let color = color.to(self.space);
         find_closest(color.as_ref(), &self.ansi, delta_e_ok)
-            .map(|idx| AnsiColor::try_from(idx as u8).unwrap())
-            .unwrap()
+            .map(|idx| AnsiColor::try_from(idx as u8).expect("valid index must yield valid color"))
+            .expect("matching against 16 colors matches nonzero colors")
     }
 
     /// Convert the high-resolution color to an ANSI color in RGB.
@@ -404,9 +409,10 @@ impl Translator {
     /// the approach implemented by
     /// [Chalk](https://github.com/chalk/chalk/blob/main/source/vendor/ansi-styles/index.js),
     /// only one of the most popular terminal color libraries for JavaScript.
+    #[allow(clippy::missing_panics_doc)]
     pub fn to_ansi_rgb(&self, color: &Color) -> AnsiColor {
         let color = color.to(ColorSpace::LinearSrgb).clip();
-        let [r, g, b] = color.as_ref();
+        let [ref r, ref g, ref b] = *color.as_ref();
         let mut index = ((b.round() as u8) << 2) + ((g.round() as u8) << 1) + (r.round() as u8);
         // When we get to the threshold below, the color has already been
         // selected and can only be brightened. A threshold of 2 or 3 produces
@@ -417,7 +423,7 @@ impl Translator {
             index += 8;
         }
 
-        AnsiColor::try_from(index).unwrap()
+        AnsiColor::try_from(index).expect("valid index must yield valid color")
     }
 
     /// Find the 8-bit color that comes closest to the given color.
@@ -469,17 +475,20 @@ impl Translator {
     /// }
     /// # Ok::<(), OutOfBoundsError>(())
     /// ```
+    #[allow(clippy::missing_panics_doc)]
     pub fn to_closest_8bit(&self, color: &Color) -> EightBitColor {
         use crate::core::{delta_e_ok, find_closest};
 
         let color = color.to(self.space);
         let index = find_closest(
             color.as_ref(),
-            self.eight_bit.last_chunk::<240>().unwrap(),
+            self.eight_bit
+                .last_chunk::<240>()
+                .expect("index 240 in a 256 element slice"),
             delta_e_ok,
         )
         .map(|idx| idx as u8 + 16)
-        .unwrap();
+        .expect("valid index must yield valid color");
 
         EightBitColor::from(index)
     }
@@ -504,11 +513,13 @@ impl Translator {
     /// <div class=color-swatch>
     /// <div style="background-color: rgb(255, 85, 255);"></div>
     /// </div>
+    #[allow(clippy::missing_panics_doc)]
     pub fn to_closest_8bit_with_ansi(&self, color: &Color) -> EightBitColor {
         use crate::core::{delta_e_ok, find_closest};
 
         let color = color.to(self.space);
-        let index = find_closest(color.as_ref(), &self.eight_bit, delta_e_ok).unwrap() as u8;
+        let index = find_closest(color.as_ref(), &self.eight_bit, delta_e_ok)
+            .expect("matching 16 colors matches nonzero colors") as u8;
 
         EightBitColor::from(index)
     }
@@ -541,18 +552,18 @@ impl Translator {
         match fidelity {
             Fidelity::Plain | Fidelity::NoColor => None,
             Fidelity::Ansi => {
-                let hires_color = match colorant {
+                let hires_color = match *colorant {
                     Colorant::Default() | Colorant::Ansi(_) => return Some(colorant.clone()),
                     Colorant::Embedded(embedded_rgb) => &Color::from(embedded_rgb),
                     Colorant::Gray(gray_gradient) => &Color::from(gray_gradient),
                     Colorant::Rgb(true_color) => &Color::from(true_color),
-                    Colorant::HiRes(hires_color) => hires_color,
+                    Colorant::HiRes(ref hires_color) => hires_color,
                 };
 
                 Some(Colorant::Ansi(self.to_ansi(hires_color)))
             }
             Fidelity::EightBit => {
-                let hires_color = match colorant {
+                let hires_color = match *colorant {
                     Colorant::Rgb(true_color) => &Color::from(true_color),
                     Colorant::HiRes(ref hires_color) => hires_color,
                     _ => return Some(colorant.clone()),
@@ -561,7 +572,7 @@ impl Translator {
                 Some(self.to_closest_8bit(hires_color).into())
             }
             Fidelity::TwentyFourBit => {
-                if let Colorant::HiRes(ref hires_color) = colorant {
+                if let Colorant::HiRes(ref hires_color) = *colorant {
                     Some(Colorant::Rgb(hires_color.into()))
                 } else {
                     Some(colorant.clone())
@@ -638,7 +649,7 @@ impl Translator {
     ///
     /// If the colorant is [`Colorant::Default`]. If the colorant may include
     /// the default colorant, use [`Translator::resolve_all`] instead.
-    pub fn resolve(&self, color: impl Into<Colorant>) -> Color {
+    pub fn resolve<C: Into<Colorant>>(&self, color: C) -> Color {
         let color = color.into();
         if matches!(color, Colorant::Default()) {
             panic!("Translator::resolve() cannot process the default colorant; use Translator::resolve_all() instead.")
@@ -681,7 +692,7 @@ impl Translator {
     /// <div style="background-color: #000000;"></div>
     /// <div style="background-color: #941751;"></div>
     /// </div>
-    pub fn resolve_all(&self, color: impl Into<Colorant>, layer: Layer) -> Color {
+    pub fn resolve_all<C: Into<Colorant>>(&self, color: C, layer: Layer) -> Color {
         match color.into() {
             Colorant::Default() => self.theme[layer].clone(),
             Colorant::Ansi(c) => self.theme[c].clone(),
@@ -719,13 +730,13 @@ impl Translator {
     ///
     /// Instead of calling this method, whenever possible, Rust code should use
     /// [`Translator::cap_hires`] or [`Translator::cap_colorant`].
-    pub fn cap(&self, colorant: impl Into<Colorant>, fidelity: Fidelity) -> Option<Colorant> {
+    pub fn cap<C: Into<Colorant>>(&self, colorant: C, fidelity: Fidelity) -> Option<Colorant> {
         self.cap_colorant(&colorant.into(), fidelity)
     }
 }
 
-impl std::fmt::Debug for Translator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for Translator {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let version = if self.space == ColorSpace::Oklab {
             "OkVersion.Original"
         } else {

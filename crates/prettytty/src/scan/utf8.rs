@@ -1,4 +1,4 @@
-pub(super) fn scan_utf8(bytes: &[u8]) -> std::result::Result<usize, usize> {
+pub(super) fn scan_utf8(bytes: &[u8]) -> core::result::Result<usize, usize> {
     // See https://github.com/rust-lang/rust/blob/master/library/core/src/str/validations.rs
     let mut index = 0;
     let len = bytes.len();

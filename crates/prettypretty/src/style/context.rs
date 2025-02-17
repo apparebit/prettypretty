@@ -21,12 +21,12 @@ pub enum Layer {
 impl Layer {
     /// Determine whether this layer is the foreground.
     pub fn is_foreground(&self) -> bool {
-        matches!(self, Self::Foreground)
+        matches!(*self, Self::Foreground)
     }
 
     /// Determine whether this layer is the background.
     pub fn is_background(&self) -> bool {
-        matches!(self, Self::Background)
+        matches!(*self, Self::Background)
     }
 
     /// Determine the offset for this layer.
@@ -34,7 +34,7 @@ impl Layer {
     /// The offset is added to the SGR parameter values for foreground colors
     /// and therefore zero for [`Layer::Foreground`].
     pub fn offset(&self) -> u8 {
-        match self {
+        match *self {
             Self::Foreground => 0,
             Self::Background => 10,
         }
@@ -123,14 +123,14 @@ impl Fidelity {
 impl Fidelity {
     /// Determine whether this fidelity level suffices for rendering the
     /// colorant as is, without conversion.
-    pub fn covers(&self, colorant: impl Into<Colorant>) -> bool {
+    pub fn covers<C: Into<Colorant>>(&self, colorant: C) -> bool {
         Fidelity::from(colorant.into()) <= *self
     }
 }
 
 impl From<&Colorant> for Fidelity {
     fn from(value: &Colorant) -> Self {
-        match value {
+        match *value {
             Colorant::Default() | Colorant::Ansi(_) => Self::Ansi,
             Colorant::Embedded(_) | Colorant::Gray(_) => Self::EightBit,
             Colorant::Rgb(_) => Self::TwentyFourBit,
@@ -197,10 +197,11 @@ pub(crate) fn fidelity_from_environment(env: &impl Environment, has_tty: bool) -
         if c1
             .filter(|c| *c == '9')
             .and(c2.filter(|c| *c == '.'))
-            .or(c1
-                .filter(|c| c.is_ascii_digit() && *c != '0')
-                .and(c2.filter(|c| c.is_ascii_digit()))
-                .and(charity.next().filter(|c| *c == '.')))
+            .or_else(|| {
+                c1.filter(|c| c.is_ascii_digit() && *c != '0')
+                    .and(c2.filter(char::is_ascii_digit))
+                    .and(charity.next().filter(|c| *c == '.'))
+            })
             .is_some()
         {
             return Fidelity::Ansi;

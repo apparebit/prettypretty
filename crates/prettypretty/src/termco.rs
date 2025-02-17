@@ -105,7 +105,7 @@ impl AnsiColor {
     /// Determine whether this ANSI color is achromatic.
     pub fn is_achromatic(&self) -> bool {
         use AnsiColor::*;
-        matches!(self, Black | White | BrightBlack | BrightWhite)
+        matches!(*self, Black | White | BrightBlack | BrightWhite)
     }
 
     /// Determine whether this ANSI color is bright.
@@ -117,26 +117,32 @@ impl AnsiColor {
     ///
     /// If this color is bright, this method returns its non-bright version.
     /// Otherwise, it returns the same color.
-    pub fn to_base(&self) -> AnsiColor {
+    #[allow(clippy::missing_panics_doc)]
+    #[must_use = "the only reason to invoke method is to access the returned value"]
+    pub fn to_base(&self) -> Self {
         let mut index = *self as u8;
         if 8 <= index {
             index -= 8;
         }
         // SAFETY: index is within bounds by construction
-        AnsiColor::try_from(index).unwrap()
+        AnsiColor::try_from(index)
+            .expect("valid index derrived from valid color must yield valid color")
     }
 
     /// Get the bright version of this ANSI color.
     ///
     /// If the color is not bright, this method returns its bright version.
     /// Otherwise, it returns the same color.
-    pub fn to_bright(&self) -> AnsiColor {
+    #[allow(clippy::missing_panics_doc)]
+    #[must_use = "the only reason to invoke method is to access the returned value"]
+    pub fn to_bright(&self) -> Self {
         let mut index = *self as u8;
         if index < 8 {
             index += 8;
         }
         // SAFETY: index is within bounds by construction
-        AnsiColor::try_from(index).unwrap()
+        AnsiColor::try_from(index)
+            .expect("valid index derrived from valid color must yield valid color")
     }
 
     /// Get this ANSI color's name.
@@ -146,7 +152,7 @@ impl AnsiColor {
     pub fn name(&self) -> &'static str {
         use AnsiColor::*;
 
-        match self {
+        match *self {
             Black => "black",
             Red => "red",
             Green => "green",
@@ -175,7 +181,7 @@ impl AnsiColor {
     pub fn abbr(&self) -> &'static str {
         use AnsiColor::*;
 
-        match self {
+        match *self {
             Black => "bk",
             Red => "rd",
             Green => "gn",
@@ -258,7 +264,7 @@ impl Iterator for AnsiColorIterator {
         } else {
             let index = self.index;
             self.index += 1;
-            Some(AnsiColor::try_from(index as u8).unwrap())
+            Some(AnsiColor::try_from(index as u8).expect("valid index must yield valid color"))
         }
     }
 
@@ -268,13 +274,13 @@ impl Iterator for AnsiColorIterator {
     }
 }
 
-impl std::iter::ExactSizeIterator for AnsiColorIterator {
+impl ExactSizeIterator for AnsiColorIterator {
     fn len(&self) -> usize {
         16 - self.index
     }
 }
 
-impl std::iter::FusedIterator for AnsiColorIterator {}
+impl core::iter::FusedIterator for AnsiColorIterator {}
 
 #[cfg(feature = "pyffi")]
 #[pymethods]
@@ -524,7 +530,7 @@ impl AsRef<[u8; 3]> for EmbeddedRgb {
     }
 }
 
-impl std::ops::Index<usize> for EmbeddedRgb {
+impl core::ops::Index<usize> for EmbeddedRgb {
     type Output = u8;
 
     /// Access the coordinate with the given index.
@@ -841,11 +847,13 @@ impl From<u8> for EightBitColor {
     fn from(value: u8) -> Self {
         // SAFETY: explicit range checks
         if (0..=15).contains(&value) {
-            Self::Ansi(AnsiColor::try_from(value).unwrap())
+            Self::Ansi(AnsiColor::try_from(value).expect("valid index must yield valid color"))
         } else if (16..=231).contains(&value) {
-            Self::Embedded(EmbeddedRgb::try_from(value).unwrap())
+            Self::Embedded(
+                EmbeddedRgb::try_from(value).expect("valid index must yield valid color"),
+            )
         } else {
-            Self::Gray(GrayGradient::try_from(value).unwrap())
+            Self::Gray(GrayGradient::try_from(value).expect("valid index must yield valid color"))
         }
     }
 }
@@ -1068,7 +1076,7 @@ impl AsRef<[u8; 3]> for Rgb {
     }
 }
 
-impl std::ops::Index<usize> for Rgb {
+impl core::ops::Index<usize> for Rgb {
     type Output = u8;
 
     /// Access the coordinate with the given index.
@@ -1131,7 +1139,7 @@ impl From<Rgb> for Color {
 }
 
 impl core::fmt::Display for Rgb {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let [r, g, b] = *self.as_ref();
         f.write_fmt(format_args!("#{:02x}{:02x}{:02x}", r, g, b))
     }
@@ -1167,21 +1175,21 @@ impl Colorant {
 
     /// Determine whether this colorant is the default.
     pub fn is_default(&self) -> bool {
-        matches!(self, Colorant::Default())
+        matches!(*self, Colorant::Default())
     }
 
     /// Get the SGR parameters for this colorant.
     ///
     /// This method returns `None` if this colorant is a high-resolution color.
     pub fn sgr_parameters(&self, layer: Layer) -> Option<Vec<u8>> {
-        match self {
+        match *self {
             Self::Default() => Some(vec![39 + layer.offset()]),
             Self::Ansi(c) => {
                 let base = if c.is_bright() { 90 } else { 30 } + layer.offset();
                 Some(vec![base + c.to_base() as u8])
             }
-            Self::Embedded(c) => Some(vec![38 + layer.offset(), 5, u8::from(*c)]),
-            Self::Gray(c) => Some(vec![38 + layer.offset(), 5, u8::from(*c)]),
+            Self::Embedded(c) => Some(vec![38 + layer.offset(), 5, u8::from(c)]),
+            Self::Gray(c) => Some(vec![38 + layer.offset(), 5, u8::from(c)]),
             Self::Rgb(c) => Some(vec![38 + layer.offset(), 2, c[0], c[1], c[2]]),
             Self::HiRes(_) => None,
         }
@@ -1231,13 +1239,13 @@ impl Colorant {
     /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __repr__(&self) -> String {
-        match self {
+        match *self {
             Self::Default() => "Colorant(default)".to_string(),
             Self::Ansi(c) => format!("Colorant({:?})", c),
             Self::Embedded(c) => format!("Colorant({})", c.__repr__()),
             Self::Gray(c) => format!("Colorant({})", c.__repr__()),
             Self::Rgb(c) => format!("Colorant({})", c.__repr__()),
-            Self::HiRes(c) => format!("Colorant({})", c.__repr__()),
+            Self::HiRes(ref c) => format!("Colorant({})", c.__repr__()),
         }
     }
 
@@ -1255,16 +1263,16 @@ impl Colorant {
     pub fn write_sgr_params(
         &self,
         layer: Layer,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        match self {
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        match *self {
             Self::Default() => write!(f, "{}", 39 + layer.offset()),
             Self::Ansi(c) => {
                 let base = if c.is_bright() { 90 } else { 30 } + layer.offset();
                 write!(f, "{}", base + c.to_base() as u8)
             }
-            Self::Embedded(c) => write!(f, "{};5;{}", 38 + layer.offset(), u8::from(*c)),
-            Self::Gray(c) => write!(f, "{};5;{}", 38 + layer.offset(), u8::from(*c)),
+            Self::Embedded(c) => write!(f, "{};5;{}", 38 + layer.offset(), u8::from(c)),
+            Self::Gray(c) => write!(f, "{};5;{}", 38 + layer.offset(), u8::from(c)),
             Self::Rgb(c) => write!(f, "{};2;{};{};{}", 38 + layer.offset(), c[0], c[1], c[2]),
             Self::HiRes(_) => Ok(()),
         }
@@ -1273,15 +1281,15 @@ impl Colorant {
     /// Provide a layer to make this colorant displayable.
     ///
     /// For most colorants, this method returns an implementation of the
-    /// standard library's [`std::fmt::Display`] trait that produces the
+    /// standard library's [`core::fmt::Display`] trait that produces the
     /// corresponding ANSI escape sequence. However, for colorants wrapping
     /// high-resolution colors, this method returns an error. Such a colorant
     /// needs to be [`Translator::cap`](crate::Translator::cap)ped first.
     pub fn display(
         &self,
         layer: Layer,
-    ) -> Result<impl std::fmt::Display + use<'_>, HiResColorantError> {
-        if matches!(self, Self::HiRes(_)) {
+    ) -> Result<impl core::fmt::Display + use<'_>, HiResColorantError> {
+        if matches!(*self, Self::HiRes(_)) {
             Err(HiResColorantError)
         } else {
             Ok(LayeredColorant {
@@ -1292,7 +1300,7 @@ impl Colorant {
     }
 }
 
-impl std::ops::Neg for &Colorant {
+impl core::ops::Neg for &Colorant {
     type Output = Option<Colorant>;
 
     fn neg(self) -> Self::Output {
@@ -1300,7 +1308,7 @@ impl std::ops::Neg for &Colorant {
     }
 }
 
-impl std::ops::Neg for Colorant {
+impl core::ops::Neg for Colorant {
     type Output = Option<Colorant>;
 
     fn neg(self) -> Self::Output {
@@ -1312,16 +1320,19 @@ impl std::ops::Neg for Colorant {
 #[cfg(feature = "pyffi")]
 pub(crate) fn into_colorant(obj: &Bound<'_, PyAny>) -> PyResult<Colorant> {
     if obj.is_instance_of::<PyInt>() {
-        return obj.extract::<u8>().map(|c| c.into());
+        return obj.extract::<u8>().map(core::convert::Into::into);
     }
 
     obj.extract::<Colorant>()
-        .or_else(|_| obj.extract::<AnsiColor>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<EmbeddedRgb>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<GrayGradient>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<EightBitColor>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<Rgb>().map(|c| c.into()))
-        .or_else(|_| obj.extract::<Color>().map(|c| c.into()))
+        .or_else(|_| obj.extract::<AnsiColor>().map(core::convert::Into::into))
+        .or_else(|_| obj.extract::<EmbeddedRgb>().map(core::convert::Into::into))
+        .or_else(|_| obj.extract::<GrayGradient>().map(core::convert::Into::into))
+        .or_else(|_| {
+            obj.extract::<EightBitColor>()
+                .map(core::convert::Into::into)
+        })
+        .or_else(|_| obj.extract::<Rgb>().map(core::convert::Into::into))
+        .or_else(|_| obj.extract::<Color>().map(core::convert::Into::into))
 }
 
 impl From<AnsiColor> for Colorant {
@@ -1345,11 +1356,13 @@ impl From<GrayGradient> for Colorant {
 impl From<u8> for Colorant {
     fn from(value: u8) -> Self {
         if (0..=15).contains(&value) {
-            Self::Ansi(AnsiColor::try_from(value).unwrap())
+            Self::Ansi(AnsiColor::try_from(value).expect("valid index must yield valid color"))
         } else if (16..=231).contains(&value) {
-            Self::Embedded(EmbeddedRgb::try_from(value).unwrap())
+            Self::Embedded(
+                EmbeddedRgb::try_from(value).expect("valid index must yield valid color"),
+            )
         } else {
-            Self::Gray(GrayGradient::try_from(value).unwrap())
+            Self::Gray(GrayGradient::try_from(value).expect("valid index must yield valid color"))
         }
     }
 }
@@ -1387,11 +1400,11 @@ impl TryFrom<&Colorant> for u8 {
     /// the colorant and returns the corresponding 8-bit index. It returns any
     /// other colorant as the error value.
     fn try_from(value: &Colorant) -> Result<Self, Self::Error> {
-        match value {
+        match *value {
             Colorant::Default() => Err(value.clone()),
-            Colorant::Ansi(c) => Ok(u8::from(*c)),
-            Colorant::Embedded(c) => Ok(u8::from(*c)),
-            Colorant::Gray(c) => Ok(u8::from(*c)),
+            Colorant::Ansi(c) => Ok(u8::from(c)),
+            Colorant::Embedded(c) => Ok(u8::from(c)),
+            Colorant::Gray(c) => Ok(u8::from(c)),
             Colorant::Rgb(_) => Err(value.clone()),
             Colorant::HiRes(_) => Err(value.clone()),
         }
@@ -1410,10 +1423,10 @@ impl TryFrom<&Colorant> for [u8; 3] {
     type Error = Colorant;
 
     fn try_from(value: &Colorant) -> Result<Self, Self::Error> {
-        match value {
+        match *value {
             Colorant::Default() | Colorant::Ansi(_) => Err(value.clone()),
-            Colorant::Embedded(c) => Ok((*c).into()),
-            Colorant::Gray(c) => Ok((*c).into()),
+            Colorant::Embedded(c) => Ok(c.into()),
+            Colorant::Gray(c) => Ok(c.into()),
             Colorant::Rgb(c) => Ok(*c.as_ref()),
             Colorant::HiRes(_) => Err(value.clone()),
         }
@@ -1446,8 +1459,8 @@ struct LayeredColorant<'a> {
     colorant: &'a Colorant,
 }
 
-impl std::fmt::Display for LayeredColorant<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for LayeredColorant<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("\x1b[")?;
         self.colorant.write_sgr_params(self.layer, f)?;
         f.write_str("m")

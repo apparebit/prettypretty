@@ -7,8 +7,8 @@ use crate::Float;
 /// Compute Delta-E for Oklab or Oklrab.
 #[allow(non_snake_case)]
 pub(crate) fn delta_e_ok(coordinates1: &[Float; 3], coordinates2: &[Float; 3]) -> Float {
-    let [L1, a1, b1] = coordinates1;
-    let [L2, a2, b2] = coordinates2;
+    let [ref L1, ref a1, ref b1] = *coordinates1;
+    let [ref L2, ref a2, ref b2] = *coordinates2;
 
     let ΔL = L1 - L2;
     let Δa = a1 - a2;
@@ -229,8 +229,8 @@ pub(crate) fn interpolate(
     coordinates2: &[Float; 3],
 ) -> [Float; 3] {
     [
-        coordinates1[0] + fraction * (coordinates2[0] - coordinates1[0]),
-        coordinates1[1] + fraction * (coordinates2[1] - coordinates1[1]),
-        coordinates1[2] + fraction * (coordinates2[2] - coordinates1[2]),
+        fraction.mul_add(coordinates2[0] - coordinates1[0], coordinates1[0]),
+        fraction.mul_add(coordinates2[1] - coordinates1[1], coordinates1[1]),
+        fraction.mul_add(coordinates2[2] - coordinates1[2], coordinates1[2]),
     ]
 }

@@ -28,7 +28,7 @@ pub(crate) fn to_24bit(space: ColorSpace, coordinates: &[Float; 3]) -> [u8; 3] {
 /// new 3-element vector.
 #[inline]
 fn multiply(matrix: &[[Float; 3]; 3], vector: &[Float; 3]) -> [Float; 3] {
-    let [row1, row2, row3] = matrix;
+    let [ref row1, ref row2, ref row3] = *matrix;
 
     [
         row1[0].mul_add(vector[0], row1[1].mul_add(vector[1], row1[2] * vector[2])),
@@ -175,7 +175,7 @@ mod rec2020 {
             if value < BETA {
                 value * 4.5
             } else {
-                ALPHA * value.powf(0.45) - (ALPHA - 1.0)
+                ALPHA.mul_add(value.powf(0.45), -(ALPHA - 1.0))
             }
         }
 

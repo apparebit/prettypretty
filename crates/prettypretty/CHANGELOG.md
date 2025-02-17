@@ -1,5 +1,16 @@
 # Changelog
 
+## Prettypretty v0.12.0 (????-??-??)
+
+The interface to spectral distributions has been improved: The new `get()`
+method now returns an optional value, whereas the updated `at()` returns the
+unwrapped value, panicking upon out-of-distribution wavelengths.
+
+Many small code improvements, including the use of more accurate floating point
+operations throughout. All impl trait arguments have been replaced by explicit
+generic types bound by those same traits.
+
+
 ## Prettypretty v0.11.1 (2025-01-31)
 
 Move `pretty.css` styles back into prettypretty and fix all plumbing so that it

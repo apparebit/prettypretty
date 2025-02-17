@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use core::str::FromStr;
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
@@ -153,7 +153,7 @@ impl Color {
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn parse(s: &str) -> Result<Color, crate::error::ColorFormatError> {
-        use std::str::FromStr;
+        use core::str::FromStr;
 
         Color::from_str(s)
     }
@@ -645,6 +645,7 @@ impl Color {
     /// their colors include [`Color::clip`], [`Color::distance`],
     ///  [`Color::in_gamut`], and [`Color::is_default`].
     #[inline]
+    #[must_use = "method returns a new color and does not mutate original value"]
     pub fn normalize(&self) -> Self {
         Self::new(self.space, normalize(self.space, &self.coordinates))
     }
@@ -678,10 +679,12 @@ impl Color {
     /// This method determines the u', v' coordinates for the 1976 version of
     /// the CIE chromaticity diagram.
     pub fn uv_prime_chromaticity(&self) -> (Float, Float) {
+        const MINUS_TWO: Float = -2.0;
+
         let (x, y) = self.xy_chromaticity();
         (
-            4.0 * x / (-2.0 * x + 12.0 * y + 3.0),
-            9.0 * y / (-2.0 * x + 12.0 * y + 3.0),
+            4.0 * x / (MINUS_TWO.mul_add(x, 12.0 * y) + 3.0),
+            9.0 * y / (MINUS_TWO.mul_add(x, 12.0 * y) + 3.0),
         )
     }
 
@@ -1218,7 +1221,12 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: rgb(177 31 36);"></div>
     /// </div>
-    pub fn srgb(r: impl Into<Float>, g: impl Into<Float>, b: impl Into<Float>) -> Self {
+    pub fn srgb<I, J, K>(r: I, g: J, b: K) -> Self
+    where
+        I: Into<Float>,
+        J: Into<Float>,
+        K: Into<Float>,
+    {
         Self::new(ColorSpace::Srgb, [r.into(), g.into(), b.into()])
     }
 
@@ -1235,7 +1243,12 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: color(display-p3 0 0.87 0.85);"></div>
     /// </div>
-    pub fn p3(r: impl Into<Float>, g: impl Into<Float>, b: impl Into<Float>) -> Self {
+    pub fn p3<I, J, K>(r: I, g: J, b: K) -> Self
+    where
+        I: Into<Float>,
+        J: Into<Float>,
+        K: Into<Float>,
+    {
         Self::new(ColorSpace::DisplayP3, [r.into(), g.into(), b.into()])
     }
 
@@ -1252,7 +1265,12 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklab(0.78 -0.1 -0.1);"></div>
     /// </div>
-    pub fn oklab(l: impl Into<Float>, a: impl Into<Float>, b: impl Into<Float>) -> Self {
+    pub fn oklab<I, J, K>(l: I, a: J, b: K) -> Self
+    where
+        I: Into<Float>,
+        J: Into<Float>,
+        K: Into<Float>,
+    {
         Self::new(ColorSpace::Oklab, [l.into(), a.into(), b.into()])
     }
 
@@ -1273,7 +1291,12 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklab(0.5514232757779728 -0.1 -0.1);"></div>
     /// </div>
-    pub fn oklrab(lr: impl Into<Float>, a: impl Into<Float>, b: impl Into<Float>) -> Self {
+    pub fn oklrab<I, J, K>(lr: I, a: J, b: K) -> Self
+    where
+        I: Into<Float>,
+        J: Into<Float>,
+        K: Into<Float>,
+    {
         Self::new(ColorSpace::Oklrab, [lr.into(), a.into(), b.into()])
     }
 
@@ -1290,7 +1313,12 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklch(0.59 0.1351 126);"></div>
     /// </div>
-    pub fn oklch(l: impl Into<Float>, c: impl Into<Float>, h: impl Into<Float>) -> Self {
+    pub fn oklch<I, J, K>(l: I, c: J, h: K) -> Self
+    where
+        I: Into<Float>,
+        J: Into<Float>,
+        K: Into<Float>,
+    {
         Self::new(ColorSpace::Oklch, [l.into(), c.into(), h.into()])
     }
 
@@ -1314,7 +1342,12 @@ impl Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklch(0.647 0.1351 126);"></div>
     /// </div>
-    pub fn oklrch(lr: impl Into<Float>, c: impl Into<Float>, h: impl Into<Float>) -> Self {
+    pub fn oklrch<I, J, K>(lr: I, c: J, h: K) -> Self
+    where
+        I: Into<Float>,
+        J: Into<Float>,
+        K: Into<Float>,
+    {
         Self::new(ColorSpace::Oklrch, [lr.into(), c.into(), h.into()])
     }
 }
@@ -1431,7 +1464,7 @@ impl Default for Color {
     }
 }
 
-impl std::str::FromStr for Color {
+impl core::str::FromStr for Color {
     type Err = crate::error::ColorFormatError;
 
     /// Instantiate a color from its string representation.
@@ -1522,7 +1555,7 @@ impl AsRef<[Float; 3]> for Color {
     }
 }
 
-impl std::ops::Index<usize> for Color {
+impl core::ops::Index<usize> for Color {
     type Output = f64;
 
     /// Access the coordinate with the given index.
@@ -1548,8 +1581,8 @@ impl std::ops::Index<usize> for Color {
     }
 }
 
-impl std::hash::Hash for Color {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl core::hash::Hash for Color {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.space.hash(state);
 
         let [n1, n2, n3] = to_eq_coordinates(self.space, &self.coordinates);
@@ -1620,8 +1653,8 @@ impl PartialEq for Color {
 
 impl Eq for Color {}
 
-impl std::fmt::Debug for Color {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for Color {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let [c1, c2, c3] = self.coordinates;
         f.write_fmt(format_args!(
             "Color({:?}, [{}, {}, {}])",
@@ -1630,7 +1663,7 @@ impl std::fmt::Debug for Color {
     }
 }
 
-impl std::fmt::Display for Color {
+impl core::fmt::Display for Color {
     /// Format this color.
     ///
     /// This method formats the color in CSS format using either a `color()`,
@@ -1684,7 +1717,7 @@ impl std::fmt::Display for Color {
     /// <div class=color-swatch>
     /// <div style="background-color: oklch(0.665 0 none);"></div>
     /// </div>
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         format(self.space, &self.coordinates, f)
     }
 }

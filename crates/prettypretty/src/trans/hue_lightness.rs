@@ -106,7 +106,7 @@ impl HueLightnessTable {
         for index in [Black, White, BrightBlack, BrightWhite] {
             grays.push(GrayEntry::new(index, &theme[index])?);
         }
-        grays.sort_by_key(|entry| entry.key());
+        grays.sort_by_key(GrayEntry::key);
 
         // Prep the non-grays in hue order: red, yellow, green, cyan, blue, magenta.
         let mut colors = Vec::with_capacity(12);
@@ -200,7 +200,10 @@ impl HueLightnessTable {
             let mut previous_hue = previous_entry.h;
             let next_hue = next_entry.h;
             if h < previous_hue {
-                assert!(index == 0);
+                assert!(
+                    index == 0,
+                    "a decrease in hue only happens between last and first hues"
+                );
                 previous_hue -= 360.0
             }
 

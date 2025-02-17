@@ -1,6 +1,6 @@
 //! Helpers for parsing and displaying byte strings.
 
-use std::fmt;
+use core::fmt;
 use std::io;
 
 /// Parse a byte string into an unsigned integer.
@@ -175,7 +175,7 @@ impl ByteFormat<'_> {
     /// the last line. The number of characters written only covers that last
     /// line.
     pub fn render<W: fmt::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, fmt::Error> {
-        match self {
+        match *self {
             ByteFormat::Concise(bytes) => ByteFormat::render_concise(bytes, writer),
             ByteFormat::Nicely(bytes) => ByteFormat::render_nicely(bytes, writer),
             ByteFormat::Hexdump(bytes) => ByteFormat::render_hexdump(bytes, writer),
@@ -214,7 +214,7 @@ impl ByteFormat<'_> {
                 0x20..=0x7e => {
                     ascii[0] = byte;
                     // SAFETY: Guaranteed to be ASCII by match arm
-                    std::str::from_utf8(&ascii).unwrap()
+                    core::str::from_utf8(&ascii).expect("ASCII characters are valid UTF-8, too")
                 }
                 0x7f => "‹DEL›",
                 0x90 => "‹DCS›",
@@ -257,9 +257,11 @@ impl ByteFormat<'_> {
 
             for pair in chunk.chunks(2) {
                 // Allow for uneven number of bytes in final chunk.
+                assert!(!pair.is_empty(), "chunk must not be empty");
                 if pair.len() == 1 {
                     write!(writer, "{:02x}   ", pair[0])?;
                 } else {
+                    assert!(pair.len() == 2, "chunk has two elements");
                     write!(writer, "{:02x}{:02x} ", pair[0], pair[1])?;
                 }
                 characters += 5;
@@ -296,12 +298,12 @@ impl fmt::Display for ByteFormat<'_> {
 
 // -----------------------------------------------------------------------------------------------
 
-/// A lightweight adapter from [`std::io::Write`] to [`std::fmt::Write`].
+/// A lightweight adapter from [`std::io::Write`] to [`core::fmt::Write`].
 ///
 /// Since Rust encodes strings and string slices in UTF-8, forwarding
-/// [`std::fmt::Write::write_str`] to [`std::io::Write::write_all`] is
+/// [`core::fmt::Write::write_str`] to [`std::io::Write::write_all`] is
 /// straight-forward. The challenge is that [`std::io::Error`] covers many
-/// different error conditions, whereas [`std::fmt::Error`] is a unit-like
+/// different error conditions, whereas [`core::fmt::Error`] is a unit-like
 /// struct. The primary benefit of this adapter is that it tracks the most
 /// recent I/O error. Hence, if the rewriter fails with a format error, code
 /// using this struct can recover the underlying I/O error.
@@ -312,7 +314,7 @@ impl fmt::Display for ByteFormat<'_> {
 /// ```
 /// # use prettytty::util::Rewriter;
 /// # use std::io::{Cursor, Write};
-/// # use std::fmt::Write as FmtWrite;
+/// # use core::fmt::Write as FmtWrite;
 /// # fn main() -> std::io::Result<()> {
 /// let mut cursor = Cursor::new(vec![0; 10]);
 /// let mut writer = Rewriter::new(&mut cursor);

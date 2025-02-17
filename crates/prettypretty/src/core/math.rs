@@ -50,7 +50,7 @@ pub(crate) mod sum {
         }
     }
 
-    impl std::ops::Add<Float> for Sum {
+    impl core::ops::Add<Float> for Sum {
         type Output = Sum;
 
         /// Add a number to this sum.
@@ -64,7 +64,7 @@ pub(crate) mod sum {
         }
     }
 
-    impl std::ops::AddAssign<Float> for Sum {
+    impl core::ops::AddAssign<Float> for Sum {
         fn add_assign(&mut self, rhs: Float) {
             let t = self.sum + rhs;
             if rhs.abs() < self.sum.abs() {
@@ -76,7 +76,7 @@ pub(crate) mod sum {
         }
     }
 
-    impl std::iter::Sum<Float> for Sum {
+    impl core::iter::Sum<Float> for Sum {
         fn sum<I: Iterator<Item = Float>>(iter: I) -> Self {
             let mut sum = Sum::new();
             for num in iter {
@@ -113,7 +113,7 @@ pub(crate) mod sum {
         }
     }
 
-    impl std::ops::Add<[Float; 3]> for ThreeSum {
+    impl core::ops::Add<[Float; 3]> for ThreeSum {
         type Output = ThreeSum;
 
         fn add(self, rhs: [Float; 3]) -> Self::Output {
@@ -123,7 +123,7 @@ pub(crate) mod sum {
         }
     }
 
-    impl std::ops::AddAssign<[Float; 3]> for ThreeSum {
+    impl core::ops::AddAssign<[Float; 3]> for ThreeSum {
         fn add_assign(&mut self, rhs: [Float; 3]) {
             let [a, b, c] = rhs;
             self.a += a;
@@ -132,7 +132,7 @@ pub(crate) mod sum {
         }
     }
 
-    impl std::iter::Sum<[Float; 3]> for ThreeSum {
+    impl core::iter::Sum<[Float; 3]> for ThreeSum {
         fn sum<I: Iterator<Item = [Float; 3]>>(iter: I) -> Self {
             let mut sum = ThreeSum::new();
             for triple in iter {

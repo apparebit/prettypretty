@@ -8,13 +8,13 @@ version = "0.11.1"
 repository = "https://github.com/apparebit/prettypretty"
 documentation = "https://docs.rs/prettypretty/latest/prettypretty/"
 homepage = "https://crates.io/crates/prettypretty"
-rust-version = "1.79"
+rust-version = "1.82"
 edition = "2021"
 license = "Apache-2.0"
 
 
 [dependencies]
-pyo3 = { version = "0.23.3", features = ["extension-module", "abi3", "abi3-py311"], optional = true }
+pyo3 = { version = "0.23.4", features = ["extension-module", "abi3", "abi3-py311"], optional = true }
 prettytty = { version = "0.3.0", path = "../prettytty", optional = true }
 
 [dev-dependencies]
@@ -32,6 +32,10 @@ pyffi = ["dep:pyo3"]
 [lib]
 name = "prettypretty"
 crate-type = ["lib", "cdylib"]
+
+
+[lints]
+workspace = true
 
 
 [package.metadata.docs.rs]

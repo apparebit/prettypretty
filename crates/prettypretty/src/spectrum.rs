@@ -79,8 +79,9 @@
 )]
 //!
 
-use std::num::NonZeroUsize;
-use std::sync::Arc;
+extern crate alloc;
+use alloc::sync::Arc;
+use core::num::NonZeroUsize;
 
 #[cfg(feature = "pyffi")]
 use pyo3::prelude::*;
@@ -110,16 +111,19 @@ pub trait SpectralDistribution {
     fn start(&self) -> usize;
 
     /// Get the ending wavelength for this spectral distribution.
+    #[inline]
     fn end(&self) -> usize {
         self.start() + self.len()
     }
 
     /// Get the range of this spectral distribution.
-    fn range(&self) -> std::ops::Range<usize> {
+    #[inline]
+    fn range(&self) -> core::ops::Range<usize> {
         self.start()..self.end()
     }
 
     /// Determine whether this distribution is empty.
+    #[inline]
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -129,9 +133,19 @@ pub trait SpectralDistribution {
 
     /// Get this spectral distribution's value for the given wavelength.
     ///
-    /// If the wavelength is within this spectral distribution's range, this
-    /// method returns some value. Otherwise, it returns none.
-    fn at(&self, wavelength: usize) -> Option<Self::Value>;
+    /// # Panics
+    ///
+    /// If the given index is outside this distribution's rang of wavelengths.
+    fn at(&self, wavelength: usize) -> &Self::Value;
+
+    /// Get this spectral distribution's value for the given wavelength.
+    fn get(&self, wavelength: usize) -> Option<&Self::Value> {
+        if self.range().contains(&wavelength) {
+            Some(self.at(wavelength))
+        } else {
+            None
+        }
+    }
 
     /// Get the checksum for this spectral distribution.
     ///
@@ -193,7 +207,7 @@ impl Illuminant {
     }
 
     /// Get this spectral distribution's value for the given wavelength.
-    pub fn at(&self, wavelength: usize) -> Option<Float> {
+    pub fn at(&self, wavelength: usize) -> &Float {
         self.distribution.at(wavelength)
     }
 
@@ -209,15 +223,15 @@ impl Illuminant {
 
     /// Get the entry at the given index.
     pub fn __getitem__(&self, index: usize) -> PyResult<Float> {
-        self.distribution
-            .at(self.distribution.start() + index)
-            .ok_or_else(|| {
-                pyo3::exceptions::PyIndexError::new_err(format!(
-                    "{} <= index for {}",
-                    self.distribution.len(),
-                    self.distribution.label()
-                ))
-            })
+        self.distribution.get(index).copied().ok_or_else(|| {
+            pyo3::exceptions::PyIndexError::new_err(format!(
+                "{} <= {} < {} doesn't hold for {}",
+                self.distribution.start(),
+                index,
+                self.distribution.end(),
+                self.distribution.label()
+            ))
+        })
     }
 
     /// Get a debug representation.
@@ -242,7 +256,7 @@ impl SpectralDistribution for Illuminant {
         self.distribution.end()
     }
 
-    fn range(&self) -> std::ops::Range<usize> {
+    fn range(&self) -> core::ops::Range<usize> {
         self.distribution.range()
     }
 
@@ -254,12 +268,22 @@ impl SpectralDistribution for Illuminant {
         self.distribution.len()
     }
 
-    fn at(&self, wavelength: usize) -> Option<Self::Value> {
+    fn at(&self, wavelength: usize) -> &Self::Value {
         self.distribution.at(wavelength)
     }
 
     fn checksum(&self) -> Self::Value {
         self.distribution.checksum()
+    }
+}
+
+#[cfg(feature = "pyffi")]
+impl core::ops::Index<usize> for Illuminant {
+    type Output = <Self as SpectralDistribution>::Value;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        self.at(index)
     }
 }
 
@@ -306,16 +330,21 @@ impl SpectralDistribution for TabularDistribution {
         self.data.len()
     }
 
-    fn at(&self, wavelength: usize) -> Option<Self::Value> {
-        if self.start <= wavelength && wavelength < self.start + self.data.len() {
-            Some(self.data[wavelength - self.start])
-        } else {
-            None
-        }
+    fn at(&self, wavelength: usize) -> &Self::Value {
+        &self.data[wavelength.saturating_sub(self.start)]
     }
 
     fn checksum(&self) -> Self::Value {
         self.checksum
+    }
+}
+
+impl core::ops::Index<usize> for TabularDistribution {
+    type Output = <Self as SpectralDistribution>::Value;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        self.at(index)
     }
 }
 
@@ -365,16 +394,21 @@ impl SpectralDistribution for FixedDistribution {
         self.len
     }
 
-    fn at(&self, wavelength: usize) -> Option<Self::Value> {
-        if self.start <= wavelength && wavelength < self.start + self.len {
-            Some(self.value)
-        } else {
-            None
-        }
+    fn at(&self, _wavelength: usize) -> &Self::Value {
+        &self.value
     }
 
     fn checksum(&self) -> Self::Value {
         self.checksum
+    }
+}
+
+impl core::ops::Index<usize> for FixedDistribution {
+    type Output = <Self as SpectralDistribution>::Value;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        self.at(index)
     }
 }
 
@@ -448,12 +482,8 @@ impl Observer {
 
     /// Get this observer's value for the given wavelength.
     #[inline]
-    pub fn at(&self, wavelength: usize) -> Option<[Float; 3]> {
-        if self.start <= wavelength && wavelength < self.start + self.data.len() {
-            Some(self.data[wavelength - self.start])
-        } else {
-            None
-        }
+    pub fn at(&self, wavelength: usize) -> &[Float; 3] {
+        &self.data[wavelength.saturating_sub(self.start)]
     }
 
     /// Get this observer's checksum.
@@ -472,11 +502,13 @@ impl Observer {
     /// only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __getitem__(&self, index: usize) -> PyResult<[Float; 3]> {
-        self.at(self.start + index).ok_or_else(|| {
+        self.get(index).copied().ok_or_else(|| {
             pyo3::exceptions::PyIndexError::new_err(format!(
-                "{} <= index for {}",
-                self.data.len(),
-                self.label
+                "{} <= {} < {} doesn't hold for {}",
+                self.start(),
+                index,
+                self.end(),
+                self.label()
             ))
         })
     }
@@ -503,16 +535,21 @@ impl SpectralDistribution for Observer {
         self.data.len()
     }
 
-    fn at(&self, wavelength: usize) -> Option<Self::Value> {
-        if self.start <= wavelength && wavelength < self.start + self.data.len() {
-            Some(self.data[wavelength - self.start])
-        } else {
-            None
-        }
+    fn at(&self, wavelength: usize) -> &Self::Value {
+        &self.data[wavelength.saturating_sub(self.start)]
     }
 
     fn checksum(&self) -> Self::Value {
         self.checksum
+    }
+}
+
+impl core::ops::Index<usize> for Observer {
+    type Output = <Self as SpectralDistribution>::Value;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        self.at(index)
     }
 }
 
@@ -545,11 +582,12 @@ pub struct IlluminatedObserver {
     minimum: [Float; 3],
     maximum: [Float; 3],
     checksum: [Float; 3],
-    data: Arc<Vec<[Float; 3]>>,
+    data: Arc<[[Float; 3]]>,
 }
 
 impl IlluminatedObserver {
     /// Create a new illuminated observer.
+    #[allow(clippy::missing_panics_doc)]
     pub fn new<Illuminant, Observer>(illuminant: &Illuminant, observer: &Observer) -> Self
     where
         Illuminant: SpectralDistribution<Value = Float>,
@@ -558,21 +596,19 @@ impl IlluminatedObserver {
         let start = illuminant.start().max(observer.start());
         let end = illuminant.end().min(observer.end());
 
-        let mut data: Vec<[Float; 3]> = Vec::with_capacity(end - start);
+        let mut data = Arc::<[[Float; 3]]>::new_uninit_slice(end - start);
+        let values = Arc::get_mut(&mut data).expect("value was just created");
+
         let mut checksum = ThreeSum::new();
-        let mut minimum = [Float::INFINITY, Float::INFINITY, Float::INFINITY];
-        let mut maximum = [
-            Float::NEG_INFINITY,
-            Float::NEG_INFINITY,
-            Float::NEG_INFINITY,
-        ];
+        let mut minimum = [Float::INFINITY; 3];
+        let mut maximum = [Float::NEG_INFINITY; 3];
 
         for index in start..end {
-            let [x, y, z] = observer.at(index).unwrap();
-            let s = illuminant.at(index).unwrap() / 100.0;
+            let [x, y, z] = *observer.at(index);
+            let s = *illuminant.at(index) / 100.0;
             let value = [s * x, s * y, s * z];
 
-            data.push(value);
+            values[index - start].write(value);
             checksum += value;
 
             for c in 0..=2 {
@@ -587,7 +623,8 @@ impl IlluminatedObserver {
             minimum,
             maximum,
             checksum: checksum.value(),
-            data: Arc::new(data),
+            // SAFETY: Above loop initializes all of data
+            data: unsafe { data.assume_init() },
         }
     }
 }
@@ -631,12 +668,8 @@ impl IlluminatedObserver {
     }
 
     /// Get the premultiplied triple for the given wavelength.
-    pub fn at(&self, wavelength: usize) -> Option<[Float; 3]> {
-        if self.start <= wavelength && wavelength < self.start + self.data.len() {
-            Some(self.data[wavelength - self.start])
-        } else {
-            None
-        }
+    pub fn at(&self, wavelength: usize) -> &[Float; 3] {
+        &self.data[wavelength.saturating_sub(self.start)]
     }
 
     /// Get this illuminated observer's component-wise minimum.
@@ -695,11 +728,13 @@ impl IlluminatedObserver {
     /// class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     pub fn __getitem__(&self, index: usize) -> PyResult<[Float; 3]> {
-        self.at(self.start + index).ok_or_else(|| {
+        self.get(index).copied().ok_or_else(|| {
             pyo3::exceptions::PyIndexError::new_err(format!(
-                "{} <= index for {}",
-                self.data.len(),
-                self.label
+                "{} <= {} < {} doesn't hold for {}",
+                self.start(),
+                index,
+                self.end(),
+                self.label()
             ))
         })
     }
@@ -727,16 +762,21 @@ impl SpectralDistribution for IlluminatedObserver {
         self.data.len()
     }
 
-    fn at(&self, wavelength: usize) -> Option<Self::Value> {
-        if self.start <= wavelength && wavelength < self.start + self.data.len() {
-            Some(self.data[wavelength - self.start])
-        } else {
-            None
-        }
+    fn at(&self, wavelength: usize) -> &Self::Value {
+        &self.data[wavelength.saturating_sub(self.start)]
     }
 
     fn checksum(&self) -> Self::Value {
         self.checksum
+    }
+}
+
+impl core::ops::Index<usize> for IlluminatedObserver {
+    type Output = <Self as SpectralDistribution>::Value;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        self.at(index)
     }
 }
 
@@ -759,8 +799,13 @@ pub mod std_observer {
         let p2 = (wavelength - 599.8) * (if wavelength < 599.8 { 0.0264 } else { 0.0323 });
         let p3 = (wavelength - 501.1) * (if wavelength < 501.1 { 0.0490 } else { 0.0382 });
 
-        0.362 * (-0.5 * p1 * p1).exp() + 1.056 * (-0.5 * p2 * p2).exp()
-            - 0.065 * (-0.5 * p3 * p3).exp()
+        const C0_362: Float = 0.362;
+        const C1_056: Float = 1.056;
+
+        C0_362.mul_add(
+            (-0.5 * p1 * p1).exp(),
+            C1_056.mul_add((-0.5 * p2 * p2).exp(), -0.065 * (-0.5 * p3 * p3).exp()),
+        )
     }
 
     /// Compute an [analytical
@@ -770,7 +815,9 @@ pub mod std_observer {
     pub fn y(wavelength: Float) -> Float {
         let p1 = (wavelength - 568.8) * (if wavelength < 568.8 { 0.0213 } else { 0.0247 });
         let p2 = (wavelength - 530.9) * (if wavelength < 530.9 { 0.0613 } else { 0.0322 });
-        0.821 * (-0.5 * p1 * p1).exp() + 0.286 * (-0.5 * p2 * p2).exp()
+
+        const C0_821: Float = 0.821;
+        C0_821.mul_add((-0.5 * p1 * p1).exp(), 0.286 * (-0.5 * p2 * p2).exp())
     }
 
     /// Compute an [analytical
@@ -780,7 +827,9 @@ pub mod std_observer {
     pub fn z(wavelength: Float) -> Float {
         let p1 = (wavelength - 437.0) * (if wavelength < 437.0 { 0.0845 } else { 0.0278 });
         let p2 = (wavelength - 459.0) * (if wavelength < 459.0 { 0.0385 } else { 0.0725 });
-        1.217 * (-0.5 * p1 * p1).exp() + 0.681 * (-0.5 * p2 * p2).exp()
+
+        const C1_217: Float = 1.217;
+        C1_217.mul_add((-0.5 * p1 * p1).exp(), 0.681 * (-0.5 * p2 * p2).exp())
     }
 }
 
@@ -805,7 +854,7 @@ pub const ONE_NANOMETER: NonZeroUsize = NonZeroUsize::new(1).expect("one is non-
 #[cfg_attr(feature = "pyffi", pyclass(module = "prettypretty.color.spectrum"))]
 #[derive(Debug)]
 pub struct SpectrumTraversal {
-    data: Arc<Vec<[Float; 3]>>,
+    data: Arc<[[Float; 3]]>,
     luminosity: Float,
     stride: usize,
     position: usize,
@@ -818,7 +867,7 @@ impl SpectrumTraversal {
     ///
     /// The given data must be the result of premultiplying an illuminant with
     /// an observer, e.g., an illuminated observer.
-    fn new(stride: NonZeroUsize, luminosity: Float, data: Arc<Vec<[Float; 3]>>) -> Self {
+    fn new(stride: NonZeroUsize, luminosity: Float, data: Arc<[[Float; 3]]>) -> Self {
         let stride = stride.get();
         let remaining = Self::derive_total_count(data.len(), stride);
 
@@ -971,13 +1020,13 @@ impl Iterator for SpectrumTraversal {
     }
 }
 
-impl std::iter::ExactSizeIterator for SpectrumTraversal {
+impl ExactSizeIterator for SpectrumTraversal {
     fn len(&self) -> usize {
         self.remaining
     }
 }
 
-impl std::iter::FusedIterator for SpectrumTraversal {}
+impl core::iter::FusedIterator for SpectrumTraversal {}
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -1004,7 +1053,7 @@ mod test {
             let mut sum = Sum::new();
 
             for wavelength in illuminant.range() {
-                sum += illuminant.at(wavelength).unwrap()
+                sum += *illuminant.at(wavelength);
             }
 
             assert_eq!(sum.value(), illuminant.checksum());
@@ -1016,7 +1065,7 @@ mod test {
             let mut z_sum = Sum::new();
 
             for wavelength in observer.range() {
-                let [x, y, z] = observer.at(wavelength).unwrap();
+                let [x, y, z] = *observer.at(wavelength);
                 x_sum += x;
                 y_sum += y;
                 z_sum += z;

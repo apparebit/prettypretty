@@ -41,7 +41,7 @@ impl ProgressReporter {
     }
 }
 
-impl std::iter::Iterator for ProgressReporter {
+impl core::iter::Iterator for ProgressReporter {
     type Item = Progress;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -64,7 +64,7 @@ impl std::iter::Iterator for ProgressReporter {
     }
 }
 
-impl std::iter::FusedIterator for ProgressReporter {}
+impl core::iter::FusedIterator for ProgressReporter {}
 
 // -------------------------------------------------------------------------------------
 
@@ -82,8 +82,8 @@ const WIDTH: usize = CELLS + 9;
 const CELLS: usize = 25;
 const STEPS: usize = 4;
 
-impl std::fmt::Display for Renderer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Renderer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let uprog = self.0 as usize;
         let full = uprog / STEPS;
         let partial = uprog % STEPS;

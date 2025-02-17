@@ -1,4 +1,4 @@
-use std::cmp::min;
+use core::cmp::min;
 use std::io::Read;
 
 use crate::opt::Options;
@@ -64,7 +64,10 @@ impl Buffer {
     /// after an immediately preceding invocation of [`Buffer::peek`] that
     /// produced a byte.
     pub fn consume(&mut self) {
-        assert!(self.cursor < self.filled);
+        assert!(
+            self.cursor < self.filled,
+            "`cursor` must be smaller than `filled`"
+        );
         self.cursor += 1;
     }
 
@@ -76,7 +79,10 @@ impl Buffer {
     /// should be invoked only after immediately preceding invocations of
     /// [`Buffer::peek`] and [`Buffer::consume`].
     pub fn retain(&mut self) {
-        assert!(self.token_end < self.cursor);
+        assert!(
+            self.token_end < self.cursor,
+            "`token_end` must be smaller than `cursor`"
+        );
         if self.token_start == self.token_end {
             // The token was empty, so start it with last read byte.
             self.token_start = self.cursor - 1;
@@ -113,7 +119,10 @@ impl Buffer {
     /// [`Buffer::peek_many`] and [`Buffer::consume_many`] for a slice with at
     /// least `count` bytes.
     pub fn retain_many(&mut self, count: usize) {
-        assert!(count <= self.cursor - self.token_end);
+        assert!(
+            count <= self.cursor - self.token_end,
+            "given `count` must be smaller than `cursor`/`token_end` difference"
+        );
         let many_start = self.cursor - count;
         if self.token_start == self.token_end {
             self.token_start = many_start;
@@ -192,7 +201,7 @@ impl Buffer {
     /// # Panics
     ///
     /// If the number of bytes read is larger than the size of the read buffer.
-    pub fn fill(&mut self, reader: &mut impl Read) -> std::io::Result<usize> {
+    pub fn fill<R: Read>(&mut self, reader: &mut R) -> std::io::Result<usize> {
         let slice = &mut self.data[self.filled..];
         let count = reader.read(slice)?;
         assert!(count <= slice.len(), "read count is at most buffer size");
@@ -201,8 +210,8 @@ impl Buffer {
     }
 }
 
-impl std::fmt::Debug for Buffer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for Buffer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Buffer")
             .field("token_start", &self.token_start)
             .field("token_end", &self.token_end)

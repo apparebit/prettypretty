@@ -127,8 +127,8 @@ enum ModeGroup {
 }
 
 impl ModeGroup {
-    pub fn all() -> impl std::iter::Iterator<Item = ModeGroup> {
-        std::iter::successors(Some(Self::Input), |n| {
+    pub fn all() -> impl core::iter::Iterator<Item = ModeGroup> {
+        core::iter::successors(Some(Self::Input), |n| {
             Some(match n {
                 Self::Input => Self::Output,
                 Self::Output => return None,
@@ -155,8 +155,10 @@ pub(crate) struct RawConfig {
 impl RawConfig {
     pub fn read(connection: &RawConnection) -> Result<Self> {
         let input_modes = Self::read_mode(connection.input())?;
+        // SAFETY: We are passing no arguments, just as expected.
         let input_encoding = unsafe { Console::GetConsoleCP() }.into_result()?;
         let output_modes = Self::read_mode(connection.output())?;
+        // SAFETY: We are passing no arguments, just as expected.
         let output_encoding = unsafe { Console::GetConsoleOutputCP() }.into_result()?;
 
         Ok(Self {
@@ -169,6 +171,7 @@ impl RawConfig {
 
     fn read_mode(handle: impl Into<RawHandle>) -> Result<ConsoleMode> {
         let mut mode = 0;
+        // SAFETY: We are passing the expected arguments in the expected order.
         unsafe { Console::GetConsoleMode(handle.into(), from_mut(&mut mode)) }.into_result()?;
         Ok(mode)
     }
@@ -212,8 +215,10 @@ impl RawConfig {
 
     pub fn write(&self, connection: &RawConnection) -> Result<()> {
         let result1 = Self::write_mode(connection.input(), self.input_modes);
+        // SAFETY: We are passing the expected arguments in the expected order.
         let result2 = unsafe { Console::SetConsoleCP(self.input_encoding) }.into_result();
         let result3 = Self::write_mode(connection.output(), self.output_modes);
+        // SAFETY: We are passing the expected arguments in the expected order.
         let result4 = unsafe { Console::SetConsoleOutputCP(self.output_encoding) }.into_result();
 
         result1.and(result2).and(result3).and(result4)?;
@@ -221,6 +226,7 @@ impl RawConfig {
     }
 
     fn write_mode(handle: impl Into<RawHandle>, mode: ConsoleMode) -> Result<()> {
+        // SAFETY: We are passing the expected arguments in the expected order.
         unsafe { Console::SetConsoleMode(handle.into(), mode) }.into_result()?;
         Ok(())
     }
@@ -283,8 +289,8 @@ impl RawConfig {
     }
 }
 
-impl std::fmt::Debug for RawConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for RawConfig {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut debugger = f.debug_struct("RawConfig");
         for group in ModeGroup::all() {
             debugger.field(group.name(), &IdentList::new(self.labels(&group)));
@@ -332,9 +338,11 @@ impl From<RawInput> for RawHandle {
 
 impl Read for RawInput {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        // SAFETY: We are passing the expected arguments in the expected order.
         let status = unsafe { Threading::WaitForSingleObject(self.handle, self.timeout) };
         if status == Foundation::WAIT_OBJECT_0 {
             let mut did_read: u32 = 0;
+            // SAFETY: We are passing the expected arguments in the expected order.
             unsafe {
                 Console::ReadConsoleA(
                     self.handle,
@@ -393,6 +401,7 @@ impl From<RawOutput> for RawHandle {
 impl Write for RawOutput {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         let mut did_write: u32 = 0;
+        // SAFETY: We are passing the expected arguments in the expected order.
         unsafe {
             Console::WriteConsoleA(
                 self.handle,

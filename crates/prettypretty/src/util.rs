@@ -9,10 +9,10 @@ pub(crate) trait Environment {
 
     /// Try reading the environment variable as a string.
     fn read(&self, key: &str) -> Result<String, std::env::VarError> {
-        match self.read_os(key) {
-            Some(s) => s.into_string().map_err(std::env::VarError::NotUnicode),
-            None => Err(std::env::VarError::NotPresent),
-        }
+        self.read_os(key).map_or_else(
+            || Err(std::env::VarError::NotPresent),
+            |s| s.into_string().map_err(std::env::VarError::NotUnicode),
+        )
     }
 
     /// Determine whether the environment variable is defined.
@@ -22,20 +22,12 @@ pub(crate) trait Environment {
 
     /// Determine whether the environment variable is defined with a non-empty value.
     fn is_non_empty(&self, key: &str) -> bool {
-        if let Some(value) = self.read_os(key) {
-            !value.is_empty()
-        } else {
-            false
-        }
+        self.read_os(key).is_some_and(|v| !v.is_empty())
     }
 
     /// Determine whether the environment variable has the given value.
     fn has_value(&self, key: &str, expected_value: &str) -> bool {
-        if let Some(value) = self.read_os(key) {
-            value == expected_value
-        } else {
-            false
-        }
+        self.read_os(key).is_some_and(|v| v == expected_value)
     }
 }
 

@@ -14,7 +14,7 @@ fn parse_hashed(s: &str) -> Result<[u8; 3], ColorFormatError> {
     fn parse_coordinate(s: &str, index: usize) -> Result<u8, ColorFormatError> {
         let factor = s.len() / 3;
         let t = s
-            .get(1 + factor * index..1 + factor * (index + 1))
+            .get((1 + factor * index)..=(factor * (index + 1)))
             .ok_or(ColorFormatError::UnexpectedCharacters)?;
         let n = u8::from_str_radix(t, 16).map_err(|_| ColorFormatError::MalformedHex)?;
 
@@ -50,7 +50,7 @@ pub(crate) fn parse_x(s: &str) -> Result<[Float; 3], ColorFormatError> {
     }
 
     // SAFETY: we tested for just that prefix above.
-    let mut iter = s.strip_prefix("rgb:").unwrap().split('/');
+    let mut iter = s.strip_prefix("rgb:").expect("was just tested").split('/');
     let c1 = parse_coordinate(iter.next(), 0)?;
     let c2 = parse_coordinate(iter.next(), 1)?;
     let c3 = parse_coordinate(iter.next(), 2)?;
@@ -109,7 +109,7 @@ fn parse_css(s: &str) -> Result<(ColorSpace, [Float; 3]), ColorFormatError> {
         let rest = rest.trim_start();
         COLOR_SPACES
             .iter()
-            .filter_map(|(p, s)| rest.strip_prefix(p).map(|r| (*s, r)))
+            .filter_map(|&(p, s)| rest.strip_prefix(p).map(|r| (s, r)))
             .next() // Take first (and only) result
             .ok_or(ColorFormatError::UnknownColorSpace)?
     };
@@ -199,8 +199,8 @@ fn css_prefix(space: ColorSpace) -> &'static str {
 pub(crate) fn format(
     space: ColorSpace,
     coordinates: &[Float; 3],
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
+    f: &mut core::fmt::Formatter<'_>,
+) -> core::fmt::Result {
     f.write_fmt(format_args!("{}", css_prefix(space)))?;
 
     let mut factor = (10.0 as Float).powi(f.precision().unwrap_or(5) as i32);

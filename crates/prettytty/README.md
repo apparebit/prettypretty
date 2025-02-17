@@ -71,7 +71,7 @@ assert_eq!(pos.1, 17);
     completely refactored, with [`ByteParser`] turning byte strings into
     unsigned integers and [`ByteFormat`] displaying them in one of three
     formats. Also, the new [`Rewriter`] adapts an `std::io::Write` to a
-    `std::fmt::Write`.
+    `core::fmt::Write`.
   * Thanks to more thorough testing, [`RequestBatchMode::parse`],
     [`RequestColor::parse`], and [`RequestCursorPosition::parse`] won't panic on
     invalid payloads anymore, instead returning an error.

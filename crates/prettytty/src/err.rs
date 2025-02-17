@@ -44,7 +44,7 @@ pub enum ErrorKind {
 impl ErrorKind {
     /// Turn the error kind to an error message.
     pub fn as_str(&self) -> &'static str {
-        match self {
+        match *self {
             Self::NoData => "reading terminal input timed out without returning data",
             Self::InFlight => "token is in-flight, hence access to raw bytes is not safe",
             Self::MalformedUtf8 => "malformed UTF-8",
@@ -72,7 +72,7 @@ impl From<ErrorKind> for std::io::Error {
 
 impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Self {
-        Error { kind, source: None }
+        Self { kind, source: None }
     }
 }
 
@@ -85,6 +85,7 @@ pub struct Error {
 
 impl Error {
     /// Create a new unreadable error.
+    #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn unreadable(source: std::io::Error) -> Self {
         Self {
             kind: ErrorKind::Unreadable,
@@ -98,17 +99,17 @@ impl Error {
     }
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.kind.as_str())
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        if let Self {
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        if let &Self {
             kind: ErrorKind::Unreadable,
-            source: Some(error),
+            source: Some(ref error),
         } = self
         {
             Some(error)
@@ -120,7 +121,7 @@ impl std::error::Error for Error {
 
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
-        Error::unreadable(value)
+        Self::unreadable(value)
     }
 }
 
@@ -137,7 +138,9 @@ impl From<Error> for std::io::Error {
             NoData => std::io::ErrorKind::TimedOut.into(),
             InFlight => std::io::ErrorKind::ResourceBusy.into(),
             OutOfMemory => std::io::ErrorKind::OutOfMemory.into(),
-            Unreadable => {
+            Unreadable =>
+            {
+                #[allow(clippy::option_if_let_else)]
                 if let Some(error) = value.source {
                     error
                 } else {
@@ -151,7 +154,7 @@ impl From<Error> for std::io::Error {
 /// Determine whether an operation should be retried.
 ///
 /// This function treats both interrupted and timed out operations as retryable.
-pub fn should_retry<T, E>(result: std::result::Result<T, E>) -> bool
+pub fn should_retry<T, E>(result: core::result::Result<T, E>) -> bool
 where
     E: Into<std::io::Error>,
 {
@@ -164,7 +167,8 @@ where
 }
 
 /// Report the error, including any sources.
-pub fn report<E: std::error::Error>(error: &E) {
+#[allow(clippy::print_stdout)]
+pub fn report<E: core::error::Error>(error: &E) {
     println!(
         "{}{}ERROR: {}{}",
         Format::Bold,
@@ -173,7 +177,7 @@ pub fn report<E: std::error::Error>(error: &E) {
         ResetStyle
     );
 
-    let mut error: &dyn std::error::Error = error;
+    let mut error: &dyn core::error::Error = error;
     while let Some(inner) = error.source() {
         println!("    {}", inner);
         error = inner;
