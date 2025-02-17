@@ -1,8 +1,8 @@
-use std::ffi::c_void;
+use core::ffi::c_void;
 use std::fs::OpenOptions;
 use std::io::{stderr, stdin, stdout, Error, ErrorKind, IsTerminal, Read, Result, Write};
 use std::os::windows::io::{AsRawHandle, OwnedHandle};
-use std::ptr::{from_mut, null};
+use core::ptr::{from_mut, null};
 
 use windows_sys::Win32::Foundation;
 use windows_sys::Win32::Globalization;
@@ -29,16 +29,16 @@ enum RawConnectionHandle {
 
 impl RawConnectionHandle {
     fn input(&self) -> RawHandle {
-        match self {
-            Self::Owned(input, _) => input.as_raw_handle(),
-            Self::StdIo(input, _) => *input,
+        match *self {
+            Self::Owned(ref input, _) => input.as_raw_handle(),
+            Self::StdIo(ref input, _) => *input,
         }
     }
 
     fn output(&self) -> RawHandle {
-        match self {
-            Self::Owned(_, output) => output.as_raw_handle(),
-            Self::StdIo(_, output) => *output,
+        match *self {
+            Self::Owned(_, ref output) => output.as_raw_handle(),
+            Self::StdIo(_, ref output) => *output,
         }
     }
 }
@@ -48,6 +48,7 @@ impl RawConnectionHandle {
 // `Sync`](https://github.com/rust-lang/rust/blob/8e37e151835d96d6a7415e93e6876561485a3354/library/std/src/os/windows/io/handle.rs#L111),
 // for wrapped handles, too. Also, access to raw input is gated by a mutex.
 unsafe impl Send for RawConnectionHandle {}
+// SAFETY: See previous comment.
 unsafe impl Sync for RawConnectionHandle {}
 
 /// A connection to a terminal device.
@@ -128,8 +129,8 @@ enum ModeGroup {
 
 impl ModeGroup {
     pub fn all() -> impl core::iter::Iterator<Item = ModeGroup> {
-        core::iter::successors(Some(Self::Input), |n| {
-            Some(match n {
+        core::iter::successors(Some(Self::Input), |g| {
+            Some(match *g {
                 Self::Input => Self::Output,
                 Self::Output => return None,
             })
@@ -137,7 +138,7 @@ impl ModeGroup {
     }
 
     pub fn name(&self) -> &'static str {
-        match self {
+        match *self {
             Self::Input => "input_modes",
             Self::Output => "output_modes",
         }
@@ -350,7 +351,7 @@ impl Read for RawInput {
             unsafe {
                 Console::ReadConsoleA(
                     self.handle,
-                    buf.as_mut_ptr() as *mut c_void,
+                    buf.as_mut_ptr().cast::<c_void>(),
                     buf.len() as u32,
                     from_mut(&mut did_read),
                     null(),
