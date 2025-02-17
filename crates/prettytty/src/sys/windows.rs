@@ -1,8 +1,8 @@
 use core::ffi::c_void;
+use core::ptr::{from_mut, null};
 use std::fs::OpenOptions;
 use std::io::{stderr, stdin, stdout, Error, ErrorKind, IsTerminal, Read, Result, Write};
 use std::os::windows::io::{AsRawHandle, OwnedHandle};
-use core::ptr::{from_mut, null};
 
 use windows_sys::Win32::Foundation;
 use windows_sys::Win32::Globalization;
