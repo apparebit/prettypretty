@@ -311,11 +311,6 @@ pub struct Input<'a> {
 }
 
 impl<'a> Input<'a> {
-    /// Extract inner scanner.
-    pub(crate) fn into_inner(self) -> MutexGuard<'a, Scanner<Box<dyn Read + Send>>> {
-        self.scanner
-    }
-
     /// Determine whether the input has bytes buffered.
     #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn is_readable(&self) -> bool {

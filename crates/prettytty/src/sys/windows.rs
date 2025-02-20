@@ -244,7 +244,7 @@ impl RawConfig {
             };
         }
 
-        match group {
+        match *group {
             ModeGroup::Input => {
                 for (label, mask) in [
                     ("ENABLE_ECHO_INPUT", Console::ENABLE_ECHO_INPUT),
