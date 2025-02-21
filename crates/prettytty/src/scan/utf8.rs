@@ -1,4 +1,28 @@
-pub(super) fn scan_utf8(bytes: &[u8]) -> core::result::Result<usize, usize> {
+#[allow(dead_code)]
+pub(super) fn is_utf8_start(byte: u8) -> bool {
+    byte < 0x80 || (0xc2..=0xf4).contains(&byte)
+}
+
+#[allow(dead_code)]
+pub(super) fn read_utf8(bytes: &[u8]) -> core::result::Result<(char, usize), usize> {
+    // See https://github.com/rust-lang/rust/blob/master/library/core/src/str/validations.rs
+    const CONTINUATION_MASK: u8 = 0b0011_1111;
+
+    // scan_utf8_length() inspects all bytes of a valid UTF-8 character.
+    let length = scan_utf8_length(bytes)?;
+    assert!(length <= bytes.len());
+
+    let mut codepoint = (bytes[0] & (0x7f >> length)) as u32;
+    for index in 1..length {
+        codepoint = (codepoint << 6) | (bytes[index] & CONTINUATION_MASK) as u32;
+    }
+
+    // SAFETY: scan_utf8_length() validated length bytes as UTF-8, above loop
+    // converted to u32, using same logic as Rust standard library.
+    Ok((unsafe { char::from_u32_unchecked(codepoint) }, length))
+}
+
+pub(super) fn scan_utf8_length(bytes: &[u8]) -> core::result::Result<usize, usize> {
     // See https://github.com/rust-lang/rust/blob/master/library/core/src/str/validations.rs
     let mut index = 0;
     let len = bytes.len();

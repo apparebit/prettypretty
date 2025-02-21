@@ -151,7 +151,7 @@ macro_rules! fuse_sgr {
 // ------------------------------------------------------------------------------------------------
 
 /// Control codes that start or end ANSI escape sequences.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Control {
     /// Bell (C0)
     BEL = 0x07,

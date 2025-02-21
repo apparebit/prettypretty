@@ -6,7 +6,7 @@ mod utf8;
 
 use self::buffer::Buffer;
 use self::machine::{transition, Action, State};
-use self::utf8::scan_utf8;
+use self::utf8::scan_utf8_length;
 
 use super::err::{Error, ErrorKind};
 use super::opt::Options;
@@ -73,6 +73,7 @@ impl<R: std::io::Read> Scanner<R> {
     // Manage the internal buffer
 
     /// Determine whether the scanner's buffer has readable content available.
+    #[inline]
     pub fn is_readable(&self) -> bool {
         self.buffer.is_readable()
     }
@@ -110,6 +111,7 @@ impl<R: std::io::Read> Scanner<R> {
     // Support for reading bytes
 
     /// Determine whether this scanner's state machine is in-flight.
+    #[inline]
     pub fn in_flight(&self) -> bool {
         !matches!(self.state, State::Ground)
     }
@@ -150,7 +152,7 @@ impl<R: std::io::Read> Scanner<R> {
     ///
     /// This method returns a wrapped boolean indicating whether to return a
     /// text token. It also handles malformed UTF-8 errors.
-    fn scan_text(&mut self, batch: bool) -> Result<bool, Error> {
+    fn scan_text(&mut self) -> Result<bool, Error> {
         let mut bytes = self.buffer.peek_many();
         let mut index = 0;
 
@@ -159,12 +161,18 @@ impl<R: std::io::Read> Scanner<R> {
                 break;
             }
 
-            // Oops: So, aggressive linting with Clippy suggest to use an
-            // assertion that preempts repeated bounds checking. But "0 <
-            // bytes.len()" triggers Clippy because it's not idiomatic and
-            // "!bytes.is_empty()" is not recognized by the assertion lint. Oh
-            // and for good measure, we can only add attributes to items, not
-            // macro invocations. Hence, let's create a nested scope.
+            // The first byte of an UTF-8 character is either ASCII or
+            // 0xC2..=0xF4. That means that treating 0x80..0xA0 as C1 does not
+            // interfere with UTF-8 start bytes. That, however, is not possible
+            // for continuation bytes.
+
+            // Oops: Aggressive linting with Clippy suggests to use an assertion
+            // that preempts repeated bounds checking. But "0 < bytes.len()"
+            // triggers Clippy because it's not idiomatic and
+            // "!bytes.is_empty()" is not recognized by the assertion lint. On
+            // top of that, we can only add attributes to items, not macro
+            // invocations. Hence, we create an annotated, nested scope and use
+            // the non-idiomatic test in the assertion.
             #[allow(clippy::len_zero)]
             {
                 assert!(0 < bytes.len(), "a nonempty slice must contain 1 byte");
@@ -173,7 +181,7 @@ impl<R: std::io::Read> Scanner<R> {
                 }
             }
 
-            match scan_utf8(bytes) {
+            match scan_utf8_length(bytes) {
                 Ok(size) => {
                     index += size;
                     bytes = &bytes[size..];
@@ -186,10 +194,6 @@ impl<R: std::io::Read> Scanner<R> {
                         break;
                     }
                 }
-            }
-
-            if !batch {
-                break;
             }
         }
 
@@ -263,12 +267,14 @@ impl<R: std::io::Read> Scanner<R> {
     }
 
     /// Create a control token for the byte.
+    #[inline]
     fn new_control_token(&mut self, byte: u8) -> Result<Token, Error> {
         self.extra[0] = byte;
         Ok(Token::Control(&self.extra))
     }
 
     /// Create a new sequence token.
+    #[inline]
     fn new_sequence_token(&self) -> Result<Token, Error> {
         if self.did_overflow {
             Err(ErrorKind::OutOfMemory.into())
@@ -291,7 +297,7 @@ impl<R: std::io::Read> Scanner<R> {
             }
 
             // Try fast path for text
-            if matches!(self.state, State::Ground) && self.scan_text(true)? {
+            if matches!(self.state, State::Ground) && self.scan_text()? {
                 return Ok(Token::Text(self.buffer.token()));
             }
 
