@@ -57,17 +57,18 @@ impl Layer {
 )]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Fidelity {
-    /// Plain text, no ANSI escape codes
+    /// Plain text, no ANSI escape codes.
     Plain,
-    /// ANSI escape codes but no colors
+    /// ANSI escape codes but no colors.
     NoColor,
-    /// ANSI and default colors only
+    /// ANSI and default colors only.
     Ansi,
-    /// 8-bit indexed colors including ANSI and default colors
+    /// 8-bit indexed colors including ANSI and default colors.
     EightBit,
     /// 24-bit RGB color.
     TwentyFourBit,
-    /// High-resolution colors in arbitrary color spaces
+    /// High-resolution colors in arbitrary color spaces, an aspirational
+    /// terminal feature.
     HiRes,
 }
 

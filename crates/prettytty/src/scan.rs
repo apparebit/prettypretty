@@ -366,7 +366,7 @@ mod test {
     fn test_events() {
         let input = [
             b"a \xe2\x9c\xb6 \x1b[+=+@ \x1bOR \xe2x \x07 ".as_slice(),
-            b"\x1b[31m \x1b[123$$4<=>m \xe2\x81\x82".as_slice(),
+            b"\x1b[31m \x1b[123$$4<=>m \xe2\x81\x82\x1b[38:5:90m".as_slice(),
         ]
         .concat();
         let input = input.as_slice();
@@ -385,6 +385,7 @@ mod test {
             Ok(Token::Text(b" ".as_slice())),
             Err(ErrorKind::MalformedSequence.into()),
             Ok(Token::Text(b" \xe2\x81\x82".as_slice())),
+            Ok(Token::Sequence(Control::CSI, b"38:5:90m".as_slice())),
         ];
 
         let mut scanner = Scanner::with_options(&Options::default(), input);

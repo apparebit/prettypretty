@@ -194,8 +194,9 @@ const fn csi_param(byte: u8) -> (State, Action, Option<Control>) {
 
     match byte {
         0x20..=0x2f => (CsiIntermediate, RetainByte, None),
-        0x30..=0x39 | 0x3b => (CsiParam, RetainByte, None),
-        0x3a | 0x3c..=0x3f => (CsiIgnore, IgnoreByte, None),
+        // The original state machine transitions to CsiIgnore on 0x3a (:) and
+        // 0x3c..=0x3f (<=>?), but those bytes are used in IRL escape sequences.
+        0x30..=0x3f => (CsiParam, RetainByte, None),
         0x40..=0x7e => (Ground, Dispatch, None),
         _ => otherwise(byte, CsiParam),
     }

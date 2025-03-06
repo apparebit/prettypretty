@@ -382,7 +382,7 @@ impl<Q: Query + ?Sized> Query for Box<Q> {
 // ------------------------------------------------------------------------------------------------
 
 /// A text or control sequence token.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Token<'t> {
     /// One or more UTF-8 characters excluding C0 and C1 controls.
     Text(&'t [u8]),

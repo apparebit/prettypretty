@@ -2,7 +2,7 @@
 //!
 //! This module provides a number of straight-forward struct and enum types that
 //! implement the [`Command`] trait and, where needed, also the [`Sgr`] and
-//! [`Query`] traits. Organized by topic, this library covers the following 84
+//! [`Query`] traits. Organized by topic, this library covers the following 86
 //! commands:
 //!
 //!   * Terminal identification:
@@ -19,6 +19,7 @@
 //!       * [`ScrollUp`], [`ScrollDown`], [`DynScrollUp`], and [`DynScrollDown`]
 //!       * [`SetScrollRegion`] and [`DynSetScrollRegion`]
 //!       * [`ResetScrollRegion`]
+//!       * [`EnableAutowrap`] and [`DisableAutowrap`]
 //!   * Cursor management:
 //!       * [`SetCursor::Default`], [`SetCursor::BlinkingBlock`],
 //!         [`SetCursor::SteadyBlock`], [`SetCursor::BlinkingUnderscore`],
@@ -370,6 +371,8 @@ define_cmd_1!(ScrollDown<ROWS: u16>, DynScrollDown, "\x1b[", "S");
 
 define_cmd_2!(SetScrollRegion<TOP: u16, BOTTOM: u16>, DynSetScrollRegion, "\x1b[", "r");
 define_unit_command!(ResetScrollRegion, "\x1b[r");
+define_unit_command!(EnableAutowrap, "\x1b[?7h");
+define_unit_command!(DisableAutowrap, "\x1b[?7l");
 
 // --------------------------------- Cursor Management ---------------------------------
 

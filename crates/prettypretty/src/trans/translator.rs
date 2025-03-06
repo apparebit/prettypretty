@@ -573,10 +573,10 @@ impl Translator {
             }
             Fidelity::TwentyFourBit => {
                 if let Colorant::HiRes(ref hires_color) = *colorant {
-                    Some(Colorant::Rgb(hires_color.into()))
-                } else {
-                    Some(colorant.clone())
+                    return Some(Colorant::Rgb(hires_color.into()));
                 }
+
+                Some(colorant.clone())
             }
             Fidelity::HiRes => Some(colorant.clone()),
         }
@@ -652,7 +652,9 @@ impl Translator {
     pub fn resolve<C: Into<Colorant>>(&self, color: C) -> Color {
         let color = color.into();
         if matches!(color, Colorant::Default()) {
-            panic!("Translator::resolve() cannot process the default colorant; use Translator::resolve_all() instead.")
+            panic!(
+                "Translator::resolve() cannot process the default colorant; use Translator::resolve_all() instead."
+            )
         }
         self.resolve_all(color, Layer::Foreground)
     }

@@ -310,7 +310,7 @@ pub struct Input<'a> {
     pub scanner: MutexGuard<'a, Scanner<Box<dyn Read + Send>>>,
 }
 
-impl<'a> Input<'a> {
+impl Input<'_> {
     /// Determine whether the input has bytes buffered.
     #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn is_readable(&self) -> bool {

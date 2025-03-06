@@ -10,11 +10,14 @@ pub(super) fn read_utf8(bytes: &[u8]) -> core::result::Result<(char, usize), usi
 
     // scan_utf8_length() inspects all bytes of a valid UTF-8 character.
     let length = scan_utf8_length(bytes)?;
-    assert!(length <= bytes.len());
+    assert!(
+        length <= bytes.len(),
+        "buffer does not contain sufficient bytes despite UTF-8 validation"
+    );
 
     let mut codepoint = (bytes[0] & (0x7f >> length)) as u32;
-    for index in 1..length {
-        codepoint = (codepoint << 6) | (bytes[index] & CONTINUATION_MASK) as u32;
+    for byte in bytes.iter().take(length).skip(1) {
+        codepoint = (codepoint << 6) | (byte & CONTINUATION_MASK) as u32;
     }
 
     // SAFETY: scan_utf8_length() validated length bytes as UTF-8, above loop

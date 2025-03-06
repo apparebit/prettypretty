@@ -1290,13 +1290,13 @@ impl Colorant {
         layer: Layer,
     ) -> Result<impl core::fmt::Display + use<'_>, HiResColorantError> {
         if matches!(*self, Self::HiRes(_)) {
-            Err(HiResColorantError)
-        } else {
-            Ok(LayeredColorant {
-                layer,
-                colorant: self,
-            })
+            return Err(HiResColorantError);
         }
+
+        Ok(LayeredColorant {
+            layer,
+            colorant: self,
+        })
     }
 }
 
@@ -1446,11 +1446,11 @@ impl TryFrom<Colorant> for Color {
 
     fn try_from(value: Colorant) -> Result<Self, Self::Error> {
         if let Colorant::HiRes(c) = value {
-            Ok(c)
-        } else {
-            let [r, g, b] = value.try_into()?;
-            Ok(Color::from_24bit(r, g, b))
+            return Ok(c);
         }
+
+        let [r, g, b] = value.try_into()?;
+        Ok(Color::from_24bit(r, g, b))
     }
 }
 
@@ -1470,6 +1470,26 @@ impl core::fmt::Display for LayeredColorant<'_> {
 #[cfg(test)]
 mod test {
     use super::{AnsiColor, Colorant, EmbeddedRgb, GrayGradient, OutOfBoundsError, Rgb};
+    use crate::Color;
+
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    #[test]
+    fn test_size() {
+        assert_eq!(std::mem::size_of::<AnsiColor>(), 1);
+        assert_eq!(std::mem::align_of::<AnsiColor>(), 1);
+
+        assert_eq!(std::mem::size_of::<EmbeddedRgb>(), 3);
+        assert_eq!(std::mem::align_of::<EmbeddedRgb>(), 1);
+
+        assert_eq!(std::mem::size_of::<Rgb>(), 3);
+        assert_eq!(std::mem::align_of::<Rgb>(), 1);
+
+        assert_eq!(std::mem::size_of::<Color>(), 32);
+        assert_eq!(std::mem::align_of::<Color>(), 8);
+
+        assert_eq!(std::mem::size_of::<Colorant>(), 32);
+        assert_eq!(std::mem::align_of::<Colorant>(), 8);
+    }
 
     #[test]
     fn test_conversion() -> Result<(), OutOfBoundsError> {
