@@ -623,7 +623,7 @@ impl IlluminatedObserver {
             minimum,
             maximum,
             checksum: checksum.value(),
-            // SAFETY: Above loop initializes all of data
+            // SAFETY: Above loop initializes all of data through the values alias
             data: unsafe { data.assume_init() },
         }
     }
