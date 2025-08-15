@@ -2,7 +2,7 @@
 //!
 //! This module provides a number of straight-forward struct and enum types that
 //! implement the [`Command`] trait and, where needed, also the [`Sgr`] and
-//! [`Query`] traits. Organized by topic, this library covers the following 86
+//! [`Query`] traits. Organized by topic, this library covers the following 87
 //! commands:
 //!
 //!   * Terminal identification:
@@ -37,11 +37,12 @@
 //!       * [`EraseLine`] and [`EraseRestOfLine`]
 //!       * [`BeginBatch`] and [`EndBatch`] to [group
 //!         updates](https://gist.github.com/christianparpart/d8a62cc1ab659194337d73e399004036)
-//!       * [`RequestBatchMode`]
 //!       * [`BeginPaste`] and [`EndPaste`] to perform
 //!         [bracketed paste](https://cirw.in/blog/bracketed-paste) operations
 //!       * [`DynLink`] to [add
 //!         hyperlinks](https://gist.github.com/christianparpart/180fb3c5f008489c8afcffb3fa46cd8e)
+//!   * Managing modes:
+//!       * [`RequestMode`] and [`DynRequestMode`] to query the status of a mode.
 //!   * Styling content:
 //!       * [`ResetStyle`]
 //!       * [`RequestActiveStyle`]
@@ -454,45 +455,6 @@ impl Query for RequestCursorPosition {
 define_unit_command!(EraseLine, "\x1b[2K");
 define_unit_command!(EraseRestOfLine, "\x1b[K");
 
-/// The current batch processing mode.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BatchMode {
-    NotSupported = 0,
-    Enabled = 1,
-    Disabled = 2,
-    Undefined = 3,
-    PermanentlyDisabled = 4,
-}
-
-define_unit_command!(RequestBatchMode, "\x1b[?2026$p");
-
-impl Query for RequestBatchMode {
-    type Response = BatchMode;
-
-    #[inline]
-    fn control(&self) -> Control {
-        Control::CSI
-    }
-
-    fn parse(&self, payload: &[u8]) -> Result<Self::Response> {
-        let bytes = payload
-            .strip_prefix(b"?2026;")
-            .and_then(|s| s.strip_suffix(b"$y"))
-            .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
-        let response = ByteParser::Decimal
-            .to_u32(bytes)
-            .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
-
-        Ok(match response {
-            0 => BatchMode::NotSupported,
-            1 => BatchMode::Enabled,
-            2 => BatchMode::Disabled,
-            4 => BatchMode::PermanentlyDisabled,
-            _ => BatchMode::Undefined,
-        })
-    }
-}
-
 define_unit_command!(BeginBatch, "\x1b[?2026h");
 define_unit_command!(EndBatch, "\x1b[?2026l");
 
@@ -540,6 +502,74 @@ implement_command!(DynLink: self; f {
     f.write_str(self.2.as_str())?;
     f.write_str("\x1b]8;;\x1b\\")
 });
+
+// --------------------------------------- Modes ---------------------------------------
+
+/// The current batch processing mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModeStatus {
+    NotSupported = 0,
+    Enabled = 1,
+    Disabled = 2,
+    PermanentlyEnabled = 3,
+    PermanentlyDisabled = 4,
+}
+
+define_cmd_1!(RequestMode<MODE: u16>, DynRequestMode, "\x1b[?", "$p");
+
+fn parse_mode_status(payload: &[u8], expected_mode: u16) -> Result<ModeStatus> {
+    let bare_payload = payload
+        .strip_prefix(b"?")
+        .and_then(|s| s.strip_suffix(b"$y"))
+        .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+    let sep = bare_payload
+        .iter()
+        .position(|item| *item == b';')
+        .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+    let mode = ByteParser::Decimal
+        .to_u16(&bare_payload[..sep])
+        .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+    if mode != expected_mode {
+        return Err(Error::from(ErrorKind::InvalidData));
+    }
+    let status = ByteParser::Decimal
+        .to_u16(&bare_payload[sep + 1..])
+        .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+    Ok(match status {
+        0 => ModeStatus::NotSupported,
+        1 => ModeStatus::Enabled,
+        2 => ModeStatus::Disabled,
+        3 => ModeStatus::PermanentlyEnabled,
+        4 => ModeStatus::PermanentlyDisabled,
+        _ => return Err(Error::from(ErrorKind::InvalidData)),
+    })
+}
+
+impl<const MODE: u16> Query for RequestMode<MODE> {
+    type Response = ModeStatus;
+
+    #[inline]
+    fn control(&self) -> Control {
+        Control::CSI
+    }
+
+    fn parse(&self, payload: &[u8]) -> Result<Self::Response> {
+        parse_mode_status(payload, MODE)
+    }
+}
+
+impl Query for DynRequestMode {
+    type Response = ModeStatus;
+
+    #[inline]
+    fn control(&self) -> Control {
+        Control::CSI
+    }
+
+    fn parse(&self, payload: &[u8]) -> Result<Self::Response> {
+        parse_mode_status(payload, self.0)
+    }
+}
 
 // --------------------------------- Style Management ----------------------------------
 
@@ -837,6 +867,24 @@ mod test {
             format!("{}", SetBackground24::<134, 36, 161>),
             "\x1b[48;2;134;36;161m"
         );
+    }
+
+    #[test]
+    fn test_parse_mode_status() -> std::io::Result<()> {
+        let status = RequestMode::<2027>.parse(b"?2027;0$y")?;
+        assert_eq!(status, ModeStatus::NotSupported);
+        let status = RequestMode::<2027>.parse(b"?2027;3$y")?;
+        assert_eq!(status, ModeStatus::PermanentlyEnabled);
+
+        let status = DynRequestMode(2027).parse(b"?2027;2$y")?;
+        assert_eq!(status, ModeStatus::Disabled);
+        let status = DynRequestMode(2027).parse(b"?2027;4$y")?;
+        assert_eq!(status, ModeStatus::PermanentlyDisabled);
+
+        let status = RequestMode::<2002>.parse(b"?2027;3$y");
+        assert!(status.is_err());
+        assert_eq!(status.unwrap_err().kind(), ErrorKind::InvalidData);
+        Ok(())
     }
 
     #[test]
