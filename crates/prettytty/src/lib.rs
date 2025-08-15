@@ -97,6 +97,7 @@ mod api;
 pub mod cmd;
 mod conn;
 pub mod err;
+pub mod event;
 pub mod opt;
 mod read;
 mod scan;
