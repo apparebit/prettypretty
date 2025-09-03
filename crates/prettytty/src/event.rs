@@ -1,4 +1,4 @@
-//! *Incomplete draft support* for keyboard, mouse, and query response events.
+//! *Incomplete draft* of keyboard, mouse, and query response events.
 //!
 //! Where [`Token`]s are an efficient syntactic representation, [`Event`]s are a
 //! somewhat less efficient semantic representation.
