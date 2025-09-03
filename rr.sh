@@ -347,7 +347,7 @@ ooh_special() {
     >&2 printf "\n"
 }
 
-doc() {
+docs() {
     if [ -d docs ]; then
         run mdbook build docs
     fi
@@ -378,8 +378,8 @@ case $target in
         build;;
     check)
         check;;
-    doc)
-        doc;;
+    docs)
+        docs;;
     all)
         build
         check
@@ -391,7 +391,7 @@ case $target in
         exit 0
         ;;
     *)
-        log ERROR "target \"$target\" is not help/install/build/check/doc/all!"
+        log ERROR "target \"$target\" is not help/install/build/check/docs/all!"
         exit 1
         ;;
 esac
