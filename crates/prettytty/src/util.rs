@@ -238,6 +238,9 @@ impl ByteFormat<'_> {
         Ok(characters)
     }
 
+    // Grr, if I add the annotation to the offending for loop over pairs, it is
+    // ineffective.
+    #[allow(clippy::missing_asserts_for_indexing)]
     fn render_hexdump<W>(bytes: &[u8], writer: &mut W) -> Result<usize, fmt::Error>
     where
         W: fmt::Write + ?Sized,
@@ -257,12 +260,11 @@ impl ByteFormat<'_> {
 
             for pair in chunk.chunks(2) {
                 // Allow for uneven number of bytes in final chunk.
-                assert!(!pair.is_empty(), "chunk must not be empty");
+                write!(writer, "{:02x}", pair[0])?;
                 if pair.len() == 1 {
-                    write!(writer, "{:02x}   ", pair[0])?;
+                    write!(writer, "   ")?;
                 } else {
-                    assert!(pair.len() == 2, "chunk has two elements");
-                    write!(writer, "{:02x}{:02x} ", pair[0], pair[1])?;
+                    write!(writer, "{:02x} ", pair[1])?;
                 }
                 characters += 5;
             }

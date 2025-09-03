@@ -144,7 +144,7 @@ impl From<Error> for std::io::Error {
                 if let Some(error) = value.source {
                     error
                 } else {
-                    Self::new(std::io::ErrorKind::Other, value)
+                    Self::other(value)
                 }
             }
         }

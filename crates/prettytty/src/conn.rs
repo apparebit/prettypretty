@@ -166,7 +166,7 @@ impl Connection {
     /// to the terminal's input and output, respectively. Dropping them releases
     /// access again.
     #[inline]
-    pub fn io(&self) -> (Input, Output) {
+    pub fn io(&self) -> (Input<'_>, Output<'_>) {
         (self.input(), self.output())
     }
 
@@ -179,7 +179,7 @@ impl Connection {
     ///
     /// If the underlying mutex has been poisoned.
     #[inline]
-    pub fn input(&self) -> Input {
+    pub fn input(&self) -> Input<'_> {
         Input {
             scanner: self.scanner.lock().expect("can't lock poisoned mutex"),
         }
@@ -194,7 +194,7 @@ impl Connection {
     ///
     /// If the underlying mutex has been poisoned.
     #[inline]
-    pub fn output(&self) -> Output {
+    pub fn output(&self) -> Output<'_> {
         Output {
             writer: self.writer.lock().expect("can't lock poisoned mutex"),
         }
@@ -325,7 +325,7 @@ impl Scan for Input<'_> {
     }
 
     #[inline]
-    fn read_token(&mut self) -> Result<crate::Token> {
+    fn read_token(&mut self) -> Result<crate::Token<'_>> {
         self.scanner.read_token().map_err(core::convert::Into::into)
     }
 }

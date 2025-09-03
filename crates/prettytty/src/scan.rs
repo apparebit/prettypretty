@@ -268,14 +268,14 @@ impl<R: std::io::Read> Scanner<R> {
 
     /// Create a control token for the byte.
     #[inline]
-    fn new_control_token(&mut self, byte: u8) -> Result<Token, Error> {
+    fn new_control_token(&mut self, byte: u8) -> Result<Token<'_>, Error> {
         self.extra[0] = byte;
         Ok(Token::Control(&self.extra))
     }
 
     /// Create a new sequence token.
     #[inline]
-    fn new_sequence_token(&self) -> Result<Token, Error> {
+    fn new_sequence_token(&self) -> Result<Token<'_>, Error> {
         if self.did_overflow {
             Err(ErrorKind::OutOfMemory.into())
         } else {
@@ -289,7 +289,7 @@ impl<R: std::io::Read> Scanner<R> {
     // ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
     /// Read the next token.
-    pub fn read_token(&mut self) -> Result<Token, Error> {
+    pub fn read_token(&mut self) -> Result<Token<'_>, Error> {
         loop {
             // Make sure that we have some bytes to process
             if let Some(0) = self.ensure_readable()? {

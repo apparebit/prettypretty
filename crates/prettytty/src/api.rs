@@ -463,7 +463,7 @@ pub trait Scan: std::io::BufRead {
     /// connection upon invocation. For text tokens, it performs no further
     /// reads. That is, a text token always ends with the currently buffered
     /// data.
-    fn read_token(&mut self) -> Result<Token>;
+    fn read_token(&mut self) -> Result<Token<'_>>;
 
     /// Read the next token as a control sequence.
     ///
@@ -491,7 +491,7 @@ impl<S: Scan + ?Sized> Scan for &mut S {
     }
 
     #[inline]
-    fn read_token(&mut self) -> Result<Token> {
+    fn read_token(&mut self) -> Result<Token<'_>> {
         (**self).read_token()
     }
 }
@@ -504,7 +504,7 @@ impl<S: Scan + ?Sized> Scan for Box<S> {
     }
 
     #[inline]
-    fn read_token(&mut self) -> Result<Token> {
+    fn read_token(&mut self) -> Result<Token<'_>> {
         (**self).read_token()
     }
 }
