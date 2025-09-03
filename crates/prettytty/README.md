@@ -52,7 +52,7 @@ assert_eq!(pos.1, 17);
 
 ## Release History
 
-### v0.3.0 (2025-02-xx)
+### v0.3.0 (2025-09-04)
 
   * The [`Command`] trait now has both `Debug` and `Display` as supertraits.
   * For commands synthesized with [`fuse!`] or [`fuse_sgr!`], the debug trait
@@ -67,14 +67,19 @@ assert_eq!(pos.1, 17);
     illustrates the use of `fuse!`, `Output::exec_defer`, and `Query::run`.
   * [`cmd`] now includes commands for enabling/disabling reverse mode, scrolling
     up and down, setting the scroll region, and setting the cursor appearance.
+    It also replaces the single `RequestBatchMode` query with the
+    mode-independent efficient [`RequestMode`] and general [`DynRequestMode`]
+    queries.
   * [`util`]'s support for parsing and pretty-printing byte strings has been
     completely refactored, with [`ByteParser`] turning byte strings into
     unsigned integers and [`ByteFormat`] displaying them in one of three
     formats. Also, the new [`Rewriter`] adapts an `std::io::Write` to a
     `core::fmt::Write`.
-  * Thanks to more thorough testing, [`RequestBatchMode::parse`],
+  * Thanks to more thorough testing, [`RequestMode::parse`],
     [`RequestColor::parse`], and [`RequestCursorPosition::parse`] won't panic on
     invalid payloads anymore, instead returning an error.
+  * [`event`] is an incomplete and optional draft module adding support for
+    keyboard and mouse events.
 
 
 ### v0.2.2 (2025-02-01)
@@ -127,7 +132,9 @@ as open source under the [Apache
 [`Command`]: https://apparebit.github.io/prettypretty/prettytty/trait.Command.html
 [`Connection`]: https://apparebit.github.io/prettypretty/prettytty/struct.Connection.html
 [`DynLink`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.DynLink.html
+[`DynRequestMode`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.DynRequestMode.html
 [`DynSetWindowTitle`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.DynSetWindowTitle.html
+[`event`]: https://apparebit.github.io/prettypretty/prettytty/event/index.html
 [`fuse!`]: https://apparebit.github.io/prettypretty/prettytty/macro.fuse.html
 [`fuse_sgr!`]: https://apparebit.github.io/prettypretty/prettytty/macro.fuse_sgr.html
 [`Input`]: https://apparebit.github.io/prettypretty/prettytty/struct.Input.html
@@ -136,7 +143,8 @@ as open source under the [Apache
 [`Query`]: https://apparebit.github.io/prettypretty/prettytty/trait.Query.html
 [`Query::parse`]: https://apparebit.github.io/prettypretty/prettytty/trait.Query.html#method.parse
 [`Query::run`]: https://apparebit.github.io/prettypretty/prettytty/trait.Query.html#method.run
-[`RequestBatchMode::parse`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.RequestBatchMode.html#method.parse
+[`RequestMode`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.RequestMode.html
+[`RequestMode::parse`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.RequestMode.html#method.parse
 [`RequestColor::parse`]: https://apparebit.github.io/prettypretty/prettytty/cmd/enum.RequestColor.html#method.parse
 [`RequestCursorPosition::parse`]: https://apparebit.github.io/prettypretty/prettytty/cmd/struct.RequestCursorPosition.html#method.parse
 [`Rewriter`]: https://apparebit.github.io/prettypretty/prettytty/util/struct.Rewriter.html
