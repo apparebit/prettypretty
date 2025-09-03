@@ -28,7 +28,7 @@ jobs:
     env:
       MDBOOK_VERSION: '0.4.40'
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Set up Python 3.12
       uses: actions/setup-python@v5
@@ -67,7 +67,7 @@ jobs:
         rm -rf target/doc/python/.doctrees
 
     - name: Upload documentation
-      uses: actions/upload-pages-artifact@v3
+      uses: actions/upload-pages-artifact@v4
       with:
         name: github-pages
         path: target/doc/
