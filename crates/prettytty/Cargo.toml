@@ -16,7 +16,7 @@ license = "Apache-2.0"
 libc = { version = "0.2.168" }
 
 [target.'cfg(windows)'.dependencies.windows-sys]
-version = "0.59.0"
+version = "0.60.2"
 features = [
     "Win32_Foundation",
     "Win32_Globalization",
