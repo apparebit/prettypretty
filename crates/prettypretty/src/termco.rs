@@ -1169,7 +1169,7 @@ impl Colorant {
     /// Wrap any color as colorant. <i class=python-only>Python only!</i>
     #[cfg(feature = "pyffi")]
     #[staticmethod]
-    pub fn of(#[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant) -> Self {
+    pub fn of(#[pyo3(from_py_with = crate::termco::into_colorant)] colorant: Colorant) -> Self {
         colorant
     }
 

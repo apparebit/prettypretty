@@ -70,17 +70,14 @@ impl Theme {
     }
 
     /// Get the color for the given theme entry.
-    pub fn __getitem__(
-        &self,
-        #[pyo3(from_py_with = "into_theme_entry")] index: ThemeEntry,
-    ) -> Color {
+    pub fn __getitem__(&self, #[pyo3(from_py_with = into_theme_entry)] index: ThemeEntry) -> Color {
         self[index].clone()
     }
 
     /// Set the color for the given theme entry.
     pub fn __setitem__(
         &mut self,
-        #[pyo3(from_py_with = "into_theme_entry")] index: ThemeEntry,
+        #[pyo3(from_py_with = into_theme_entry)] index: ThemeEntry,
         value: Color,
     ) {
         self[index] = value;

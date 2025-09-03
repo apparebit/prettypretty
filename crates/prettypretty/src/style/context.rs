@@ -79,7 +79,7 @@ impl Fidelity {
     #[cfg(feature = "pyffi")]
     #[staticmethod]
     pub fn from_color(
-        #[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant,
+        #[pyo3(from_py_with = crate::termco::into_colorant)] colorant: Colorant,
     ) -> Self {
         colorant.into()
     }
@@ -115,7 +115,7 @@ impl Fidelity {
     #[pyo3(name = "covers")]
     pub fn py_covers(
         &self,
-        #[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant,
+        #[pyo3(from_py_with = crate::termco::into_colorant)] colorant: Colorant,
     ) -> bool {
         self.covers(colorant)
     }

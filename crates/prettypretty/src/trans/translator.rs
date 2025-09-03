@@ -120,7 +120,7 @@ impl Translator {
     #[pyo3(name = "resolve")]
     pub fn py_resolve(
         &self,
-        #[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant,
+        #[pyo3(from_py_with = crate::termco::into_colorant)] colorant: Colorant,
     ) -> Color {
         self.resolve(colorant)
     }
@@ -136,7 +136,7 @@ impl Translator {
     #[pyo3(name = "resolve_all")]
     pub fn py_resolve_all(
         &self,
-        #[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant,
+        #[pyo3(from_py_with = crate::termco::into_colorant)] colorant: Colorant,
         layer: Layer,
     ) -> Color {
         self.resolve_all(colorant, layer)
@@ -609,7 +609,7 @@ impl Translator {
     #[pyo3(name = "cap")]
     pub fn py_cap(
         &self,
-        #[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant,
+        #[pyo3(from_py_with = crate::termco::into_colorant)] colorant: Colorant,
         fidelity: Fidelity,
     ) -> Option<Colorant> {
         self.cap(colorant, fidelity)

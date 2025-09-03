@@ -109,7 +109,7 @@ impl Style {
     #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn py_with_foreground(
         &self,
-        #[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant,
+        #[pyo3(from_py_with = crate::termco::into_colorant)] colorant: Colorant,
     ) -> Self {
         self.with_foreground(colorant)
     }
@@ -120,7 +120,7 @@ impl Style {
     #[must_use = "the only reason to invoke method is to access the returned value"]
     pub fn py_with_background(
         &self,
-        #[pyo3(from_py_with = "crate::termco::into_colorant")] colorant: Colorant,
+        #[pyo3(from_py_with = crate::termco::into_colorant)] colorant: Colorant,
     ) -> Self {
         self.with_background(colorant)
     }
