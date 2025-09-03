@@ -344,6 +344,11 @@ impl<'a, W: ?Sized + 'a> Rewriter<'a, W> {
         }
     }
 
+    /// Determine whether this rewriter wraps an error result.
+    pub fn is_err(&self) -> bool {
+        self.result.is_err()
+    }
+
     /// Consume the rewriter to get its error.
     ///
     /// If the code using this rewriter produced a [`fmt::Error`], this method
