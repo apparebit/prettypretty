@@ -1,21 +1,25 @@
-//! Support for keyboard, mouse, and query response events.
+//! *Incomplete draft support* for keyboard, mouse, and query response events.
+//!
+//! Where [`Token`]s are an efficient syntactic representation, [`Event`]s are a
+//! somewhat less efficient semantic representation.
 //!
 //! # Background
 //!
-//! Prettytty's [`Scan`] trait reads so-called [`Token`]s from terminal input,
-//! largely to distinguish between runs of UTF-8 encoded text and ANSI escape
-//! sequences. To avoid the overhead of heap allocation for every single token,
-//! their payloads draw on the scanner's internal buffer. That necessitates
-//! processing a token's payload before reading the next.
+//! Prettytty's [`crate::Scan`] trait reads so-called [`Token`]s from terminal
+//! input, largely to distinguish between runs of UTF-8 encoded text and ANSI
+//! escape sequences. To avoid the overhead of heap allocation for every single
+//! token, their payloads draw on the scanner's internal buffer. While more
+//! efficient, it also necessitates processing a token's payload before reading
+//! the next.
 //!
-//! By contrast, this module's [`Event`]s are higher-level abstractions, which
-//! often stem from entire ANSI escape sequences. They also are self-contained,
-//! i.e., not restricted by explicit lifetimes, yet lightweight enough to
-//! implement [`Copy`]. They include key, mouse, window, and response-to-query
-//! events. Since not all valid ANSI escape sequences map to this module's
-//! events, [`ScanEvent::read_event`]  method returns [`TokenOrEvent`], with
-//! tokens serving as fallback. Consistent with how hardware terminals treat
-//! unknown escape sequences, an application may simply ignore such tokens.
+//! By contrast, this module's [`Event`]s are higher-level, heavier-weight
+//! abstractions, which often stem from entire ANSI escape sequences. They also
+//! are self-contained, i.e., not restricted by explicit lifetimes, yet
+//! lightweight enough to implement [`Copy`]. They include key, mouse, window,
+//! and response-to-query events. The [`TokenOrEvent`] struct is intended to
+//! accommodate unknown ANSI escape sequences. Consistent with how hardware
+//! terminals treat unknown escape sequences, an application may simply ignore
+//! such tokens.
 //!
 //! Tokens should suffice for applications that only need to process key presses
 //! for letters, numbers, and common symbols—or the occasional ANSI escape
@@ -159,16 +163,15 @@ pub struct MouseEvent {
 }
 
 /// The kind of mouse event.
-///
-/// What [`Press`](MouseEventKind::Press), [`Drag`](MouseEventKind::Drag), and
-/// [`Release`](MouseEventKind::Release) are to mice,
-/// [`Press`](KeyboardEventKind::Press), [`Repeat`](MouseEventKind::Repeat), and
-/// [`Release`](MouseEventKind::Release) are to keyboards.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MouseEventKind {
+    /// Pressing a mouse button.
     Press(MouseButton),
+    /// Keeping a mouse button pressed.
     Drag(MouseButton),
+    /// Releasing a mouse button.
     Release(MouseButton),
+    /// Moving the mouse.
     Move,
 }
 
@@ -191,15 +194,13 @@ pub struct KeyEvent {
 }
 
 /// The kind of key event.
-///
-/// What [`Press`](MouseEventKind::Press), [`Drag`](MouseEventKind::Drag), and
-/// [`Release`](MouseEventKind::Release) are to mice,
-/// [`Press`](KeyboardEventKind::Press), [`Repeat`](MouseEventKind::Repeat), and
-/// [`Release`](MouseEventKind::Release) are to keyboards.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KeyEventKind {
+    /// Pressing a key.
     Press,
+    /// Keeping a key pressed.
     Repeat,
+    /// Releasing a key.
     Release,
 }
 
