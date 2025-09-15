@@ -1,6 +1,6 @@
 # Changelog
 
-## Prettypretty v0.12.0 (2025-09-06)
+## Prettypretty v0.12.0 (2025-09-15)
 
 The interface to spectral distributions has been improved: The new `get()`
 method now returns an optional value, whereas the updated `at()` returns the

@@ -52,7 +52,7 @@ assert_eq!(pos.1, 17);
 
 ## Release History
 
-### v0.3.0 (2025-09-06)
+### v0.3.0 (2025-09-15)
 
   * The [`Command`] trait now has both `Debug` and `Display` as supertraits.
   * For commands synthesized with [`fuse!`] or [`fuse_sgr!`], the debug trait
