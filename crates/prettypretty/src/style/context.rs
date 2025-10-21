@@ -197,11 +197,11 @@ pub(crate) fn fidelity_from_environment(env: &impl Environment, has_tty: bool) -
 
         if c1
             .filter(|c| *c == '9')
-            .and(c2.filter(|c| *c == '.'))
+            .and_then(|_| c2.filter(|c| *c == '.'))
             .or_else(|| {
                 c1.filter(|c| c.is_ascii_digit() && *c != '0')
-                    .and(c2.filter(char::is_ascii_digit))
-                    .and(charity.next().filter(|c| *c == '.'))
+                    .and_then(|_| c2.filter(char::is_ascii_digit))
+                    .and_then(|_| charity.next().filter(|c| *c == '.'))
             })
             .is_some()
         {
@@ -219,7 +219,7 @@ pub(crate) fn fidelity_from_environment(env: &impl Environment, has_tty: bool) -
             if charity
                 .next()
                 .filter(|c| *c == '3')
-                .and(charity.next().filter(|c| *c == '.'))
+                .and_then(|_| charity.next().filter(|c| *c == '.'))
                 .is_some()
             {
                 return Fidelity::TwentyFourBit;
