@@ -43,7 +43,7 @@ impl RawConnectionHandle {
     }
 }
 
-// SAFETY: Windows HANDLE is defined as a *mut c_void but most instances are
+// SAFETY: Windows HANDLE is defined as a `*mut c_void` but most instances are
 // thread-safe. In fact, Rust's standard library [implements `Send` and
 // `Sync`](https://github.com/rust-lang/rust/blob/8e37e151835d96d6a7415e93e6876561485a3354/library/std/src/os/windows/io/handle.rs#L111),
 // for wrapped handles, too. Also, access to raw input is gated by a mutex.
@@ -172,7 +172,8 @@ impl RawConfig {
 
     fn read_mode(handle: impl Into<RawHandle>) -> Result<ConsoleMode> {
         let mut mode = 0;
-        // SAFETY: We are passing the expected arguments in the expected order.
+        // SAFETY: We are passing the expected arguments in the expected order,
+        // a file handle and a pointer to mode flags.
         unsafe { Console::GetConsoleMode(handle.into(), from_mut(&mut mode)) }.into_result()?;
         Ok(mode)
     }

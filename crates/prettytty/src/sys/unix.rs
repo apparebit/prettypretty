@@ -193,7 +193,8 @@ impl RawConfig {
 
     /// Write the configuration.
     pub fn write(&self, connection: &RawConnection) -> Result<()> {
-        // SAFETY: We are passing the expected arguments in the expected order.
+        // SAFETY: We are passing the expected arguments in the expected order,
+        // a file handle, a flag, and a termios data structure.
         unsafe {
             libc::tcsetattr(
                 connection.input().handle(),
@@ -328,7 +329,9 @@ impl RawInput {
 
 impl Read for RawInput {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        // SAFETY: We are passing the expected arguments in the expected order.
+        // SAFETY: We are passing the expected arguments in the expected order,
+        // a file handle, a writeable byte buffer cast to a void pointer, and
+        // the length of the buffer.
         unsafe {
             libc::read(
                 self.handle,
@@ -363,7 +366,9 @@ impl RawOutput {
 
 impl Write for RawOutput {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        // SAFETY: We are passing the expected arguments in the expected order.
+        // SAFETY: We are passing the expected arguments in the expected order,
+        // a file handle, a readable byte buffer cast as a void pointer, and the
+        // buffer length.
         unsafe {
             libc::write(
                 self.handle,
