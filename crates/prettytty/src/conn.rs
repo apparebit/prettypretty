@@ -135,8 +135,7 @@ impl Connection {
             // obviously wrong value as stamp.
             std::time::SystemTime::now()
                 .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                .map(|d| d.subsec_micros())
-                .unwrap_or(0)
+                .map_or(0, |d| d.subsec_micros())
         } else {
             0
         };
