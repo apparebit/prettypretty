@@ -50,7 +50,7 @@ jobs:
 
     - name: Configure GitHub Pages
       id: pages
-      uses: actions/configure-pages@v5
+      uses: actions/configure-pages@v6
 
     - name: Build user guide
       run: mdbook build docs
@@ -67,7 +67,7 @@ jobs:
         rm -rf target/doc/python/.doctrees
 
     - name: Upload documentation
-      uses: actions/upload-pages-artifact@v4
+      uses: actions/upload-pages-artifact@v5
       with:
         name: github-pages
         path: target/doc/
@@ -81,4 +81,4 @@ jobs:
     steps:
     - name: Deploy documentation to GitHub Pages
       id: deployment
-      uses: actions/deploy-pages@v4
+      uses: actions/deploy-pages@v5
